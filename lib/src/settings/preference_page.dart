@@ -30,6 +30,7 @@ class _PreferenceSettingsPageState extends State<PreferenceSettingsPage> {
   final _expandedSections = <PreferenceSectionKey>{};
   var _loading = false;
   var _loadFailed = false;
+  var _loadStarted = false;
 
   @override
   void initState() {
@@ -37,7 +38,17 @@ class _PreferenceSettingsPageState extends State<PreferenceSettingsPage> {
     _snapshot = widget.initialSnapshot ?? PreferenceSettingsSnapshot.defaults();
     if (widget.initialSnapshot == null) {
       _loading = true;
-      unawaited(_loadPreferenceSnapshot());
+    }
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (widget.initialSnapshot == null && !_loadStarted) {
+      _loadStarted = true;
+      unawaited(
+        _loadPreferenceSnapshot(context.smPlayerI18n.t('common.albumUnknown')),
+      );
     }
   }
 
@@ -153,9 +164,11 @@ class _PreferenceSettingsPageState extends State<PreferenceSettingsPage> {
     );
   }
 
-  Future<void> _loadPreferenceSnapshot() async {
+  Future<void> _loadPreferenceSnapshot(String unknownAlbumName) async {
     try {
-      final snapshot = await widget.libraryRepository.getPreferenceSettings();
+      final snapshot = await widget.libraryRepository.getPreferenceSettings(
+        unknownAlbumName: unknownAlbumName,
+      );
       if (!mounted) {
         return;
       }
@@ -284,85 +297,25 @@ class PreferenceSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final i18n = context.smPlayerI18n;
     final visibleItems = expanded ? items : items.take(5).toList();
     final hasInvalid = items.any((item) => !item.isValid);
 
     return _PreferenceSectionFrame(
       title: title,
       counter: '${items.length} / $limit',
-      action: Builder(
-        builder: (context) {
-          final mobile =
-              MediaQuery.sizeOf(context).width <= popupDialogMobileBreakpoint;
-          return Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              _PreferenceSwitch(
-                checked: enabled,
-                showLabel: !mobile,
-                onChanged: (checked) {
-                  onToggleEnabled(section, checked);
-                },
-              ),
-              if (items.length > 5) ...[
-                SizedBox(width: mobile ? 4 : 8),
-                TextButton.icon(
-                  style: TextButton.styleFrom(
-                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    minimumSize: const Size(0, 28),
-                    padding: EdgeInsets.symmetric(horizontal: mobile ? 4 : 8),
-                    foregroundColor: SettingsPageColors.of(context).accent,
-                  ),
-                  onPressed: () {
-                    onToggleExpanded(section);
-                  },
-                  icon: Icon(
-                    expanded
-                        ? FluentIcons.chevron_up_16_regular
-                        : FluentIcons.chevron_down_16_regular,
-                    size: 14,
-                  ),
-                  label: Text(
-                    expanded
-                        ? i18n.t('preferences.collapse')
-                        : i18n.t('preferences.expand'),
-                    style: const TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ),
-              ],
-              if (hasInvalid) ...[
-                SizedBox(width: mobile ? 4 : 8),
-                TextButton(
-                  style: TextButton.styleFrom(
-                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    minimumSize: const Size(0, 28),
-                    padding: const EdgeInsets.symmetric(horizontal: 10),
-                    foregroundColor: SettingsPageColors.of(context).textStrong,
-                    side: BorderSide(
-                      color: SettingsPageColors.of(context).cardBorder,
-                    ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(999),
-                    ),
-                  ),
-                  onPressed: () {
-                    onClearInvalid(section);
-                  },
-                  child: Text(
-                    i18n.t('preferences.clearInvalid'),
-                    style: const TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ),
-              ],
-            ],
-          );
+      action: _PreferenceSectionHeaderActions(
+        enabled: enabled,
+        expanded: expanded,
+        showExpand: items.length > 5,
+        showClearInvalid: hasInvalid,
+        onToggleEnabled: (checked) {
+          onToggleEnabled(section, checked);
+        },
+        onToggleExpanded: () {
+          onToggleExpanded(section);
+        },
+        onClearInvalid: () {
+          onClearInvalid(section);
         },
       ),
       child:
@@ -373,6 +326,105 @@ class PreferenceSection extends StatelessWidget {
                 onUpdateItem: onUpdateItem,
                 onRemoveItem: onRemoveItem,
               ),
+    );
+  }
+}
+
+class _PreferenceSectionHeaderActions extends StatelessWidget {
+  const _PreferenceSectionHeaderActions({
+    required this.enabled,
+    required this.expanded,
+    required this.showExpand,
+    required this.showClearInvalid,
+    required this.onToggleEnabled,
+    required this.onToggleExpanded,
+    required this.onClearInvalid,
+  });
+
+  final bool enabled;
+  final bool expanded;
+  final bool showExpand;
+  final bool showClearInvalid;
+  final ValueChanged<bool> onToggleEnabled;
+  final VoidCallback onToggleExpanded;
+  final VoidCallback onClearInvalid;
+
+  @override
+  Widget build(BuildContext context) {
+    final i18n = context.smPlayerI18n;
+    final colors = SettingsPageColors.of(context);
+    final mobile =
+        MediaQuery.sizeOf(context).width <= popupDialogMobileBreakpoint;
+    final gap = mobile ? 8.0 : 14.0;
+
+    return SizedBox(
+      width: mobile ? 218 : 368,
+      child: Row(
+        children: [
+          SizedBox(width: mobile ? 30 : 48),
+          SizedBox(width: gap),
+          SizedBox(
+            width: mobile ? 44 : 142,
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: _PreferenceSwitch(
+                checked: enabled,
+                showLabel: !mobile,
+                onChanged: onToggleEnabled,
+              ),
+            ),
+          ),
+          SizedBox(width: gap),
+          SizedBox(
+            width: mobile ? 128 : 150,
+            child: Wrap(
+              alignment: WrapAlignment.end,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              spacing: 4,
+              runSpacing: 4,
+              children: [
+                if (showExpand)
+                  TextButton.icon(
+                    style: TextButton.styleFrom(
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      minimumSize: const Size(0, 28),
+                      padding: EdgeInsets.symmetric(horizontal: mobile ? 2 : 6),
+                      foregroundColor: colors.accent,
+                    ),
+                    onPressed: onToggleExpanded,
+                    icon: Icon(
+                      expanded
+                          ? FluentIcons.chevron_up_16_regular
+                          : FluentIcons.chevron_down_16_regular,
+                      size: 14,
+                    ),
+                    label: Text(
+                      expanded
+                          ? i18n.t('preferences.collapse')
+                          : i18n.t('preferences.expand'),
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                if (showClearInvalid)
+                  SmPlayerTextIconButtonTheme(
+                    colors: _settingsActionButtonColors(colors, primary: false),
+                    child: SmPlayerTextIconButton(
+                      label: i18n.t('preferences.clearInvalid'),
+                      onPressed: onClearInvalid,
+                      height: 30,
+                      horizontalPadding: 10,
+                      borderRadius: 8,
+                      fontSize: 12,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -440,104 +492,103 @@ class _PreferenceItemRowState extends State<_PreferenceItemRow> {
     final colors = SettingsPageColors.of(context);
     final item = widget.item;
 
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final compact = constraints.maxWidth < 620;
-        final showRemove =
-            widget.item.canRemove && (_hovered || _removeFocused);
-        return MouseRegion(
-          onEnter: (_) {
-            setState(() {
-              _hovered = true;
-            });
-          },
-          onExit: (_) {
-            setState(() {
-              _hovered = false;
-            });
-          },
-          child: Container(
-            constraints: BoxConstraints(minHeight: compact ? 42 : 48),
-            padding: EdgeInsets.symmetric(horizontal: compact ? 10 : 14),
-            decoration: BoxDecoration(
-              border: Border(
-                top: BorderSide(color: colors.preferenceCardBorder),
-              ),
-              color: colors.preferenceBodySurface,
-            ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Tooltip(
-                    message: item.tooltip,
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          _preferenceItemName(i18n, item),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            color: colors.textStrong,
-                            fontSize: compact ? 13 : 14,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                        if (!item.isValid)
-                          Text(
-                            i18n.t('preferences.invalid'),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              color: SettingsPageColors.danger,
-                              fontSize: compact ? 11 : 12,
-                            ),
-                          ),
-                      ],
+    final compact =
+        MediaQuery.sizeOf(context).width <= popupDialogMobileBreakpoint;
+    final showRemove = widget.item.canRemove && (_hovered || _removeFocused);
+    final rowColor =
+        _hovered
+            ? colors.accentHover
+            : widget.odd
+            ? colors.preferenceBodySurface
+            : colors.preferenceCardSurface;
+    return MouseRegion(
+      onEnter: (_) {
+        setState(() {
+          _hovered = true;
+        });
+      },
+      onExit: (_) {
+        setState(() {
+          _hovered = false;
+        });
+      },
+      child: Container(
+        constraints: BoxConstraints(minHeight: compact ? 42 : 48),
+        padding: EdgeInsets.symmetric(horizontal: compact ? 10 : 14),
+        decoration: BoxDecoration(color: rowColor),
+        child: Row(
+          children: [
+            Expanded(
+              child: Tooltip(
+                message: item.tooltip,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      _preferenceItemName(i18n, item),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: colors.textStrong,
+                        fontSize: compact ? 13 : 14,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
-                  ),
+                    if (!item.isValid)
+                      Text(
+                        i18n.t('preferences.invalid'),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: SettingsPageColors.danger,
+                          fontSize: compact ? 11 : 12,
+                        ),
+                      ),
+                  ],
                 ),
-                SizedBox(width: compact ? 8 : 14),
-                SizedBox(
-                  width: compact ? 30 : 48,
-                  child:
-                      item.canRemove
-                          ? AnimatedOpacity(
-                            duration: const Duration(milliseconds: 140),
-                            opacity: showRemove ? 1 : 0,
+              ),
+            ),
+            SizedBox(width: compact ? 8 : 14),
+            SizedBox(
+              width: compact ? 30 : 48,
+              child:
+                  item.canRemove
+                      ? AnimatedSlide(
+                        duration: const Duration(milliseconds: 140),
+                        curve: Curves.easeOutCubic,
+                        offset:
+                            showRemove ? Offset.zero : const Offset(0.13, 0),
+                        child: AnimatedOpacity(
+                          duration: const Duration(milliseconds: 140),
+                          opacity: showRemove ? 1 : 0,
+                          child: Align(
+                            alignment: Alignment.centerRight,
                             child: Focus(
                               onFocusChange: (focused) {
                                 setState(() {
                                   _removeFocused = focused;
                                 });
                               },
-                              child: IconButton(
+                              child: _PreferenceRemoveButton(
                                 tooltip: i18n.t('playlists.removeSelected'),
-                                icon: const Icon(
-                                  FluentIcons.dismiss_20_regular,
-                                ),
-                                iconSize: 18,
-                                padding: EdgeInsets.zero,
-                                constraints: BoxConstraints.tightFor(
-                                  width: compact ? 28 : 30,
-                                  height: compact ? 28 : 30,
-                                ),
-                                style: IconButton.styleFrom(
-                                  side: BorderSide(color: colors.cardBorder),
-                                  backgroundColor: colors.buttonSurface,
-                                  foregroundColor: colors.textMuted,
-                                ),
+                                compact: compact,
                                 onPressed: () {
                                   widget.onRemoveItem(item);
                                 },
                               ),
                             ),
-                          )
-                          : const SizedBox.shrink(),
-                ),
-                SizedBox(width: compact ? 8 : 14),
-                _PreferenceSwitch(
+                          ),
+                        ),
+                      )
+                      : const SizedBox.shrink(),
+            ),
+            SizedBox(width: compact ? 8 : 14),
+            SizedBox(
+              width: compact ? 44 : 142,
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: _PreferenceSwitch(
                   checked: item.isEnabled,
                   showLabel: !compact,
                   onChanged: (checked) {
@@ -547,21 +598,97 @@ class _PreferenceItemRowState extends State<_PreferenceItemRow> {
                     );
                   },
                 ),
-                SizedBox(width: compact ? 8 : 14),
-                SizedBox(
-                  width: compact ? 124 : 150,
-                  child: PreferenceLevelSelect(
-                    value: item.level,
-                    onChange: (level) {
-                      widget.onUpdateItem(item, item.copyWith(level: level));
-                    },
-                  ),
-                ),
-              ],
+              ),
             ),
-          ),
-        );
+            SizedBox(width: compact ? 8 : 14),
+            SizedBox(
+              width: compact ? 128 : 150,
+              child: PreferenceLevelSelect(
+                value: item.level,
+                onChange: (level) {
+                  widget.onUpdateItem(item, item.copyWith(level: level));
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _PreferenceRemoveButton extends StatefulWidget {
+  const _PreferenceRemoveButton({
+    required this.tooltip,
+    required this.compact,
+    required this.onPressed,
+  });
+
+  final String tooltip;
+  final bool compact;
+  final VoidCallback onPressed;
+
+  @override
+  State<_PreferenceRemoveButton> createState() =>
+      _PreferenceRemoveButtonState();
+}
+
+class _PreferenceRemoveButtonState extends State<_PreferenceRemoveButton> {
+  var _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = SettingsPageColors.of(context);
+    final size = widget.compact ? 28.0 : 34.0;
+    final foreground = _hovered ? colors.accentStrong : colors.textMuted;
+
+    return MouseRegion(
+      onEnter: (_) {
+        setState(() {
+          _hovered = true;
+        });
       },
+      onExit: (_) {
+        setState(() {
+          _hovered = false;
+        });
+      },
+      child: AnimatedSlide(
+        offset: Offset(0, _hovered ? -1 / size : 0),
+        duration: const Duration(milliseconds: 120),
+        curve: Curves.easeOut,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 120),
+          curve: Curves.easeOut,
+          width: size,
+          height: size,
+          decoration: BoxDecoration(
+            color: _hovered ? colors.accentHover : Colors.transparent,
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: IconButton(
+            tooltip: widget.tooltip,
+            icon: const Icon(FluentIcons.dismiss_20_regular),
+            iconSize: widget.compact ? 15 : 18,
+            padding: EdgeInsets.zero,
+            constraints: BoxConstraints.tightFor(width: size, height: size),
+            style: IconButton.styleFrom(
+              minimumSize: Size.square(size),
+              fixedSize: Size.square(size),
+              padding: EdgeInsets.zero,
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              backgroundColor: Colors.transparent,
+              foregroundColor: foreground,
+              hoverColor: Colors.transparent,
+              highlightColor: Colors.transparent,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+            onPressed: widget.onPressed,
+          ),
+        ),
+      ),
     );
   }
 }
@@ -588,6 +715,8 @@ class PreferenceLevelSelect extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final i18n = context.smPlayerI18n;
+    final mobile =
+        MediaQuery.sizeOf(context).width <= popupDialogMobileBreakpoint;
     return _SettingsSelectControl<PreferenceLevel>(
       value: value,
       options:
@@ -600,10 +729,10 @@ class PreferenceLevelSelect extends StatelessWidget {
               )
               .toList(),
       onChange: onChange,
-      height: 36,
+      height: mobile ? 32 : 34,
       borderRadius: 9,
       horizontalPadding: 10,
-      fontWeight: FontWeight.w700,
+      fontWeight: FontWeight.w600,
     );
   }
 }

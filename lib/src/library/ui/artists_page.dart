@@ -27,6 +27,7 @@ import '../data/library_models.dart';
 import '../data/library_providers.dart';
 import 'album_tile.dart' show getAlbumArtworkSong;
 import 'artists_page_model.dart';
+import 'artists_navigation_provider.dart';
 import 'artwork_floating_action_button.dart';
 import 'command_bar.dart';
 import 'menu_flyout.dart';
@@ -71,6 +72,7 @@ part 'artist_album_title_link.dart';
 part 'album_artwork.dart';
 part 'artists_colors.dart';
 part 'artists_page_actions.dart';
+part 'artists_page_browse_history.dart';
 part 'artists_page_data.dart';
 part 'artists_summary_format.dart';
 
@@ -118,6 +120,7 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
   String? _pendingOpenedArtistRoute;
   String? _notifiedMissingTargetArtistName;
   String? _locatedArtistName;
+  String? _recordedBrowseArtistName;
   var _locateArtistPulse = 0;
   var _artistScrollTop = 0.0;
   String? _artistQuickJumpPinnedKey;
@@ -165,15 +168,12 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
     super.dispose();
   }
 
-  void _clearAppBarPortalOwner() {
-    _clearArtistsAppBarPortalOwner(this);
-  }
-
   void _syncAppBarPortal({
     required bool showPortal,
     required String routePath,
     required Widget content,
     required String compactTitle,
+    String? titleTooltip,
     required String layoutSignature,
     required int searchSuggestionCount,
     required int searchHistoryCount,
@@ -185,6 +185,7 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
       routePath: routePath,
       content: content,
       compactTitle: compactTitle,
+      titleTooltip: titleTooltip,
       layoutSignature: layoutSignature,
       searchSuggestionCount: searchSuggestionCount,
       searchHistoryCount: searchHistoryCount,
@@ -194,6 +195,7 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
 
   @override
   Widget build(BuildContext context) {
+    _listenForArtistsListRequests(this);
     final i18nValue = ref.watch(smPlayerI18nProvider);
     final snapshotValue = ref.watch(libraryContentDataProvider);
     final songOverrides = ref.watch(librarySongOverridesProvider);
@@ -221,43 +223,46 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
         _syncAppBarPortal(
           showPortal: true,
           routePath: '/artists',
-          content: _ArtistsAppBarSearchActions(
-            searchOpen: _appBarSearchOpen,
-            artistSearch: _artistSearch,
-            sortCriterion: _artistSortCriterion,
-            i18n: i18n,
-            searchFocused: _artistSearchFocused,
-            searchSuggestions: const [],
-            searchHistoryEntries: const [],
-            onOpenSearch: () {
-              setState(() {
-                _appBarSearchOpen = true;
-                _artistSearchFocused = true;
-              });
-            },
-            onCloseSearch: () {
-              setState(() {
-                _appBarSearchOpen = false;
-                _artistSearchFocused = false;
-              });
-            },
-            onSearchChanged: (value) {
-              setState(() {
-                _artistSearch = value;
-              });
-            },
-            onSearchFocusChanged: _changeArtistSearchFocus,
-            onSearchSubmitted: _recordLoadingArtistSearch,
-            onClearSearch: () {
-              setState(() {
-                _artistSearch = '';
-              });
-            },
-            onSelectSearchSuggestion: _selectArtistSearchQuery,
-            onRemoveRecentSearch: _removeArtistRecentSearch,
-            onClearRecentSearches: _clearArtistRecentSearches,
-            onChangeArtistSort: _changeArtistSort,
-          ),
+          content:
+              widget.targetArtistName != null
+                  ? const SizedBox.shrink()
+                  : _ArtistsAppBarSearchActions(
+                    searchOpen: _appBarSearchOpen,
+                    artistSearch: _artistSearch,
+                    sortCriterion: _artistSortCriterion,
+                    i18n: i18n,
+                    searchFocused: _artistSearchFocused,
+                    searchSuggestions: const [],
+                    searchHistoryEntries: const [],
+                    onOpenSearch: () {
+                      setState(() {
+                        _appBarSearchOpen = true;
+                        _artistSearchFocused = true;
+                      });
+                    },
+                    onCloseSearch: () {
+                      setState(() {
+                        _appBarSearchOpen = false;
+                        _artistSearchFocused = false;
+                      });
+                    },
+                    onSearchChanged: (value) {
+                      setState(() {
+                        _artistSearch = value;
+                      });
+                    },
+                    onSearchFocusChanged: _changeArtistSearchFocus,
+                    onSearchSubmitted: _recordLoadingArtistSearch,
+                    onClearSearch: () {
+                      setState(() {
+                        _artistSearch = '';
+                      });
+                    },
+                    onSelectSearchSuggestion: _selectArtistSearchQuery,
+                    onRemoveRecentSearch: _removeArtistRecentSearch,
+                    onClearRecentSearches: _clearArtistRecentSearches,
+                    onChangeArtistSort: _changeArtistSort,
+                  ),
           compactTitle: i18n.t('library.allArtists'),
           layoutSignature: 'loading',
           searchSuggestionCount: 0,
@@ -361,6 +366,9 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
                   (artist) => artist.name == targetArtistName,
                 )
                 : null;
+        if (targetArtist != null) {
+          _recordBrowseAfterFrame(targetArtist.name);
+        }
         if (!targetArtistAvailable &&
             !visibleArtists.any(
               (artist) => artist.name == _selectedArtistName,
@@ -379,7 +387,8 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
                   _artistSearch,
                 ).take(8).map((artist) => artist.name).toList();
         final artistSearchHistoryEntries = latestSearchHistoryEntries(
-          snapshot.recentSearches,
+          ref.watch(recentSearchesProvider).valueOrNull ??
+              snapshot.recentSearches,
           SearchHistoryType.artists,
         );
         final matchingSelectedArtists =
@@ -467,7 +476,7 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
                               );
                             },
                             onOpenArtistMenu: (position) {
-                              _showGroupContextMenu(
+                              return _showGroupContextMenu(
                                 position: position,
                                 type: _ArtistGroupMenuType.artist,
                                 label: compactSelectedArtist.name,
@@ -481,54 +490,58 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
                 _syncAppBarPortal(
                   showPortal: true,
                   routePath: '/artists',
-                  content: _ArtistsAppBarSearchActions(
-                    searchOpen: _appBarSearchOpen,
-                    artistSearch: _artistSearch,
-                    sortCriterion: _artistSortCriterion,
-                    i18n: i18n,
-                    searchFocused: _artistSearchFocused,
-                    searchSuggestions: artistSearchSuggestions,
-                    searchHistoryEntries: artistSearchHistoryEntries,
-                    onOpenSearch: () {
-                      setState(() {
-                        _appBarSearchOpen = true;
-                        _artistSearchFocused = true;
-                      });
-                    },
-                    onCloseSearch: () {
-                      setState(() {
-                        _appBarSearchOpen = false;
-                        _artistSearchFocused = false;
-                      });
-                    },
-                    onSearchChanged: (value) {
-                      setState(() {
-                        _artistSearch = value;
-                      });
-                    },
-                    onSearchFocusChanged: _changeArtistSearchFocus,
-                    onSearchSubmitted: () {
-                      _submitArtistSearch();
-                      setState(() {
-                        _appBarSearchOpen = false;
-                      });
-                    },
-                    onClearSearch: () {
-                      setState(() {
-                        _artistSearch = '';
-                      });
-                    },
-                    onSelectSearchSuggestion: (query) {
-                      _selectArtistSearchQuery(query);
-                      setState(() {
-                        _appBarSearchOpen = false;
-                      });
-                    },
-                    onRemoveRecentSearch: _removeArtistRecentSearch,
-                    onClearRecentSearches: _clearArtistRecentSearches,
-                    onChangeArtistSort: _changeArtistSort,
-                  ),
+                  content:
+                      targetArtist != null
+                          ? const SizedBox.shrink()
+                          : _ArtistsAppBarSearchActions(
+                            searchOpen: _appBarSearchOpen,
+                            artistSearch: _artistSearch,
+                            sortCriterion: _artistSortCriterion,
+                            i18n: i18n,
+                            searchFocused: _artistSearchFocused,
+                            searchSuggestions: artistSearchSuggestions,
+                            searchHistoryEntries: artistSearchHistoryEntries,
+                            onOpenSearch: () {
+                              setState(() {
+                                _appBarSearchOpen = true;
+                                _artistSearchFocused = true;
+                              });
+                            },
+                            onCloseSearch: () {
+                              setState(() {
+                                _appBarSearchOpen = false;
+                                _artistSearchFocused = false;
+                              });
+                            },
+                            onSearchChanged: (value) {
+                              setState(() {
+                                _artistSearch = value;
+                              });
+                            },
+                            onSearchFocusChanged: _changeArtistSearchFocus,
+                            onSearchSubmitted: () {
+                              _submitArtistSearch();
+                              setState(() {
+                                _appBarSearchOpen = false;
+                              });
+                            },
+                            onClearSearch: () {
+                              setState(() {
+                                _artistSearch = '';
+                              });
+                            },
+                            onSelectSearchSuggestion: (query) {
+                              _selectArtistSearchQuery(query);
+                              setState(() {
+                                _appBarSearchOpen = false;
+                              });
+                            },
+                            onRemoveRecentSearch: _removeArtistRecentSearch,
+                            onClearRecentSearches: _clearArtistRecentSearches,
+                            onChangeArtistSort: _changeArtistSort,
+                          ),
                   compactTitle: compactAppBarTitle,
+                  titleTooltip: compact ? compactSelectedArtist?.name : null,
                   layoutSignature:
                       compact
                           ? 'compact:${compactSelectedArtist?.name ?? ''}'
@@ -582,7 +595,7 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
                       );
                     },
                     onOpenArtistMenu: ({required position, required artist}) {
-                      _showGroupContextMenu(
+                      return _showGroupContextMenu(
                         position: position,
                         type: _ArtistGroupMenuType.artist,
                         label: artist.name,
@@ -613,6 +626,7 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
                     onJumpToArtistKey: _jumpToArtistKey,
                     onPlaySongs: _playShuffledSongIds,
                     onPlayTrack: _playTrackInQueue,
+                    onPlaySong: _moveToMusicOrPlay,
                     onTogglePlayPause:
                         ref
                             .read(mediaControlControllerProvider)
@@ -624,7 +638,7 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
                     onOpenSongAddToMenu: _showSongAddToMenu,
                     onToggleSongSelection: _toggleSongSelection,
                     onOpenSongContextMenu: (position, song) {
-                      _showSongContextMenu(
+                      return _showSongContextMenu(
                         position,
                         song,
                         selectedArtistSongIds,
@@ -750,10 +764,6 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
     );
   }
 
-  void _openArtistDetail(String artistName) {
-    _openArtistDetailForArtistsPage(this, artistName);
-  }
-
   void _submitArtistSearch() {
     final query = _artistSearch.trim();
     if (query.isEmpty) {
@@ -770,12 +780,15 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
         exactMatches.isNotEmpty
             ? exactMatches.first
             : (suggestions.isEmpty ? null : suggestions.first);
+    final recentSearches = ref.read(recentSearchesProvider.notifier);
     unawaited(
       ref
           .read(libraryRepositoryProvider)
           .addRecentSearch(query, SearchHistoryType.artists)
-          .then((_) {
-            invalidateRecentSearchData(ref);
+          .then((entry) {
+            if (entry != null) {
+              return recentSearches.record(entry);
+            }
           }),
     );
     if (targetArtist != null) {
@@ -784,10 +797,6 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
       });
       _openArtistDetail(targetArtist.name);
     }
-  }
-
-  void _updateArtistsPageState(VoidCallback update) {
-    setState(update);
   }
 }
 

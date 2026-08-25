@@ -184,3 +184,39 @@ class _ArtistsAppBarSearchActionsState
     );
   }
 }
+
+class _ArtistsOverflowTooltipText extends StatelessWidget {
+  const _ArtistsOverflowTooltipText({
+    super.key,
+    required this.text,
+    required this.style,
+  });
+
+  final String text;
+  final TextStyle style;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final painter = TextPainter(
+          text: TextSpan(text: text, style: style),
+          maxLines: 1,
+          textDirection: Directionality.of(context),
+          textScaler: TextScaler.noScaling,
+          locale: Localizations.maybeLocaleOf(context),
+        )..layout(maxWidth: constraints.maxWidth);
+        final label = Text(
+          text,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          textScaler: TextScaler.noScaling,
+          style: style,
+        );
+        return painter.didExceedMaxLines
+            ? Tooltip(message: text, child: label)
+            : label;
+      },
+    );
+  }
+}

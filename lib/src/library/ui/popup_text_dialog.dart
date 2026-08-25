@@ -68,6 +68,7 @@ class _PopupTextDialog extends StatefulWidget {
 }
 
 class _PopupTextDialogState extends State<_PopupTextDialog> {
+  final _historyDropdownController = OverlayPortalController();
   late final TextEditingController _controller;
   late final FocusNode _focusNode;
   late List<SearchHistoryEntry> _searchHistoryEntries;
@@ -78,6 +79,7 @@ class _PopupTextDialogState extends State<_PopupTextDialog> {
     super.initState();
     _controller = TextEditingController(text: widget.initialValue);
     _focusNode = FocusNode();
+    _focusNode.addListener(_handleFocusChanged);
     _searchHistoryEntries = widget.searchHistoryEntries.toList();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) {
@@ -93,6 +95,7 @@ class _PopupTextDialogState extends State<_PopupTextDialog> {
 
   @override
   void dispose() {
+    _focusNode.removeListener(_handleFocusChanged);
     _focusNode.dispose();
     _controller.dispose();
     super.dispose();
@@ -100,6 +103,7 @@ class _PopupTextDialogState extends State<_PopupTextDialog> {
 
   @override
   Widget build(BuildContext context) {
+    _syncHistoryDropdown();
     return _InputDialogShell(
       ariaLabel: widget.title,
       child: Column(
@@ -108,36 +112,52 @@ class _PopupTextDialogState extends State<_PopupTextDialog> {
         children: [
           _InputDialogTitle(widget.title),
           const SizedBox(height: 18),
-          PopupDialogTextField(
-            controller: _controller,
-            focusNode: _focusNode,
-            autofocus: true,
-            placeholder: widget.placeholder,
-            errorText: _errorText,
-            onChanged: (_) {
-              if (_errorText.isNotEmpty) {
+          OverlayPortal.overlayChildLayoutBuilder(
+            controller: _historyDropdownController,
+            overlayChildBuilder: (context, info) {
+              final origin = MatrixUtils.transformPoint(
+                info.childPaintTransform,
+                Offset.zero,
+              );
+              return Positioned(
+                left: origin.dx,
+                top: origin.dy + info.childSize.height + 10,
+                width: info.childSize.width,
+                child: TextFieldTapRegion(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxHeight: 260),
+                    child: PageSearchHistoryPanel(
+                      entries: _searchHistoryEntries,
+                      i18n: widget.i18n,
+                      onSelect: _submitSearchHistory,
+                      onRemove: _removeSearchHistory,
+                      onClear: _clearSearchHistory,
+                    ),
+                  ),
+                ),
+              );
+            },
+            child: PopupDialogTextField(
+              controller: _controller,
+              focusNode: _focusNode,
+              autofocus: true,
+              placeholder: widget.placeholder,
+              errorText: _errorText,
+              onChanged: (_) {
                 setState(() {
-                  _errorText = '';
+                  if (_errorText.isNotEmpty) {
+                    _errorText = '';
+                  }
                 });
-              }
-            },
-            onSubmitted: (_) {
-              _submit();
-            },
-          ),
-          if (_searchHistoryEntries.isNotEmpty) ...[
-            const SizedBox(height: 10),
-            ConstrainedBox(
-              constraints: const BoxConstraints(maxHeight: 260),
-              child: PageSearchHistoryPanel(
-                entries: _searchHistoryEntries,
-                i18n: widget.i18n,
-                onSelect: _submitSearchHistory,
-                onRemove: _removeSearchHistory,
-                onClear: _clearSearchHistory,
-              ),
+              },
+              onSubmitted: (_) {
+                _submit();
+              },
+              onTapOutside: (_) {
+                _focusNode.unfocus();
+              },
             ),
-          ],
+          ),
           PopupDialogActions(
             compact: true,
             children: [
@@ -157,6 +177,25 @@ class _PopupTextDialogState extends State<_PopupTextDialog> {
         ],
       ),
     );
+  }
+
+  void _syncHistoryDropdown() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+      if (_focusNode.hasFocus &&
+          _controller.text.trim().isEmpty &&
+          _searchHistoryEntries.isNotEmpty) {
+        _historyDropdownController.show();
+      } else {
+        _historyDropdownController.hide();
+      }
+    });
+  }
+
+  void _handleFocusChanged() {
+    setState(() {});
   }
 
   void _submit() {

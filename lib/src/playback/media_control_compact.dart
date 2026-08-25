@@ -316,16 +316,22 @@ class _CompactMediaControlLayout extends StatelessWidget {
                   utilitySize * utilityButtonCount +
                   utilityGap * (utilityButtonCount - 1) +
                   utilityControlOuterSlack;
-              final transportWidth = narrow ? 176.0 : 208.0;
-              final leadingWidth = (constraints.maxWidth - transportWidth) / 2;
+              final transportWidth = narrow ? 160.0 : 192.0;
+              final transportOpticalOffset = narrow ? 6.0 : 10.0;
+              final leadingWidth =
+                  (constraints.maxWidth - transportWidth) / 2 +
+                  transportOpticalOffset;
 
               return Stack(
                 fit: StackFit.expand,
                 children: [
                   Center(
-                    child: SizedBox(
-                      width: transportWidth,
-                      child: transportControls,
+                    child: Transform.translate(
+                      offset: Offset(transportOpticalOffset, 0),
+                      child: SizedBox(
+                        width: transportWidth,
+                        child: transportControls,
+                      ),
                     ),
                   ),
                   Align(
@@ -460,7 +466,7 @@ void _showPlaybackModeMenu(
 }) {
   showMenuFlyout(
     context,
-    position: _menuFlyoutPositionAboveAnchor(context),
+    anchorPlacement: MenuFlyoutAnchorPlacement.above,
     avoidPlayerBar: false,
     items: buildPlaybackModeMenuFlyoutItems(
       i18n: i18n,
@@ -470,11 +476,6 @@ void _showPlaybackModeMenu(
       onToggleRepeatOne: onToggleRepeatOne,
     ),
   );
-}
-
-Offset _menuFlyoutPositionAboveAnchor(BuildContext context) {
-  final box = context.findRenderObject() as RenderBox;
-  return box.localToGlobal(const Offset(0, -8));
 }
 
 class _CompactMediaProgressRow extends StatefulWidget {

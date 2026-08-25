@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:smplayer_flutter/src/app/app_interaction_colors.dart';
+import 'package:smplayer_flutter/src/app/undoable_notification.dart';
 import 'package:smplayer_flutter/src/app/shell_colors.dart';
 import 'package:smplayer_flutter/src/app/smplayer_vector_icons.dart';
 import 'package:smplayer_flutter/src/app/text_icon_button.dart';
@@ -13,6 +14,7 @@ import 'package:smplayer_flutter/src/app/workspace_app_bar_portal.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/data/library_models.dart';
 import 'package:smplayer_flutter/src/library/data/library_providers.dart';
+import 'package:smplayer_flutter/src/library/ui/album_artwork_dialog.dart';
 import 'package:smplayer_flutter/src/library/ui/album_tile.dart';
 import 'package:smplayer_flutter/src/library/ui/artwork_floating_action_button.dart';
 import 'package:smplayer_flutter/src/library/ui/grid_artwork_card_content.dart';
@@ -27,6 +29,7 @@ import 'package:smplayer_flutter/src/library/ui/music_dialog.dart';
 import 'package:smplayer_flutter/src/library/ui/page_selection_store.dart';
 import 'package:smplayer_flutter/src/library/ui/popup_dialog.dart';
 import 'package:smplayer_flutter/src/library/ui/search_artist_card.dart';
+import 'package:smplayer_flutter/src/library/ui/search_match_text.dart';
 import 'package:smplayer_flutter/src/library/ui/search_page_model.dart';
 import 'package:smplayer_flutter/src/library/ui/song_display_helpers.dart'
     as song_display;
@@ -38,7 +41,6 @@ import 'package:smplayer_flutter/src/playback/playlist_control_item.dart';
 import 'package:smplayer_flutter/src/settings/settings_controller.dart';
 import 'package:smplayer_flutter/src/settings/settings_model.dart';
 
-part 'search_album_art_preview_dialog.dart';
 part 'search_filter_tabs.dart';
 part 'search_page_shell.dart';
 part 'search_result_cards.dart';
@@ -66,6 +68,7 @@ class SearchPage extends ConsumerStatefulWidget {
 class _SearchPageState extends ConsumerState<SearchPage> {
   static const _artistPreviewLimit = 10;
   static const _sectionPreviewLimit = 5;
+  static const _lyricsSearchRevision = 2;
 
   late final SettingsController _settingsController;
   final _selection = PageSelectionController<String>.stored('search');
@@ -75,8 +78,15 @@ class _SearchPageState extends ConsumerState<SearchPage> {
   var _settings = const SettingsSnapshot.defaults();
   late var _activeFilter = searchFilterKeyFromType(widget.activeType);
   MusicDialogEntry? _musicDialog;
+  String? _musicDialogLyricsMatch;
   SearchResult? _albumArtPreview;
   final _expandedSections = <SearchResultType>{};
+  var _lyricsCriterion = SearchSortCriterion.defaultCriterion;
+  var _lyricsMatches = const <LocalLyricsSearchMatch>[];
+  var _lyricsSearchLoading = false;
+  LocalLyricsIndexProgress? _lyricsIndexProgress;
+  String? _lyricsSearchSignature;
+  var _lyricsSearchGeneration = 0;
 
   @override
   void initState() {
@@ -107,11 +117,18 @@ class _SearchPageState extends ConsumerState<SearchPage> {
       _selection.cancel();
       _activeFilter = SearchFilterKey.all;
       _musicDialog = null;
+      _musicDialogLyricsMatch = null;
       _albumArtPreview = null;
+      _lyricsSearchSignature = null;
+      _lyricsSearchGeneration += 1;
+      _lyricsMatches = const [];
+      _lyricsSearchLoading = false;
+      _lyricsIndexProgress = null;
       return;
     }
     if (nextFilter != _activeFilter) {
       _activeFilter = nextFilter;
+      _selection.cancel();
     }
   }
 
@@ -131,6 +148,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
     final signature =
         '$showPortal:$title:$_activeFilter:${results.artists.length}:'
         '${results.albums.length}:${results.songs.length}:'
+        '${results.lyrics.length}:'
         '${results.playlists.length}:${results.folders.length}';
     if (_appBarPortalSignature == signature) {
       return;
@@ -231,6 +249,9 @@ class _SearchPageState extends ConsumerState<SearchPage> {
           rawSnapshot,
           const {},
           songOverrides,
+          ref.watch(libraryPlaylistOverridesProvider),
+          ref.watch(libraryDeletedPlaylistIdsProvider),
+          ref.watch(libraryPlaylistOrderProvider),
         );
         final normalizedQuery = query.toLowerCase();
         final searchFolderPath = _searchFolderPath(
@@ -256,17 +277,42 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                     .toList();
         final searchablePlaylists = buildSearchablePlaylists(
           snapshot.playlists,
-          snapshot.nowPlaying.playlistId,
         );
-        final results = buildSearchResults(
+        final lyricsSavedRevision =
+            ref.watch(lyricsSavedEventProvider)?.revision ?? 0;
+        _syncLocalLyricsSearch(
+          query: query,
+          folderPath: searchFolderPath,
+          lyricsSavedRevision: lyricsSavedRevision,
+          librarySnapshotIdentity: identityHashCode(rawSnapshot),
+        );
+        final metadataResults = buildSearchResults(
           searchableSongs,
           searchableFolders,
           searchablePlaylists,
           snapshot.rootPath,
           normalizedQuery,
           i18n,
+          snapshot.favoritePlaylistId,
+          snapshot.nowPlaying.playlistId,
         );
-        final hasResults = _totalCount(results) > 0;
+        final searchableSongsById = {
+          for (final song in searchableSongs) song.id: song,
+        };
+        final results = SearchResults(
+          artists: metadataResults.artists,
+          albums: metadataResults.albums,
+          songs: metadataResults.songs,
+          lyrics: [
+            for (final match in _lyricsMatches)
+              SearchLyricsResult(
+                song: searchableSongsById[match.songId]!,
+                match: match,
+              ),
+          ],
+          playlists: metadataResults.playlists,
+          folders: metadataResults.folders,
+        );
         final showNavigationAppBar = WorkspaceNavigationAppBarScope.of(context);
         _syncAppBarPortal(
           showPortal: true,
@@ -278,6 +324,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
           artists: _settings.searchArtistsCriterion,
           albums: _settings.searchAlbumsCriterion,
           songs: _settings.searchSongsCriterion,
+          lyrics: _lyricsCriterion,
           playlists: _settings.searchPlaylistsCriterion,
           folders: _settings.searchFoldersCriterion,
         );
@@ -299,7 +346,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
               children: [
                 CustomScrollView(
                   slivers: [
-                    if (query.isEmpty || !hasResults)
+                    if (query.isEmpty)
                       SliverPadding(
                         padding: const EdgeInsets.fromLTRB(
                           _searchPageHorizontalInset,
@@ -309,10 +356,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                         ),
                         sliver: SliverToBoxAdapter(
                           child: _SearchEmptyState(
-                            message:
-                                query.isEmpty
-                                    ? i18n.t('search.enterKeyword')
-                                    : i18n.t('search.noResult'),
+                            message: i18n.t('search.enterKeyword'),
                           ),
                         ),
                       )
@@ -340,9 +384,32 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                         ),
                         sliver: SliverList(
                           delegate: SliverChildListDelegate([
+                            if (_showSearchStatus(
+                              results,
+                              visibleSections,
+                            )) ...[
+                              if (_lyricsSearchLoading &&
+                                  (_activeFilter == SearchFilterKey.all ||
+                                      _activeFilter == SearchFilterKey.lyrics))
+                                _SearchLoadingState(
+                                  message: _lyricsSearchStatusMessage(
+                                    i18n,
+                                    query,
+                                  ),
+                                )
+                              else
+                                _SearchEmptyState(
+                                  message: _lyricsSearchStatusMessage(
+                                    i18n,
+                                    query,
+                                  ),
+                                ),
+                              const SizedBox(height: 18),
+                            ],
                             for (final section in visibleSections) ...[
                               _SearchResultSection(
                                 section: section,
+                                query: query,
                                 i18n: i18n,
                                 activeFilter: _activeFilter,
                                 showCount: snapshot.showCount,
@@ -381,12 +448,22 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                                   _playCard(section.type, card);
                                 },
                                 onPlayTrack: (song, index) {
-                                  _playTrack(
-                                    song,
-                                    index,
-                                    section.songs
-                                        .map((item) => item.id)
-                                        .toList(),
+                                  final queueSongIds =
+                                      section.type == SearchResultType.lyrics
+                                          ? section.lyrics
+                                              .map((item) => item.song.id)
+                                              .toList()
+                                          : section.songs
+                                              .map((item) => item.id)
+                                              .toList();
+                                  _playTrack(song, index, queueSongIds);
+                                },
+                                onPlaySong: (song) {
+                                  insertOrPlayNowPlayingSong(
+                                    ref: ref,
+                                    snapshot: snapshot,
+                                    i18n: i18n,
+                                    songId: song.id,
                                   );
                                 },
                                 onTogglePlayPause:
@@ -438,6 +515,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                                 onOpenArtist: _openArtist,
                                 onOpenAlbum: _openAlbum,
                                 onOpenMusicDialog: _openMusicDialog,
+                                onOpenLyricsMatch: _openLyricsMatch,
                                 onPreviewAlbumArt: _showAlbumArtPreview,
                                 onSearchDirectory: _searchDirectory,
                                 onRevealCard: _revealSearchCard,
@@ -552,6 +630,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                   MusicDialog(
                     song: dialog.song,
                     initialMode: dialog.mode,
+                    initialLyricsMatch: _musicDialogLyricsMatch,
                     currentTrackId: mediaState.trackId,
                     isPlaying: mediaState.isPlaying,
                     queueSongIds: dialog.queueSongIds,
@@ -578,16 +657,22 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                     onClose: () {
                       setState(() {
                         _musicDialog = null;
+                        _musicDialogLyricsMatch = null;
                       });
                     },
                   ),
-                if (_albumArtPreview != null)
-                  _SearchAlbumArtPreviewDialog(
-                    card: _albumArtPreview!,
+                if (_albumArtPreview case final album?)
+                  AlbumArtworkDialog(
+                    albumName: album.title,
+                    artworkUrl: album.artworkUrl,
+                    songId: album.songIds.first,
                     onClose: () {
                       setState(() {
                         _albumArtPreview = null;
                       });
+                    },
+                    onSaved: () {
+                      ref.invalidate(libraryContentDataProvider);
                     },
                   ),
               ],
@@ -602,6 +687,17 @@ class _SearchPageState extends ConsumerState<SearchPage> {
     SearchResults results,
     SearchCriteria criteria,
   ) {
+    final metadataSongIds = results.songs.map((song) => song.id).toSet();
+    final visibleLyrics =
+        _activeFilter == SearchFilterKey.all
+            ? results.lyrics
+                .where((result) => !metadataSongIds.contains(result.song.id))
+                .toList()
+            : results.lyrics;
+    final lyricsCriterion =
+        _activeFilter == SearchFilterKey.all
+            ? SearchSortCriterion.defaultCriterion
+            : criteria.lyrics;
     return [
       _SearchSectionData.cards(
         type: SearchResultType.artists,
@@ -618,6 +714,11 @@ class _SearchPageState extends ConsumerState<SearchPage> {
       _SearchSectionData.songs(
         criterion: criteria.songs,
         songs: sortSearchSongs(results.songs, criteria.songs),
+        previewLimit: _sectionPreviewLimit,
+      ),
+      _SearchSectionData.lyrics(
+        criterion: lyricsCriterion,
+        lyrics: sortSearchLyrics(visibleLyrics, lyricsCriterion),
         previewLimit: _sectionPreviewLimit,
       ),
       _SearchSectionData.cards(
@@ -660,6 +761,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
     final type = searchFilterTypeValue(filter);
     setState(() {
       _activeFilter = filter;
+      _selection.cancel();
     });
     context.go(
       Uri(
@@ -703,6 +805,130 @@ class _SearchPageState extends ConsumerState<SearchPage> {
     });
   }
 
+  void _syncLocalLyricsSearch({
+    required String query,
+    required String folderPath,
+    required int lyricsSavedRevision,
+    required int librarySnapshotIdentity,
+  }) {
+    final signature =
+        '$_lyricsSearchRevision\u0000$query\u0000$folderPath\u0000'
+        '$lyricsSavedRevision\u0000'
+        '$librarySnapshotIdentity';
+    if (_lyricsSearchSignature == signature) {
+      return;
+    }
+    _lyricsSearchSignature = signature;
+    final generation = ++_lyricsSearchGeneration;
+    final queryLength = query.trim().runes.length;
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted || generation != _lyricsSearchGeneration) {
+        return;
+      }
+      if (queryLength < 2) {
+        setState(() {
+          _lyricsMatches = const [];
+          _lyricsSearchLoading = false;
+          _lyricsIndexProgress = null;
+        });
+        _leaveEmptyLyricsFilter();
+        return;
+      }
+
+      setState(() {
+        _lyricsMatches = const [];
+        _lyricsSearchLoading = true;
+        _lyricsIndexProgress = null;
+      });
+      try {
+        final matches = await ref
+            .read(libraryRepositoryProvider)
+            .searchLocalLyrics(
+              query,
+              folderPath: folderPath,
+              onIndexProgress: (progress) {
+                if (!mounted || generation != _lyricsSearchGeneration) {
+                  return;
+                }
+                setState(() {
+                  _lyricsIndexProgress = progress;
+                });
+              },
+            );
+        if (!mounted || generation != _lyricsSearchGeneration) {
+          return;
+        }
+        setState(() {
+          _lyricsMatches = matches;
+          _lyricsSearchLoading = false;
+          _lyricsIndexProgress = null;
+        });
+        if (matches.isEmpty) {
+          _leaveEmptyLyricsFilter();
+        }
+      } catch (_) {
+        if (!mounted || generation != _lyricsSearchGeneration) {
+          return;
+        }
+        setState(() {
+          _lyricsMatches = const [];
+          _lyricsSearchLoading = false;
+          _lyricsIndexProgress = null;
+        });
+        _leaveEmptyLyricsFilter();
+        showAppNotification(
+          context: context,
+          message: context.smPlayerI18n.t('search.lyricsSearchFailed'),
+        );
+      }
+    });
+  }
+
+  void _leaveEmptyLyricsFilter() {
+    if (_activeFilter == SearchFilterKey.lyrics) {
+      _changeFilter(SearchFilterKey.all);
+    }
+  }
+
+  bool _showSearchStatus(
+    SearchResults results,
+    List<_SearchSectionData> visibleSections,
+  ) {
+    if (_activeFilter != SearchFilterKey.all &&
+        _activeFilter != SearchFilterKey.lyrics) {
+      return visibleSections.isEmpty;
+    }
+    if (widget.query.trim().runes.length < 2) {
+      return _activeFilter == SearchFilterKey.lyrics;
+    }
+    if (_lyricsSearchLoading &&
+        (_activeFilter == SearchFilterKey.all ||
+            _activeFilter == SearchFilterKey.lyrics)) {
+      return true;
+    }
+    return _activeFilter == SearchFilterKey.lyrics
+        ? results.lyrics.isEmpty
+        : _totalCount(results) == 0;
+  }
+
+  String _lyricsSearchStatusMessage(SmPlayerI18n i18n, String query) {
+    if (query.trim().runes.length < 2) {
+      return i18n.t('search.lyricsMinimumQuery');
+    }
+    if (_lyricsSearchLoading &&
+        (_activeFilter == SearchFilterKey.all ||
+            _activeFilter == SearchFilterKey.lyrics)) {
+      final progress = _lyricsIndexProgress;
+      return progress == null
+          ? i18n.t('search.lyricsPreparing')
+          : i18n.t('search.lyricsPreparingProgress', {
+            'current': progress.current,
+            'total': progress.total,
+          });
+    }
+    return i18n.t('search.noResult');
+  }
+
   Future<void> _restoreSettings() async {
     await _settingsController.refresh();
     if (!mounted) {
@@ -718,23 +944,24 @@ class _SearchPageState extends ConsumerState<SearchPage> {
     SearchResultType type,
     SearchSortCriterion criterion,
   ) async {
-    final update = switch (type) {
-      SearchResultType.artists => AppSettingsUpdate(
-        searchArtistsCriterion: criterion,
-      ),
-      SearchResultType.albums => AppSettingsUpdate(
-        searchAlbumsCriterion: criterion,
-      ),
-      SearchResultType.songs => AppSettingsUpdate(
-        searchSongsCriterion: criterion,
-      ),
-      SearchResultType.playlists => AppSettingsUpdate(
-        searchPlaylistsCriterion: criterion,
-      ),
-      SearchResultType.folders => AppSettingsUpdate(
-        searchFoldersCriterion: criterion,
-      ),
-    };
+    late final AppSettingsUpdate update;
+    switch (type) {
+      case SearchResultType.lyrics:
+        setState(() {
+          _lyricsCriterion = criterion;
+        });
+        return;
+      case SearchResultType.artists:
+        update = AppSettingsUpdate(searchArtistsCriterion: criterion);
+      case SearchResultType.albums:
+        update = AppSettingsUpdate(searchAlbumsCriterion: criterion);
+      case SearchResultType.songs:
+        update = AppSettingsUpdate(searchSongsCriterion: criterion);
+      case SearchResultType.playlists:
+        update = AppSettingsUpdate(searchPlaylistsCriterion: criterion);
+      case SearchResultType.folders:
+        update = AppSettingsUpdate(searchFoldersCriterion: criterion);
+    }
     await _settingsController.updateSettings(update);
     if (!mounted) {
       return;
@@ -815,9 +1042,13 @@ class _SearchPageState extends ConsumerState<SearchPage> {
   }
 
   int _totalCount(SearchResults results) {
+    final metadataSongIds = results.songs.map((song) => song.id).toSet();
     return results.artists.length +
         results.albums.length +
         results.songs.length +
+        results.lyrics
+            .where((result) => !metadataSongIds.contains(result.song.id))
+            .length +
         results.playlists.length +
         results.folders.length;
   }
@@ -836,6 +1067,12 @@ class _SearchPageState extends ConsumerState<SearchPage> {
       if (section.type == SearchResultType.songs) {
         for (final song in section.songs) {
           if (selectedKeys.contains(_songSelectionKey(song))) {
+            count += 1;
+          }
+        }
+      } else if (section.type == SearchResultType.lyrics) {
+        for (final result in section.lyrics) {
+          if (selectedKeys.contains(_songSelectionKey(result.song))) {
             count += 1;
           }
         }
@@ -862,6 +1099,12 @@ class _SearchPageState extends ConsumerState<SearchPage> {
             songIds.add(song.id);
           }
         }
+      } else if (section.type == SearchResultType.lyrics) {
+        for (final result in section.lyrics) {
+          if (selectedKeys.contains(_songSelectionKey(result.song))) {
+            songIds.add(result.song.id);
+          }
+        }
       } else {
         for (final card in section.cards) {
           if (selectedKeys.contains(
@@ -885,13 +1128,14 @@ class _SearchPageState extends ConsumerState<SearchPage> {
         final params = {'path': card.localFolderRelativePath ?? ''};
         context.go(Uri(path: '/local', queryParameters: params).toString());
       case SearchResultType.songs:
+      case SearchResultType.lyrics:
         break;
     }
   }
 
   void _playCard(SearchResultType type, SearchResult card) {
     if (type == SearchResultType.artists) {
-      ref.read(libraryRepositoryProvider).recordArtistPlayed(card.title);
+      unawaited(recordRecentArtistPlayback(ref, card.title));
     }
     _playSongIds(shuffleSearchSongIds(card.songIds));
   }
@@ -922,7 +1166,8 @@ class _SearchPageState extends ConsumerState<SearchPage> {
 
   void _playNext(LibrarySong song) {
     final snapshot = ref.read(libraryContentDataProvider).value!;
-    final queueSongIds = currentNowPlayingSongIds(ref, snapshot);
+    final previousSongIds = currentNowPlayingSongIds(ref, snapshot);
+    final queueSongIds = previousSongIds.toList();
     queueSongIds.remove(song.id);
     final insertIndex = insertIndexAfterCurrentOccurrence(
       ref.read(mediaControlControllerProvider).state,
@@ -930,10 +1175,24 @@ class _SearchPageState extends ConsumerState<SearchPage> {
     );
     queueSongIds.insert(insertIndex, song.id);
     setNowPlayingQueue(ref, queueSongIds);
+    showPlayNextUndoNotification(
+      context: context,
+      i18n: context.smPlayerI18n,
+      songTitle: song.title,
+      onUndo: () {
+        setNowPlayingQueue(ref, previousSongIds);
+      },
+    );
   }
 
   Future<void> _createPlaylist(String name, List<int> songIds) async {
-    await ref.read(libraryRepositoryProvider).createPlaylist(name, songIds);
+    await createPlaylistAndSync(
+      context: context,
+      ref: ref,
+      i18n: context.smPlayerI18n,
+      name: name,
+      songIds: songIds,
+    );
   }
 
   void _openMusicDialog(
@@ -943,6 +1202,19 @@ class _SearchPageState extends ConsumerState<SearchPage> {
   ) {
     setState(() {
       _musicDialog = (song: song, mode: mode, queueSongIds: queueSongIds);
+      _musicDialogLyricsMatch = null;
+      _albumArtPreview = null;
+    });
+  }
+
+  void _openLyricsMatch(SearchLyricsResult result, List<int> queueSongIds) {
+    setState(() {
+      _musicDialog = (
+        song: result.song,
+        mode: SongDialogMode.lyrics,
+        queueSongIds: queueSongIds,
+      );
+      _musicDialogLyricsMatch = result.match.snippet;
       _albumArtPreview = null;
     });
   }
@@ -951,6 +1223,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
     setState(() {
       _albumArtPreview = card;
       _musicDialog = null;
+      _musicDialogLyricsMatch = null;
     });
   }
 

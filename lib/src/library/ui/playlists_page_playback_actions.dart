@@ -4,11 +4,7 @@ part of 'playlists_page.dart';
 
 extension _PlaylistsPagePlaybackActions on _PlaylistsPageState {
   void _patchNowPlaying(List<int> songIds) {
-    final patchedSongIds = songIds.toList();
-    setState(() {
-      _nowPlayingSongIdsOverride = patchedSongIds;
-    });
-    setNowPlayingQueue(ref, patchedSongIds);
+    setNowPlayingQueue(ref, songIds);
   }
 
   void _playTrack(
@@ -17,8 +13,7 @@ extension _PlaylistsPagePlaybackActions on _PlaylistsPageState {
     int trackId,
     List<int> queueSongIds,
   ) {
-    _patchNowPlaying(queueSongIds);
-    playQueueIndex(
+    replaceNowPlayingQueueAndPlayIndex(
       ref: ref,
       snapshot: snapshot,
       i18n: i18n,
@@ -28,12 +23,22 @@ extension _PlaylistsPagePlaybackActions on _PlaylistsPageState {
   }
 
   void _playNext(LibraryContentData snapshot, int songId) {
-    final queueSongIds = currentNowPlayingSongIds(ref, snapshot);
+    final previousSongIds = currentNowPlayingSongIds(ref, snapshot);
+    final queueSongIds = previousSongIds.toList();
     final currentIndex = currentQueueIndexForPlaybackOccurrence(
       ref.read(mediaControlControllerProvider).state,
       queueSongIds,
     );
     queueSongIds.insert(currentIndex < 0 ? 0 : currentIndex + 1, songId);
     _patchNowPlaying(queueSongIds);
+    final songsById = {for (final song in snapshot.songs) song.id: song};
+    showPlayNextUndoNotification(
+      context: context,
+      i18n: context.smPlayerI18n,
+      songTitle: songsById[songId]!.title,
+      onUndo: () {
+        _patchNowPlaying(previousSongIds);
+      },
+    );
   }
 }

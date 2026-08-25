@@ -17,19 +17,14 @@ class _RecentColors {
   static const playedFilterActiveBorder = Color(0x6b0078d7);
   static const playedFilterActiveSurface = Color(0x240078d7);
   static const playedFilterActiveRing = SmPlayerInteractionColors.hoverSurface;
-  static const artwork = Color(0xffe8eef5);
-  static const artworkIcon = Color(0xff607085);
   static const nightText = Color(0xfff6f9fc);
   static const nightMuted = Color(0xadcbd5e1);
   static const nightSubtle = Color(0x75cbd5e1);
   static const nightBorder = Color(0x1fd6e0ec);
   static const nightAccentText = Color(0xff459de2);
   static const nightControlSurface = Color(0x0effffff);
-  static const nightRecentTabSurface = Color(0x09ffffff);
   static const nightAppBarTabActiveSurface = Color(0x290078d7);
   static const nightAppBarTabActiveBorder = Color(0x570078d7);
-  static const nightRecentTabActiveSurface = Color(0x3d0078d7);
-  static const nightRecentTabActiveBorder = Color(0x7a0078d7);
   static const nightPlayedFilterActiveSurface = Color(0x2e0078d7);
   static const nightPlayedFilterActiveBorder = Color(0x610078d7);
 }
@@ -48,14 +43,8 @@ class RecentThemeColors extends ThemeExtension<RecentThemeColors> {
     required this.appBarTabBorder,
     required this.appBarTabActiveBorder,
     required this.appBarTabRadius,
-    required this.primaryTabsUsePillStyle,
     required this.primaryTabText,
     required this.primaryTabActiveText,
-    required this.primaryTabSurface,
-    required this.primaryTabActiveSurface,
-    required this.primaryTabBorder,
-    required this.primaryTabActiveBorder,
-    required this.primaryTabRadius,
     required this.playedFilterText,
     required this.playedFilterActiveText,
     required this.playedFilterSurface,
@@ -77,14 +66,8 @@ class RecentThemeColors extends ThemeExtension<RecentThemeColors> {
   final Color appBarTabBorder;
   final Color appBarTabActiveBorder;
   final double appBarTabRadius;
-  final bool primaryTabsUsePillStyle;
   final Color primaryTabText;
   final Color primaryTabActiveText;
-  final Color primaryTabSurface;
-  final Color primaryTabActiveSurface;
-  final Color primaryTabBorder;
-  final Color primaryTabActiveBorder;
-  final double primaryTabRadius;
   final Color playedFilterText;
   final Color playedFilterActiveText;
   final Color playedFilterSurface;
@@ -106,14 +89,8 @@ class RecentThemeColors extends ThemeExtension<RecentThemeColors> {
     appBarTabBorder: _RecentColors.appBarTabBorder,
     appBarTabActiveBorder: _RecentColors.appBarTabActiveBorder,
     appBarTabRadius: 10,
-    primaryTabsUsePillStyle: false,
     primaryTabText: _RecentColors.textRootMuted,
     primaryTabActiveText: _RecentColors.accent,
-    primaryTabSurface: Colors.transparent,
-    primaryTabActiveSurface: Colors.transparent,
-    primaryTabBorder: Colors.transparent,
-    primaryTabActiveBorder: Colors.transparent,
-    primaryTabRadius: 0,
     playedFilterText: _RecentColors.textStrong,
     playedFilterActiveText: _RecentColors.accent,
     playedFilterSurface: _RecentColors.appBarTabSurface,
@@ -126,8 +103,8 @@ class RecentThemeColors extends ThemeExtension<RecentThemeColors> {
   );
 
   static const dark = RecentThemeColors(
-    tabsHeight: 46,
-    tabsSpacing: 10,
+    tabsHeight: 54,
+    tabsSpacing: 34,
     appBarTabText: _RecentColors.nightText,
     appBarTabActiveText: _RecentColors.nightAccentText,
     appBarTabSurface: _RecentColors.nightControlSurface,
@@ -137,15 +114,9 @@ class RecentThemeColors extends ThemeExtension<RecentThemeColors> {
     appBarTabHoverBorder: GlobalUI.hoverBorderColorNight,
     appBarTabBorder: _RecentColors.nightBorder,
     appBarTabActiveBorder: _RecentColors.nightAppBarTabActiveBorder,
-    appBarTabRadius: 999,
-    primaryTabsUsePillStyle: true,
+    appBarTabRadius: 10,
     primaryTabText: _RecentColors.nightMuted,
     primaryTabActiveText: _RecentColors.nightAccentText,
-    primaryTabSurface: _RecentColors.nightRecentTabSurface,
-    primaryTabActiveSurface: _RecentColors.nightRecentTabActiveSurface,
-    primaryTabBorder: _RecentColors.nightBorder,
-    primaryTabActiveBorder: _RecentColors.nightRecentTabActiveBorder,
-    primaryTabRadius: 999,
     playedFilterText: _RecentColors.nightText,
     playedFilterActiveText: _RecentColors.nightAccentText,
     playedFilterSurface: _RecentColors.nightControlSurface,

@@ -6,31 +6,53 @@ class _SearchSectionData {
     required this.criterion,
     required this.cards,
     required this.previewLimit,
-  }) : songs = const [];
+  }) : songs = const [],
+       lyrics = const [];
 
   const _SearchSectionData.songs({
     required this.criterion,
     required this.songs,
     required this.previewLimit,
   }) : type = SearchResultType.songs,
-       cards = const [];
+       cards = const [],
+       lyrics = const [];
+
+  const _SearchSectionData.lyrics({
+    required this.criterion,
+    required this.lyrics,
+    required this.previewLimit,
+  }) : type = SearchResultType.lyrics,
+       cards = const [],
+       songs = const [];
 
   final SearchResultType type;
   final SearchSortCriterion criterion;
   final List<SearchResult> cards;
   final List<LibrarySong> songs;
+  final List<SearchLyricsResult> lyrics;
   final int previewLimit;
 
-  int get count => type == SearchResultType.songs ? songs.length : cards.length;
+  int get count => switch (type) {
+    SearchResultType.songs => songs.length,
+    SearchResultType.lyrics => lyrics.length,
+    _ => cards.length,
+  };
 
   List<String> visibleKeys({bool preview = false}) {
     final itemCount = (preview ? count.clamp(0, previewLimit) : count).toInt();
-    return type == SearchResultType.songs
-        ? [for (final song in songs.take(itemCount)) _songSelectionKey(song)]
-        : [
-          for (final card in cards.take(itemCount))
-            getSearchResultCardKey(type, card),
-        ];
+    return switch (type) {
+      SearchResultType.songs => [
+        for (final song in songs.take(itemCount)) _songSelectionKey(song),
+      ],
+      SearchResultType.lyrics => [
+        for (final result in lyrics.take(itemCount))
+          _songSelectionKey(result.song),
+      ],
+      _ => [
+        for (final card in cards.take(itemCount))
+          getSearchResultCardKey(type, card),
+      ],
+    };
   }
 }
 
@@ -44,6 +66,7 @@ String _activeSortLabel(
 class _SearchResultSection extends StatelessWidget {
   const _SearchResultSection({
     required this.section,
+    required this.query,
     required this.i18n,
     required this.activeFilter,
     required this.showCount,
@@ -69,6 +92,7 @@ class _SearchResultSection extends StatelessWidget {
     required this.onPlaySongs,
     required this.onPlayCard,
     required this.onPlayTrack,
+    required this.onPlaySong,
     required this.onTogglePlayPause,
     required this.onPlayNext,
     required this.onAddSongsToNowPlaying,
@@ -80,6 +104,7 @@ class _SearchResultSection extends StatelessWidget {
     required this.onOpenArtist,
     required this.onOpenAlbum,
     required this.onOpenMusicDialog,
+    required this.onOpenLyricsMatch,
     required this.onPreviewAlbumArt,
     required this.onSearchDirectory,
     required this.onRevealCard,
@@ -87,6 +112,7 @@ class _SearchResultSection extends StatelessWidget {
   });
 
   final _SearchSectionData section;
+  final String query;
   final SmPlayerI18n i18n;
   final SearchFilterKey activeFilter;
   final bool showCount;
@@ -114,6 +140,7 @@ class _SearchResultSection extends StatelessWidget {
   final ValueChanged<List<int>> onPlaySongs;
   final ValueChanged<SearchResult> onPlayCard;
   final void Function(LibrarySong, int) onPlayTrack;
+  final ValueChanged<LibrarySong> onPlaySong;
   final VoidCallback onTogglePlayPause;
   final ValueChanged<LibrarySong> onPlayNext;
   final Future<void> Function(List<int>) onAddSongsToNowPlaying;
@@ -125,6 +152,7 @@ class _SearchResultSection extends StatelessWidget {
   final ValueChanged<String> onOpenArtist;
   final ValueChanged<String> onOpenAlbum;
   final void Function(LibrarySong, SongDialogMode, List<int>) onOpenMusicDialog;
+  final void Function(SearchLyricsResult, List<int>) onOpenLyricsMatch;
   final ValueChanged<SearchResult> onPreviewAlbumArt;
   final ValueChanged<SearchResult> onSearchDirectory;
   final Future<void> Function(SearchResult) onRevealCard;
@@ -172,38 +200,41 @@ class _SearchResultSection extends StatelessWidget {
                 ),
                 const SizedBox(width: 6),
               ],
-              Builder(
-                builder: (buttonContext) {
-                  return _SearchSectionActionButton(
-                    icon: FluentIcons.arrow_sort_20_regular,
-                    label: _activeSortLabel(sortOptions, section.criterion),
-                    onPressed: () {
-                      showMenuFlyout(
-                        buttonContext,
-                        items: [
-                          for (final option in sortOptions)
-                            MenuFlyoutItem(
-                              key:
-                                  'search-sort-${section.type}-${option.value}',
-                              text: option.label,
-                              icon:
-                                  option.value == section.criterion
-                                      ? FluentIcons.checkmark_20_regular
-                                      : null,
-                              onPressed: () => onSortChanged(option.value),
-                            ),
-                        ],
-                      );
-                    },
-                  );
-                },
-              ),
+              if (section.type != SearchResultType.lyrics || !preview)
+                Builder(
+                  builder: (buttonContext) {
+                    return _SearchSectionActionButton(
+                      icon: FluentIcons.arrow_sort_20_regular,
+                      label: _activeSortLabel(sortOptions, section.criterion),
+                      onPressed: () {
+                        showMenuFlyout(
+                          buttonContext,
+                          items: [
+                            for (final option in sortOptions)
+                              MenuFlyoutItem(
+                                key:
+                                    'search-sort-${section.type}-${option.value}',
+                                text: option.label,
+                                icon:
+                                    option.value == section.criterion
+                                        ? FluentIcons.checkmark_20_regular
+                                        : null,
+                                onPressed: () => onSortChanged(option.value),
+                              ),
+                          ],
+                        );
+                      },
+                    );
+                  },
+                ),
             ],
           ),
         ),
         const SizedBox(height: 10),
         if (section.type == SearchResultType.songs)
           _buildSongs(context, visibleCount)
+        else if (section.type == SearchResultType.lyrics)
+          _buildLyrics(context, visibleCount)
         else
           _buildCards(context, visibleCount),
       ],
@@ -216,6 +247,7 @@ class _SearchResultSection extends StatelessWidget {
         SearchResultType.artists => i18n.t('common.artists'),
         SearchResultType.albums => i18n.t('common.albums'),
         SearchResultType.songs => i18n.t('common.songs'),
+        SearchResultType.lyrics => i18n.t('nowPlaying.lyrics'),
         SearchResultType.playlists => i18n.t('common.playlists'),
         SearchResultType.folders => i18n.t('common.folders'),
       };
@@ -229,6 +261,9 @@ class _SearchResultSection extends StatelessWidget {
         'count': count,
       }),
       SearchResultType.songs => i18n.t('search.songsWithCount', {
+        'count': count,
+      }),
+      SearchResultType.lyrics => i18n.t('search.lyricsWithCount', {
         'count': count,
       }),
       SearchResultType.playlists => i18n.t('search.playlistsWithCount', {
@@ -253,10 +288,14 @@ class _SearchResultSection extends StatelessWidget {
             selected: selection.isSelected(_songSelectionKey(songs[index])),
             selectionMode: selection.multiSelect,
             variant: PlaylistControlItemVariant.headeredPlaylist,
+            searchQuery: query,
             playNextLabel: i18n.t('context.playNext'),
             removeLabel: i18n.t('nowPlaying.remove'),
-            onPlayTrack: () {
+            onActivateRow: () {
               onPlayTrack(songs[index], index);
+            },
+            onPlayTrack: () {
+              onPlaySong(songs[index]);
             },
             onTogglePlayPause: onTogglePlayPause,
             onToggleSelection: () {
@@ -273,7 +312,7 @@ class _SearchResultSection extends StatelessWidget {
               onOpenAlbum(song_display.displayAlbum(songs[index], i18n));
             },
             onOpenContextMenu: (position) {
-              _showSongContextMenu(
+              return _showSongContextMenu(
                 context,
                 position,
                 songs[index],
@@ -281,6 +320,77 @@ class _SearchResultSection extends StatelessWidget {
               );
             },
           ),
+      ],
+    );
+  }
+
+  Widget _buildLyrics(BuildContext context, int visibleCount) {
+    final results = section.lyrics.take(visibleCount).toList();
+    final queueSongIds =
+        section.lyrics.map((result) => result.song.id).toList();
+    return Column(
+      children: [
+        for (var index = 0; index < results.length; index += 1) ...[
+          PlaylistControlItem(
+            key: ValueKey('search-lyrics-${results[index].song.id}'),
+            song: results[index].song,
+            current: results[index].song.id == currentTrackId,
+            playing: results[index].song.id == currentTrackId && isPlaying,
+            selected: selection.isSelected(
+              _songSelectionKey(results[index].song),
+            ),
+            selectionMode: selection.multiSelect,
+            variant: PlaylistControlItemVariant.headeredPlaylist,
+            searchQuery: '',
+            showBottomBorder: false,
+            playNextLabel: i18n.t('context.playNext'),
+            removeLabel: i18n.t('nowPlaying.remove'),
+            onActivateRow: () {
+              onPlayTrack(results[index].song, index);
+            },
+            onPlayTrack: () {
+              onPlaySong(results[index].song);
+            },
+            onTogglePlayPause: onTogglePlayPause,
+            onToggleSelection: () {
+              selection.toggle(_songSelectionKey(results[index].song));
+              onSelectionChanged();
+            },
+            onPlayNextClick: () {
+              onPlayNext(results[index].song);
+            },
+            onSeeArtist: onOpenArtist,
+            onSeeAlbum: () {
+              onOpenAlbum(song_display.displayAlbum(results[index].song, i18n));
+            },
+            onOpenContextMenu: (position) {
+              return _showSongContextMenu(
+                context,
+                position,
+                results[index].song,
+                queueSongIds,
+              );
+            },
+          ),
+          _SearchLyricsExcerpt(
+            text: results[index].match.contextLines.join('\n'),
+            query: query,
+            trailing:
+                results[index].match.additionalMatchCount == 0
+                    ? null
+                    : i18n.t('search.additionalLyricsMatches', {
+                      'count': results[index].match.additionalMatchCount,
+                    }),
+            onTap: () {
+              if (selection.multiSelect) {
+                selection.toggle(_songSelectionKey(results[index].song));
+                onSelectionChanged();
+                return;
+              }
+              onOpenLyricsMatch(results[index], queueSongIds);
+            },
+          ),
+        ],
       ],
     );
   }
@@ -294,6 +404,7 @@ class _SearchResultSection extends StatelessWidget {
           for (final card in section.cards.take(visibleCount))
             AlbumTile(
               album: getSearchAlbumTileData(card, songsById, i18n),
+              searchQuery: query,
               multiSelect: selection.multiSelect,
               selected: selection.isSelected(
                 getSearchResultCardKey(section.type, card),
@@ -312,7 +423,7 @@ class _SearchResultSection extends StatelessWidget {
                 onSelectionChanged();
               },
               onOpenContextMenu: (position) {
-                _showCardContextMenu(context, position, card);
+                return _showCardContextMenu(context, position, card);
               },
             ),
         ],
@@ -337,6 +448,7 @@ class _SearchResultSection extends StatelessWidget {
                 final selected = selection.isSelected(cardKey);
                 return GridViewHolder(
                   playlist: playlist,
+                  searchQuery: query,
                   songs: playlistSongs,
                   subtitle: i18n.t('playlists.songCount', {
                     'count': playlist.songCount,
@@ -364,7 +476,7 @@ class _SearchResultSection extends StatelessWidget {
                     onPlaySongs(playlistSongs.map((song) => song.id).toList());
                   },
                   onContextMenu: (position) {
-                    _showCardContextMenu(context, position, card);
+                    return _showCardContextMenu(context, position, card);
                   },
                 );
               },
@@ -383,6 +495,7 @@ class _SearchResultSection extends StatelessWidget {
                 case final folder?)
               LocalFolderCard(
                 folder: folder,
+                searchQuery: query,
                 selected: selection.isSelected(
                   getSearchResultCardKey(section.type, card),
                 ),
@@ -428,6 +541,7 @@ class _SearchResultSection extends StatelessWidget {
               return _SearchResultCard(
                 card: card,
                 type: section.type,
+                query: query,
                 selected: selection.isSelected(
                   getSearchResultCardKey(section.type, card),
                 ),
@@ -443,7 +557,7 @@ class _SearchResultSection extends StatelessWidget {
                   onSelectionChanged();
                 },
                 onOpenContextMenu: (position) {
-                  _showCardContextMenu(context, position, card);
+                  return _showCardContextMenu(context, position, card);
                 },
               );
             },
@@ -462,12 +576,13 @@ class _SearchResultSection extends StatelessWidget {
     if (!context.mounted) {
       return;
     }
-    showMenuFlyout(
+    await showMenuFlyout(
       context,
       position: position,
       items: buildMusicMenuFlyoutItems(
         i18n: i18n,
         songId: song.id,
+        songTitle: song.title,
         isFavorite: song.favorite,
         isCurrentTrack: song.id == currentTrackId,
         isPlaying: isPlaying,
@@ -484,7 +599,7 @@ class _SearchResultSection extends StatelessWidget {
         onPlay: () {
           onPlaySongs([song.id]);
         },
-        onPause: onTogglePlayPause,
+        onTogglePlayPause: onTogglePlayPause,
         onPlayNext: () {
           onPlayNext(song);
         },
@@ -518,7 +633,6 @@ class _SearchResultSection extends StatelessWidget {
         onDelete: () {
           onDeleteSong(song);
         },
-        onHide: () {},
         onSeeArtist: () {
           final artist = song_display.primaryDisplayArtist(
             song,
@@ -581,7 +695,7 @@ class _SearchResultSection extends StatelessWidget {
       },
     );
 
-    showMenuFlyout(
+    await showMenuFlyout(
       context,
       position: position,
       items: [
@@ -721,6 +835,85 @@ class _SearchSectionActionButton extends StatelessWidget {
   }
 }
 
+class _SearchLyricsExcerpt extends StatelessWidget {
+  const _SearchLyricsExcerpt({
+    required this.text,
+    required this.query,
+    required this.trailing,
+    required this.onTap,
+  });
+
+  final String text;
+  final String query;
+  final String? trailing;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = SearchPageThemeColors.of(context);
+    final horizontalInset =
+        MediaQuery.sizeOf(context).width <= 720 ? 10.0 : 18.0;
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        border: Border(bottom: BorderSide(color: colors.subtleBorder)),
+      ),
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(horizontalInset, 8, horizontalInset, 14),
+        child: MouseRegion(
+          cursor: SystemMouseCursors.click,
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: onTap,
+            child: SizedBox(
+              width: double.infinity,
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  color: colors.textMuted.withValues(alpha: 0.075),
+                  borderRadius: BorderRadius.circular(7),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      SearchMatchText(
+                        text: text,
+                        query: query,
+                        maxLines: 3,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: colors.textMuted,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
+                          height: 1.35,
+                        ),
+                      ),
+                      if (trailing case final value?) ...[
+                        const SizedBox(height: 5),
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: Text(
+                            value,
+                            style: TextStyle(
+                              color: colors.textMuted.withValues(alpha: 0.82),
+                              fontSize: 11,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 String? _searchResultPreferenceType(SearchResultType type) {
   return switch (type) {
     SearchResultType.artists => 'artist',
@@ -728,6 +921,7 @@ String? _searchResultPreferenceType(SearchResultType type) {
     SearchResultType.playlists => 'playlist',
     SearchResultType.folders => 'folder',
     SearchResultType.songs => null,
+    SearchResultType.lyrics => null,
   };
 }
 
@@ -742,6 +936,7 @@ SearchFilterKey _filterForSection(SearchResultType type) {
     SearchResultType.artists => SearchFilterKey.artists,
     SearchResultType.albums => SearchFilterKey.albums,
     SearchResultType.songs => SearchFilterKey.songs,
+    SearchResultType.lyrics => SearchFilterKey.lyrics,
     SearchResultType.playlists => SearchFilterKey.playlists,
     SearchResultType.folders => SearchFilterKey.folders,
   };

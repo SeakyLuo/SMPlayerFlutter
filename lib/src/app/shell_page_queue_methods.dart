@@ -84,6 +84,16 @@ extension _SmPlayerShellQueueMethods on _SmPlayerShellPageState {
     if (nextIndex == null) {
       return false;
     }
+    if (automatic && nextIndex == currentIndex) {
+      unawaited(
+        _audioPlayer.seek(Duration.zero).then((_) => _audioPlayer.play()),
+      );
+      _syncingAudioPlayer = true;
+      _mediaControlController.syncPlaybackProgress(0);
+      _mediaControlController.setPlaybackActive(true);
+      _syncingAudioPlayer = false;
+      return true;
+    }
 
     return _playQueueIndex(snapshot, playbackSongIds, nextIndex);
   }
@@ -184,8 +194,7 @@ extension _SmPlayerShellQueueMethods on _SmPlayerShellPageState {
     if (songIds.isEmpty) {
       return;
     }
-    final repository = ref.read(libraryRepositoryProvider);
-    await repository.recordPlaylistPlayed(playlistId);
+    await recordRecentPlaylistPlayback(ref, playlistId);
     replaceNowPlayingQueueAndPlayIndex(
       ref: ref,
       snapshot: snapshot,

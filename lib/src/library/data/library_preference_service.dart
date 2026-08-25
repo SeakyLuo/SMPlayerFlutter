@@ -113,14 +113,16 @@ class LibraryPreferenceService {
   }
 
   Future<PreferenceSettingsSnapshot> getPreferenceSettings(
-    File databaseFile,
-  ) async {
+    File databaseFile, {
+    required String unknownAlbumName,
+  }) async {
     if (!databaseFile.existsSync()) {
       return PreferenceSettingsSnapshot.defaults();
     }
 
     final db = sqlite3.open(databaseFile.path);
     try {
+      _migrateUnknownAlbumPreference(db, unknownAlbumName);
       final setting = _ensurePreferenceSetting(db);
       final rows = db.select(
         '''
@@ -536,7 +538,7 @@ class LibraryPreferenceService {
       case PreferenceEntityType.album:
         return (
           name: itemName.isEmpty ? itemId : itemName,
-          tooltip: itemId,
+          tooltip: itemId.isEmpty ? itemName : itemId,
           isValid: (row['albumValid'] as int) != 0,
         );
       case PreferenceEntityType.playlist:
@@ -585,6 +587,63 @@ class LibraryPreferenceService {
       PreferenceEntityType.playlist ||
       PreferenceEntityType.folder => row['itemId'] as String,
     };
+  }
+
+  void _migrateUnknownAlbumPreference(Database db, String unknownAlbumName) {
+    const albumType = 2;
+    db.execute(
+      '''
+      UPDATE PreferenceItem
+      SET State = ?
+      WHERE Type = ?
+        AND ItemId = ?
+        AND State = ?
+        AND NOT EXISTS (
+          SELECT 1
+          FROM Music
+          WHERE Music.Album = PreferenceItem.ItemId
+            AND Music.State = ?
+        )
+        AND EXISTS (
+          SELECT 1
+          FROM PreferenceItem AS ExistingPreference
+          WHERE ExistingPreference.Type = ?
+            AND ExistingPreference.ItemId = ''
+            AND ExistingPreference.State = ?
+        )
+    ''',
+      [
+        _inactiveState,
+        albumType,
+        unknownAlbumName,
+        _activeState,
+        _activeState,
+        albumType,
+        _activeState,
+      ],
+    );
+    db.execute(
+      '''
+      UPDATE PreferenceItem
+      SET ItemId = ''
+      WHERE Type = ?
+        AND ItemId = ?
+        AND State = ?
+        AND NOT EXISTS (
+          SELECT 1
+          FROM Music
+          WHERE Music.Album = PreferenceItem.ItemId
+            AND Music.State = ?
+        )
+        AND EXISTS (
+          SELECT 1
+          FROM Music
+          WHERE Music.Album = ''
+            AND Music.State = ?
+        )
+    ''',
+      [albumType, unknownAlbumName, _activeState, _activeState, _activeState],
+    );
   }
 
   List<PreferenceItemSnapshot> _preferenceItemsByType(

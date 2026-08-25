@@ -113,6 +113,10 @@ class LibraryLyricsService {
     return File(filePath).readAsString();
   }
 
+  Future<LyricsSnapshot> getLocalLyricsForPath(String songPath) {
+    return _getSongLyricsByPath(songPath);
+  }
+
   Future<void> saveSongLyrics(
     File databaseFile,
     int songId,
@@ -247,6 +251,9 @@ class LibraryLyricsService {
         if (lastRequestStartedAt.millisecondsSinceEpoch > 0 && elapsed < 200) {
           await Future<void>.delayed(Duration(milliseconds: 200 - elapsed));
         }
+        if (isCanceled?.call() == true) {
+          break;
+        }
         lastRequestStartedAt = DateTime.now();
         final internetLyrics =
             _internetLyricsResolver == null
@@ -260,6 +267,9 @@ class LibraryLyricsService {
                   ),
                 )
                 : await _internetLyricsResolver(song);
+        if (isCanceled?.call() == true) {
+          break;
+        }
 
         if (internetLyrics.trim().isEmpty) {
           missing += 1;

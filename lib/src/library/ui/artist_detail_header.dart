@@ -15,7 +15,7 @@ class _ArtistDetailHeader extends StatelessWidget {
   final bool responsive;
   final SmPlayerI18n i18n;
   final VoidCallback onPlaySongs;
-  final ValueChanged<Offset> onOpenArtistMenu;
+  final FutureOr<void> Function(Offset) onOpenArtistMenu;
 
   @override
   Widget build(BuildContext context) {
@@ -58,12 +58,9 @@ class _ArtistDetailHeader extends StatelessWidget {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(
+                            _ArtistsOverflowTooltipText(
                               key: const ValueKey('Artists.DetailHeader.Title'),
-                              artist.name,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              textScaler: TextScaler.noScaling,
+                              text: artist.name,
                               style: TextStyle(
                                 color: _ArtistsColors.textStrongFor(brightness),
                                 fontSize: 28,

@@ -6,9 +6,16 @@ import 'package:smplayer_flutter/src/library/ui/artists_page_model.dart'
 import 'package:smplayer_flutter/src/library/ui/song_display_helpers.dart';
 import 'package:smplayer_flutter/src/settings/settings_model.dart';
 
-enum SearchResultType { artists, albums, songs, playlists, folders }
+enum SearchResultType { artists, albums, songs, lyrics, playlists, folders }
 
-enum SearchFilterKey { all, artists, albums, songs, playlists, folders }
+enum SearchFilterKey { all, artists, albums, songs, lyrics, playlists, folders }
+
+class SearchLyricsResult {
+  const SearchLyricsResult({required this.song, required this.match});
+
+  final LibrarySong song;
+  final LocalLyricsSearchMatch match;
+}
 
 class SearchResult {
   const SearchResult({
@@ -75,6 +82,7 @@ class SearchResults {
     required this.artists,
     required this.albums,
     required this.songs,
+    required this.lyrics,
     required this.playlists,
     required this.folders,
   });
@@ -83,12 +91,14 @@ class SearchResults {
     : artists = const [],
       albums = const [],
       songs = const [],
+      lyrics = const [],
       playlists = const [],
       folders = const [];
 
   final List<SearchResult> artists;
   final List<SearchResult> albums;
   final List<LibrarySong> songs;
+  final List<SearchLyricsResult> lyrics;
   final List<SearchResult> playlists;
   final List<SearchResult> folders;
 }
@@ -98,6 +108,7 @@ class SearchCriteria {
     required this.artists,
     required this.albums,
     required this.songs,
+    required this.lyrics,
     required this.playlists,
     required this.folders,
   });
@@ -105,6 +116,7 @@ class SearchCriteria {
   final SearchSortCriterion artists;
   final SearchSortCriterion albums;
   final SearchSortCriterion songs;
+  final SearchSortCriterion lyrics;
   final SearchSortCriterion playlists;
   final SearchSortCriterion folders;
 
@@ -113,6 +125,7 @@ class SearchCriteria {
       SearchResultType.artists => artists,
       SearchResultType.albums => albums,
       SearchResultType.songs => songs,
+      SearchResultType.lyrics => lyrics,
       SearchResultType.playlists => playlists,
       SearchResultType.folders => folders,
     };
@@ -153,6 +166,16 @@ List<({SearchSortCriterion value, String label})> getSortOptions(
       (value: SearchSortCriterion.duration, label: i18n.t('common.duration')),
       (value: SearchSortCriterion.dateAdded, label: i18n.t('common.dateAdded')),
     ],
+    SearchResultType.lyrics => [
+      (
+        value: SearchSortCriterion.defaultCriterion,
+        label: i18n.t('search.sortRelevance'),
+      ),
+      (value: SearchSortCriterion.title, label: i18n.t('search.sortTitle')),
+      (value: SearchSortCriterion.artist, label: i18n.t('common.artist')),
+      (value: SearchSortCriterion.album, label: i18n.t('common.album')),
+      (value: SearchSortCriterion.duration, label: i18n.t('common.duration')),
+    ],
     SearchResultType.playlists => [
       ...baseOptions,
       (value: SearchSortCriterion.name, label: i18n.t('search.sortName')),
@@ -168,11 +191,8 @@ List<({SearchSortCriterion value, String label})> getSortOptions(
 
 List<LibraryPlaylist> buildSearchablePlaylists(
   List<LibraryPlaylist> playlists,
-  int nowPlayingPlaylistId,
 ) {
-  return playlists
-      .where((playlist) => playlist.id != nowPlayingPlaylistId)
-      .toList();
+  return playlists.toList();
 }
 
 SearchResults buildSearchResults(
@@ -182,6 +202,8 @@ SearchResults buildSearchResults(
   String rootPath,
   String normalizedQuery,
   SmPlayerI18n i18n,
+  int favoritePlaylistId,
+  int nowPlayingPlaylistId,
 ) {
   if (normalizedQuery.isEmpty) {
     return const SearchResults.empty();
@@ -210,18 +232,25 @@ SearchResults buildSearchResults(
   final playlistResults =
       playlists
           .map((playlist) {
+            final title =
+                playlist.id == nowPlayingPlaylistId
+                    ? i18n.t('common.nowPlaying')
+                    : playlist.id == favoritePlaylistId
+                    ? i18n.t('common.myFavorites')
+                    : playlist.name;
             final score = [
+              evaluateString(title, normalizedQuery),
               evaluateString(playlist.name, normalizedQuery),
               playlist.songIds.any(matchedSongIds.contains) ? 1 : 0,
             ].reduce((left, right) => left > right ? left : right);
-            return (playlist: playlist, score: score);
+            return (playlist: playlist, title: title, score: score);
           })
           .where((result) => result.score > 0)
           .toList()
         ..sort(
           (left, right) => _compareMany([
             right.score.compareTo(left.score),
-            compareLocaleText(left.playlist.name, right.playlist.name),
+            compareLocaleText(left.title, right.title),
           ]),
         );
 
@@ -229,6 +258,7 @@ SearchResults buildSearchResults(
     artists: _buildArtistResults(songs, normalizedQuery, i18n),
     albums: _buildAlbumResults(songs, normalizedQuery, i18n),
     songs: matchedSongList,
+    lyrics: const [],
     playlists:
         playlistResults.map((result) {
           final playlistSongs =
@@ -238,7 +268,7 @@ SearchResults buildSearchResults(
                   .toList();
           return SearchResult(
             score: result.score,
-            title: result.playlist.name,
+            title: result.title,
             subtitle: i18n.t('cards.songCount', {
               'count': result.playlist.songCount,
             }),
@@ -248,7 +278,12 @@ SearchResults buildSearchResults(
                     .map((song) => song.thumbnailPath)
                     .firstOrNull ??
                 '',
-            path: '/playlists/${result.playlist.id}',
+            path:
+                result.playlist.id == nowPlayingPlaylistId
+                    ? '/now-playing'
+                    : result.playlist.id == favoritePlaylistId
+                    ? '/favorites'
+                    : '/playlists/${result.playlist.id}',
             songCount: result.playlist.songCount,
             playCount: playlistSongs.fold(
               0,
@@ -272,6 +307,43 @@ SearchResults buildSearchResults(
       i18n,
     ),
   );
+}
+
+List<SearchLyricsResult> sortSearchLyrics(
+  List<SearchLyricsResult> results,
+  SearchSortCriterion criterion,
+) {
+  final sorted = results.toList();
+  switch (criterion) {
+    case SearchSortCriterion.title:
+    case SearchSortCriterion.name:
+      sorted.sort(
+        (left, right) => compareLocaleText(left.song.title, right.song.title),
+      );
+      return sorted;
+    case SearchSortCriterion.artist:
+      sorted.sort(
+        (left, right) => compareLocaleText(
+          _searchPrimaryArtist(left.song),
+          _searchPrimaryArtist(right.song),
+        ),
+      );
+      return sorted;
+    case SearchSortCriterion.album:
+      sorted.sort(
+        (left, right) => compareLocaleText(left.song.album, right.song.album),
+      );
+      return sorted;
+    case SearchSortCriterion.duration:
+      sorted.sort(
+        (left, right) => left.song.duration.compareTo(right.song.duration),
+      );
+      return sorted;
+    case SearchSortCriterion.playCount:
+    case SearchSortCriterion.dateAdded:
+    case SearchSortCriterion.defaultCriterion:
+      return sorted;
+  }
 }
 
 List<SearchResult> sortSearchResults(
@@ -395,6 +467,7 @@ SearchHistoryType searchHistoryTypeForFilter(SearchFilterKey filter) {
     SearchFilterKey.artists => SearchHistoryType.artists,
     SearchFilterKey.albums => SearchHistoryType.albums,
     SearchFilterKey.songs => SearchHistoryType.songs,
+    SearchFilterKey.lyrics => SearchHistoryType.sidebar,
     SearchFilterKey.playlists => SearchHistoryType.playlists,
     SearchFilterKey.folders => SearchHistoryType.folders,
     SearchFilterKey.all => SearchHistoryType.sidebar,
@@ -406,6 +479,7 @@ SearchFilterKey searchFilterKeyFromType(String? value) {
     'artists' => SearchFilterKey.artists,
     'albums' => SearchFilterKey.albums,
     'songs' => SearchFilterKey.songs,
+    'lyrics' => SearchFilterKey.lyrics,
     'playlists' => SearchFilterKey.playlists,
     'folders' => SearchFilterKey.folders,
     _ => SearchFilterKey.all,
@@ -417,6 +491,7 @@ String searchFilterTypeValue(SearchFilterKey filter) {
     SearchFilterKey.artists => 'artists',
     SearchFilterKey.albums => 'albums',
     SearchFilterKey.songs => 'songs',
+    SearchFilterKey.lyrics => 'lyrics',
     SearchFilterKey.playlists => 'playlists',
     SearchFilterKey.folders => 'folders',
     SearchFilterKey.all => 'all',

@@ -48,9 +48,9 @@ EdgeInsets mediaControlPlayerPadding(double viewportWidth) {
     return const EdgeInsets.fromLTRB(12, 9, 12, 11);
   }
   if (viewportWidth <= _playerCompactBreakpoint) {
-    return const EdgeInsets.fromLTRB(12, 8, 16, 10);
+    return const EdgeInsets.fromLTRB(14, 8, 14, 10);
   }
-  return const EdgeInsets.fromLTRB(12, 10, 16, 10);
+  return const EdgeInsets.symmetric(horizontal: 14, vertical: 10);
 }
 
 double mediaControlPlayerColumnGap(double viewportWidth) {
@@ -336,7 +336,6 @@ class _MediaControlState extends State<MediaControl> {
                 onPlaySongs: (songIds) {
                   widget.onPlaySongs!(songIds);
                 },
-                includeQuickPlay: false,
               );
     }
     return _randomPlaySubmenu;
@@ -555,7 +554,6 @@ class _MediaControlState extends State<MediaControl> {
                 folders: folders,
                 randomLimit: quickPlayDefaultLimit,
                 onPlaySongs: onPlaySongs!,
-                includeQuickPlay: false,
               ),
       onVolumeChange: onVolumeChange,
       onToggleMute: onToggleMute,

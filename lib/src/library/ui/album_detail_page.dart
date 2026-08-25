@@ -28,6 +28,28 @@ class AlbumDetailPage extends ConsumerStatefulWidget {
 
 class _AlbumDetailPageState extends ConsumerState<AlbumDetailPage> {
   var _showArtworkDialog = false;
+  String? _recordedBrowseAlbum;
+
+  void _recordBrowseAfterFrame(String albumName) {
+    if (_recordedBrowseAlbum == albumName) {
+      return;
+    }
+    _recordedBrowseAlbum = albumName;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || _recordedBrowseAlbum != albumName) {
+        return;
+      }
+      unawaited(_recordBrowse(albumName));
+    });
+  }
+
+  Future<void> _recordBrowse(String albumName) async {
+    final recentBrowses = ref.read(recentBrowsesProvider.notifier);
+    final entry = await ref
+        .read(libraryRepositoryProvider)
+        .recordRecentBrowse(RecentBrowseType.album, albumName);
+    await recentBrowses.record(entry);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -61,6 +83,9 @@ class _AlbumDetailPageState extends ConsumerState<AlbumDetailPage> {
             rawSnapshot,
             favoriteOverrides,
             songOverrides,
+            ref.watch(libraryPlaylistOverridesProvider),
+            ref.watch(libraryDeletedPlaylistIdsProvider),
+            ref.watch(libraryPlaylistOrderProvider),
           );
           final routeAlbumName = widget.albumName;
           final albumSongs =
@@ -73,7 +98,6 @@ class _AlbumDetailPageState extends ConsumerState<AlbumDetailPage> {
                 ..sort(
                   (left, right) => compareArtistText(left.title, right.title),
                 );
-
           if (routeAlbumName.isEmpty || albumSongs.isEmpty) {
             return _AlbumDetailPanel(
               child: _AlbumDetailEmptyState(
@@ -82,6 +106,11 @@ class _AlbumDetailPageState extends ConsumerState<AlbumDetailPage> {
               ),
             );
           }
+          final preferenceAlbumId = song_display.canonicalAlbumName(
+            albumSongs.first,
+          );
+
+          _recordBrowseAfterFrame(routeAlbumName);
 
           final mediaControl = ref.watch(
             mediaControlControllerProvider.select(
@@ -102,11 +131,7 @@ class _AlbumDetailPageState extends ConsumerState<AlbumDetailPage> {
             children: [
               HeaderedPlaylistControl(
                 type: HeaderedPlaylistType.album,
-                routeLocation:
-                    Uri(
-                      path: '/albums',
-                      queryParameters: {'album': routeAlbumName},
-                    ).toString(),
+                routeLocation: GoRouterState.of(context).uri.toString(),
                 title: routeAlbumName,
                 songs: albumSongs,
                 selectedTrackId: mediaControl.trackId,
@@ -118,52 +143,41 @@ class _AlbumDetailPageState extends ConsumerState<AlbumDetailPage> {
                 canEditArtwork: true,
                 canSetPreferred: true,
                 preferenceType: 'album',
-                preferenceItemId: routeAlbumName,
+                preferenceItemId: preferenceAlbumId,
                 onPlayTrack: (trackId, queueSongIds) {
                   _playTrack(ref, snapshot, i18n, trackId, queueSongIds);
                 },
                 onMoveToMusicOrPlay: (songId) {
-                  _playTrack(
-                    ref,
-                    snapshot,
-                    i18n,
-                    songId,
-                    albumSongs.map((song) => song.id).toList(),
+                  insertOrPlayNowPlayingSong(
+                    ref: ref,
+                    snapshot: snapshot,
+                    i18n: i18n,
+                    songId: songId,
                   );
                 },
                 onPlayNext: (songId) {
-                  _playNext(ref, snapshot, songId);
+                  _playNext(context, ref, snapshot, songId);
                 },
                 onTogglePlayPause:
                     ref.read(mediaControlControllerProvider).onTogglePlayPause,
                 onAddSongToPlaylist: (playlistId, songId) {
-                  unawaited(
-                    ref
-                        .read(libraryRepositoryProvider)
-                        .addSongToPlaylist(playlistId, songId),
-                  );
+                  unawaited(addSongsToPlaylist(ref, playlistId, [songId]));
                 },
                 onAddSongsToPlaylist: (playlistId, songIds) {
-                  unawaited(
-                    ref
-                        .read(libraryRepositoryProvider)
-                        .addSongsToPlaylist(playlistId, songIds),
-                  );
+                  unawaited(addSongsToPlaylist(ref, playlistId, songIds));
                 },
                 onToggleFavorite: (songId, favorite) {
                   unawaited(setSongsFavorite(ref, [songId], favorite));
                 },
                 onRecordPlay: () {
-                  ref
-                      .read(libraryRepositoryProvider)
-                      .recordAlbumPlayed(routeAlbumName);
+                  unawaited(recordRecentAlbumPlayback(ref, routeAlbumName));
                 },
                 onSetPreferred: (level) async {
                   await ref
                       .read(libraryRepositoryProvider)
                       .addPreferenceItem(
                         'album',
-                        routeAlbumName,
+                        preferenceAlbumId,
                         getAlbumPreferenceDisplayName(
                           routeAlbumName,
                           albumSongs,
@@ -296,12 +310,27 @@ void _playTrack(
   );
 }
 
-void _playNext(WidgetRef ref, LibraryContentData snapshot, int songId) {
-  final queueSongIds = currentNowPlayingSongIds(ref, snapshot);
+void _playNext(
+  BuildContext context,
+  WidgetRef ref,
+  LibraryContentData snapshot,
+  int songId,
+) {
+  final previousSongIds = currentNowPlayingSongIds(ref, snapshot);
+  final queueSongIds = previousSongIds.toList();
   final insertIndex = insertIndexAfterCurrentOccurrence(
     ref.read(mediaControlControllerProvider).state,
     queueSongIds,
   );
   queueSongIds.insert(insertIndex, songId);
   setNowPlayingQueue(ref, queueSongIds);
+  final songsById = {for (final song in snapshot.songs) song.id: song};
+  showPlayNextUndoNotification(
+    context: context,
+    i18n: context.smPlayerI18n,
+    songTitle: songsById[songId]!.title,
+    onUndo: () {
+      setNowPlayingQueue(ref, previousSongIds);
+    },
+  );
 }

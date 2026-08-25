@@ -1,7 +1,8 @@
 part of 'artists_page.dart';
 
-class _ArtistListItem extends StatefulWidget {
-  const _ArtistListItem({
+class ArtistListItem extends StatefulWidget {
+  const ArtistListItem({
+    super.key,
     required this.artist,
     required this.active,
     required this.i18n,
@@ -11,6 +12,7 @@ class _ArtistListItem extends StatefulWidget {
     required this.locateHighlighted,
     required this.locatePulse,
     this.compactNavMinimal = false,
+    this.subtitle,
   });
 
   final ArtistGroup artist;
@@ -18,21 +20,39 @@ class _ArtistListItem extends StatefulWidget {
   final SmPlayerI18n i18n;
   final VoidCallback onPressed;
   final VoidCallback onPlay;
-  final ValueChanged<Offset> onOpenContextMenu;
+  final FutureOr<void> Function(Offset) onOpenContextMenu;
   final bool locateHighlighted;
   final int locatePulse;
   final bool compactNavMinimal;
+  final String? subtitle;
 
   @override
-  State<_ArtistListItem> createState() => _ArtistListItemState();
+  State<ArtistListItem> createState() => _ArtistListItemState();
 }
 
-class _ArtistListItemState extends State<_ArtistListItem>
+class _ArtistListItemState extends State<ArtistListItem>
     with SingleTickerProviderStateMixin {
   final _focusNode = FocusNode();
   late final AnimationController _locateHighlightController;
   var _hovered = false;
   var _focused = false;
+  var _contextMenuOpen = false;
+
+  Future<void> _openContextMenu(Offset position) async {
+    setState(() {
+      _contextMenuOpen = true;
+    });
+    try {
+      await widget.onOpenContextMenu(position);
+    } finally {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        setState(() {
+          _contextMenuOpen = false;
+        });
+      });
+    }
+  }
 
   @override
   void initState() {
@@ -48,7 +68,7 @@ class _ArtistListItemState extends State<_ArtistListItem>
   }
 
   @override
-  void didUpdateWidget(covariant _ArtistListItem oldWidget) {
+  void didUpdateWidget(covariant ArtistListItem oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (widget.locateHighlighted &&
         widget.locatePulse != oldWidget.locatePulse) {
@@ -84,7 +104,8 @@ class _ArtistListItemState extends State<_ArtistListItem>
       brightness,
     );
     final activeMuted = _ArtistsColors.artistRowActiveMuted(brightness);
-    final revealPlay = _hovered || _focused || _focusNode.hasFocus;
+    final hoverActive = _hovered || _focused || _contextMenuOpen;
+    final revealPlay = hoverActive || _focusNode.hasFocus;
     final rowBorderRadius = BorderRadius.circular(10);
     return SizedBox(
       height: artistRowHeight,
@@ -139,7 +160,7 @@ class _ArtistListItemState extends State<_ArtistListItem>
                     }),
                     onTap: widget.onPressed,
                     onSecondaryTapDown: (details) {
-                      widget.onOpenContextMenu(details.globalPosition);
+                      unawaited(_openContextMenu(details.globalPosition));
                     },
                     child: AnimatedBuilder(
                       animation: _locateHighlightController,
@@ -154,10 +175,14 @@ class _ArtistListItemState extends State<_ArtistListItem>
                                   ),
                                   _locateHighlightController.value,
                                 );
-                        return Container(
+                        return AnimatedContainer(
                           key: ValueKey(
                             'Artists.ArtistRow.Decoration.${widget.artist.name}',
                           ),
+                          duration:
+                              MediaQuery.disableAnimationsOf(context)
+                                  ? Duration.zero
+                                  : const Duration(milliseconds: 120),
                           constraints: const BoxConstraints(minHeight: 62),
                           padding: EdgeInsets.symmetric(
                             horizontal: 6,
@@ -175,6 +200,10 @@ class _ArtistListItemState extends State<_ArtistListItem>
                               color:
                                   widget.active
                                       ? _ArtistsColors.artistRowActiveBorder(
+                                        brightness,
+                                      )
+                                      : hoverActive
+                                      ? _ArtistsColors.artistRowHoverBorder(
                                         brightness,
                                       )
                                       : Colors.transparent,
@@ -228,11 +257,12 @@ class _ArtistListItemState extends State<_ArtistListItem>
                                   ),
                                 ),
                                 Text(
-                                  _formatArtistSummary(
-                                    widget.i18n,
-                                    widget.artist.albumCount,
-                                    widget.artist.songs.length,
-                                  ),
+                                  widget.subtitle ??
+                                      _formatArtistSummary(
+                                        widget.i18n,
+                                        widget.artist.albumCount,
+                                        widget.artist.songs.length,
+                                      ),
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
                                   style: TextStyle(

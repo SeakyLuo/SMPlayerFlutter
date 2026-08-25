@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/gestures.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 
 import '../../i18n/app_i18n.dart';
@@ -451,6 +452,7 @@ class _FolderChainItem extends StatefulWidget {
 
 class _FolderChainItemState extends State<_FolderChainItem> {
   var _hovered = false;
+  final _labelKey = GlobalKey();
   final _tooltipLayerLink = LayerLink();
   OverlayEntry? _tooltipOverlayEntry;
 
@@ -519,6 +521,7 @@ class _FolderChainItemState extends State<_FolderChainItem> {
                         alignment: Alignment.center,
                         child: Text(
                           widget.item.name,
+                          key: _labelKey,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
@@ -606,6 +609,11 @@ class _FolderChainItemState extends State<_FolderChainItem> {
   }
 
   void _showTooltipOverlay() {
+    final label =
+        _labelKey.currentContext!.findRenderObject()! as RenderParagraph;
+    if (!label.didExceedMaxLines) {
+      return;
+    }
     if (_tooltipOverlayEntry != null) {
       return;
     }
@@ -664,9 +672,9 @@ class _FolderChainTooltipOverlay extends StatelessWidget {
               message,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style:
-                  theme.textStyle ??
-                  const TextStyle(color: Colors.white, fontSize: 12),
+              style: (theme.textStyle ??
+                      const TextStyle(color: Colors.white, fontSize: 12))
+                  .copyWith(decoration: TextDecoration.none),
             ),
           ),
         ),

@@ -7,22 +7,20 @@ class _PreferenceInfo extends StatelessWidget {
   Widget build(BuildContext context) {
     final i18n = context.smPlayerI18n;
     final colors = SettingsPageColors.of(context);
+    final mobile =
+        MediaQuery.sizeOf(context).width <= popupDialogMobileBreakpoint;
 
     return Container(
       width: double.infinity,
-      margin: const EdgeInsets.only(bottom: 14),
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-      decoration: BoxDecoration(
-        color: colors.cardSurface,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: colors.cardBorder),
-      ),
+      constraints: BoxConstraints(minHeight: mobile ? 28 : 34),
+      margin: EdgeInsets.only(bottom: mobile ? 8 : 10),
+      padding: const EdgeInsets.symmetric(horizontal: 2),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           SizedBox(
-            width: 18,
-            height: 18,
+            width: mobile ? 16 : 18,
+            height: mobile ? 16 : 18,
             child: DecoratedBox(
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
@@ -32,8 +30,8 @@ class _PreferenceInfo extends StatelessWidget {
                 child: Text(
                   'i',
                   style: TextStyle(
-                    color: colors.textMuted,
-                    fontSize: 12,
+                    color: colors.textStrong,
+                    fontSize: mobile ? 12 : 13,
                     fontWeight: FontWeight.w700,
                     height: 1,
                   ),
@@ -41,13 +39,13 @@ class _PreferenceInfo extends StatelessWidget {
               ),
             ),
           ),
-          const SizedBox(width: 10),
+          SizedBox(width: mobile ? 8 : 10),
           Expanded(
             child: Text(
               i18n.t('preferences.info'),
               style: TextStyle(
                 color: colors.textMuted,
-                fontSize: 13,
+                fontSize: mobile ? 12 : 13,
                 height: 1.35,
               ),
             ),
@@ -66,6 +64,8 @@ class _PreferenceScrollFrame extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final mobile =
+        MediaQuery.sizeOf(context).width <= popupDialogMobileBreakpoint;
     return Scrollbar(
       controller: controller,
       interactive: true,
@@ -75,7 +75,10 @@ class _PreferenceScrollFrame extends StatelessWidget {
         behavior: ScrollConfiguration.of(context).copyWith(scrollbars: false),
         child: SingleChildScrollView(
           controller: controller,
-          padding: const EdgeInsets.fromLTRB(18, 6, 18, 20),
+          padding:
+              mobile
+                  ? const EdgeInsets.fromLTRB(10, 4, 10, 14)
+                  : const EdgeInsets.fromLTRB(18, 6, 18, 20),
           child: child,
         ),
       ),
@@ -120,44 +123,43 @@ class _PreferenceSectionFrame extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = SettingsPageColors.of(context);
+    final mobile =
+        MediaQuery.sizeOf(context).width <= popupDialogMobileBreakpoint;
+    final radius = mobile ? 10.0 : 12.0;
     return Container(
-      margin: const EdgeInsets.only(bottom: 14),
+      margin: EdgeInsets.only(bottom: mobile ? 10 : 14),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(radius),
         boxShadow: [
           BoxShadow(
             color: colors.cardShadow,
-            offset: const Offset(0, 10),
-            blurRadius: 30,
-            spreadRadius: -8,
+            offset: const Offset(0, 26),
+            blurRadius: 70,
           ),
         ],
       ),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(radius),
         child: DecoratedBox(
           decoration: BoxDecoration(
             color: colors.preferenceCardSurface,
-            border: Border.all(color: colors.preferenceCardBorder, width: 1.5),
-            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: colors.preferenceCardBorder),
+            borderRadius: BorderRadius.circular(radius),
           ),
           child: Column(
             children: [
               Container(
-                constraints: const BoxConstraints(minHeight: 52),
-                padding: const EdgeInsets.symmetric(horizontal: 14),
+                constraints: BoxConstraints(minHeight: mobile ? 44 : 52),
+                padding: EdgeInsets.symmetric(horizontal: mobile ? 10 : 14),
                 decoration: BoxDecoration(
                   color: colors.preferenceHeader,
                   border: Border(
-                    bottom: BorderSide(
-                      color: colors.preferenceCardBorder,
-                      width: 1.5,
-                    ),
+                    bottom: BorderSide(color: colors.preferenceCardBorder),
                   ),
                 ),
                 child: LayoutBuilder(
                   builder: (context, constraints) {
-                    final compact = constraints.maxWidth < 620;
+                    final compact = mobile;
                     return Row(
                       children: [
                         Expanded(
@@ -187,7 +189,13 @@ class _PreferenceSectionFrame extends StatelessWidget {
                             ],
                           ),
                         ),
-                        const SizedBox(width: 8),
+                        SizedBox(
+                          width:
+                              MediaQuery.sizeOf(context).width <=
+                                      popupDialogMobileBreakpoint
+                                  ? 8
+                                  : 14,
+                        ),
                         action,
                       ],
                     );
@@ -241,20 +249,23 @@ class _PreferenceEmpty extends StatelessWidget {
   Widget build(BuildContext context) {
     final i18n = context.smPlayerI18n;
     final colors = SettingsPageColors.of(context);
+    final mobile =
+        MediaQuery.sizeOf(context).width <= popupDialogMobileBreakpoint;
 
     return ColoredBox(
       color: colors.preferenceBodySurface,
-      child: SizedBox(
-        width: double.infinity,
-        height: 72,
-        child: Center(
-          child: Text(
-            i18n.t('preferences.noItems'),
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              color: colors.textMuted,
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
+      child: ConstrainedBox(
+        constraints: BoxConstraints(minHeight: mobile ? 40 : 44),
+        child: Padding(
+          padding: EdgeInsets.all(mobile ? 10 : 14),
+          child: Align(
+            alignment: Alignment.centerLeft,
+            child: Text(
+              i18n.t('preferences.noItems'),
+              style: TextStyle(
+                color: colors.textMuted,
+                fontSize: mobile ? 13 : 14,
+              ),
             ),
           ),
         ),
@@ -306,7 +317,7 @@ class _PreferenceSwitch extends StatelessWidget {
           mainAxisAlignment:
               showLabel ? MainAxisAlignment.start : MainAxisAlignment.center,
           children: [
-            SmPlayerSwitch(value: checked, onChanged: onChanged),
+            _PreferenceSwitchTrack(checked: checked, compact: !showLabel),
             if (showLabel) ...[
               const SizedBox(width: 10),
               SizedBox(
@@ -323,6 +334,41 @@ class _PreferenceSwitch extends StatelessWidget {
               ),
             ],
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _PreferenceSwitchTrack extends StatelessWidget {
+  const _PreferenceSwitchTrack({required this.checked, required this.compact});
+
+  final bool checked;
+  final bool compact;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = SettingsPageColors.of(context);
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 160),
+      curve: Curves.easeInOutCubic,
+      width: compact ? 42 : 44,
+      height: 20,
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 3),
+      decoration: BoxDecoration(
+        color: checked ? colors.accent : colors.buttonSurface,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: AnimatedAlign(
+        duration: const Duration(milliseconds: 160),
+        curve: Curves.easeInOutCubic,
+        alignment: checked ? Alignment.centerRight : Alignment.centerLeft,
+        child: const DecoratedBox(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            shape: BoxShape.circle,
+          ),
+          child: SizedBox.square(dimension: 14),
         ),
       ),
     );

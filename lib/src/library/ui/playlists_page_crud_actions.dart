@@ -28,8 +28,11 @@ extension _PlaylistsPageCrudActions on _PlaylistsPageState {
         .createPlaylist(name, songIds);
     _addLocalPlaylist(playlist);
     if (context.mounted) {
-      _persistLastPlaylist(playlist.id);
-      context.go('/playlists/${playlist.id}');
+      showPlaylistCreatedNotification(
+        context: context,
+        i18n: i18n,
+        playlist: playlist,
+      );
     }
   }
 
@@ -69,9 +72,11 @@ extension _PlaylistsPageCrudActions on _PlaylistsPageState {
 
   void _renamePlaylistWithoutReload(LibraryPlaylist playlist, String name) {
     _patchLocalPlaylist(_copyPlaylistWithName(playlist, name));
-    unawaited(
-      ref.read(libraryRepositoryProvider).renamePlaylist(playlist.id, name),
-    );
+    unawaited(_persistPlaylistRename(playlist.id, name));
+  }
+
+  Future<void> _persistPlaylistRename(int playlistId, String name) async {
+    await ref.read(libraryRepositoryProvider).renamePlaylist(playlistId, name);
   }
 
   Future<void> _addSongsToPlaylistWithoutReload(
@@ -117,14 +122,14 @@ extension _PlaylistsPageCrudActions on _PlaylistsPageState {
     }
   }
 
-  void _showPlaylistMenu(
+  Future<void> _showPlaylistMenu(
     BuildContext context,
     SmPlayerI18n i18n,
     LibraryContentData snapshot,
     LibraryPlaylist playlist,
     Offset position,
-  ) {
-    showMenuFlyout(
+  ) async {
+    await showMenuFlyout(
       context,
       position: position,
       items: [
@@ -167,5 +172,12 @@ extension _PlaylistsPageCrudActions on _PlaylistsPageState {
           playlist.songIds,
         );
     _addLocalPlaylist(duplicatedPlaylist);
+    if (mounted) {
+      showPlaylistCreatedNotification(
+        context: context,
+        i18n: context.smPlayerI18n,
+        playlist: duplicatedPlaylist,
+      );
+    }
   }
 }

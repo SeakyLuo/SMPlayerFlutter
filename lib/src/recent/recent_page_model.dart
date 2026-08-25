@@ -46,6 +46,60 @@ class RecentArtistView {
   final String playedAt;
 }
 
+class RecentBrowseView {
+  const RecentBrowseView({required this.entry, required this.title, this.song});
+
+  final RecentBrowseEntry entry;
+  final String title;
+  final LibrarySong? song;
+}
+
+List<RecentBrowseView> buildRecentBrowseViews(
+  List<RecentBrowseEntry> entries,
+  List<LibrarySong> songs,
+  List<LibraryPlaylist> playlists,
+  SmPlayerI18n i18n,
+) {
+  final songsById = {for (final song in songs) song.id: song};
+  final playlistsById = {
+    for (final playlist in playlists) playlist.id: playlist,
+  };
+  final albumNames = {for (final song in songs) displayAlbum(song, i18n)};
+  final artistNames =
+      songs.expand((song) => getSongArtists(song, i18n)).toSet();
+
+  final views = <RecentBrowseView>[];
+  for (final entry in entries) {
+    switch (entry.type) {
+      case RecentBrowseType.song:
+        final song = songsById[int.parse(entry.itemId)];
+        if (song != null) {
+          views.add(
+            RecentBrowseView(entry: entry, title: song.title, song: song),
+          );
+        }
+        continue;
+      case RecentBrowseType.artist:
+        if (artistNames.contains(entry.itemId)) {
+          views.add(RecentBrowseView(entry: entry, title: entry.itemId));
+        }
+        continue;
+      case RecentBrowseType.album:
+        if (albumNames.contains(entry.itemId)) {
+          views.add(RecentBrowseView(entry: entry, title: entry.itemId));
+        }
+        continue;
+      case RecentBrowseType.playlist:
+        final playlist = playlistsById[int.parse(entry.itemId)];
+        if (playlist != null) {
+          views.add(RecentBrowseView(entry: entry, title: playlist.name));
+        }
+        continue;
+    }
+  }
+  return views;
+}
+
 List<RecentPlaylistView> buildRecentPlaylistViews(
   List<LibraryPlaylist> playlists,
   List<LibrarySong> songs,

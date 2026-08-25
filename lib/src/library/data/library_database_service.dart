@@ -71,7 +71,8 @@ class LibraryDatabaseService {
         MainWindowBounds TEXT DEFAULT '',
         MainWindowMaximized INTEGER DEFAULT 0,
         LastDisplayMode INTEGER DEFAULT 0,
-        QuitOnClose INTEGER DEFAULT 1
+        QuitOnClose INTEGER DEFAULT 1,
+        AiAgentEnabled INTEGER DEFAULT 0
       )
     ''');
     db.execute('''
@@ -184,6 +185,7 @@ class LibraryDatabaseService {
         SearchedAt TEXT DEFAULT ''
       )
     ''');
+    _ensureLocalLyricsSearchSchema(db);
     db.execute('''
       CREATE TABLE IF NOT EXISTS HiddenStorageItem (
         Id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -458,6 +460,7 @@ class LibraryDatabaseService {
       'MainWindowMaximized': 'INTEGER DEFAULT 0',
       'LastDisplayMode': 'INTEGER DEFAULT 0',
       'QuitOnClose': 'INTEGER DEFAULT 1',
+      'AiAgentEnabled': 'INTEGER DEFAULT 0',
     });
     _addColumnsIfMissing(db, 'Music', {
       'Path': "TEXT DEFAULT ''",
@@ -575,6 +578,41 @@ class LibraryDatabaseService {
       'UpdateTime': "TEXT DEFAULT ''",
       'LastConnectedTime': "TEXT DEFAULT ''",
     });
+  }
+
+  void _ensureLocalLyricsSearchSchema(Database db) {
+    const expectedColumns = [
+      'SongId',
+      'Path',
+      'Source',
+      'RawText',
+      'LinesJson',
+      'SearchText',
+    ];
+    final currentColumns =
+        db
+            .select("PRAGMA table_info('LocalLyricsSearch')")
+            .map((row) => row['name'] as String)
+            .toList();
+    final schemaMatches =
+        currentColumns.length == expectedColumns.length &&
+        currentColumns.indexed.every(
+          (entry) => entry.$2 == expectedColumns[entry.$1],
+        );
+    if (!schemaMatches && currentColumns.isNotEmpty) {
+      db.execute('DROP TABLE LocalLyricsSearch');
+    }
+    db.execute('''
+      CREATE VIRTUAL TABLE IF NOT EXISTS LocalLyricsSearch USING fts5(
+        SongId UNINDEXED,
+        Path UNINDEXED,
+        Source UNINDEXED,
+        RawText UNINDEXED,
+        LinesJson UNINDEXED,
+        SearchText,
+        tokenize = 'trigram'
+      )
+    ''');
   }
 
   void _addColumnsIfMissing(

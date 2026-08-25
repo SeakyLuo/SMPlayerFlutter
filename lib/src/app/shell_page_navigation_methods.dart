@@ -4,11 +4,9 @@ part of 'shell_page.dart';
 
 extension _SmPlayerShellNavigationMethods on _SmPlayerShellPageState {
   void _navigateTo(String target) {
-    final compactCurrentDetailRootTarget = _compactCurrentDetailRootTarget(
-      target,
-    );
+    final currentNavigationRootTarget = _currentNavigationRootTarget(target);
     final restoredTarget =
-        compactCurrentDetailRootTarget ??
+        currentNavigationRootTarget ??
         (target == '/playlists' ||
                 target == '/albums' ||
                 target == '/now-playing'
@@ -29,7 +27,7 @@ extension _SmPlayerShellNavigationMethods on _SmPlayerShellPageState {
     setState(() {
       _currentPath = restoredTarget;
     });
-    if (compactCurrentDetailRootTarget == null) {
+    if (currentNavigationRootTarget == null) {
       _recordNavigationLocation(restoredTarget);
     } else {
       _replaceCurrentNavigationLocation(restoredTarget);
@@ -43,18 +41,17 @@ extension _SmPlayerShellNavigationMethods on _SmPlayerShellPageState {
     }
   }
 
-  String? _compactCurrentDetailRootTarget(String target) {
-    if (!_isCompactWorkspaceForCurrentWindow()) {
-      return null;
+  String? _currentNavigationRootTarget(String target) {
+    final currentPath = widget.currentPath ?? _pathFromLocation(_currentPath);
+    if (target == '/artists' && currentPath == '/artists') {
+      return '/artists';
     }
 
     final currentLocation =
         widget.currentLocation ?? widget.currentPath ?? _currentPath;
     final currentUri = Uri.parse(currentLocation);
-    if (target == '/artists' &&
-        currentUri.path == '/artists' &&
-        currentUri.queryParameters.containsKey('artist')) {
-      return '/artists';
+    if (!_isCompactWorkspaceForCurrentWindow()) {
+      return null;
     }
     if (target == '/albums' &&
         currentUri.path == '/albums' &&

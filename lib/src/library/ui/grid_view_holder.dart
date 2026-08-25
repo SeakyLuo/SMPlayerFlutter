@@ -32,6 +32,7 @@ class GridViewHolder extends ConsumerStatefulWidget {
     this.artworkKey,
     this.selectedMark,
     this.onContextMenu,
+    this.searchQuery = '',
   });
 
   final LibraryPlaylist playlist;
@@ -49,7 +50,8 @@ class GridViewHolder extends ConsumerStatefulWidget {
   final Widget? selectedMark;
   final VoidCallback onOpen;
   final VoidCallback onPlay;
-  final ValueChanged<Offset>? onContextMenu;
+  final FutureOr<void> Function(Offset)? onContextMenu;
+  final String searchQuery;
 
   @override
   ConsumerState<GridViewHolder> createState() => _GridViewHolderState();
@@ -57,9 +59,26 @@ class GridViewHolder extends ConsumerStatefulWidget {
 
 class _GridViewHolderState extends ConsumerState<GridViewHolder> {
   var _hovered = false;
+  var _contextMenuOpen = false;
   var _artworkSignature = '';
   var _artworkGeneration = 0;
   List<String> _artworkUrls = const [];
+
+  Future<void> _openContextMenu(Offset position) async {
+    setState(() {
+      _contextMenuOpen = true;
+    });
+    try {
+      await widget.onContextMenu!(position);
+    } finally {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        setState(() {
+          _contextMenuOpen = false;
+        });
+      });
+    }
+  }
 
   @override
   void initState() {
@@ -89,7 +108,8 @@ class _GridViewHolderState extends ConsumerState<GridViewHolder> {
     final hoverStyle = SelectedCollectionCardStyle.hoverForBrightness(
       Theme.of(context).brightness,
     );
-    final active = widget.dragging || (!widget.sorting && _hovered);
+    final active =
+        widget.dragging || (!widget.sorting && (_hovered || _contextMenuOpen));
     final selectedMark =
         widget.selectedMark ??
         ((widget.selectionMode || widget.selected)
@@ -112,7 +132,9 @@ class _GridViewHolderState extends ConsumerState<GridViewHolder> {
         child: GestureDetector(
           onTap: widget.onOpen,
           onSecondaryTapDown: (details) {
-            widget.onContextMenu?.call(details.globalPosition);
+            if (widget.onContextMenu != null) {
+              unawaited(_openContextMenu(details.globalPosition));
+            }
           },
           child: AnimatedContainer(
             key: widget.cardKey,
@@ -180,6 +202,7 @@ class _GridViewHolderState extends ConsumerState<GridViewHolder> {
                 GridArtworkCardContent(
                   title: widget.playlist.name,
                   subtitle: widget.subtitle,
+                  searchQuery: widget.searchQuery,
                   artworkUrls: getPlaylistArtworkDisplayUrls(_artworkUrls),
                   fallback: const DefaultAlbumArtwork(),
                   selectedMark: selectedMark,

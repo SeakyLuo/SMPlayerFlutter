@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../../i18n/app_i18n.dart';
@@ -33,6 +35,7 @@ class LocalTreeView extends StatelessWidget {
     required this.onToggleFolderSelection,
     required this.onMoveLocalItemsToFolder,
     required this.onPlayTrack,
+    required this.onPlaySong,
     required this.onTogglePlayPause,
     required this.onToggleSongSelection,
     required this.onPlayNext,
@@ -53,12 +56,13 @@ class LocalTreeView extends StatelessWidget {
   final SmPlayerI18n i18n;
   final ValueChanged<String> onToggleTreeFolderExpanded;
   final ValueChanged<FolderNode> onPlayFolder;
-  final void Function(FolderNode folder, Offset position) onAddFolder;
+  final FutureOr<void> Function(FolderNode folder, Offset position) onAddFolder;
   final ValueChanged<FolderNode> onRefreshFolder;
   final ValueChanged<FolderNode> onSearchFolder;
   final ValueChanged<FolderNode> onRevealFolder;
   final ValueChanged<String> onOpenFolder;
-  final void Function(FolderNode folder, Offset position) onOpenFolderMenu;
+  final FutureOr<void> Function(FolderNode folder, Offset position)
+  onOpenFolderMenu;
   final ValueChanged<String> onToggleFolderSelection;
   final void Function({
     required List<int> songIds,
@@ -67,12 +71,14 @@ class LocalTreeView extends StatelessWidget {
   })
   onMoveLocalItemsToFolder;
   final void Function(int trackId, List<int> queueSongIds) onPlayTrack;
+  final ValueChanged<int> onPlaySong;
   final VoidCallback onTogglePlayPause;
   final ValueChanged<int> onToggleSongSelection;
   final ValueChanged<int> onPlayNext;
   final void Function(int songId, bool favorite) onToggleFavorite;
-  final void Function(LibrarySong song, Offset position) onAddSong;
-  final void Function(LibrarySong song, Offset position) onOpenSongMenu;
+  final FutureOr<void> Function(LibrarySong song, Offset position) onAddSong;
+  final FutureOr<void> Function(LibrarySong song, Offset position)
+  onOpenSongMenu;
 
   @override
   Widget build(BuildContext context) {
@@ -130,6 +136,7 @@ class LocalTreeView extends StatelessWidget {
                         onPlay:
                             () =>
                                 onPlayTrack(rows[index].song!.id, queueSongIds),
+                        onPlayButton: () => onPlaySong(rows[index].song!.id),
                         onTogglePlayPause: onTogglePlayPause,
                         onToggleSelection:
                             () => onToggleSongSelection(rows[index].song!.id),

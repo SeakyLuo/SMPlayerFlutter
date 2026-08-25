@@ -25,6 +25,7 @@ class _RecentPlayedPanel extends StatelessWidget {
     required this.onTimelineLabelChange,
     required this.onOpenSongAddToMenu,
     required this.onOpenSongContextMenu,
+    required this.onToggleFavorite,
     required this.onPlayNext,
     required this.onOpenAlbumAddMenu,
     required this.onOpenArtistContextMenu,
@@ -56,13 +57,19 @@ class _RecentPlayedPanel extends StatelessWidget {
   final ValueChanged<String> onRecordAlbumPlayed;
   final ValueChanged<String> onRecordArtistPlayed;
   final ValueChanged<String> onTimelineLabelChange;
-  final void Function(Offset position, LibrarySong song) onOpenSongAddToMenu;
-  final void Function(Offset position, LibrarySong song, List<int> queueSongIds)
+  final Future<void> Function(Offset position, LibrarySong song)
+  onOpenSongAddToMenu;
+  final Future<void> Function(
+    Offset position,
+    LibrarySong song,
+    List<int> queueSongIds,
+  )
   onOpenSongContextMenu;
+  final ValueChanged<LibrarySong> onToggleFavorite;
   final ValueChanged<int> onPlayNext;
-  final void Function(Offset position, RecentAlbumView album)
+  final FutureOr<void> Function(Offset position, RecentAlbumView album)
   onOpenAlbumAddMenu;
-  final void Function(Offset position, RecentArtistView artist)
+  final FutureOr<void> Function(Offset position, RecentArtistView artist)
   onOpenArtistContextMenu;
 
   @override
@@ -83,6 +90,7 @@ class _RecentPlayedPanel extends StatelessWidget {
         onToggleSelection: onToggleSongSelection,
         onOpenAddToMenu: onOpenSongAddToMenu,
         onOpenContextMenu: onOpenSongContextMenu,
+        onToggleFavorite: onToggleFavorite,
         onPlayNext: onPlayNext,
         onOpenMoreMenu: onOpenSongContextMenu,
         onTimelineLabelChange: onTimelineLabelChange,
@@ -111,7 +119,7 @@ class _RecentPlayedPanel extends StatelessWidget {
         onToggleSelection: onToggleCollectionSelection,
         onTimelineLabelChange: onTimelineLabelChange,
         onOpenContextMenu: (position, album) {
-          onOpenAlbumAddMenu(position, album);
+          return onOpenAlbumAddMenu(position, album);
         },
       ),
       RecentPlayedFilter.artists => _RecentArtistList(
@@ -126,7 +134,7 @@ class _RecentPlayedPanel extends StatelessWidget {
         onToggleSelection: onToggleCollectionSelection,
         onTimelineLabelChange: onTimelineLabelChange,
         onOpenContextMenu: (position, artist) {
-          onOpenArtistContextMenu(position, artist);
+          return onOpenArtistContextMenu(position, artist);
         },
       ),
     };

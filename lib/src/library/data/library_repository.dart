@@ -7,6 +7,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'library_audio_metadata_service.dart';
 import 'library_artist_split_service.dart';
 import 'library_artwork_service.dart';
+import 'library_browse_history_service.dart';
 import 'library_data_transfer_service.dart';
 import 'library_database_service.dart';
 import 'library_hidden_storage_service.dart';
@@ -14,6 +15,7 @@ import 'library_local_delete_service.dart';
 import 'library_local_move_service.dart';
 import 'library_local_refresh_service.dart';
 import 'library_lyrics_service.dart';
+import 'library_lyrics_search_service.dart';
 import 'library_models.dart';
 import 'library_pending_delete_service.dart' hide TrashPath;
 import 'library_playback_history_service.dart';
@@ -240,6 +242,7 @@ class LibraryRepository {
   static const _localMoveService = LibraryLocalMoveService();
   static const _settingsService = LibrarySettingsService(database: _database);
   static const _playbackHistoryService = LibraryPlaybackHistoryService();
+  static const _browseHistoryService = LibraryBrowseHistoryService();
   static const _searchHistoryService = LibrarySearchHistoryService(
     database: _database,
   );
@@ -272,6 +275,12 @@ class LibraryRepository {
     internetLyricsResolver: _internetLyricsResolver,
   );
 
+  LibraryLyricsSearchService get _lyricsSearchService =>
+      LibraryLyricsSearchService(
+        database: _database,
+        localLyricsResolver: _lyricsService.getLocalLyricsForPath,
+      );
+
   LibraryRepositoryPaths get _paths => LibraryRepositoryPaths(
     databaseFileResolver: _databaseFileResolver,
     nowPlayingFileResolver: _nowPlayingFileResolver,
@@ -282,6 +291,10 @@ class LibraryRepository {
     final databaseFile = await _resolveDatabaseFile();
     final db = _database.openInitializedLibraryDatabase(databaseFile);
     db.dispose();
+  }
+
+  Future<String> getDatabasePath() async {
+    return (await _resolveDatabaseFile()).path;
   }
 
   Future<settings.SettingsSnapshot?> initializeSettingsSnapshot() async {
@@ -321,6 +334,7 @@ class LibraryRepository {
         recentAlbums: _playbackHistoryService.readRecentAlbums(db),
         recentArtists: _playbackHistoryService.readRecentArtists(db),
         recentSearches: _searchHistoryService.readRecentSearches(db),
+        recentBrowses: _browseHistoryService.read(db),
         playlists: playlists,
         favoritePlaylistId: settings.myFavoritesId,
         nowPlaying: _playbackHistoryService.readNowPlaying(
@@ -364,6 +378,29 @@ class LibraryRepository {
   Future<List<SearchHistoryEntry>> getRecentSearches() async {
     final databaseFile = await _resolveDatabaseFile();
     return _searchHistoryService.getRecentSearches(databaseFile);
+  }
+
+  Future<RecentBrowseEntry> recordRecentBrowse(
+    RecentBrowseType type,
+    String itemId,
+  ) async {
+    final databaseFile = await _resolveDatabaseFile();
+    return _browseHistoryService.record(databaseFile, type, itemId);
+  }
+
+  Future<void> removeRecentBrowses(List<int> entryIds) async {
+    final databaseFile = await _resolveDatabaseFile();
+    await _browseHistoryService.remove(databaseFile, entryIds);
+  }
+
+  Future<void> restoreRecentBrowses(List<int> entryIds) async {
+    final databaseFile = await _resolveDatabaseFile();
+    await _browseHistoryService.restore(databaseFile, entryIds);
+  }
+
+  Future<void> clearRecentBrowses() async {
+    final databaseFile = await _resolveDatabaseFile();
+    await _browseHistoryService.clear(databaseFile);
   }
 
   Future<int> getLibrarySongCount() async {
@@ -611,12 +648,17 @@ class LibraryRepository {
     LocalMoveConflictResolver? resolveConflict,
   }) async {
     final databaseFile = await _resolveDatabaseFile();
-    return _localMoveService.moveSongToFolder(
+    final result = await _localMoveService.moveSongToFolder(
       databaseFile,
       songId,
       folderPath,
       resolveConflict: resolveConflict,
     );
+    await _lyricsSearchService.refreshSongIds(
+      databaseFile,
+      result.songs.map((song) => song.id).toList(),
+    );
+    return result;
   }
 
   Future<LocalItemsMoveResult> moveLocalItemsToFolder(
@@ -626,18 +668,27 @@ class LibraryRepository {
     LocalMoveConflictResolver? resolveConflict,
   }) async {
     final databaseFile = await _resolveDatabaseFile();
-    return _localMoveService.moveLocalItemsToFolder(
+    final result = await _localMoveService.moveLocalItemsToFolder(
       databaseFile,
       songIds,
       folderPaths,
       targetFolderPath,
       resolveConflict: resolveConflict,
     );
+    await _lyricsSearchService.refreshSongIds(
+      databaseFile,
+      result.songs.map((song) => song.id).toList(),
+    );
+    return result;
   }
 
   Future<void> undoMoveLocalItems(LocalItemsMoveResult result) async {
     final databaseFile = await _resolveDatabaseFile();
     await _localMoveService.undoMoveLocalItems(databaseFile, result);
+    await _lyricsSearchService.refreshSongIds(
+      databaseFile,
+      result.songs.map((song) => song.id).toList(),
+    );
   }
 
   Future<PendingLocalItemsDelete> beginDeleteLocalItems(
@@ -701,6 +752,10 @@ class LibraryRepository {
   Future<void> renameFolder(String folderPath, String name) async {
     final databaseFile = await _resolveDatabaseFile();
     await _localRefreshService.renameFolder(databaseFile, folderPath, name);
+    await _lyricsSearchService.refreshFolder(
+      databaseFile,
+      p.join(p.dirname(folderPath), name),
+    );
   }
 
   Future<SearchHistoryEntry?> addRecentSearch(
@@ -779,11 +834,13 @@ class LibraryRepository {
 
   Future<List<int>> importExternalAudioFiles(List<String> filePaths) async {
     final databaseFile = await _resolveDatabaseFile();
-    return _localRefreshService.importExternalAudioFiles(
+    final songIds = await _localRefreshService.importExternalAudioFiles(
       databaseFile,
       filePaths,
       cacheSongArtwork: _cacheSongArtwork,
     );
+    await _lyricsSearchService.refreshSongIds(databaseFile, songIds);
+    return songIds;
   }
 
   Future<LocalFolderRefreshResult> scanAllMusicLibrary(
@@ -792,7 +849,7 @@ class LibraryRepository {
     LocalFolderScanCancellation? cancellation,
   }) async {
     final databaseFile = await _resolveDatabaseFile();
-    return _localRefreshService.scanAllMusicLibrary(
+    final result = await _localRefreshService.scanAllMusicLibrary(
       databaseFile,
       rootPath,
       cacheSongArtwork: _cacheSongArtwork,
@@ -802,6 +859,8 @@ class LibraryRepository {
       onProgress: onProgress,
       cancellation: cancellation,
     );
+    await _lyricsSearchService.refreshFolder(databaseFile, rootPath);
+    return result;
   }
 
   Future<LocalFolderRefreshResult> refreshLocalFolder(
@@ -810,7 +869,7 @@ class LibraryRepository {
     LocalFolderScanCancellation? cancellation,
   }) async {
     final databaseFile = await _resolveDatabaseFile();
-    return _localRefreshService.refreshLocalFolder(
+    final result = await _localRefreshService.refreshLocalFolder(
       databaseFile,
       folderPath,
       cacheSongArtwork: _cacheSongArtwork,
@@ -820,6 +879,8 @@ class LibraryRepository {
       onProgress: onProgress,
       cancellation: cancellation,
     );
+    await _lyricsSearchService.refreshFolder(databaseFile, folderPath);
+    return result;
   }
 
   Future<LocalFolderRefreshResult> createLocalFolder(
@@ -891,6 +952,21 @@ class LibraryRepository {
   Future<void> saveSongLyrics(int songId, String rawLyrics) async {
     final databaseFile = await _resolveDatabaseFile();
     await _lyricsService.saveSongLyrics(databaseFile, songId, rawLyrics);
+    await _lyricsSearchService.refreshSongIds(databaseFile, [songId]);
+  }
+
+  Future<List<LocalLyricsSearchMatch>> searchLocalLyrics(
+    String query, {
+    String folderPath = '',
+    void Function(LocalLyricsIndexProgress progress)? onIndexProgress,
+  }) async {
+    final databaseFile = await _resolveDatabaseFile();
+    return _lyricsSearchService.search(
+      databaseFile,
+      query,
+      folderPath: folderPath,
+      onIndexProgress: onIndexProgress,
+    );
   }
 
   Future<void> updateLyricsOffset(int songId, int offsetMs) async {
@@ -918,19 +994,29 @@ class LibraryRepository {
     bool Function()? isCanceled,
     Future<void> Function()? waitIfPaused,
   }) async {
+    final databaseFile = await _resolveDatabaseFile();
     final songs = await getLibrarySongs();
-    return _lyricsService.batchAddInternetLyrics(
+    final result = await _lyricsService.batchAddInternetLyrics(
       songs: songs,
       overwrite: overwrite,
       onProgress: onProgress,
       isCanceled: isCanceled,
       waitIfPaused: waitIfPaused,
     );
+    final changedSongIds = [
+      for (final detail in result.details)
+        if (detail.result == LyricsBatchDetailResult.saved ||
+            detail.result == LyricsBatchDetailResult.overwritten)
+          detail.songId,
+    ];
+    await _lyricsSearchService.refreshSongIds(databaseFile, changedSongIds);
+    return result;
   }
 
   Future<void> _autoAddInternetLyricsForPaths(List<String> songPaths) async {
     final databaseFile = await _resolveDatabaseFile();
     await _lyricsService.autoAddInternetLyricsForPaths(databaseFile, songPaths);
+    await _lyricsSearchService.refreshPaths(databaseFile, songPaths);
   }
 
   Future<SongArtworkSnapshot> getSongArtworkSnapshot(int songId) async {
@@ -1000,9 +1086,14 @@ class LibraryRepository {
     await _preferenceService.removePreferenceItem(databaseFile, type, itemId);
   }
 
-  Future<PreferenceSettingsSnapshot> getPreferenceSettings() async {
+  Future<PreferenceSettingsSnapshot> getPreferenceSettings({
+    required String unknownAlbumName,
+  }) async {
     final databaseFile = await _resolveDatabaseFile();
-    return _preferenceService.getPreferenceSettings(databaseFile);
+    return _preferenceService.getPreferenceSettings(
+      databaseFile,
+      unknownAlbumName: unknownAlbumName,
+    );
   }
 
   Future<void> updatePreferenceSettings(
@@ -1079,22 +1170,22 @@ class LibraryRepository {
     );
   }
 
-  Future<void> recordPlaylistPlayed(int playlistId) async {
+  Future<RecentPlaylistPlayback> recordPlaylistPlayed(int playlistId) async {
     final databaseFile = await _resolveDatabaseFile();
-    await _playbackHistoryService.recordPlaylistPlayed(
+    return _playbackHistoryService.recordPlaylistPlayed(
       databaseFile,
       playlistId,
     );
   }
 
-  Future<void> recordAlbumPlayed(String album) async {
+  Future<RecentAlbumPlayback> recordAlbumPlayed(String album) async {
     final databaseFile = await _resolveDatabaseFile();
-    await _playbackHistoryService.recordAlbumPlayed(databaseFile, album);
+    return _playbackHistoryService.recordAlbumPlayed(databaseFile, album);
   }
 
-  Future<void> recordArtistPlayed(String artist) async {
+  Future<RecentArtistPlayback> recordArtistPlayed(String artist) async {
     final databaseFile = await _resolveDatabaseFile();
-    await _playbackHistoryService.recordArtistPlayed(databaseFile, artist);
+    return _playbackHistoryService.recordArtistPlayed(databaseFile, artist);
   }
 
   Future<String> _cacheSongArtwork(String filePath) async {

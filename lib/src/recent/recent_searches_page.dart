@@ -43,7 +43,7 @@ class _RecentSearchesPage extends ConsumerWidget {
               onPressed: onToggleMultiSelect,
             ),
             CommandBarButton(
-              icon: FluentIcons.dismiss_20_regular,
+              icon: FluentIcons.broom_20_regular,
               label: i18n.t('recent.clearHistory'),
               disabled: entries.isEmpty,
               onPressed: () {
@@ -70,6 +70,8 @@ class _RecentSearchesPage extends ConsumerWidget {
   }
 
   Future<void> _confirmClearHistory(BuildContext context, WidgetRef ref) async {
+    final repository = ref.read(libraryRepositoryProvider);
+    final recentSearches = ref.read(recentSearchesProvider.notifier);
     final confirmed = await showPopupConfirmDialog(
       context: context,
       title: i18n.t('common.confirm'),
@@ -80,8 +82,10 @@ class _RecentSearchesPage extends ConsumerWidget {
     if (!confirmed) {
       return;
     }
-    await ref.read(libraryRepositoryProvider).clearRecentSearches();
-    invalidateRecentSearchData(ref);
-    onClearSelection();
+    await repository.clearRecentSearches();
+    await recentSearches.clear();
+    if (context.mounted) {
+      onClearSelection();
+    }
   }
 }

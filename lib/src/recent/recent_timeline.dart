@@ -22,6 +22,8 @@ class _RecentTimelineScrollView<T> extends StatefulWidget {
 
 class _RecentTimelineScrollViewState<T>
     extends State<_RecentTimelineScrollView<T>> {
+  var _active = true;
+
   @override
   void initState() {
     super.initState();
@@ -43,6 +45,9 @@ class _RecentTimelineScrollViewState<T>
   }
 
   void _syncTimelineLabel() {
+    if (!_active) {
+      return;
+    }
     final offset =
         widget.controller.hasClients ? widget.controller.position.pixels : 0.0;
     widget.onTimelineLabelChange(_timelineLabelForOffset(offset + 1));
@@ -66,6 +71,15 @@ class _RecentTimelineScrollViewState<T>
 
   @override
   Widget build(BuildContext context) {
+    final active = TickerMode.valuesOf(context).enabled;
+    if (active && !_active) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          _syncTimelineLabel();
+        }
+      });
+    }
+    _active = active;
     return NotificationListener<ScrollNotification>(
       onNotification: (notification) {
         if (notification.metrics.axis == Axis.vertical) {

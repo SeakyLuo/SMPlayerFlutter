@@ -7,7 +7,7 @@ extension _MusicDialogStateResetActions on _MusicDialogState {
       return;
     }
 
-    setState(() {
+    _updateState(() {
       _applyProperties(originalProperties);
     });
     _showMessage(context.smPlayerI18n.t('song.propertiesReset'));
@@ -23,29 +23,28 @@ extension _MusicDialogStateResetActions on _MusicDialogState {
             ? _originalLyricsText
             : _stripLyricsTimestamps(_originalLyricsText);
     _scrollLyricsToTop();
-    setState(() {});
+    _updateState(() {});
     _showMessage(context.smPlayerI18n.t('song.lyricsReset'));
   }
 
   void _resetArtwork() {
-    if (_artworkSourcePath.isEmpty) {
+    if (!_artworkDirty) {
       return;
     }
-    setState(() {
+    _updateState(() {
       _displayArtworkUrl = _originalDisplayArtworkUrl;
       _artworkSourcePath = '';
+      _artworkDeletePending = false;
       _artworkMissing = _originalArtworkMissing;
       _artworkRecommendation = null;
       _artworkRecommendationRequestKey = '';
-      _showArtworkDeleteConfirm = false;
     });
     _loadArtworkRecommendation();
-    _showMessage(context.smPlayerI18n.t('song.albumArtReset'));
   }
 
   void _toggleLyricsTimestamps(bool checked) {
     final rawText = _currentLyricsRawText;
-    setState(() {
+    _updateState(() {
       _lyricsRawText = rawText;
       _showLyricsTimestamps = checked;
       _lyricsController.text =
@@ -54,28 +53,28 @@ extension _MusicDialogStateResetActions on _MusicDialogState {
   }
 
   void _applyAlbumArtRecommendation(AlbumArtRecommendation recommendation) {
-    setState(() {
+    _updateState(() {
       _displayArtworkUrl = recommendation.sourceUrl;
       _artworkSourcePath = recommendation.sourcePath;
+      _artworkDeletePending = false;
       _artworkMissing = false;
       _artworkRecommendation = null;
-      _showArtworkDeleteConfirm = false;
     });
   }
 
   void _applyAlbumArtLibraryChoice(AlbumArtLibraryChoice choice) {
-    setState(() {
+    _updateState(() {
       _displayArtworkUrl = choice.sourceUrl;
       _artworkSourcePath = choice.sourcePath;
+      _artworkDeletePending = false;
       _artworkMissing = false;
       _artworkRecommendation = null;
-      _showArtworkDeleteConfirm = false;
       _libraryArtworkPickerOpen = false;
     });
   }
 
   void _addArtistCell() {
-    setState(() {
+    _updateState(() {
       final controller = TextEditingController();
       controller.addListener(_handleEditorChanged);
       _artistControllers.add(controller);
@@ -83,7 +82,7 @@ extension _MusicDialogStateResetActions on _MusicDialogState {
   }
 
   void _removeArtistCell(int index) {
-    setState(() {
+    _updateState(() {
       final controller = _artistControllers.removeAt(index);
       controller.dispose();
     });

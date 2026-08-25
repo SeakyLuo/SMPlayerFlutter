@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:smplayer_flutter/src/app/undoable_notification.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/data/library_models.dart';
@@ -20,6 +21,20 @@ List<int> notFavoriteSongIds(
 
 bool hasNotFavoriteSongs(List<int> songIds, Map<int, LibrarySong> songsById) {
   return songIds.any((songId) => !songsById[songId]!.favorite);
+}
+
+void showPlayNextUndoNotification({
+  required BuildContext context,
+  required SmPlayerI18n i18n,
+  required String songTitle,
+  required VoidCallback onUndo,
+}) {
+  showUndoableNotification(
+    context: context,
+    i18n: i18n,
+    message: i18n.t('notification.playNext', {'title': songTitle}),
+    onUndo: onUndo,
+  );
 }
 
 Future<void> addSongsToNowPlaying(WidgetRef ref, List<int> songIds) async {
@@ -80,9 +95,11 @@ Future<void> addSongsToPlaylist(
     await setSongsFavorite(ref, songIds, true);
     return;
   }
+  final playlist = _playlistForMutation(ref, snapshot, playlistId);
   await ref
       .read(libraryRepositoryProvider)
       .addSongsToPlaylist(playlistId, songIds);
+  _patchPlaylistSongsAdded(ref, playlist, songIds);
 }
 
 Future<void> addSongsToPlaylistWithUndo({
@@ -98,9 +115,7 @@ Future<void> addSongsToPlaylistWithUndo({
   }
   final snapshot = await _readLibraryContentData(ref);
   final songsById = {for (final song in snapshot.songs) song.id: song};
-  final playlist = snapshot.playlists.firstWhere(
-    (playlist) => playlist.id == playlistId,
-  );
+  final playlist = _playlistForMutation(ref, snapshot, playlistId);
   if (useSingleSongCall && songIds.length == 1) {
     if (playlistId == snapshot.favoritePlaylistId) {
       await setSongsFavorite(ref, songIds, true);
@@ -108,6 +123,7 @@ Future<void> addSongsToPlaylistWithUndo({
       await ref
           .read(libraryRepositoryProvider)
           .addSongToPlaylist(playlistId, songIds.first);
+      _patchPlaylistSongsAdded(ref, playlist, songIds);
     }
   } else {
     await addSongsToPlaylist(ref, playlistId, songIds);
@@ -131,9 +147,62 @@ Future<void> addSongsToPlaylistWithUndo({
         await ref
             .read(libraryRepositoryProvider)
             .removeSongsFromPlaylist(playlistId, songIds);
+        final currentSnapshot = await _readLibraryContentData(ref);
+        final currentPlaylist = _playlistForMutation(
+          ref,
+          currentSnapshot,
+          playlistId,
+        );
+        _patchPlaylistSongsRemoved(ref, currentPlaylist, songIds);
       }
     },
   );
+}
+
+LibraryPlaylist _playlistForMutation(
+  WidgetRef ref,
+  LibraryContentData snapshot,
+  int playlistId,
+) {
+  return ref.read(libraryPlaylistOverridesProvider)[playlistId] ??
+      snapshot.playlists.firstWhere((playlist) => playlist.id == playlistId);
+}
+
+void _patchPlaylistSongsAdded(
+  WidgetRef ref,
+  LibraryPlaylist playlist,
+  List<int> songIds,
+) {
+  final existingSongIds = playlist.songIds.toSet();
+  final nextSongIds = [
+    ...playlist.songIds,
+    for (final songId in songIds)
+      if (existingSongIds.add(songId)) songId,
+  ];
+  _patchPlaylistMutation(
+    ref,
+    playlist.copyWith(songCount: nextSongIds.length, songIds: nextSongIds),
+  );
+}
+
+void _patchPlaylistSongsRemoved(
+  WidgetRef ref,
+  LibraryPlaylist playlist,
+  List<int> songIds,
+) {
+  final removedSongIds = songIds.toSet();
+  final nextSongIds =
+      playlist.songIds
+          .where((songId) => !removedSongIds.contains(songId))
+          .toList();
+  _patchPlaylistMutation(
+    ref,
+    playlist.copyWith(songCount: nextSongIds.length, songIds: nextSongIds),
+  );
+}
+
+void _patchPlaylistMutation(WidgetRef ref, LibraryPlaylist playlist) {
+  patchLibraryPlaylistOverride(ref, playlist);
 }
 
 Future<void> setSongsFavorite(
@@ -243,11 +312,55 @@ Future<void> createPlaylistWithSongs({
     playlists: playlists,
     defaultName: defaultName,
   );
-  if (name == null) {
+  if (name == null || !context.mounted) {
     return;
   }
 
-  await ref.read(libraryRepositoryProvider).createPlaylist(name, songIds);
+  await createPlaylistAndSync(
+    context: context,
+    ref: ref,
+    i18n: i18n,
+    name: name,
+    songIds: songIds,
+  );
+}
+
+Future<LibraryPlaylist> createPlaylistAndSync({
+  required BuildContext context,
+  required WidgetRef ref,
+  required SmPlayerI18n i18n,
+  required String name,
+  required List<int> songIds,
+}) async {
+  final playlist = await ref
+      .read(libraryRepositoryProvider)
+      .createPlaylist(name, songIds);
+  _patchPlaylistMutation(ref, playlist);
+  if (context.mounted) {
+    showPlaylistCreatedNotification(
+      context: context,
+      i18n: i18n,
+      playlist: playlist,
+    );
+  }
+  return playlist;
+}
+
+void showPlaylistCreatedNotification({
+  required BuildContext context,
+  required SmPlayerI18n i18n,
+  required LibraryPlaylist playlist,
+}) {
+  final router = GoRouter.of(context);
+  showAppNotification(
+    context: context,
+    message: i18n.t('notification.playlistCreated', {'name': playlist.name}),
+    duration: undoableNotificationDuration,
+    actionLabel: i18n.t('context.view'),
+    onAction: () {
+      router.go('/playlists/${playlist.id}');
+    },
+  );
 }
 
 Future<void> requestDeleteSongFromDisk({
@@ -297,11 +410,6 @@ Future<void> requestDeleteSongFromDisk({
         .read(libraryRepositoryProvider)
         .commitDeleteSongFromDisk(pendingDelete.id);
   }
-}
-
-Future<void> hideSongFile(WidgetRef ref, int songId) async {
-  await ref.read(libraryRepositoryProvider).hideSong(songId);
-  ref.invalidate(libraryContentDataProvider);
 }
 
 Future<void> hideSongFileWithUndo({

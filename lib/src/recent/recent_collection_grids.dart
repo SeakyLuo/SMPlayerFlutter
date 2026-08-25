@@ -72,7 +72,8 @@ class _RecentAlbumGrid extends StatelessWidget {
   final ValueChanged<RecentAlbumView> onPlay;
   final ValueChanged<String> onToggleSelection;
   final ValueChanged<String> onTimelineLabelChange;
-  final void Function(Offset position, RecentAlbumView album) onOpenContextMenu;
+  final FutureOr<void> Function(Offset position, RecentAlbumView album)
+  onOpenContextMenu;
 
   @override
   Widget build(BuildContext context) {
@@ -102,7 +103,7 @@ class _RecentAlbumGrid extends StatelessWidget {
             onToggleSelection(key);
           },
           onOpenContextMenu: (position) {
-            onOpenContextMenu(position, album);
+            return onOpenContextMenu(position, album);
           },
         );
       },
@@ -131,7 +132,7 @@ class _RecentAlbumCard extends StatefulWidget {
   final VoidCallback onPlay;
   final ValueChanged<Offset> onAdd;
   final VoidCallback onToggleSelection;
-  final ValueChanged<Offset> onOpenContextMenu;
+  final FutureOr<void> Function(Offset) onOpenContextMenu;
 
   @override
   State<_RecentAlbumCard> createState() => _RecentAlbumCardState();
@@ -139,6 +140,23 @@ class _RecentAlbumCard extends StatefulWidget {
 
 class _RecentAlbumCardState extends State<_RecentAlbumCard> {
   var _hovered = false;
+  var _contextMenuOpen = false;
+
+  Future<void> _openContextMenu(Offset position) async {
+    setState(() {
+      _contextMenuOpen = true;
+    });
+    try {
+      await widget.onOpenContextMenu(position);
+    } finally {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        setState(() {
+          _contextMenuOpen = false;
+        });
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -148,7 +166,7 @@ class _RecentAlbumCardState extends State<_RecentAlbumCard> {
     final hoverStyle = SelectedCollectionCardStyle.hoverForBrightness(
       brightness,
     );
-    final active = _hovered;
+    final active = _hovered || _contextMenuOpen;
     final firstArtworkSong = getAlbumArtworkSong(widget.album.songs);
     final artworkUrls =
         firstArtworkSong.thumbnailPath.isEmpty
@@ -171,7 +189,7 @@ class _RecentAlbumCardState extends State<_RecentAlbumCard> {
         child: GestureDetector(
           onTap: widget.onOpen,
           onSecondaryTapDown: (details) {
-            widget.onOpenContextMenu(details.globalPosition);
+            unawaited(_openContextMenu(details.globalPosition));
           },
           child: AnimatedContainer(
             key: const ValueKey('RecentAlbum.Card'),
@@ -228,7 +246,7 @@ class _RecentAlbumCardState extends State<_RecentAlbumCard> {
                   widget.selectionMode || widget.selected
                       ? GridViewSelectionMark(selected: widget.selected)
                       : null,
-              showActions: !widget.selectionMode && _hovered,
+              showActions: !widget.selectionMode && active,
               textStrongColor:
                   widget.selected
                       ? selectedStyle.foreground
@@ -312,7 +330,7 @@ class _RecentArtistList extends StatelessWidget {
   final ValueChanged<RecentArtistView> onPlay;
   final ValueChanged<String> onToggleSelection;
   final ValueChanged<String> onTimelineLabelChange;
-  final void Function(Offset position, RecentArtistView artist)
+  final FutureOr<void> Function(Offset position, RecentArtistView artist)
   onOpenContextMenu;
 
   @override
@@ -365,16 +383,36 @@ class _RecentArtistList extends StatelessWidget {
                         itemBuilder: (context, index) {
                           final artist = group.items[index];
                           final key = 'artists:${artist.name}';
-                          return SearchArtistCard(
-                            title: artist.name,
+                          final artistGroup = ArtistGroup(
+                            name: artist.name,
+                            songs: artist.songs,
+                            albumCount:
+                                artist.songs
+                                    .map(
+                                      (song) => displayAlbum(
+                                        song,
+                                        context.smPlayerI18n,
+                                      ),
+                                    )
+                                    .toSet()
+                                    .length,
+                            artworkSongId:
+                                artist.songs
+                                    .firstWhere(
+                                      (song) =>
+                                          song.thumbnailPath ==
+                                          artist.artworkUrl,
+                                    )
+                                    .id,
+                          );
+                          return ArtistListItem(
+                            artist: artistGroup,
+                            active: selectedKeys.contains(key),
+                            i18n: context.smPlayerI18n,
+                            locateHighlighted: false,
+                            locatePulse: 0,
                             subtitle: formatRecentDateTime(artist.playedAt),
-                            artworkPath: artist.artworkUrl,
-                            selected: selectedKeys.contains(key),
-                            multiSelect: multiSelect,
-                            playTooltip: context.smPlayerI18n.t(
-                              'nowPlaying.randomPlay',
-                            ),
-                            onOpen: () {
+                            onPressed: () {
                               if (multiSelect) {
                                 onToggleSelection(key);
                               } else {
@@ -382,7 +420,6 @@ class _RecentArtistList extends StatelessWidget {
                               }
                             },
                             onPlay: () => onPlay(artist),
-                            onToggleSelection: () => onToggleSelection(key),
                             onOpenContextMenu:
                                 (position) =>
                                     onOpenContextMenu(position, artist),

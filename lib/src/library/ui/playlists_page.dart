@@ -63,23 +63,46 @@ class _PlaylistsPageState extends ConsumerState<PlaylistsPage> {
   var _appBarSearchOpen = false;
   List<int>? _previewPlaylistIds;
   List<int>? _committedPlaylistIds;
-  final _playlistOverrides = <int, LibraryPlaylist>{};
-  final _deletedPlaylistIds = <int>{};
-  List<int>? _nowPlayingSongIdsOverride;
   List<int>? _dragStartPlaylistIds;
   int? _draggingPlaylistId;
   var _playlistDragAccepted = false;
   Offset? _playlistDragAnchorOffset;
   final _playlistCardContexts = <int, BuildContext>{};
   int? _lastPersistedPlaylistId;
+  int? _recordedBrowsePlaylistId;
   final _appBarPortalOwner = Object();
   String? _appBarPortalSignature;
   late final StateController<WorkspaceAppBarPortalEntry?> _appBarPortalNotifier;
+
+  void _updateState(VoidCallback callback) {
+    setState(callback);
+  }
 
   @override
   void initState() {
     super.initState();
     _appBarPortalNotifier = ref.read(workspaceAppBarPortalProvider.notifier);
+  }
+
+  void _recordBrowseAfterFrame(int playlistId) {
+    if (_recordedBrowsePlaylistId == playlistId) {
+      return;
+    }
+    _recordedBrowsePlaylistId = playlistId;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || _recordedBrowsePlaylistId != playlistId) {
+        return;
+      }
+      unawaited(_recordBrowse(playlistId));
+    });
+  }
+
+  Future<void> _recordBrowse(int playlistId) async {
+    final recentBrowses = ref.read(recentBrowsesProvider.notifier);
+    final entry = await ref
+        .read(libraryRepositoryProvider)
+        .recordRecentBrowse(RecentBrowseType.playlist, '$playlistId');
+    await recentBrowses.record(entry);
   }
 
   @override
@@ -185,6 +208,10 @@ class _PlaylistsPageState extends ConsumerState<PlaylistsPage> {
     final songOverrides = ref.watch(librarySongOverridesProvider);
     final playlistOverrides = ref.watch(libraryPlaylistOverridesProvider);
     final deletedPlaylistIds = ref.watch(libraryDeletedPlaylistIdsProvider);
+    final playlistOrder = ref.watch(libraryPlaylistOrderProvider);
+    final nowPlayingSongIdsOverride = ref.watch(
+      nowPlayingQueueOverrideProvider,
+    );
 
     if (i18nValue.isLoading || snapshotValue.isLoading) {
       return const SmPlayerLoadingState();
@@ -212,7 +239,9 @@ class _PlaylistsPageState extends ConsumerState<PlaylistsPage> {
             songOverrides,
             playlistOverrides,
             deletedPlaylistIds,
+            playlistOrder,
           ),
+          nowPlayingSongIdsOverride,
         );
         final selectedPlaylist =
             snapshot.playlists
@@ -220,10 +249,11 @@ class _PlaylistsPageState extends ConsumerState<PlaylistsPage> {
                 .firstOrNull;
         if (widget.selectedPlaylistId != null && selectedPlaylist != null) {
           _persistLastPlaylist(selectedPlaylist.id);
+          _recordBrowseAfterFrame(selectedPlaylist.id);
           return _buildDetail(context, ref, i18n, snapshot, selectedPlaylist);
         }
 
-        return _buildGrid(context, i18n, snapshot);
+        return _buildGrid(context, i18n, snapshot, playlistOrder);
       },
     );
   }
@@ -260,7 +290,7 @@ class _PlaylistsPageState extends ConsumerState<PlaylistsPage> {
       i18n: i18n,
       child: HeaderedPlaylistControl(
         key: ValueKey('HeaderedPlaylist.Playlist.${selectedPlaylist.id}'),
-        routeLocation: '/playlists/${selectedPlaylist.id}',
+        routeLocation: GoRouterState.of(context).uri.toString(),
         type:
             selectedPlaylist.isBuiltIn
                 ? HeaderedPlaylistType.favorites
@@ -288,11 +318,11 @@ class _PlaylistsPageState extends ConsumerState<PlaylistsPage> {
           _playTrack(snapshot, i18n, trackId, queueSongIds);
         },
         onMoveToMusicOrPlay: (songId) {
-          _playTrack(
-            snapshot,
-            i18n,
-            songId,
-            songs.map((song) => song.id).toList(),
+          insertOrPlayNowPlayingSong(
+            ref: ref,
+            snapshot: snapshot,
+            i18n: i18n,
+            songId: songId,
           );
         },
         onPlayNext: (songId) {
@@ -376,9 +406,7 @@ class _PlaylistsPageState extends ConsumerState<PlaylistsPage> {
               );
         },
         onRecordPlay: () {
-          ref
-              .read(libraryRepositoryProvider)
-              .recordPlaylistPlayed(selectedPlaylist.id);
+          unawaited(recordRecentPlaylistPlayback(ref, selectedPlaylist.id));
         },
         onSortSongs: (songIds, sortCriterion) {
           unawaited(
@@ -412,6 +440,7 @@ class _PlaylistsPageState extends ConsumerState<PlaylistsPage> {
     BuildContext context,
     SmPlayerI18n i18n,
     LibraryContentData snapshot,
+    List<int>? playlistOrder,
   ) {
     final songsById = {for (final song in snapshot.songs) song.id: song};
     final customPlaylists =
@@ -428,6 +457,7 @@ class _PlaylistsPageState extends ConsumerState<PlaylistsPage> {
     final orderedIds =
         _previewPlaylistIds ??
         _committedPlaylistIdsFor(customPlaylistIds) ??
+        playlistOrder ??
         customPlaylistIds;
     final playlistById = {
       for (final playlist in customPlaylists) playlist.id: playlist,
@@ -446,7 +476,7 @@ class _PlaylistsPageState extends ConsumerState<PlaylistsPage> {
             ? const <String>[]
             : _playlistSearchSuggestions(customPlaylists, songsById);
     final searchHistoryEntries = latestSearchHistoryEntries(
-      snapshot.recentSearches,
+      ref.watch(recentSearchesProvider).valueOrNull ?? snapshot.recentSearches,
       SearchHistoryType.playlists,
     );
     final useWorkspaceAppBar = WorkspaceNavigationAppBarScope.of(context);
@@ -720,13 +750,12 @@ class _PlaylistsPageState extends ConsumerState<PlaylistsPage> {
                                                   onPlay: () {
                                                     if (playlistSongs
                                                         .isNotEmpty) {
-                                                      ref
-                                                          .read(
-                                                            libraryRepositoryProvider,
-                                                          )
-                                                          .recordPlaylistPlayed(
-                                                            playlist.id,
-                                                          );
+                                                      unawaited(
+                                                        recordRecentPlaylistPlayback(
+                                                          ref,
+                                                          playlist.id,
+                                                        ),
+                                                      );
                                                       _playTrack(
                                                         snapshot,
                                                         i18n,
@@ -740,7 +769,7 @@ class _PlaylistsPageState extends ConsumerState<PlaylistsPage> {
                                                     }
                                                   },
                                                   onContextMenu: (position) {
-                                                    _showPlaylistMenu(
+                                                    return _showPlaylistMenu(
                                                       context,
                                                       i18n,
                                                       snapshot,

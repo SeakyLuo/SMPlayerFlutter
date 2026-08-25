@@ -140,8 +140,6 @@ class _MainNavigationViewTitle extends StatelessWidget {
   }
 }
 
-const _desktopTitlebarButtonInset = 78.0;
-
 String _navigationAppName(SmPlayerI18n i18n, Locale locale) {
   final appName = i18n.t('app.shell');
   if (appName != 'app.shell') {

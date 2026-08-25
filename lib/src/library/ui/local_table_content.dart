@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
@@ -48,6 +50,7 @@ class LocalTableContent extends StatelessWidget {
     required this.onToggleFolderSelection,
     required this.onMoveLocalItemsToFolder,
     required this.onPlayTrack,
+    required this.onPlaySong,
     required this.onTogglePlayPause,
     required this.onToggleSongSelection,
     required this.onPlayNext,
@@ -86,7 +89,8 @@ class LocalTableContent extends StatelessWidget {
   final ValueChanged<FolderNode> onSearchFolder;
   final ValueChanged<FolderNode> onRevealFolder;
   final ValueChanged<String> onOpenFolder;
-  final void Function(FolderNode folder, Offset position) onOpenFolderMenu;
+  final FutureOr<void> Function(FolderNode folder, Offset position)
+  onOpenFolderMenu;
   final ValueChanged<String> onToggleFolderSelection;
   final void Function({
     required List<int> songIds,
@@ -95,11 +99,13 @@ class LocalTableContent extends StatelessWidget {
   })
   onMoveLocalItemsToFolder;
   final void Function(int trackId, List<int> queueSongIds) onPlayTrack;
+  final ValueChanged<int> onPlaySong;
   final VoidCallback onTogglePlayPause;
   final ValueChanged<int> onToggleSongSelection;
   final ValueChanged<int> onPlayNext;
-  final void Function(LibrarySong song, Offset position) onAddSong;
-  final void Function(LibrarySong song, Offset position) onOpenSongMenu;
+  final FutureOr<void> Function(LibrarySong song, Offset position) onAddSong;
+  final FutureOr<void> Function(LibrarySong song, Offset position)
+  onOpenSongMenu;
   final ValueChanged<String> onJumpToSongKey;
 
   @override
@@ -139,6 +145,7 @@ class LocalTableContent extends StatelessWidget {
         onToggleFolderSelection: onToggleFolderSelection,
         onMoveLocalItemsToFolder: onMoveLocalItemsToFolder,
         onPlayTrack: onPlayTrack,
+        onPlaySong: onPlaySong,
         onTogglePlayPause: onTogglePlayPause,
         onToggleSongSelection: onToggleSongSelection,
         onPlayNext: onPlayNext,
@@ -349,72 +356,64 @@ class LocalTableContent extends StatelessWidget {
             onAcceptWithDetails:
                 (details) => _moveDraggedItems(folder, details.data),
             builder: (context, candidateData, rejectedData) {
-              final cell = GestureDetector(
-                onSecondaryTapDown:
-                    (details) =>
-                        onOpenFolderMenu(folder, details.globalPosition),
-                child: InkWell(
-                  onTap:
-                      multiSelect
-                          ? () => onToggleFolderSelection(folder.relativePath)
-                          : () => onOpenFolder(folder.relativePath),
-                  child: Container(
-                    decoration:
-                        candidateData.isEmpty
-                            ? null
-                            : BoxDecoration(
-                              color: colors.accentSoft,
-                              border: Border.all(color: colors.accentStrong),
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                    padding: EdgeInsets.fromLTRB(
-                      12 + row.depth * 22.0,
-                      7,
-                      8,
-                      7,
-                    ),
-                    child: Row(
-                      children: [
-                        if (row.expandable)
-                          IconButton(
-                            tooltip: folder.name,
-                            icon: Icon(
-                              row.expanded
-                                  ? FluentIcons.chevron_down_20_regular
-                                  : FluentIcons.chevron_right_20_regular,
-                            ),
-                            color: colors.textMuted,
-                            iconSize: 18,
-                            onPressed:
-                                () => onToggleTreeFolderExpanded(
-                                  folder.relativePath,
-                                ),
+              final cell = _PinnedContextMenuInkWell(
+                onOpenContextMenu:
+                    (position) => onOpenFolderMenu(folder, position),
+                onTap:
+                    multiSelect
+                        ? () => onToggleFolderSelection(folder.relativePath)
+                        : () => onOpenFolder(folder.relativePath),
+                child: Container(
+                  decoration:
+                      candidateData.isEmpty
+                          ? null
+                          : BoxDecoration(
+                            color: colors.accentSoft,
+                            border: Border.all(color: colors.accentStrong),
+                            borderRadius: BorderRadius.circular(8),
                           ),
-                        if (multiSelect) ...[
-                          _LocalTableCheckMark(selected: selected),
-                          const SizedBox(width: 10),
-                        ],
-                        const _LocalTableTypeIcon.folder(),
+                  padding: EdgeInsets.fromLTRB(12 + row.depth * 22.0, 7, 8, 7),
+                  child: Row(
+                    children: [
+                      if (row.expandable)
+                        IconButton(
+                          tooltip: folder.name,
+                          icon: Icon(
+                            row.expanded
+                                ? FluentIcons.chevron_down_20_regular
+                                : FluentIcons.chevron_right_20_regular,
+                          ),
+                          color: colors.textMuted,
+                          iconSize: 18,
+                          onPressed:
+                              () => onToggleTreeFolderExpanded(
+                                folder.relativePath,
+                              ),
+                        ),
+                      if (multiSelect) ...[
+                        _LocalTableCheckMark(selected: selected),
                         const SizedBox(width: 10),
-                        Expanded(
-                          child: Text(
-                            folder.name,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              color: colors.textStrong,
-                              fontWeight: FontWeight.w700,
-                            ),
+                      ],
+                      const _LocalTableTypeIcon.folder(),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          folder.name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: colors.textStrong,
+                            fontWeight: FontWeight.w700,
                           ),
                         ),
-                        Text(
-                          i18n.t('playlists.songCount', {
-                            'count': folder.subtreeSongIds.length,
-                          }),
-                          style: TextStyle(color: colors.textMuted),
-                        ),
-                      ],
-                    ),
+                      ),
+                      Text(
+                        i18n.t('playlists.songCount', {
+                          'count': folder.subtreeSongIds.length,
+                        }),
+                        style: TextStyle(color: colors.textMuted),
+                      ),
+                    ],
                   ),
                 ),
               );
@@ -461,16 +460,13 @@ class LocalTableContent extends StatelessWidget {
               opacity: 0.55,
               child: _treeSongNameCell(context, row, song, selected, current),
             ),
-            child: GestureDetector(
-              onSecondaryTapDown:
-                  (details) => onOpenSongMenu(song, details.globalPosition),
-              child: InkWell(
-                onTap:
-                    multiSelect
-                        ? () => onToggleSongSelection(song.id)
-                        : () => onPlayTrack(song.id, compactQueueSongIds),
-                child: _treeSongNameCell(context, row, song, selected, current),
-              ),
+            child: _PinnedContextMenuInkWell(
+              onOpenContextMenu: (position) => onOpenSongMenu(song, position),
+              onTap:
+                  multiSelect
+                      ? () => onToggleSongSelection(song.id)
+                      : () => onPlayTrack(song.id, compactQueueSongIds),
+              child: _treeSongNameCell(context, row, song, selected, current),
             ),
           ),
         ),
@@ -536,9 +532,7 @@ class LocalTableContent extends StatelessWidget {
                         : FluentIcons.play_20_regular,
                   ),
                   onPressed:
-                      current
-                          ? onTogglePlayPause
-                          : () => onPlayTrack(song.id, compactQueueSongIds),
+                      current ? onTogglePlayPause : () => onPlaySong(song.id),
                 ),
                 IconButton(
                   tooltip: i18n.t('context.addToPlaylist'),
@@ -572,88 +566,83 @@ class LocalTableContent extends StatelessWidget {
       children: [
         TableCell(
           verticalAlignment: TableCellVerticalAlignment.middle,
-          child: GestureDetector(
-            onSecondaryTapDown:
-                (details) => onOpenFolderMenu(folder, details.globalPosition),
-            child: InkWell(
-              onTap:
-                  multiSelect
-                      ? () => onToggleFolderSelection(folder.relativePath)
-                      : () => onOpenFolder(folder.relativePath),
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(12, 8, 8, 8),
-                child: Row(
-                  children: [
-                    if (multiSelect) ...[
-                      _LocalTableCheckMark(selected: selected),
-                      const SizedBox(width: 10),
-                    ],
-                    const _LocalTableTypeIcon.folder(),
+          child: _PinnedContextMenuInkWell(
+            onOpenContextMenu: (position) => onOpenFolderMenu(folder, position),
+            onTap:
+                multiSelect
+                    ? () => onToggleFolderSelection(folder.relativePath)
+                    : () => onOpenFolder(folder.relativePath),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(12, 8, 8, 8),
+              child: Row(
+                children: [
+                  if (multiSelect) ...[
+                    _LocalTableCheckMark(selected: selected),
                     const SizedBox(width: 10),
-                    Expanded(
-                      child: Text(
-                        folder.name,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: colors.textStrong,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ),
-                    Text(
-                      i18n.t('playlists.songCount', {
-                        'count': folder.subtreeSongIds.length,
-                      }),
-                      style: TextStyle(color: colors.textMuted),
-                    ),
-                    Icon(
-                      FluentIcons.chevron_right_20_regular,
-                      size: 18,
-                      color: colors.textMuted,
-                    ),
-                    if (!multiSelect)
-                      _LocalTableActions(
-                        children: [
-                          IconButton(
-                            tooltip: i18n.t('local.playAllButtonTooltip'),
-                            icon: const ShuffleIcon(),
-                            onPressed: () => onPlayFolder(folder),
-                          ),
-                          Builder(
-                            builder:
-                                (buttonContext) => IconButton(
-                                  tooltip: i18n.t('context.addToPlaylist'),
-                                  icon: const Icon(FluentIcons.add_20_regular),
-                                  onPressed:
-                                      () => _invokeAtButtonBottom(
-                                        buttonContext,
-                                        (position) =>
-                                            onAddFolder(folder, position),
-                                      ),
-                                ),
-                          ),
-                          IconButton(
-                            tooltip: i18n.t('local.updateFolder'),
-                            icon: const Icon(FluentIcons.arrow_sync_20_regular),
-                            onPressed: () => onRefreshFolder(folder),
-                          ),
-                          IconButton(
-                            tooltip: i18n.t('local.searchFolderButtonTooltip'),
-                            icon: const Icon(FluentIcons.search_20_regular),
-                            onPressed: () => onSearchFolder(folder),
-                          ),
-                          IconButton(
-                            tooltip: i18n.t('local.openLocalButtonTooltip'),
-                            icon: const Icon(
-                              FluentIcons.folder_open_20_regular,
-                            ),
-                            onPressed: () => onRevealFolder(folder),
-                          ),
-                        ],
-                      ),
                   ],
-                ),
+                  const _LocalTableTypeIcon.folder(),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      folder.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: colors.textStrong,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                  Text(
+                    i18n.t('playlists.songCount', {
+                      'count': folder.subtreeSongIds.length,
+                    }),
+                    style: TextStyle(color: colors.textMuted),
+                  ),
+                  Icon(
+                    FluentIcons.chevron_right_20_regular,
+                    size: 18,
+                    color: colors.textMuted,
+                  ),
+                  if (!multiSelect)
+                    _LocalTableActions(
+                      children: [
+                        IconButton(
+                          tooltip: i18n.t('local.playAllButtonTooltip'),
+                          icon: const ShuffleIcon(),
+                          onPressed: () => onPlayFolder(folder),
+                        ),
+                        Builder(
+                          builder:
+                              (buttonContext) => IconButton(
+                                tooltip: i18n.t('context.addToPlaylist'),
+                                icon: const Icon(FluentIcons.add_20_regular),
+                                onPressed:
+                                    () => _invokeAtButtonBottom(
+                                      buttonContext,
+                                      (position) =>
+                                          onAddFolder(folder, position),
+                                    ),
+                              ),
+                        ),
+                        IconButton(
+                          tooltip: i18n.t('local.updateFolder'),
+                          icon: const Icon(FluentIcons.arrow_sync_20_regular),
+                          onPressed: () => onRefreshFolder(folder),
+                        ),
+                        IconButton(
+                          tooltip: i18n.t('local.searchFolderButtonTooltip'),
+                          icon: const Icon(FluentIcons.search_20_regular),
+                          onPressed: () => onSearchFolder(folder),
+                        ),
+                        IconButton(
+                          tooltip: i18n.t('local.openLocalButtonTooltip'),
+                          icon: const Icon(FluentIcons.folder_open_20_regular),
+                          onPressed: () => onRevealFolder(folder),
+                        ),
+                      ],
+                    ),
+                ],
               ),
             ),
           ),
@@ -676,80 +665,77 @@ class LocalTableContent extends StatelessWidget {
       ),
       children: [
         TableCell(
-          child: GestureDetector(
-            onSecondaryTapDown:
-                (details) => onOpenSongMenu(song, details.globalPosition),
-            child: InkWell(
-              onTap:
-                  multiSelect
-                      ? () => onToggleSongSelection(song.id)
-                      : () => onPlayTrack(song.id, queueSongIds),
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(12, 8, 8, 8),
-                child: Row(
-                  children: [
-                    if (multiSelect) ...[
-                      _LocalTableCheckMark(selected: selected),
-                      const SizedBox(width: 10),
-                    ],
-                    current
-                        ? Icon(
-                          FluentIcons.play_20_regular,
-                          color: colors.accentStrong,
-                        )
-                        : const _LocalTableTypeIcon.song(),
+          child: _PinnedContextMenuInkWell(
+            onOpenContextMenu: (position) => onOpenSongMenu(song, position),
+            onTap:
+                multiSelect
+                    ? () => onToggleSongSelection(song.id)
+                    : () => onPlayTrack(song.id, queueSongIds),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(12, 8, 8, 8),
+              child: Row(
+                children: [
+                  if (multiSelect) ...[
+                    _LocalTableCheckMark(selected: selected),
                     const SizedBox(width: 10),
-                    Expanded(
-                      child: Text(
-                        song.title,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color:
-                              current ? colors.accentStrong : colors.textStrong,
-                          fontWeight: FontWeight.w700,
-                        ),
+                  ],
+                  current
+                      ? Icon(
+                        FluentIcons.play_20_regular,
+                        color: colors.accentStrong,
+                      )
+                      : const _LocalTableTypeIcon.song(),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      song.title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color:
+                            current ? colors.accentStrong : colors.textStrong,
+                        fontWeight: FontWeight.w700,
                       ),
                     ),
-                    if (!multiSelect)
-                      _LocalTableActions(
-                        children: [
-                          IconButton(
-                            tooltip:
-                                playing
-                                    ? i18n.t('player.pause')
-                                    : i18n.t('context.play'),
-                            icon: Icon(
+                  ),
+                  if (!multiSelect)
+                    _LocalTableActions(
+                      children: [
+                        IconButton(
+                          tooltip:
                               playing
-                                  ? FluentIcons.pause_20_regular
-                                  : FluentIcons.play_20_regular,
-                            ),
-                            onPressed:
-                                current
-                                    ? onTogglePlayPause
-                                    : () => onPlayTrack(song.id, queueSongIds),
+                                  ? i18n.t('player.pause')
+                                  : i18n.t('context.play'),
+                          icon: Icon(
+                            playing
+                                ? FluentIcons.pause_20_regular
+                                : FluentIcons.play_20_regular,
                           ),
-                          Builder(
-                            builder:
-                                (buttonContext) => IconButton(
-                                  tooltip: i18n.t('context.addToPlaylist'),
-                                  icon: const Icon(FluentIcons.add_20_regular),
-                                  onPressed:
-                                      () => _invokeAtButtonBottom(
-                                        buttonContext,
-                                        (position) => onAddSong(song, position),
-                                      ),
-                                ),
-                          ),
-                          IconButton(
-                            tooltip: i18n.t('context.playNext'),
-                            icon: const SmPlayerPlayNextIcon(),
-                            onPressed: () => onPlayNext(song.id),
-                          ),
-                        ],
-                      ),
-                  ],
-                ),
+                          onPressed:
+                              current
+                                  ? onTogglePlayPause
+                                  : () => onPlaySong(song.id),
+                        ),
+                        Builder(
+                          builder:
+                              (buttonContext) => IconButton(
+                                tooltip: i18n.t('context.addToPlaylist'),
+                                icon: const Icon(FluentIcons.add_20_regular),
+                                onPressed:
+                                    () => _invokeAtButtonBottom(
+                                      buttonContext,
+                                      (position) => onAddSong(song, position),
+                                    ),
+                              ),
+                        ),
+                        IconButton(
+                          tooltip: i18n.t('context.playNext'),
+                          icon: const SmPlayerPlayNextIcon(),
+                          onPressed: () => onPlayNext(song.id),
+                        ),
+                      ],
+                    ),
+                ],
               ),
             ),
           ),
@@ -805,6 +791,57 @@ class LocalTableContent extends StatelessWidget {
       songIds: payload.songIds,
       folderPaths: payload.folderPaths,
       targetFolderPath: folder.path,
+    );
+  }
+}
+
+class _PinnedContextMenuInkWell extends StatefulWidget {
+  const _PinnedContextMenuInkWell({
+    required this.onOpenContextMenu,
+    required this.onTap,
+    required this.child,
+  });
+
+  final FutureOr<void> Function(Offset) onOpenContextMenu;
+  final VoidCallback onTap;
+  final Widget child;
+
+  @override
+  State<_PinnedContextMenuInkWell> createState() =>
+      _PinnedContextMenuInkWellState();
+}
+
+class _PinnedContextMenuInkWellState extends State<_PinnedContextMenuInkWell> {
+  final _statesController = WidgetStatesController();
+
+  Future<void> _openContextMenu(Offset position) async {
+    _statesController.update(WidgetState.hovered, true);
+    try {
+      await widget.onOpenContextMenu(position);
+    } finally {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        _statesController.update(WidgetState.hovered, false);
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _statesController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onSecondaryTapDown:
+          (details) => unawaited(_openContextMenu(details.globalPosition)),
+      child: InkWell(
+        statesController: _statesController,
+        onTap: widget.onTap,
+        child: widget.child,
+      ),
     );
   }
 }

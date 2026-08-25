@@ -13,6 +13,7 @@ class _ArtistAlbumSliverSection extends StatelessWidget {
     required this.onPlaySongs,
     required this.onOpenAlbumMenu,
     required this.onPlayTrack,
+    required this.onPlaySong,
     required this.onTogglePlayPause,
     required this.onPlayNext,
     required this.onToggleFavorite,
@@ -32,20 +33,21 @@ class _ArtistAlbumSliverSection extends StatelessWidget {
   final VoidCallback onPlaySongs;
   final ValueChanged<Offset> onOpenAlbumMenu;
   final void Function(int songId, List<int> queueSongIds) onPlayTrack;
+  final ValueChanged<int> onPlaySong;
   final VoidCallback onTogglePlayPause;
   final ValueChanged<int> onPlayNext;
   final void Function(int songId, bool favorite) onToggleFavorite;
-  final void Function(BuildContext context, LibrarySong song)
+  final FutureOr<void> Function(BuildContext context, LibrarySong song)
   onOpenSongAddToMenu;
   final ValueChanged<int> onToggleSongSelection;
-  final void Function(Offset position, LibrarySong song) onOpenSongContextMenu;
+  final FutureOr<void> Function(Offset position, LibrarySong song)
+  onOpenSongContextMenu;
 
   @override
   Widget build(BuildContext context) {
     final brightness = Theme.of(context).brightness;
     final compact = MediaQuery.sizeOf(context).width <= 720;
     final narrowSongRows = MediaQuery.sizeOf(context).width <= 1120;
-    final hideFavoriteAction = MediaQuery.sizeOf(context).width <= 800;
     final songRowColors = _ArtistsColors.artistSongRowColors(brightness);
     final sectionRadius = compact ? 8.0 : 10.0;
     final horizontalPadding = 18.0;
@@ -116,7 +118,6 @@ class _ArtistAlbumSliverSection extends StatelessWidget {
                     narrowSongRows: narrowSongRows,
                     songRowTrailingPadding: songRowTrailingPadding,
                     songRowColors: songRowColors,
-                    hideFavoriteAction: hideFavoriteAction,
                   ),
               ],
               itemShellBuilder: (context, index, child) {
@@ -152,7 +153,6 @@ class _ArtistAlbumSliverSection extends StatelessWidget {
     required bool narrowSongRows,
     required double songRowTrailingPadding,
     required PlaylistControlItemColors? songRowColors,
-    required bool hideFavoriteAction,
   }) {
     return PlaylistControlEntry(
       key: ValueKey('artist-song-${song.id}'),
@@ -168,13 +168,18 @@ class _ArtistAlbumSliverSection extends StatelessWidget {
       collapseCompactPrimaryActions: narrowSongRows,
       compactDurationWidth: narrowSongRows ? 20 : 50,
       compactTrailingPadding: songRowTrailingPadding,
-      showFavoriteAction: !hideFavoriteAction,
+      favoriteAsHoverAction: true,
+      keepFavoriteActionInCompact: true,
+      keepAddToActionInCompact: true,
       playNextLabel: i18n.t('context.playNext'),
       addToPlaylistLabel: i18n.t('context.addToPlaylist'),
       favoriteLabel: i18n.t('common.favorite'),
       moreLabel: i18n.t('player.more'),
-      onPlayTrack: () {
+      onActivateRow: () {
         onPlayTrack(song.id, queueSongIds);
+      },
+      onPlayTrack: () {
+        onPlaySong(song.id);
       },
       onTogglePlayPause: onTogglePlayPause,
       onToggleSelection: () {
@@ -184,13 +189,13 @@ class _ArtistAlbumSliverSection extends StatelessWidget {
         onToggleFavorite(song.id, !song.favorite);
       },
       onAddToPlaylistClick: (buttonContext) {
-        onOpenSongAddToMenu(buttonContext, song);
+        return onOpenSongAddToMenu(buttonContext, song);
       },
       onPlayNextClick: () {
         onPlayNext(song.id);
       },
       onOpenContextMenu: (position) {
-        onOpenSongContextMenu(position, song);
+        return onOpenSongContextMenu(position, song);
       },
       onSeeArtist: (artistName) {
         context.go('/artists?artist=${Uri.encodeQueryComponent(artistName)}');

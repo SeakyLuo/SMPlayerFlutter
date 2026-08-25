@@ -25,6 +25,9 @@ final _artistsLibraryDataProvider = Provider.autoDispose
         request.snapshot,
         const {},
         request.songOverrides,
+        ref.watch(libraryPlaylistOverridesProvider),
+        ref.watch(libraryDeletedPlaylistIdsProvider),
+        ref.watch(libraryPlaylistOrderProvider),
       );
       return _ArtistsLibraryData(
         snapshot: snapshot,

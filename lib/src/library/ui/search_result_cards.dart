@@ -81,6 +81,7 @@ class _SearchResultCard extends StatefulWidget {
   const _SearchResultCard({
     required this.card,
     required this.type,
+    required this.query,
     required this.selected,
     required this.multiSelect,
     required this.onOpen,
@@ -91,12 +92,13 @@ class _SearchResultCard extends StatefulWidget {
 
   final SearchResult card;
   final SearchResultType type;
+  final String query;
   final bool selected;
   final bool multiSelect;
   final VoidCallback onOpen;
   final VoidCallback onPlay;
   final VoidCallback onToggleSelection;
-  final ValueChanged<Offset> onOpenContextMenu;
+  final FutureOr<void> Function(Offset) onOpenContextMenu;
 
   @override
   State<_SearchResultCard> createState() => _SearchResultCardState();
@@ -104,6 +106,23 @@ class _SearchResultCard extends StatefulWidget {
 
 class _SearchResultCardState extends State<_SearchResultCard> {
   var _hovered = false;
+  var _contextMenuOpen = false;
+
+  Future<void> _openContextMenu(Offset position) async {
+    setState(() {
+      _contextMenuOpen = true;
+    });
+    try {
+      await widget.onOpenContextMenu(position);
+    } finally {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        setState(() {
+          _contextMenuOpen = false;
+        });
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -112,6 +131,7 @@ class _SearchResultCardState extends State<_SearchResultCard> {
       return SearchArtistCard(
         title: widget.card.title,
         subtitle: widget.card.subtitle,
+        searchQuery: widget.query,
         artworkPath: widget.card.artworkUrl,
         selected: widget.selected,
         multiSelect: widget.multiSelect,
@@ -124,6 +144,7 @@ class _SearchResultCardState extends State<_SearchResultCard> {
     }
     final artworkFile =
         widget.card.artworkUrl.isEmpty ? null : File(widget.card.artworkUrl);
+    final hoverActive = _hovered || _contextMenuOpen;
 
     return MouseRegion(
       cursor: SystemMouseCursors.click,
@@ -140,7 +161,7 @@ class _SearchResultCardState extends State<_SearchResultCard> {
       child: GestureDetector(
         onTap: widget.multiSelect ? widget.onToggleSelection : widget.onOpen,
         onSecondaryTapDown: (details) {
-          widget.onOpenContextMenu(details.globalPosition);
+          unawaited(_openContextMenu(details.globalPosition));
         },
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 120),
@@ -156,13 +177,14 @@ class _SearchResultCardState extends State<_SearchResultCard> {
               _SearchGridCardBody(
                 title: widget.card.title,
                 subtitle: widget.card.subtitle,
+                query: widget.query,
                 artwork: _SearchCardArtwork(
                   file: artworkFile,
                   size: 156,
                   radius: 12,
                 ),
               ),
-              if (_hovered && !widget.multiSelect)
+              if (hoverActive && !widget.multiSelect)
                 Positioned(
                   top: 116,
                   right: 8,
@@ -186,7 +208,7 @@ class _SearchResultCardState extends State<_SearchResultCard> {
     if (widget.selected) {
       return colors.cardSelected;
     }
-    if (_hovered) {
+    if (_hovered || _contextMenuOpen) {
       return colors.panel;
     }
     return Colors.transparent;
@@ -210,11 +232,13 @@ class _SearchGridCardBody extends StatelessWidget {
   const _SearchGridCardBody({
     required this.title,
     required this.subtitle,
+    required this.query,
     required this.artwork,
   });
 
   final String title;
   final String subtitle;
+  final String query;
   final Widget artwork;
 
   @override
@@ -225,8 +249,9 @@ class _SearchGridCardBody extends StatelessWidget {
       children: [
         artwork,
         const SizedBox(height: 12),
-        Text(
-          title,
+        SearchMatchText(
+          text: title,
+          query: query,
           maxLines: 2,
           overflow: TextOverflow.ellipsis,
           style: TextStyle(
@@ -237,8 +262,9 @@ class _SearchGridCardBody extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 4),
-        Text(
-          subtitle,
+        SearchMatchText(
+          text: subtitle,
+          query: query,
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
           style: TextStyle(color: colors.textMuted, fontSize: 12),

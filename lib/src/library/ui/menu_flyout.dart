@@ -10,6 +10,7 @@ import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 import 'package:smplayer_flutter/src/app/app_interaction_colors.dart';
 import 'package:smplayer_flutter/src/app/exit_fullscreen_icon.dart';
 import 'package:smplayer_flutter/src/app/smplayer_vector_icons.dart';
+import 'package:smplayer_flutter/src/app/touch_context_menu.dart';
 import 'package:smplayer_flutter/src/app/uniform_multi_select_icon.dart';
 
 class MenuFlyoutItem {
@@ -95,6 +96,10 @@ class MenuFlyoutItem {
 
 enum MenuFlyoutLayer { defaultLayer, dialog }
 
+enum MenuFlyoutAnchorPlacement { below, above }
+
+enum MenuFlyoutDensity { compact, touch }
+
 final _openMenuFlyoutClosers = <VoidCallback>{};
 
 void closeOpenMenuFlyouts() {
@@ -112,9 +117,11 @@ Future<void> showMenuFlyout(
   required List<MenuFlyoutItem> items,
   ValueListenable<List<MenuFlyoutItem>>? itemsListenable,
   Offset? position,
+  MenuFlyoutAnchorPlacement anchorPlacement = MenuFlyoutAnchorPlacement.below,
   bool avoidPlayerBar = true,
   bool scrollRoot = false,
   MenuFlyoutLayer layer = MenuFlyoutLayer.defaultLayer,
+  MenuFlyoutDensity? density,
 }) {
   final overlay = Overlay.of(context, rootOverlay: true);
   final overlayBox = overlay.context.findRenderObject() as RenderBox;
@@ -129,6 +136,10 @@ Future<void> showMenuFlyout(
           }()
           : overlayBox.globalToLocal(position);
   final hasExplicitPosition = position != null;
+  final touchInvocation = takeTouchContextMenuInvocation();
+  final resolvedDensity =
+      density ??
+      (touchInvocation ? MenuFlyoutDensity.touch : MenuFlyoutDensity.compact);
 
   final completer = Completer<void>();
   late final OverlayEntry entry;
@@ -169,8 +180,10 @@ Future<void> showMenuFlyout(
             positionContext: overlay.context,
             requestedPosition: resolvedPosition,
             hasExplicitPosition: hasExplicitPosition,
+            anchorPlacement: anchorPlacement,
             avoidPlayerBar: avoidPlayerBar,
             scrollRoot: scrollRoot,
+            metrics: _MenuFlyoutMetrics.forDensity(resolvedDensity),
             onClose: close,
           ),
         ),
@@ -181,14 +194,85 @@ Future<void> showMenuFlyout(
 }
 
 const _menuFlyoutMargin = 8.0;
-const _menuFlyoutWidth = 206.0;
-const _menuFlyoutMaxWidth = 480.0;
-const _menuFlyoutPadding = 6.0;
 const _menuFlyoutBorderWidth = 1.0;
-const _menuFlyoutItemHeight = 34.0;
-const _menuFlyoutSeparatorHeight = 13.0;
 const _menuFlyoutPlayerBarHeight = 120.0;
-const _menuFlyoutTextWidthSlack = 56.0;
+
+class _MenuFlyoutMetrics {
+  const _MenuFlyoutMetrics({
+    required this.density,
+    required this.minWidth,
+    required this.maxWidth,
+    required this.padding,
+    required this.itemHeight,
+    required this.separatorHeight,
+    required this.horizontalPadding,
+    required this.leadingWidth,
+    required this.iconSize,
+    required this.trailingIconSize,
+    required this.contentGap,
+    required this.fontSize,
+    required this.textWidthSlack,
+  });
+
+  static const compact = _MenuFlyoutMetrics(
+    density: MenuFlyoutDensity.compact,
+    minWidth: 206,
+    maxWidth: 480,
+    padding: 6,
+    itemHeight: 34,
+    separatorHeight: 13,
+    horizontalPadding: 10,
+    leadingWidth: 20,
+    iconSize: 18,
+    trailingIconSize: 16,
+    contentGap: 10,
+    fontSize: 13,
+    textWidthSlack: 56,
+  );
+
+  static const touch = _MenuFlyoutMetrics(
+    density: MenuFlyoutDensity.touch,
+    minWidth: 240,
+    maxWidth: 520,
+    padding: 8,
+    itemHeight: 46,
+    separatorHeight: 15,
+    horizontalPadding: 14,
+    leadingWidth: 22,
+    iconSize: 20,
+    trailingIconSize: 18,
+    contentGap: 12,
+    fontSize: 14,
+    textWidthSlack: 68,
+  );
+
+  final MenuFlyoutDensity density;
+  final double minWidth;
+  final double maxWidth;
+  final double padding;
+  final double itemHeight;
+  final double separatorHeight;
+  final double horizontalPadding;
+  final double leadingWidth;
+  final double iconSize;
+  final double trailingIconSize;
+  final double contentGap;
+  final double fontSize;
+  final double textWidthSlack;
+
+  static _MenuFlyoutMetrics forDensity(MenuFlyoutDensity density) {
+    return switch (density) {
+      MenuFlyoutDensity.compact => compact,
+      MenuFlyoutDensity.touch => touch,
+    };
+  }
+
+  double contentHeight(MenuFlyoutItem item) {
+    return density == MenuFlyoutDensity.touch
+        ? math.max(item.contentHeight, itemHeight)
+        : item.contentHeight;
+  }
+}
 
 class _MenuFlyoutOverlay extends StatefulWidget {
   const _MenuFlyoutOverlay({
@@ -198,8 +282,10 @@ class _MenuFlyoutOverlay extends StatefulWidget {
     required this.positionContext,
     required this.requestedPosition,
     required this.hasExplicitPosition,
+    required this.anchorPlacement,
     required this.avoidPlayerBar,
     required this.scrollRoot,
+    required this.metrics,
     required this.onClose,
   });
 
@@ -209,8 +295,10 @@ class _MenuFlyoutOverlay extends StatefulWidget {
   final BuildContext positionContext;
   final Offset requestedPosition;
   final bool hasExplicitPosition;
+  final MenuFlyoutAnchorPlacement anchorPlacement;
   final bool avoidPlayerBar;
   final bool scrollRoot;
+  final _MenuFlyoutMetrics metrics;
   final VoidCallback onClose;
 
   @override
@@ -222,6 +310,7 @@ class _MenuFlyoutOverlayState extends State<_MenuFlyoutOverlay>
   late List<_MenuFlyoutPanelState> _panels;
   final _focusNode = FocusNode(debugLabel: 'MenuFlyoutOverlay');
   ScrollPosition? _anchorScrollPosition;
+  var _positionUpdateScheduled = false;
 
   @override
   void initState() {
@@ -332,6 +421,7 @@ class _MenuFlyoutOverlayState extends State<_MenuFlyoutOverlay>
                     positionContext: widget.positionContext,
                     boundaryBottom: boundaryBottom,
                     scrollRoot: widget.scrollRoot,
+                    metrics: widget.metrics,
                     onClose: widget.onClose,
                     onItemEntered: _clearSubmenusAfter,
                     onPassiveItemEntered: _clearSubmenusAfter,
@@ -367,10 +457,19 @@ class _MenuFlyoutOverlayState extends State<_MenuFlyoutOverlay>
   }
 
   void _requestPositionUpdate() {
-    if (!mounted) {
+    if (!mounted || _positionUpdateScheduled) {
       return;
     }
-    setState(() {});
+    _positionUpdateScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _positionUpdateScheduled = false;
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _panels = _panels.take(1).toList();
+      });
+    });
   }
 
   List<_MenuFlyoutPanelState> _resolvedPanels(
@@ -393,8 +492,10 @@ class _MenuFlyoutOverlayState extends State<_MenuFlyoutOverlay>
               width: _menuFlyoutPanelWidth(
                 context,
                 _panels[index].items,
+                widget.metrics,
               ).clamp(0, size.width - _menuFlyoutMargin * 2),
-              maxWidth: _menuFlyoutMaxWidth,
+              maxWidth: widget.metrics.maxWidth,
+              metrics: widget.metrics,
             ),
     ];
   }
@@ -402,20 +503,39 @@ class _MenuFlyoutOverlayState extends State<_MenuFlyoutOverlay>
   Offset _resolvedRequestedPosition() {
     if (widget.hasExplicitPosition) {
       if (!widget.anchorContext.mounted) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) {
+            widget.onClose();
+          }
+        });
         return widget.requestedPosition;
       }
       final renderObject = widget.anchorContext.findRenderObject();
       if (renderObject is! RenderBox || !renderObject.attached) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) {
+            widget.onClose();
+          }
+        });
         return widget.requestedPosition;
       }
-      final positionBox =
-          widget.positionContext.findRenderObject() as RenderBox;
+      final positionObject = widget.positionContext.findRenderObject();
+      if (positionObject is! RenderBox || !positionObject.attached) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) {
+            widget.onClose();
+          }
+        });
+        return widget.requestedPosition;
+      }
       final anchorTop =
-          renderObject.localToGlobal(Offset.zero, ancestor: positionBox).dy;
+          renderObject.localToGlobal(Offset.zero, ancestor: positionObject).dy;
       if (widget.requestedPosition.dy < anchorTop) {
         return Offset(
           widget.requestedPosition.dx,
-          anchorTop - _menuFlyoutItemsHeight(_panels.first.items) - 8,
+          anchorTop -
+              _menuFlyoutItemsHeight(_panels.first.items, widget.metrics) -
+              8,
         );
       }
       return widget.requestedPosition;
@@ -437,11 +557,26 @@ class _MenuFlyoutOverlayState extends State<_MenuFlyoutOverlay>
       });
       return widget.requestedPosition;
     }
-    final positionBox = widget.positionContext.findRenderObject() as RenderBox;
-    return renderObject.localToGlobal(
-      Offset(0, renderObject.size.height + 4),
-      ancestor: positionBox,
-    );
+    final positionObject = widget.positionContext.findRenderObject();
+    if (positionObject is! RenderBox || !positionObject.attached) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          widget.onClose();
+        }
+      });
+      return widget.requestedPosition;
+    }
+    final anchorOffset = switch (widget.anchorPlacement) {
+      MenuFlyoutAnchorPlacement.below => Offset(
+        0,
+        renderObject.size.height + 4,
+      ),
+      MenuFlyoutAnchorPlacement.above => Offset(
+        0,
+        -_menuFlyoutItemsHeight(_panels.first.items, widget.metrics) - 8,
+      ),
+    };
+    return renderObject.localToGlobal(anchorOffset, ancestor: positionObject);
   }
 
   void _clearSubmenusAfter(int depth) {
@@ -463,8 +598,9 @@ class _MenuFlyoutOverlayState extends State<_MenuFlyoutOverlay>
     final panelWidth = _menuFlyoutPanelWidth(
       context,
       items,
+      widget.metrics,
     ).clamp(0.0, size.width - _menuFlyoutMargin * 2);
-    final fullHeight = _menuFlyoutItemsHeight(items);
+    final fullHeight = _menuFlyoutItemsHeight(items, widget.metrics);
     var left = triggerRect.right + _menuFlyoutMargin;
     if (left + panelWidth > size.width - _menuFlyoutMargin) {
       left = triggerRect.left - panelWidth - _menuFlyoutMargin;
@@ -509,9 +645,10 @@ class _MenuFlyoutPanelState {
     required double boundaryBottom,
     required double width,
     required double maxWidth,
+    required _MenuFlyoutMetrics metrics,
   }) {
     final resolvedWidth = width.clamp(0.0, maxWidth);
-    final height = _menuFlyoutItemsHeight(items);
+    final height = _menuFlyoutItemsHeight(items, metrics);
     final left = position.dx.clamp(
       _menuFlyoutMargin,
       size.width - resolvedWidth - _menuFlyoutMargin,
@@ -533,6 +670,7 @@ class _MenuFlyoutPanel extends StatefulWidget {
     required this.positionContext,
     required this.boundaryBottom,
     required this.scrollRoot,
+    required this.metrics,
     required this.onClose,
     required this.onItemEntered,
     required this.onPassiveItemEntered,
@@ -545,6 +683,7 @@ class _MenuFlyoutPanel extends StatefulWidget {
   final BuildContext positionContext;
   final double boundaryBottom;
   final bool scrollRoot;
+  final _MenuFlyoutMetrics metrics;
   final VoidCallback onClose;
   final ValueChanged<int> onItemEntered;
   final ValueChanged<int> onPassiveItemEntered;
@@ -585,6 +724,7 @@ class _MenuFlyoutPanelWidgetState extends State<_MenuFlyoutPanel> {
         _menuFlyoutPanelWidth(
           context,
           widget.state.items,
+          widget.metrics,
         ).clamp(0.0, viewSize.width - _menuFlyoutMargin * 2).toDouble();
     final maxHeight = (widget.boundaryBottom -
             widget.state.position.dy -
@@ -592,9 +732,12 @@ class _MenuFlyoutPanelWidgetState extends State<_MenuFlyoutPanel> {
         .clamp(120.0, boundaryBottom - _menuFlyoutMargin);
     final itemsContentHeight = _menuFlyoutItemsContentHeight(
       widget.state.items,
+      widget.metrics,
     );
     final scrollable =
-        (widget.depth > 0 || widget.scrollRoot) &&
+        (widget.depth > 0 ||
+            widget.scrollRoot ||
+            widget.metrics.density == MenuFlyoutDensity.touch) &&
         itemsContentHeight > maxHeight;
     final showLeadingIconSpace = widget.state.items.any(
       _menuFlyoutItemHasLeadingIcon,
@@ -610,6 +753,7 @@ class _MenuFlyoutPanelWidgetState extends State<_MenuFlyoutPanel> {
           activeItemIndexListenable: _activeItemIndex,
           anchorContext: widget.anchorContext,
           positionContext: widget.positionContext,
+          metrics: widget.metrics,
           onClose: widget.onClose,
           onItemEntered: _handleItemEntered,
           onItemExited: _handleItemExited,
@@ -619,8 +763,8 @@ class _MenuFlyoutPanelWidgetState extends State<_MenuFlyoutPanel> {
     ];
     final panel = ConstrainedBox(
       constraints: BoxConstraints(
-        minWidth: _menuFlyoutWidth,
-        maxWidth: _menuFlyoutMaxWidth,
+        minWidth: widget.metrics.minWidth,
+        maxWidth: widget.metrics.maxWidth,
         maxHeight: scrollable ? maxHeight : double.infinity,
       ),
       child: Semantics(
@@ -631,8 +775,8 @@ class _MenuFlyoutPanelWidgetState extends State<_MenuFlyoutPanel> {
           children: [
             Positioned.fill(child: _MenuFlyoutGlassPanel(colors: colors)),
             Padding(
-              padding: const EdgeInsets.all(
-                _menuFlyoutPadding + _menuFlyoutBorderWidth,
+              padding: EdgeInsets.all(
+                widget.metrics.padding + _menuFlyoutBorderWidth,
               ),
               child:
                   scrollable
@@ -756,6 +900,7 @@ class _MenuFlyoutItemWidget extends StatefulWidget {
     required this.activeItemIndexListenable,
     required this.anchorContext,
     required this.positionContext,
+    required this.metrics,
     required this.onClose,
     required this.onItemEntered,
     required this.onItemExited,
@@ -770,6 +915,7 @@ class _MenuFlyoutItemWidget extends StatefulWidget {
   final ValueListenable<int?> activeItemIndexListenable;
   final BuildContext anchorContext;
   final BuildContext positionContext;
+  final _MenuFlyoutMetrics metrics;
   final VoidCallback onClose;
   final ValueChanged<int> onItemEntered;
   final ValueChanged<int> onItemExited;
@@ -825,7 +971,7 @@ class _MenuFlyoutItemWidgetState extends State<_MenuFlyoutItemWidget> {
       return MouseRegion(
         onEnter: (_) => widget.onPassiveItemEntered(),
         child: SizedBox(
-          height: _menuFlyoutSeparatorHeight,
+          height: widget.metrics.separatorHeight,
           child: Center(
             child: Divider(
               height: 1,
@@ -841,7 +987,10 @@ class _MenuFlyoutItemWidgetState extends State<_MenuFlyoutItemWidget> {
     if (item.content != null) {
       return MouseRegion(
         onEnter: (_) => widget.onPassiveItemEntered(),
-        child: SizedBox(height: item.contentHeight, child: item.content),
+        child: SizedBox(
+          height: widget.metrics.contentHeight(item),
+          child: item.content,
+        ),
       );
     }
 
@@ -924,8 +1073,10 @@ class _MenuFlyoutItemWidgetState extends State<_MenuFlyoutItemWidget> {
           enabled: !item.disabled && !_busy,
           checked: item.checked,
           child: Container(
-            height: _menuFlyoutItemHeight,
-            padding: const EdgeInsets.symmetric(horizontal: 10),
+            height: widget.metrics.itemHeight,
+            padding: EdgeInsets.symmetric(
+              horizontal: widget.metrics.horizontalPadding,
+            ),
             decoration: BoxDecoration(
               color: active ? colors.hoverSurface : Colors.transparent,
               borderRadius: BorderRadius.circular(7),
@@ -934,10 +1085,10 @@ class _MenuFlyoutItemWidgetState extends State<_MenuFlyoutItemWidget> {
               children: [
                 if (widget.showLeadingIconSpace) ...[
                   SizedBox(
-                    width: 20,
+                    width: widget.metrics.leadingWidth,
                     child: _buildLeadingIcon(item, foreground),
                   ),
-                  const SizedBox(width: 10),
+                  SizedBox(width: widget.metrics.contentGap),
                 ],
                 Expanded(
                   child: Text(
@@ -946,23 +1097,23 @@ class _MenuFlyoutItemWidgetState extends State<_MenuFlyoutItemWidget> {
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
                       color: foreground,
-                      fontSize: 13,
+                      fontSize: widget.metrics.fontSize,
                       height: 1,
                     ),
                   ),
                 ),
                 if (checkedTrailing) ...[
-                  const SizedBox(width: 10),
+                  SizedBox(width: widget.metrics.contentGap),
                   Icon(
                     FluentIcons.checkmark_20_regular,
-                    size: 16,
+                    size: widget.metrics.trailingIconSize,
                     color: colors.checked,
                   ),
                 ] else if (hasSubmenu) ...[
-                  const SizedBox(width: 10),
+                  SizedBox(width: widget.metrics.contentGap),
                   Icon(
                     FluentIcons.chevron_right_20_regular,
-                    size: 16,
+                    size: widget.metrics.trailingIconSize,
                     color: foreground,
                   ),
                 ],
@@ -995,70 +1146,74 @@ class _MenuFlyoutItemWidgetState extends State<_MenuFlyoutItemWidget> {
     if (item.checked && !_menuFlyoutItemHasOwnLeadingIcon(item)) {
       return Icon(
         FluentIcons.checkmark_20_regular,
-        size: 16,
+        size: widget.metrics.trailingIconSize,
         color: MenuFlyoutThemeColors.of(context).checked,
       );
     }
     final color = item.disabled ? foreground : item.iconColor ?? foreground;
+    final iconSize = widget.metrics.iconSize;
     if (item.icon == FluentIcons.play_20_regular) {
       return Center(
         child: SizedBox.square(
-          dimension: 18,
-          child: SmPlayerPlayIcon(size: 18, color: color),
+          dimension: iconSize,
+          child: SmPlayerPlayIcon(size: iconSize, color: color),
         ),
       );
     }
     if (item.useAlbumIcon) {
       return Center(
         child: SizedBox.square(
-          dimension: 18,
-          child: SmPlayerAlbumIcon(size: 18, color: color),
+          dimension: iconSize,
+          child: SmPlayerAlbumIcon(size: iconSize, color: color),
         ),
       );
     }
     if (item.usePlaylistIcon) {
       return Center(
         child: SizedBox.square(
-          dimension: 18,
-          child: SmPlayerPlaylistIcon(size: 18, color: color),
+          dimension: iconSize,
+          child: SmPlayerPlaylistIcon(size: iconSize, color: color),
         ),
       );
     }
     if (item.usePlayNextIcon) {
       return Center(
         child: SizedBox.square(
-          dimension: 18,
-          child: SmPlayerPlayNextIcon(size: 18, color: color),
+          dimension: iconSize,
+          child: SmPlayerPlayNextIcon(size: iconSize, color: color),
         ),
       );
     }
     if (item.useShuffleIcon) {
       return Center(
-        child: SizedBox.square(dimension: 18, child: ShuffleIcon(color: color)),
+        child: SizedBox.square(
+          dimension: iconSize,
+          child: ShuffleIcon(size: iconSize, color: color),
+        ),
       );
     }
     if (item.useFullscreenIcon) {
       return Center(
         child: SizedBox.square(
-          dimension: 18,
-          child: SmPlayerFullscreenIcon(size: 18, color: color),
+          dimension: iconSize,
+          child: SmPlayerFullscreenIcon(size: iconSize, color: color),
         ),
       );
     }
     if (item.useExitFullscreenIcon) {
       return Center(
         child: SizedBox.square(
-          dimension: 18,
-          child: ExitFullscreenIcon(size: 18, color: color),
+          dimension: iconSize,
+          child: ExitFullscreenIcon(size: iconSize, color: color),
         ),
       );
     }
     if (item.iconWidget != null) {
       return Center(
         child: SizedBox.square(
-          dimension: 18,
+          dimension: iconSize,
           child: IconTheme(
-            data: IconThemeData(color: color),
+            data: IconThemeData(color: color, size: iconSize),
             child: item.iconWidget!,
           ),
         ),
@@ -1070,16 +1225,16 @@ class _MenuFlyoutItemWidgetState extends State<_MenuFlyoutItemWidget> {
     if (isMultiSelectIcon(item.icon!)) {
       return Center(
         child: SizedBox.square(
-          dimension: 18,
+          dimension: iconSize,
           child: UniformMultiSelectIcon(
-            size: 18,
+            size: iconSize,
             color: color,
             strokeWidth: 1.35,
           ),
         ),
       );
     }
-    return Icon(item.icon, size: 18, color: color);
+    return Icon(item.icon, size: iconSize, color: color);
   }
 
   void _openSubmenu(MenuFlyoutItem item) {
@@ -1104,16 +1259,23 @@ class _MenuFlyoutItemWidgetState extends State<_MenuFlyoutItemWidget> {
   }
 }
 
-double _menuFlyoutItemsHeight(List<MenuFlyoutItem> items) {
-  return (_menuFlyoutPadding + _menuFlyoutBorderWidth) * 2 +
-      _menuFlyoutItemsContentHeight(items);
+double _menuFlyoutItemsHeight(
+  List<MenuFlyoutItem> items,
+  _MenuFlyoutMetrics metrics,
+) {
+  return (metrics.padding + _menuFlyoutBorderWidth) * 2 +
+      _menuFlyoutItemsContentHeight(items, metrics);
 }
 
-double _menuFlyoutPanelWidth(BuildContext context, List<MenuFlyoutItem> items) {
+double _menuFlyoutPanelWidth(
+  BuildContext context,
+  List<MenuFlyoutItem> items,
+  _MenuFlyoutMetrics metrics,
+) {
   final textDirection = Directionality.of(context);
   final textScaler = MediaQuery.textScalerOf(context);
   final hasLeadingIconSpace = items.any(_menuFlyoutItemHasLeadingIcon);
-  var width = _menuFlyoutWidth;
+  var width = metrics.minWidth;
   for (final item in items) {
     if (item.separator || item.content != null) {
       continue;
@@ -1121,7 +1283,7 @@ double _menuFlyoutPanelWidth(BuildContext context, List<MenuFlyoutItem> items) {
     final painter = TextPainter(
       text: TextSpan(
         text: item.pendingText ?? item.text,
-        style: const TextStyle(fontSize: 13, height: 1),
+        style: TextStyle(fontSize: metrics.fontSize, height: 1),
       ),
       maxLines: 1,
       textDirection: textDirection,
@@ -1130,18 +1292,20 @@ double _menuFlyoutPanelWidth(BuildContext context, List<MenuFlyoutItem> items) {
     final hasTrailingIcon =
         (item.submenu.isNotEmpty && !item.disabled) ||
         (item.checked && _menuFlyoutItemHasOwnLeadingIcon(item));
-    final leadingWidth = hasLeadingIconSpace ? 30.0 : 0.0;
-    final trailingWidth = hasTrailingIcon ? 26.0 : 0.0;
+    final leadingWidth =
+        hasLeadingIconSpace ? metrics.leadingWidth + metrics.contentGap : 0.0;
+    final trailingWidth =
+        hasTrailingIcon ? metrics.contentGap + metrics.trailingIconSize : 0.0;
     final itemWidth =
-        (_menuFlyoutPadding + _menuFlyoutBorderWidth) * 2 +
-        20 +
+        (metrics.padding + _menuFlyoutBorderWidth) * 2 +
+        metrics.horizontalPadding * 2 +
         leadingWidth +
         painter.width +
         trailingWidth +
-        _menuFlyoutTextWidthSlack;
+        metrics.textWidthSlack;
     width = math.max(width, itemWidth);
   }
-  return width.clamp(_menuFlyoutWidth, _menuFlyoutMaxWidth).toDouble();
+  return width.clamp(metrics.minWidth, metrics.maxWidth).toDouble();
 }
 
 bool _menuFlyoutItemHasLeadingIcon(MenuFlyoutItem item) {
@@ -1159,15 +1323,18 @@ bool _menuFlyoutItemHasOwnLeadingIcon(MenuFlyoutItem item) {
       item.useExitFullscreenIcon;
 }
 
-double _menuFlyoutItemsContentHeight(List<MenuFlyoutItem> items) {
+double _menuFlyoutItemsContentHeight(
+  List<MenuFlyoutItem> items,
+  _MenuFlyoutMetrics metrics,
+) {
   return items.fold<double>(0, (height, item) {
     if (item.separator) {
-      return height + _menuFlyoutSeparatorHeight;
+      return height + metrics.separatorHeight;
     }
     if (item.content != null) {
-      return height + item.contentHeight;
+      return height + metrics.contentHeight(item);
     }
-    return height + _menuFlyoutItemHeight;
+    return height + metrics.itemHeight;
   });
 }
 

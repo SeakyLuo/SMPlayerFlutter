@@ -45,8 +45,6 @@ List<MenuFlyoutItem> buildShuffleMenuFlyoutItems({
   required List<LibraryFolder> folders,
   required int randomLimit,
   required ValueChanged<List<int>> onPlaySongs,
-  bool includeQuickPlay = true,
-  FutureOr<void> Function()? onQuickPlay,
 }) {
   void playSongs(List<LibrarySong> sourceSongs) {
     onPlaySongs(_randomLibrary(sourceSongs, randomLimit));
@@ -66,63 +64,30 @@ List<MenuFlyoutItem> buildShuffleMenuFlyoutItems({
           .toList();
   final playablePlaylists =
       playlists.where((playlist) => playlist.songIds.isNotEmpty).toList();
-  final items = <MenuFlyoutItem>[
-    if (includeQuickPlay)
-      MenuFlyoutItem(
-        key: 'quick',
-        text: i18n.t('nowPlaying.quickPlay'),
-        onPressed: onQuickPlay ?? () => playSongs(librarySongs),
-      ),
-  ];
+  final favoriteSongs = librarySongs.where((song) => song.favorite).toList();
+  final items = <MenuFlyoutItem>[];
 
-  if (songs.isNotEmpty) {
+  if (librarySongs.isNotEmpty) {
     items.addAll([
-      if (items.isNotEmpty)
-        const MenuFlyoutItem.separator(key: 'now-playing-separator'),
       MenuFlyoutItem(
-        key: 'now-playing',
-        text: i18n.t('common.nowPlaying'),
-        onPressed: () => playAllSongs(songs),
+        key: 'library',
+        text: i18n.t('random.musicLibrary'),
+        icon: FluentIcons.library_24_regular,
+        onPressed: () => playSongs(librarySongs),
+      ),
+      MenuFlyoutItem(
+        key: 'artist',
+        text: i18n.t('common.artist'),
+        icon: FluentIcons.people_24_regular,
+        onPressed: () => onPlaySongs(_randomArtist(librarySongs, randomLimit)),
+      ),
+      MenuFlyoutItem(
+        key: 'album',
+        text: i18n.t('common.album'),
+        useAlbumIcon: true,
+        onPressed: () => onPlaySongs(_randomAlbum(librarySongs, randomLimit)),
       ),
     ]);
-  }
-
-  if (librarySongs.isEmpty) {
-    return items;
-  }
-
-  items.addAll([
-    if (items.isNotEmpty)
-      const MenuFlyoutItem.separator(key: 'shuffle-library-separator'),
-    MenuFlyoutItem(
-      key: 'library',
-      text: i18n.t('random.musicLibrary'),
-      onPressed: () => playSongs(librarySongs),
-    ),
-    MenuFlyoutItem(
-      key: 'artist',
-      text: i18n.t('common.artist'),
-      onPressed: () => onPlaySongs(_randomArtist(librarySongs, randomLimit)),
-    ),
-    MenuFlyoutItem(
-      key: 'album',
-      text: i18n.t('common.album'),
-      onPressed: () => onPlaySongs(_randomAlbum(librarySongs, randomLimit)),
-    ),
-  ]);
-
-  if (playablePlaylists.isNotEmpty) {
-    items.add(
-      MenuFlyoutItem(
-        key: 'playlist',
-        text: i18n.t('common.playlist'),
-        onPressed: () {
-          onPlaySongs(
-            _randomPlaylist(librarySongs, playablePlaylists, randomLimit),
-          );
-        },
-      ),
-    );
   }
 
   if (playableFolders.isNotEmpty) {
@@ -130,6 +95,7 @@ List<MenuFlyoutItem> buildShuffleMenuFlyoutItems({
       MenuFlyoutItem(
         key: 'folder',
         text: i18n.t('random.localFolder'),
+        icon: FluentIcons.hard_drive_24_regular,
         onPressed: () {
           onPlaySongs(
             _randomFolder(librarySongs, playableFolders, randomLimit),
@@ -139,20 +105,24 @@ List<MenuFlyoutItem> buildShuffleMenuFlyoutItems({
     );
   }
 
-  items.add(
-    MenuFlyoutItem(
-      key: 'recent-added',
-      text: i18n.t('common.recentAdded'),
-      onPressed:
-          () => onPlaySongs(_randomRecentAdded(librarySongs, randomLimit)),
-    ),
-  );
+  if (librarySongs.isNotEmpty) {
+    items.add(
+      MenuFlyoutItem(
+        key: 'recent-added',
+        text: i18n.t('common.recentAdded'),
+        icon: FluentIcons.clock_24_regular,
+        onPressed:
+            () => onPlaySongs(_randomRecentAdded(librarySongs, randomLimit)),
+      ),
+    );
+  }
 
   if (recentSongs.isNotEmpty) {
     items.add(
       MenuFlyoutItem(
         key: 'recent-played',
         text: i18n.t('random.recentPlayed'),
+        icon: FluentIcons.clock_24_regular,
         onPressed: () => onPlaySongs(_shuffleSongIds(recentSongs)),
       ),
     );
@@ -160,20 +130,58 @@ List<MenuFlyoutItem> buildShuffleMenuFlyoutItems({
 
   if (librarySongs.length > randomLimit) {
     items.addAll([
-      const MenuFlyoutItem.separator(key: 'shuffle-history-separator'),
       MenuFlyoutItem(
         key: 'most-played',
         text: i18n.t('random.mostPlayed'),
+        icon: FluentIcons.clock_24_regular,
         onPressed:
             () => onPlaySongs(_randomMostPlayed(librarySongs, randomLimit)),
       ),
       MenuFlyoutItem(
         key: 'least-played',
         text: i18n.t('random.leastPlayed'),
+        icon: FluentIcons.clock_24_regular,
         onPressed:
             () => onPlaySongs(_randomLeastPlayed(librarySongs, randomLimit)),
       ),
     ]);
+  }
+
+  if (songs.isNotEmpty) {
+    items.add(
+      MenuFlyoutItem(
+        key: 'now-playing',
+        text: i18n.t('common.nowPlaying'),
+        icon: FluentIcons.music_note_2_24_regular,
+        onPressed: () => playAllSongs(songs),
+      ),
+    );
+  }
+
+  if (favoriteSongs.isNotEmpty) {
+    items.add(
+      MenuFlyoutItem(
+        key: 'my-favorites',
+        text: i18n.t('common.myFavorites'),
+        icon: FluentIcons.heart_24_regular,
+        onPressed: () => playSongs(favoriteSongs),
+      ),
+    );
+  }
+
+  if (playablePlaylists.isNotEmpty) {
+    items.add(
+      MenuFlyoutItem(
+        key: 'playlist',
+        text: i18n.t('common.playlist'),
+        usePlaylistIcon: true,
+        onPressed: () {
+          onPlaySongs(
+            _randomPlaylist(librarySongs, playablePlaylists, randomLimit),
+          );
+        },
+      ),
+    );
   }
 
   return items;
@@ -219,6 +227,8 @@ MenuFlyoutItem? buildAddToPlaylistMenuFlyoutItem({
   required List<MultiSelectCommandBarPlaylist> playlists,
   bool includeNowPlaying = false,
   bool includeFavorites = false,
+  bool favoritesDisabled = false,
+  bool favoritesSelected = false,
   String? defaultPlaylistName,
   String? currentPlaylistName,
   String? excludePlaylistName,
@@ -259,12 +269,12 @@ MenuFlyoutItem? buildAddToPlaylistMenuFlyoutItem({
       MenuFlyoutItem(
         key: '$key-favorites',
         text: i18n.t('common.myFavorites'),
-        iconWidget: const SmPlayerFavoriteIcon(
-          favorite: false,
+        iconWidget: SmPlayerFavoriteIcon(
+          favorite: favoritesSelected,
           size: 18,
           animate: false,
         ),
-        disabled: songIds.isEmpty,
+        disabled: songIds.isEmpty || favoritesDisabled,
         onPressed: onToggleFavorite,
       ),
     );
@@ -351,13 +361,14 @@ bool shouldShowNowPlayingAddToTarget({
 List<MenuFlyoutItem> buildMusicMenuFlyoutItems({
   required SmPlayerI18n i18n,
   required int songId,
+  required String songTitle,
   required bool isFavorite,
   required bool isCurrentTrack,
   required bool isPlaying,
   required List<int> nowPlayingSongIds,
   required List<MultiSelectCommandBarPlaylist> playlists,
   required VoidCallback onPlay,
-  required VoidCallback onPause,
+  required VoidCallback onTogglePlayPause,
   VoidCallback? onPlayNext,
   required VoidCallback onAddToNowPlaying,
   required VoidCallback onCreatePlaylist,
@@ -398,6 +409,7 @@ List<MenuFlyoutItem> buildMusicMenuFlyoutItems({
   bool showMoveToFolder = false,
   bool showAlbumArt = true,
   bool keepViewActionsOpen = false,
+  bool keepFavoritesInAddTo = false,
 }) {
   final items = <MenuFlyoutItem>[
     if (isCurrentTrack && isPlaying)
@@ -405,14 +417,15 @@ List<MenuFlyoutItem> buildMusicMenuFlyoutItems({
         key: 'pause',
         text: i18n.t('context.pause'),
         icon: FluentIcons.pause_20_regular,
-        onPressed: onPause,
+        onPressed: onTogglePlayPause,
       )
     else
       MenuFlyoutItem(
         key: 'play',
         text: i18n.t('context.play'),
+        tooltip: i18n.t('context.playSongTooltip', {'title': songTitle}),
         icon: FluentIcons.play_20_regular,
-        onPressed: onPlay,
+        onPressed: isCurrentTrack ? onTogglePlayPause : onPlay,
       ),
   ];
 
@@ -421,6 +434,7 @@ List<MenuFlyoutItem> buildMusicMenuFlyoutItems({
       MenuFlyoutItem(
         key: 'play-next',
         text: i18n.t('context.playNext'),
+        tooltip: i18n.t('context.playNextSongTooltip', {'title': songTitle}),
         usePlayNextIcon: true,
         onPressed: onPlayNext,
       ),
@@ -439,10 +453,14 @@ List<MenuFlyoutItem> buildMusicMenuFlyoutItems({
       isNowPlayingContext: currentPlaylistName == i18n.t('common.nowPlaying'),
     ),
     includeFavorites:
-        currentPlaylistName != i18n.t('common.myFavorites') && !isFavorite,
+        currentPlaylistName != i18n.t('common.myFavorites') &&
+        (!isFavorite || keepFavoritesInAddTo),
+    favoritesDisabled: isFavorite,
+    favoritesSelected: isFavorite,
     defaultPlaylistName: defaultPlaylistName,
     onAddToNowPlaying: onAddToNowPlaying,
-    onToggleFavorite: isFavorite ? null : onToggleFavorite,
+    onToggleFavorite:
+        isFavorite && !keepFavoritesInAddTo ? null : onToggleFavorite,
     onRequestCreatePlaylist: onRequestCreatePlaylist,
     onCreatePlaylist: onCreatePlaylist,
     onCreatePlaylistWithName: onCreatePlaylistWithName,
@@ -514,7 +532,7 @@ List<MenuFlyoutItem> buildMusicMenuFlyoutItems({
       MenuFlyoutItem(
         key: 'hide-file',
         text: i18n.t('context.hideFile'),
-        icon: FluentIcons.dismiss_20_regular,
+        icon: FluentIcons.eye_off_20_regular,
         onPressed: onHide,
       ),
     );
@@ -527,7 +545,7 @@ List<MenuFlyoutItem> buildMusicMenuFlyoutItems({
         MenuFlyoutItem(
           key: 'see-artist',
           text: i18n.t('context.seeArtist'),
-          icon: FluentIcons.people_20_regular,
+          icon: FluentIcons.people_24_regular,
           onPressed: onSeeArtist,
         ),
       );
@@ -568,7 +586,7 @@ List<MenuFlyoutItem> buildMusicMenuFlyoutItems({
       MenuFlyoutItem(
         key: 'see-local',
         text: i18n.t('context.seeLocalFile'),
-        icon: FluentIcons.hard_drive_20_regular,
+        icon: FluentIcons.hard_drive_24_regular,
         pendingText: i18n.t('context.openingLocal'),
         onPressed: onSeeLocal,
       ),

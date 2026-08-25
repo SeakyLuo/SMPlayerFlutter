@@ -13,6 +13,7 @@ class _ArtistsDetail extends StatelessWidget {
     required this.selectedTrackId,
     required this.isPlaying,
     required this.onPlayTrack,
+    required this.onPlaySong,
     required this.onTogglePlayPause,
     required this.onPlayNext,
     required this.onToggleFavorite,
@@ -35,7 +36,7 @@ class _ArtistsDetail extends StatelessWidget {
     String? albumName,
   })
   onPlaySongs;
-  final void Function(
+  final FutureOr<void> Function(
     Offset position,
     ArtistGroup artist, {
     required bool showLocateArtist,
@@ -45,13 +46,15 @@ class _ArtistsDetail extends StatelessWidget {
   final int? selectedTrackId;
   final bool isPlaying;
   final void Function(int songId, List<int> queueSongIds) onPlayTrack;
+  final ValueChanged<int> onPlaySong;
   final VoidCallback onTogglePlayPause;
   final ValueChanged<int> onPlayNext;
   final void Function(int songId, bool favorite) onToggleFavorite;
-  final void Function(BuildContext context, LibrarySong song)
+  final FutureOr<void> Function(BuildContext context, LibrarySong song)
   onOpenSongAddToMenu;
   final ValueChanged<int> onToggleSongSelection;
-  final void Function(Offset position, LibrarySong song) onOpenSongContextMenu;
+  final FutureOr<void> Function(Offset position, LibrarySong song)
+  onOpenSongContextMenu;
   final bool hasVisibleArtists;
   final bool compact;
   final bool compactHeaderInAppBar;
@@ -112,7 +115,12 @@ class _ArtistsDetail extends StatelessWidget {
                     albumVirtualWindow.startIndex,
                     albumVirtualWindow.endIndex,
                   );
-                  final detailBottomPadding = responsive ? 18.0 : 30.0;
+                  final detailBottomPadding =
+                      multiSelect
+                          ? multiSelectCommandBarScrollSpacer
+                          : responsive
+                          ? 18.0
+                          : 30.0;
                   return ScrollConfiguration(
                     key: const ValueKey('Artists.DetailScrollConfiguration'),
                     behavior: ScrollConfiguration.of(
@@ -185,6 +193,7 @@ class _ArtistsDetail extends StatelessWidget {
                               onOpenAlbumMenu(position, album);
                             },
                             onPlayTrack: onPlayTrack,
+                            onPlaySong: onPlaySong,
                             onTogglePlayPause: onTogglePlayPause,
                             onPlayNext: onPlayNext,
                             onToggleFavorite: onToggleFavorite,

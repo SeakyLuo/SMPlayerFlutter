@@ -54,7 +54,8 @@ class _ArtistsMaster extends StatelessWidget {
   final ValueChanged<ArtistSortCriterion> onChangeArtistSort;
   final ValueChanged<String> onOpenArtistDetail;
   final ValueChanged<ArtistGroup> onPlayArtist;
-  final void Function(Offset position, ArtistGroup artist) onOpenArtistMenu;
+  final FutureOr<void> Function(Offset position, ArtistGroup artist)
+  onOpenArtistMenu;
   final void Function(Map<String, int> artistQuickJumpMap, String key)
   onJumpToArtistKey;
 
@@ -164,7 +165,7 @@ class _ArtistsMaster extends StatelessWidget {
                                     itemCount: visibleArtists.length,
                                     itemBuilder: (context, index) {
                                       final artist = visibleArtists[index];
-                                      return _ArtistListItem(
+                                      return ArtistListItem(
                                         artist: artist,
                                         active:
                                             artist.name == selectedArtistName,
@@ -179,7 +180,10 @@ class _ArtistsMaster extends StatelessWidget {
                                           onPlayArtist(artist);
                                         },
                                         onOpenContextMenu: (position) {
-                                          onOpenArtistMenu(position, artist);
+                                          return onOpenArtistMenu(
+                                            position,
+                                            artist,
+                                          );
                                         },
                                       );
                                     },
@@ -236,6 +240,9 @@ class _ArtistsSortButton extends StatelessWidget {
       icon: FluentIcons.arrow_sort_24_regular,
       label: artistSortLabel(i18n, sortCriterion),
       showLabel: false,
+      minWidth: 40,
+      maxWidth: 40,
+      horizontalPadding: 0,
       canOverflow: false,
       onPressedWithContext: (buttonContext) {
         showMenuFlyout(buttonContext, items: sortItems);

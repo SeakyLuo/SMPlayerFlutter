@@ -327,6 +327,7 @@ class _MainNavigationPlaylistItemButtonState
   var _hovered = false;
   var _randomHovered = false;
   var _randomFocused = false;
+  var _contextMenuOpen = false;
 
   @override
   void dispose() {
@@ -337,11 +338,12 @@ class _MainNavigationPlaylistItemButtonState
   @override
   Widget build(BuildContext context) {
     final colors = MainNavigationViewColors.of(context);
-    final highlighted = widget.active || _hovered;
+    final hoverActive = _hovered || _contextMenuOpen;
+    final highlighted = widget.active || hoverActive;
     final randomPlayEnabled =
         widget.onRandomPlay != null && widget.playlist.songCount > 0;
     final showRandomPlay =
-        widget.onRandomPlay != null && (_hovered || _randomFocused);
+        widget.onRandomPlay != null && (hoverActive || _randomFocused);
     final randomHighlighted = _randomHovered || _randomFocused;
     final foreground = highlighted ? colors.highlightText : colors.textMuted;
 
@@ -384,11 +386,7 @@ class _MainNavigationPlaylistItemButtonState
               },
               onSecondaryTapDown: (details) {
                 _focusNode.requestFocus();
-                _showPlaylistMenu(context, details.globalPosition);
-              },
-              onLongPressStart: (details) {
-                _focusNode.requestFocus();
-                _showPlaylistMenu(context, details.globalPosition);
+                unawaited(_showPlaylistMenu(context, details.globalPosition));
               },
               child: Opacity(
                 opacity: widget.dragging ? 0.45 : 1,
@@ -569,30 +567,42 @@ class _MainNavigationPlaylistItemButtonState
     };
   }
 
-  void _showPlaylistMenu(BuildContext context, Offset position) {
-    showMenuFlyout(
-      context,
-      position: position,
-      items: [
-        MenuFlyoutItem(
-          key: 'rename-playlist',
-          text: widget.i18n.t('playlists.rename'),
-          icon: FluentIcons.edit_20_regular,
-          onPressed: () => widget.onRename?.call(widget.playlist),
-        ),
-        MenuFlyoutItem(
-          key: 'duplicate-playlist',
-          text: widget.i18n.t('playlists.duplicate'),
-          icon: FluentIcons.copy_20_regular,
-          onPressed: () => widget.onDuplicate?.call(widget.playlist),
-        ),
-        MenuFlyoutItem(
-          key: 'delete-playlist',
-          text: widget.i18n.t('playlists.delete'),
-          icon: FluentIcons.delete_20_regular,
-          onPressed: () => widget.onDelete?.call(widget.playlist),
-        ),
-      ],
-    );
+  Future<void> _showPlaylistMenu(BuildContext context, Offset position) async {
+    setState(() {
+      _contextMenuOpen = true;
+    });
+    try {
+      await showMenuFlyout(
+        context,
+        position: position,
+        items: [
+          MenuFlyoutItem(
+            key: 'rename-playlist',
+            text: widget.i18n.t('playlists.rename'),
+            icon: FluentIcons.edit_20_regular,
+            onPressed: () => widget.onRename?.call(widget.playlist),
+          ),
+          MenuFlyoutItem(
+            key: 'duplicate-playlist',
+            text: widget.i18n.t('playlists.duplicate'),
+            icon: FluentIcons.copy_20_regular,
+            onPressed: () => widget.onDuplicate?.call(widget.playlist),
+          ),
+          MenuFlyoutItem(
+            key: 'delete-playlist',
+            text: widget.i18n.t('playlists.delete'),
+            icon: FluentIcons.delete_20_regular,
+            onPressed: () => widget.onDelete?.call(widget.playlist),
+          ),
+        ],
+      );
+    } finally {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        setState(() {
+          _contextMenuOpen = false;
+        });
+      });
+    }
   }
 }
