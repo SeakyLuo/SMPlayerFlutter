@@ -3,19 +3,38 @@ part of 'music_dialog.dart';
 extension _MusicDialogStateLoadActions on _MusicDialogState {
   Future<void> _loadSong() async {
     final generation = ++_loadGeneration;
+    _artworkRecommendationGeneration += 1;
     final songId = widget.song.id;
     final repository = ref.read(libraryRepositoryProvider);
-    _updateState(() {
-      _loading = true;
-      _lyricsLoading = true;
-      _artworkLoading = true;
-      _artworkDeletePending = false;
-      _artworkSourcePath = '';
-      _artworkRecommendation = null;
-      _artworkRecommendationLoading = false;
-      _artworkRecommendationRequestKey = '';
-      _libraryArtworkPickerOpen = false;
-    });
+    ref
+        .read(musicDialogPropertiesStateProvider(_dialogSessionKey).notifier)
+        .reset();
+    ref
+        .read(musicDialogLyricsStateProvider(_dialogSessionKey).notifier)
+        .reset();
+    ref
+        .read(musicDialogArtworkStateProvider(_dialogSessionKey).notifier)
+        .reset();
+    _properties = null;
+    _originalProperties = null;
+    _lyrics = null;
+    _lyricsRawText = '';
+    _originalLyricsText = '';
+    _showLyricsTimestamps = true;
+    _updatingControllers = true;
+    _lyricsController.clear();
+    _updatingControllers = false;
+    _displayArtworkUrl = '';
+    _originalDisplayArtworkUrl = '';
+    _artworkMissing = false;
+    _originalArtworkMissing = false;
+    _artworkDeletePending = false;
+    _artworkSourcePath = '';
+    _artworkRecommendation = null;
+    _artworkRecommendationRequestKey = '';
+    _libraryArtworkPickerOpen = false;
+    _lyricsSearchPickerOpen = false;
+    _lyricsSearchCandidates = const [];
 
     await Future.wait<void>([
       _loadProperties(repository, songId, generation),
@@ -29,17 +48,27 @@ extension _MusicDialogStateLoadActions on _MusicDialogState {
     int songId,
     int generation,
   ) async {
+    final i18n = context.smPlayerI18n;
     try {
       final properties = await repository.getSongProperties(songId);
       if (!_isActiveLoad(songId, generation)) {
         return;
       }
 
-      _updateState(() {
-        _applyProperties(properties);
-        _loading = false;
-      });
-    } catch (_) {}
+      _applyProperties(properties);
+      ref
+          .read(musicDialogPropertiesStateProvider(_dialogSessionKey).notifier)
+          .loaded();
+    } catch (_) {
+      if (_isActiveLoad(songId, generation)) {
+        ref
+            .read(
+              musicDialogPropertiesStateProvider(_dialogSessionKey).notifier,
+            )
+            .loaded();
+        _showMessage(i18n.t('song.batchEditLoadFailed'));
+      }
+    }
   }
 
   Future<void> _loadLyrics(
@@ -60,19 +89,25 @@ extension _MusicDialogStateLoadActions on _MusicDialogState {
         return;
       }
 
-      _updateState(() {
-        _lyrics = lyrics;
-        _lyricsRawText = lyrics.rawText;
-        _originalLyricsText = lyrics.rawText;
-        _lyricsController.text = lyrics.rawText;
-        _lyricsLoading = false;
-      });
+      _updatingControllers = true;
+      _lyrics = lyrics;
+      _lyricsRawText = lyrics.rawText;
+      _originalLyricsText = lyrics.rawText;
+      _showLyricsTimestamps = true;
+      _lyricsController.text = lyrics.rawText;
+      _updatingControllers = false;
+      ref
+          .read(musicDialogLyricsStateProvider(_dialogSessionKey).notifier)
+          .loaded(
+            showLyricsTimestamps: true,
+            lyricsCanToggleTimestamps: _lyricsCanToggleTimestamps,
+          );
       _selectInitialLyricsMatch();
     } catch (_) {
       if (_isActiveLoad(songId, generation)) {
-        _updateState(() {
-          _lyricsLoading = false;
-        });
+        ref
+            .read(musicDialogLyricsStateProvider(_dialogSessionKey).notifier)
+            .loaded(showLyricsTimestamps: true);
         _showMessage(i18n.t('song.getLyricsFailed'));
       }
     }
@@ -121,22 +156,22 @@ extension _MusicDialogStateLoadActions on _MusicDialogState {
         return;
       }
 
-      _updateState(() {
-        _displayArtworkUrl = artwork.artworkUrl;
-        _originalDisplayArtworkUrl = artwork.artworkUrl;
-        _artworkMissing =
-            artwork.source == SongArtworkSource.none ||
-            artwork.artworkUrl.isEmpty;
-        _originalArtworkMissing = _artworkMissing;
-        _artworkLoading = false;
-      });
+      _displayArtworkUrl = artwork.artworkUrl;
+      _originalDisplayArtworkUrl = artwork.artworkUrl;
+      _artworkMissing =
+          artwork.source == SongArtworkSource.none ||
+          artwork.artworkUrl.isEmpty;
+      _originalArtworkMissing = _artworkMissing;
+      ref
+          .read(musicDialogArtworkStateProvider(_dialogSessionKey).notifier)
+          .loaded();
       await _resolveDisplayArtwork(repository, songId, generation);
-      await _loadArtworkRecommendation();
+      await _loadArtworkRecommendation(dependencyChanged: true);
     } catch (_) {
       if (_isActiveLoad(songId, generation)) {
-        _updateState(() {
-          _artworkLoading = false;
-        });
+        ref
+            .read(musicDialogArtworkStateProvider(_dialogSessionKey).notifier)
+            .loaded();
       }
     }
   }
@@ -157,19 +192,42 @@ extension _MusicDialogStateLoadActions on _MusicDialogState {
     if (snapshot.artworkUrl.isEmpty) {
       return;
     }
-    _updateState(() {
-      _displayArtworkUrl = snapshot.artworkUrl;
-      _originalDisplayArtworkUrl = snapshot.artworkUrl;
-    });
+    _displayArtworkUrl = snapshot.artworkUrl;
+    _originalDisplayArtworkUrl = snapshot.artworkUrl;
+    ref
+        .read(musicDialogArtworkStateProvider(_dialogSessionKey).notifier)
+        .refresh();
   }
 
   bool _isActiveLoad(int songId, int generation) {
     return mounted && _loadGeneration == generation && widget.song.id == songId;
   }
 
-  Future<void> _loadArtworkRecommendation() async {
-    if (!_artworkMissing || _artworkRecommendationLoading) {
+  Future<void> _loadArtworkRecommendation({
+    bool dependencyChanged = false,
+    bool librarySnapshotChanged = false,
+  }) async {
+    final recommendationGeneration =
+        dependencyChanged || librarySnapshotChanged
+            ? ++_artworkRecommendationGeneration
+            : _artworkRecommendationGeneration;
+    final sessionKey = _dialogSessionKey;
+    if (dependencyChanged || librarySnapshotChanged) {
       _artworkRecommendation = null;
+      _artworkRecommendationRequestKey = '';
+    }
+    final state = ref.read(musicDialogArtworkStateProvider(sessionKey));
+    if (!_artworkMissing) {
+      _artworkRecommendation = null;
+      _artworkRecommendationRequestKey = '';
+      ref
+          .read(musicDialogArtworkStateProvider(sessionKey).notifier)
+          .setRecommendationLoading(false, refresh: true);
+      return;
+    }
+    if (state.recommendationLoading &&
+        !dependencyChanged &&
+        !librarySnapshotChanged) {
       return;
     }
 
@@ -180,39 +238,58 @@ extension _MusicDialogStateLoadActions on _MusicDialogState {
     }
 
     final requestKey = _albumArtRecommendationRequestKey(widget.song, songs);
-    if (requestKey == _artworkRecommendationRequestKey) {
+    if (!dependencyChanged &&
+        !librarySnapshotChanged &&
+        requestKey == _artworkRecommendationRequestKey) {
       return;
     }
     _artworkRecommendationRequestKey = requestKey;
 
     final candidates = _getAlbumArtRecommendationCandidates(widget.song, songs);
     if (candidates.isEmpty) {
-      if (mounted) {
-        _updateState(() {
-          _artworkRecommendation = null;
-        });
+      if (mounted &&
+          _dialogSessionKey == sessionKey &&
+          _artworkRecommendationGeneration == recommendationGeneration) {
+        _artworkRecommendation = null;
+        ref
+            .read(musicDialogArtworkStateProvider(sessionKey).notifier)
+            .setRecommendationLoading(false, refresh: true);
       }
       return;
     }
 
-    _updateState(() {
-      _artworkRecommendationLoading = true;
-    });
-    final snapshots = await ref
-        .read(libraryRepositoryProvider)
-        .getSongArtworkSnapshots(
-          candidates.map((candidate) => candidate.song.id).toList(),
+    ref
+        .read(musicDialogArtworkStateProvider(sessionKey).notifier)
+        .setRecommendationLoading(
+          true,
+          refresh: dependencyChanged || librarySnapshotChanged,
         );
-    if (!mounted) {
+    late final List<SongArtworkSnapshot> snapshots;
+    try {
+      snapshots = await ref
+          .read(libraryRepositoryProvider)
+          .getSongArtworkSnapshots(
+            candidates.map((candidate) => candidate.song.id).toList(),
+          );
+    } catch (_) {
+      if (mounted &&
+          _dialogSessionKey == sessionKey &&
+          _artworkRecommendationGeneration == recommendationGeneration) {
+        ref
+            .read(musicDialogArtworkStateProvider(sessionKey).notifier)
+            .setRecommendationLoading(false);
+      }
       return;
     }
-    if (_artworkRecommendationRequestKey != requestKey) {
+    if (!mounted ||
+        _dialogSessionKey != sessionKey ||
+        _artworkRecommendationGeneration != recommendationGeneration) {
       return;
     }
     if (!_artworkMissing) {
-      _updateState(() {
-        _artworkRecommendationLoading = false;
-      });
+      ref
+          .read(musicDialogArtworkStateProvider(sessionKey).notifier)
+          .setRecommendationLoading(false);
       return;
     }
 
@@ -224,23 +301,32 @@ extension _MusicDialogStateLoadActions on _MusicDialogState {
       if (snapshot.source != SongArtworkSource.none &&
           snapshot.sourcePath.isNotEmpty &&
           snapshot.sourceUrl.isNotEmpty) {
-        _updateState(() {
-          _artworkRecommendation = AlbumArtRecommendation(
-            song: candidate.song,
-            artworkUrl: snapshot.artworkUrl,
-            sourceUrl: snapshot.sourceUrl,
-            sourcePath: snapshot.sourcePath,
-            artistName: _getDisplayArtists(candidate.song, i18n),
-          );
-          _artworkRecommendationLoading = false;
-        });
+        _artworkRecommendation = AlbumArtRecommendation(
+          song: candidate.song,
+          artworkUrl: snapshot.artworkUrl,
+          sourceUrl: snapshot.sourceUrl,
+          sourcePath: snapshot.sourcePath,
+          artistName: _getDisplayArtists(candidate.song, i18n),
+        );
+        ref
+            .read(musicDialogArtworkStateProvider(sessionKey).notifier)
+            .setRecommendationLoading(false, refresh: true);
         return;
       }
     }
 
-    _updateState(() {
-      _artworkRecommendation = null;
-      _artworkRecommendationLoading = false;
-    });
+    _artworkRecommendation = null;
+    ref
+        .read(musicDialogArtworkStateProvider(sessionKey).notifier)
+        .setRecommendationLoading(false, refresh: true);
+  }
+
+  void _invalidateArtworkRecommendation() {
+    _artworkRecommendationGeneration += 1;
+    _artworkRecommendationRequestKey = '';
+    _artworkRecommendation = null;
+    ref
+        .read(musicDialogArtworkStateProvider(_dialogSessionKey).notifier)
+        .setRecommendationLoading(false, refresh: true);
   }
 }

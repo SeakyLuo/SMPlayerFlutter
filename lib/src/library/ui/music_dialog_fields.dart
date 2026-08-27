@@ -203,18 +203,21 @@ Color? _fieldInsetTopHighlight(
       : const Color(0xa6ffffff);
 }
 
-class _ArtistFieldGrid extends StatelessWidget {
-  const _ArtistFieldGrid({
+class MusicDialogArtistFieldGrid extends StatelessWidget {
+  const MusicDialogArtistFieldGrid({
+    super.key,
     required this.controllers,
     required this.saving,
     required this.onAddArtistCell,
     required this.onRemoveArtistCell,
+    this.showActions = true,
   });
 
   final List<TextEditingController> controllers;
   final bool saving;
   final VoidCallback onAddArtistCell;
   final ValueChanged<int> onRemoveArtistCell;
+  final bool showActions;
 
   @override
   Widget build(BuildContext context) {
@@ -243,7 +246,7 @@ class _ArtistFieldGrid extends StatelessWidget {
                       controller: entry.$2,
                       contentPadding: const EdgeInsets.fromLTRB(12, 0, 34, 0),
                     ),
-                    if (controllers.length > 1)
+                    if (showActions && controllers.length > 1)
                       Positioned(
                         top: 7,
                         right: 7,
@@ -265,7 +268,7 @@ class _ArtistFieldGrid extends StatelessWidget {
       },
     );
     final addButton =
-        controllers.length >= _MusicDialogState.maxArtistCells
+        !showActions || controllers.length >= _MusicDialogState.maxArtistCells
             ? null
             : _MusicDialogIconButton(
               key: const ValueKey('MusicDialog.AddArtistButton'),
@@ -305,39 +308,41 @@ class _ArtistRemoveButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = PopupDialogColors.resolve(context);
     final nightMode = Theme.of(context).brightness == Brightness.dark;
-    return IconButton(
-      tooltip: context.smPlayerI18n.t('playlists.removeSelected'),
-      style: IconButton.styleFrom(
-        fixedSize: const Size(28, 28),
-        minimumSize: const Size(28, 28),
-        padding: EdgeInsets.zero,
-        disabledForegroundColor: colors.textMuted.withValues(alpha: 0.48),
-        disabledBackgroundColor: Colors.transparent,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
-      ).copyWith(
-        backgroundColor: WidgetStateProperty.resolveWith((states) {
-          if (states.contains(WidgetState.hovered) ||
-              states.contains(WidgetState.focused)) {
-            return nightMode
-                ? GlobalUI.buttonHoverBgColorNight
-                : GlobalUI.buttonHoverBgColorDay;
-          }
-          return Colors.transparent;
-        }),
-        foregroundColor: WidgetStateProperty.resolveWith((states) {
-          if (states.contains(WidgetState.disabled)) {
-            return colors.textMuted.withValues(alpha: 0.48);
-          }
-          if (states.contains(WidgetState.hovered) ||
-              states.contains(WidgetState.focused)) {
-            return colors.text;
-          }
-          return colors.textMuted;
-        }),
-        overlayColor: const WidgetStatePropertyAll(Colors.transparent),
+    return PopupDialogHoverTooltip(
+      message: context.smPlayerI18n.t('playlists.removeSelected'),
+      child: IconButton(
+        style: IconButton.styleFrom(
+          fixedSize: const Size(28, 28),
+          minimumSize: const Size(28, 28),
+          padding: EdgeInsets.zero,
+          disabledForegroundColor: colors.textMuted.withValues(alpha: 0.48),
+          disabledBackgroundColor: Colors.transparent,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+        ).copyWith(
+          backgroundColor: WidgetStateProperty.resolveWith((states) {
+            if (states.contains(WidgetState.hovered) ||
+                states.contains(WidgetState.focused)) {
+              return nightMode
+                  ? GlobalUI.buttonHoverBgColorNight
+                  : GlobalUI.buttonHoverBgColorDay;
+            }
+            return Colors.transparent;
+          }),
+          foregroundColor: WidgetStateProperty.resolveWith((states) {
+            if (states.contains(WidgetState.disabled)) {
+              return colors.textMuted.withValues(alpha: 0.48);
+            }
+            if (states.contains(WidgetState.hovered) ||
+                states.contains(WidgetState.focused)) {
+              return colors.text;
+            }
+            return colors.textMuted;
+          }),
+          overlayColor: const WidgetStatePropertyAll(Colors.transparent),
+        ),
+        icon: const _ElectronIcon(_ElectronIconName.close, size: 14),
+        onPressed: disabled ? null : onPressed,
       ),
-      icon: const _ElectronIcon(_ElectronIconName.close, size: 14),
-      onPressed: disabled ? null : onPressed,
     );
   }
 }

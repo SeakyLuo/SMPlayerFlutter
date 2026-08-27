@@ -7,8 +7,7 @@ import 'package:shelf/shelf.dart';
 import 'package:shelf/shelf_io.dart' as shelf_io;
 import 'package:shelf_router/shelf_router.dart';
 
-const aiAgentApiPort = 29643;
-const aiAgentApiBaseUrl = 'http://127.0.0.1:$aiAgentApiPort/agent';
+import 'ai_agent_api.dart';
 
 enum AiAgentRemoteState { stopped, starting, running, stopping }
 
@@ -24,6 +23,7 @@ class AiAgentControlBindings {
     required this.previous,
     required this.seek,
     required this.setVolume,
+    required this.updateSong,
   });
 
   final String databasePath;
@@ -36,19 +36,23 @@ class AiAgentControlBindings {
   final bool Function() previous;
   final bool Function(double seconds) seek;
   final bool Function(int volume) setVolume;
+  final Future<bool> Function(int songId, Map<String, Object?> properties)
+  updateSong;
 }
 
 class AiAgentRemoteController extends ChangeNotifier {
   AiAgentControlBindings? _bindings;
   HttpServer? _server;
   var _state = AiAgentRemoteState.stopped;
+  var _port = defaultAiAgentApiPort;
 
   AiAgentRemoteState get state => _state;
   bool get isRunning => _state == AiAgentRemoteState.running;
   bool get isBusy =>
       _state == AiAgentRemoteState.starting ||
       _state == AiAgentRemoteState.stopping;
-  String get endpoint => aiAgentApiBaseUrl;
+  int get port => _port;
+  String get endpoint => aiAgentApiBaseUrl(_port);
   String? get databasePath => _bindings?.databasePath;
 
   void attach(AiAgentControlBindings bindings) {
@@ -62,27 +66,20 @@ class AiAgentRemoteController extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> start() async {
+  void configurePort(int port) {
+    _port = port;
+    notifyListeners();
+  }
+
+  Future<void> start({required int port}) async {
     if (isRunning) {
       return;
     }
     final bindings = _bindings!;
+    _port = port;
     _setState(AiAgentRemoteState.starting);
     try {
-      final router =
-          Router()
-            ..get('/agent', _handleInfo)
-            ..get('/agent/state', _handlePlayerState)
-            ..post('/agent/control', _handleControl);
-      final handler = Pipeline()
-          .addMiddleware(_localAgentOnly())
-          .addHandler(router.call);
-      _server = await shelf_io.serve(
-        handler,
-        InternetAddress.loopbackIPv4,
-        aiAgentApiPort,
-        shared: false,
-      );
+      _server = await _serve(_port);
       _bindings = bindings;
       _setState(AiAgentRemoteState.running);
     } on Object {
@@ -90,6 +87,22 @@ class AiAgentRemoteController extends ChangeNotifier {
       _setState(AiAgentRemoteState.stopped);
       rethrow;
     }
+  }
+
+  Future<void> changePort(int port) async {
+    final previousServer = _server!;
+    _setState(AiAgentRemoteState.starting);
+    final HttpServer nextServer;
+    try {
+      nextServer = await _serve(port);
+    } on Object {
+      _setState(AiAgentRemoteState.running);
+      rethrow;
+    }
+    _server = nextServer;
+    _port = port;
+    await previousServer.close(force: true);
+    _setState(AiAgentRemoteState.running);
   }
 
   Future<void> stop() async {
@@ -102,6 +115,31 @@ class AiAgentRemoteController extends ChangeNotifier {
     await server.close(force: true);
     _server = null;
     _setState(AiAgentRemoteState.stopped);
+  }
+
+  Future<HttpServer> _serve(int port) {
+    final router =
+        Router()
+          ..get('/agent', _handleInfo)
+          ..get('/player/state', _handlePlayerState)
+          ..post('/song/play', _handleSongPlay)
+          ..post('/queue/play', _handleQueuePlay)
+          ..post('/player/play', _handlePlay)
+          ..post('/player/pause', _handlePause)
+          ..post('/player/next', _handleNext)
+          ..post('/player/previous', _handlePrevious)
+          ..post('/player/seek', _handleSeek)
+          ..post('/player/volume', _handleVolume)
+          ..post('/song/update', _handleSongUpdate);
+    final handler = Pipeline()
+        .addMiddleware(_localAgentOnly())
+        .addHandler(router.call);
+    return shelf_io.serve(
+      handler,
+      InternetAddress.loopbackIPv4,
+      port,
+      shared: false,
+    );
   }
 
   Middleware _localAgentOnly() {
@@ -123,27 +161,60 @@ class AiAgentRemoteController extends ChangeNotifier {
   Response _handleInfo(Request request) {
     final bindings = _bindings!;
     return _jsonResponse(HttpStatus.ok, {
-      'endpoint': aiAgentApiBaseUrl,
+      'endpoint': endpoint,
       'endpoints': {
         'info': {'method': 'GET', 'path': '/agent'},
-        'state': {'method': 'GET', 'path': '/agent/state'},
-        'control': {'method': 'POST', 'path': '/agent/control'},
+        'playerState': {'method': 'GET', 'path': '/player/state'},
+        'songPlay': {
+          'method': 'POST',
+          'path': '/song/play',
+          'body': {'songId': 'integer'},
+        },
+        'queuePlay': {
+          'method': 'POST',
+          'path': '/queue/play',
+          'body': {'songIds': 'integer[]', 'startIndex': 'integer'},
+        },
+        'playerPlay': {'method': 'POST', 'path': '/player/play'},
+        'playerPause': {'method': 'POST', 'path': '/player/pause'},
+        'playerNext': {'method': 'POST', 'path': '/player/next'},
+        'playerPrevious': {'method': 'POST', 'path': '/player/previous'},
+        'playerSeek': {
+          'method': 'POST',
+          'path': '/player/seek',
+          'body': {'seconds': 'number'},
+        },
+        'playerVolume': {
+          'method': 'POST',
+          'path': '/player/volume',
+          'body': {'value': 'integer (0-100)'},
+        },
+        'songUpdate': {
+          'method': 'POST',
+          'path': '/song/update',
+          'body': {
+            'songId': 'integer',
+            'properties': {
+              'title': 'string',
+              'subtitle': 'string',
+              'artists': 'string[] (maximum 6)',
+              'album': 'string',
+              'albumArtist': 'string',
+              'publisher': 'string',
+              'trackNumber': 'integer',
+              'year': 'integer',
+              'genre': 'string',
+              'composers': 'string',
+              'playCount': 'integer',
+            },
+          },
+        },
       },
       'database': {
         'type': 'sqlite',
         'path': bindings.databasePath,
         'songTable': 'Music',
         'songIdColumn': 'Id',
-      },
-      'actions': {
-        'play_song': {'songId': 'integer'},
-        'play_queue': {'songIds': 'integer[]', 'startIndex': 'integer'},
-        'play': const <String, Object?>{},
-        'pause': const <String, Object?>{},
-        'next': const <String, Object?>{},
-        'previous': const <String, Object?>{},
-        'seek': {'seconds': 'number'},
-        'set_volume': {'value': 'integer (0-100)'},
       },
     });
   }
@@ -152,7 +223,114 @@ class AiAgentRemoteController extends ChangeNotifier {
     return _jsonResponse(HttpStatus.ok, _bindings!.playerState());
   }
 
-  Future<Response> _handleControl(Request request) async {
+  Future<Response> _handleSongPlay(Request request) async {
+    final decoded = await _readRequestBody(request);
+    if (decoded is Response) {
+      return decoded;
+    }
+    final body = decoded as Map<String, dynamic>;
+    final songId = body['songId'];
+    if (songId is! int) {
+      return _invalidRequest('invalid_song_id');
+    }
+    return _playerOperationResponse('song_play', _bindings!.playSong(songId));
+  }
+
+  Future<Response> _handleQueuePlay(Request request) async {
+    final decoded = await _readRequestBody(request);
+    if (decoded is Response) {
+      return decoded;
+    }
+    final body = decoded as Map<String, dynamic>;
+    final rawSongIds = body['songIds'];
+    final startIndex = body['startIndex'];
+    if (rawSongIds is! List ||
+        rawSongIds.any((value) => value is! int) ||
+        startIndex is! int) {
+      return _invalidRequest('invalid_queue');
+    }
+    return _playerOperationResponse(
+      'queue_play',
+      _bindings!.playQueue(rawSongIds.cast<int>(), startIndex),
+    );
+  }
+
+  Response _handlePlay(Request request) {
+    return _playerOperationResponse('play', _bindings!.play());
+  }
+
+  Response _handlePause(Request request) {
+    return _playerOperationResponse('pause', _bindings!.pause());
+  }
+
+  Response _handleNext(Request request) {
+    return _playerOperationResponse('next', _bindings!.next());
+  }
+
+  Response _handlePrevious(Request request) {
+    return _playerOperationResponse('previous', _bindings!.previous());
+  }
+
+  Future<Response> _handleSeek(Request request) async {
+    final decoded = await _readRequestBody(request);
+    if (decoded is Response) {
+      return decoded;
+    }
+    final body = decoded as Map<String, dynamic>;
+    final seconds = body['seconds'];
+    if (seconds is! num) {
+      return _invalidRequest('invalid_seconds');
+    }
+    return _playerOperationResponse(
+      'seek',
+      _bindings!.seek(seconds.toDouble()),
+    );
+  }
+
+  Future<Response> _handleVolume(Request request) async {
+    final decoded = await _readRequestBody(request);
+    if (decoded is Response) {
+      return decoded;
+    }
+    final body = decoded as Map<String, dynamic>;
+    final value = body['value'];
+    if (value is! int || value < 0 || value > 100) {
+      return _invalidRequest('invalid_volume');
+    }
+    return _playerOperationResponse('volume', _bindings!.setVolume(value));
+  }
+
+  Future<Response> _handleSongUpdate(Request request) async {
+    final decoded = await _readRequestBody(request);
+    if (decoded is Response) {
+      return decoded;
+    }
+    final body = decoded as Map<String, dynamic>;
+    final songId = body['songId'];
+    final properties = body['properties'];
+    if (songId is! int ||
+        properties is! Map<String, dynamic> ||
+        !_validSongProperties(properties)) {
+      return _invalidRequest('invalid_song_properties');
+    }
+    try {
+      final updated = await _bindings!.updateSong(songId, properties);
+      if (!updated) {
+        return _jsonResponse(HttpStatus.notFound, {
+          'ok': false,
+          'error': 'song_not_found',
+        });
+      }
+    } on Object {
+      return _jsonResponse(HttpStatus.unprocessableEntity, {
+        'ok': false,
+        'error': 'song_update_failed',
+      });
+    }
+    return _jsonResponse(HttpStatus.ok, {'ok': true, 'songId': songId});
+  }
+
+  Future<Object> _readRequestBody(Request request) async {
     final Object? decoded;
     try {
       decoded = jsonDecode(await request.readAsString());
@@ -162,69 +340,67 @@ class AiAgentRemoteController extends ChangeNotifier {
     if (decoded is! Map<String, dynamic>) {
       return _invalidRequest('invalid_body');
     }
-    final action = decoded['action'];
-    if (action is! String) {
-      return _invalidRequest('missing_action');
-    }
+    return decoded;
+  }
 
-    final bindings = _bindings!;
-    final bool executed;
-    switch (action) {
-      case 'play_song':
-        final songId = decoded['songId'];
-        if (songId is! int) {
-          return _invalidRequest('invalid_song_id');
-        }
-        executed = bindings.playSong(songId);
-      case 'play_queue':
-        final rawSongIds = decoded['songIds'];
-        final startIndex = decoded['startIndex'];
-        if (rawSongIds is! List ||
-            rawSongIds.any((value) => value is! int) ||
-            startIndex is! int) {
-          return _invalidRequest('invalid_queue');
-        }
-        executed = bindings.playQueue(rawSongIds.cast<int>(), startIndex);
-      case 'play':
-        executed = bindings.play();
-      case 'pause':
-        executed = bindings.pause();
-      case 'next':
-        executed = bindings.next();
-      case 'previous':
-        executed = bindings.previous();
-      case 'seek':
-        final seconds = decoded['seconds'];
-        if (seconds is! num) {
-          return _invalidRequest('invalid_seconds');
-        }
-        executed = bindings.seek(seconds.toDouble());
-      case 'set_volume':
-        final value = decoded['value'];
-        if (value is! int || value < 0 || value > 100) {
-          return _invalidRequest('invalid_volume');
-        }
-        executed = bindings.setVolume(value);
-      default:
-        return _invalidRequest('unknown_action');
-    }
-
+  Response _playerOperationResponse(String operation, bool executed) {
     if (!executed) {
       return _jsonResponse(HttpStatus.unprocessableEntity, {
         'ok': false,
-        'action': action,
-        'error': 'action_not_available',
+        'operation': operation,
+        'error': 'operation_not_available',
       });
     }
     return _jsonResponse(HttpStatus.ok, {
       'ok': true,
-      'action': action,
-      'player': bindings.playerState(),
+      'operation': operation,
+      'player': _bindings!.playerState(),
     });
   }
 
   Response _invalidRequest(String error) {
     return _jsonResponse(HttpStatus.badRequest, {'ok': false, 'error': error});
+  }
+
+  bool _validSongProperties(Map<String, dynamic> properties) {
+    if (properties.isEmpty) {
+      return false;
+    }
+    const textFields = {
+      'title',
+      'subtitle',
+      'album',
+      'albumArtist',
+      'publisher',
+      'genre',
+      'composers',
+    };
+    const numberFields = {'trackNumber', 'year', 'playCount'};
+    for (final entry in properties.entries) {
+      if (textFields.contains(entry.key)) {
+        if (entry.value is! String) {
+          return false;
+        }
+        continue;
+      }
+      if (numberFields.contains(entry.key)) {
+        if (entry.value is! int || (entry.value as int) < 0) {
+          return false;
+        }
+        continue;
+      }
+      if (entry.key == 'artists') {
+        final artists = entry.value;
+        if (artists is! List ||
+            artists.length > 6 ||
+            artists.any((artist) => artist is! String)) {
+          return false;
+        }
+        continue;
+      }
+      return false;
+    }
+    return true;
   }
 
   Response _jsonResponse(int statusCode, Map<String, Object?> body) {

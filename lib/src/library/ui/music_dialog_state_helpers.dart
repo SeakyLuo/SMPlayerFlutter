@@ -1,6 +1,18 @@
 part of 'music_dialog.dart';
 
 extension _MusicDialogStateHelpers on _MusicDialogState {
+  bool get _lyricsSearchInProgress =>
+      ref
+          .read(internetLyricsCandidateSearchProvider(_dialogSessionKey))
+          .isLoading;
+
+  void _disposeDialogSession(MusicDialogSessionKey key) {
+    ref.invalidate(musicDialogPropertiesStateProvider(key));
+    ref.invalidate(musicDialogLyricsStateProvider(key));
+    ref.invalidate(musicDialogArtworkStateProvider(key));
+    ref.invalidate(internetLyricsCandidateSearchProvider(key));
+  }
+
   List<String> _normalizeArtists(List<String> values) {
     final seen = <String>{};
     final artists = <String>[];
@@ -24,7 +36,9 @@ extension _MusicDialogStateHelpers on _MusicDialogState {
   }
 
   void _requestClose() {
-    if (!_lyricsDirty) {
+    final lyricsDirty =
+        ref.read(musicDialogLyricsStateProvider(_dialogSessionKey)).dirty;
+    if (!lyricsDirty) {
       widget.onClose();
       return;
     }

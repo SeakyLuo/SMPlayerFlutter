@@ -3,6 +3,7 @@ part of 'music_dialog.dart';
 class MusicInfoControl extends StatelessWidget {
   const MusicInfoControl({
     super.key,
+    required this.sessionKey,
     required this.loading,
     required this.saving,
     required this.properties,
@@ -25,7 +26,6 @@ class MusicInfoControl extends StatelessWidget {
     required this.genreController,
     required this.pathController,
     required this.canPause,
-    required this.propertiesDirty,
     required this.onPlay,
     required this.onSave,
     required this.onReset,
@@ -35,6 +35,7 @@ class MusicInfoControl extends StatelessWidget {
     required this.onReveal,
   });
 
+  final MusicDialogSessionKey sessionKey;
   final bool loading;
   final bool saving;
   final SongPropertiesSnapshot? properties;
@@ -57,7 +58,6 @@ class MusicInfoControl extends StatelessWidget {
   final TextEditingController genreController;
   final TextEditingController pathController;
   final bool canPause;
-  final bool propertiesDirty;
   final VoidCallback? onPlay;
   final VoidCallback onSave;
   final VoidCallback onReset;
@@ -74,60 +74,67 @@ class MusicInfoControl extends StatelessWidget {
         currentProperties == null
             ? ''
             : p.basenameWithoutExtension(currentProperties.path);
-    final showUseFilenameButton =
-        currentProperties != null && titleController.text != titleFilename;
-    final playCount = int.tryParse(playCountController.text) ?? 0;
-    final playCountTooltip =
-        playCount == 0
-            ? i18n.t('song.notPlayedYet', {'title': titleController.text})
-            : i18n.t('song.hasBeenPlayed', {
-              'title': titleController.text,
-              'count': playCount.toString(),
-            });
     final mobile =
         MediaQuery.sizeOf(context).width <= popupDialogMobileBreakpoint;
 
     return Column(
       children: [
-        _MusicDialogCommandBar(
-          showBusy: saving,
-          children: [
-            if (propertiesDirty)
-              _MusicDialogCommandButton(
-                iconWidget: const _ElectronIcon(
-                  _ElectronIconName.undo,
-                  size: 20,
+        Consumer(
+          builder: (context, ref, child) {
+            final state = ref.watch(
+              musicDialogPropertiesStateProvider(sessionKey),
+            );
+            return _MusicDialogCommandBar(
+              showBusy: false,
+              children: [
+                if (state.dirty)
+                  _MusicDialogCommandButton(
+                    iconWidget: const _ElectronIcon(
+                      _ElectronIconName.undo,
+                      size: 20,
+                    ),
+                    label: i18n.t('common.reset'),
+                    commandBar: true,
+                    disabled: loading || saving,
+                    onPressed: onReset,
+                  ),
+                if (onPlay != null)
+                  _MusicDialogCommandButton(
+                    iconWidget: _ElectronIcon(
+                      canPause
+                          ? _ElectronIconName.pause
+                          : _ElectronIconName.play,
+                      size: 20,
+                    ),
+                    label:
+                        canPause
+                            ? i18n.t('context.pause')
+                            : i18n.t('context.play'),
+                    commandBar: true,
+                    onPressed: onPlay,
+                  ),
+                _MusicDialogCommandButton(
+                  iconWidget: const _ElectronIcon(
+                    _ElectronIconName.save,
+                    size: 20,
+                  ),
+                  label: i18n.t('settings.save'),
+                  primary: true,
+                  commandBar: true,
+                  loading: saving,
+                  disabled: loading,
+                  onPressed: onSave,
                 ),
-                label: i18n.t('common.reset'),
-                commandBar: true,
-                disabled: loading || saving,
-                onPressed: onReset,
-              ),
-            if (onPlay != null)
-              _MusicDialogCommandButton(
-                iconWidget: _ElectronIcon(
-                  canPause ? _ElectronIconName.pause : _ElectronIconName.play,
-                  size: 20,
-                ),
-                label:
-                    canPause ? i18n.t('context.pause') : i18n.t('context.play'),
-                commandBar: true,
-                onPressed: onPlay,
-              ),
-            _MusicDialogCommandButton(
-              iconWidget: const _ElectronIcon(_ElectronIconName.save, size: 20),
-              label: i18n.t('settings.save'),
-              primary: true,
-              commandBar: true,
-              disabled: loading || saving,
-              onPressed: onSave,
-            ),
-          ],
+              ],
+            );
+          },
         ),
         Expanded(
           child:
-              loading || properties == null
+              loading
                   ? const _SongDialogLoading()
+                  : properties == null
+                  ? const SizedBox.expand()
                   : _SongDialogScrollableBody(
                     padding:
                         mobile
@@ -137,42 +144,55 @@ class MusicInfoControl extends StatelessWidget {
                       children: [
                         _PropertyRow(
                           label: i18n.t('table.title'),
-                          child: Row(
-                            children: [
-                              Expanded(
-                                child: _DialogField(
-                                  controller: titleController,
-                                ),
-                              ),
-                              if (showUseFilenameButton) ...[
-                                const SizedBox(width: 8),
-                                _MusicDialogIconButton(
-                                  key: const ValueKey(
-                                    'MusicDialog.UseFileNameButton',
+                          child: ValueListenableBuilder<TextEditingValue>(
+                            valueListenable: titleController,
+                            builder: (context, value, child) {
+                              final showUseFilenameButton =
+                                  currentProperties != null &&
+                                  value.text != titleFilename;
+                              return Row(
+                                children: [
+                                  Expanded(
+                                    child: _DialogField(
+                                      controller: titleController,
+                                      readOnly: saving,
+                                    ),
                                   ),
-                                  iconWidget: const _ElectronIcon(
-                                    _ElectronIconName.refresh,
-                                    size: 18,
-                                  ),
-                                  tooltip: i18n.t('song.syncTitleToFilename', {
-                                    'filename': titleFilename,
-                                  }),
-                                  disabled: saving,
-                                  onPressed: () {
-                                    titleController.text = titleFilename;
-                                  },
-                                ),
-                              ],
-                            ],
+                                  if (showUseFilenameButton) ...[
+                                    const SizedBox(width: 8),
+                                    _MusicDialogIconButton(
+                                      key: const ValueKey(
+                                        'MusicDialog.UseFileNameButton',
+                                      ),
+                                      iconWidget: const _ElectronIcon(
+                                        _ElectronIconName.refresh,
+                                        size: 18,
+                                      ),
+                                      tooltip: i18n.t(
+                                        'song.syncTitleToFilename',
+                                        {'filename': titleFilename},
+                                      ),
+                                      disabled: saving,
+                                      onPressed: () {
+                                        titleController.text = titleFilename;
+                                      },
+                                    ),
+                                  ],
+                                ],
+                              );
+                            },
                           ),
                         ),
                         _PropertyRow(
                           label: i18n.t('song.subtitle'),
-                          child: _DialogField(controller: subtitleController),
+                          child: _DialogField(
+                            controller: subtitleController,
+                            readOnly: saving,
+                          ),
                         ),
                         _PropertyRow(
                           label: i18n.t('common.artist'),
-                          child: _ArtistFieldGrid(
+                          child: MusicDialogArtistFieldGrid(
                             controllers: artistControllers,
                             saving: saving,
                             onAddArtistCell: onAddArtistCell,
@@ -181,54 +201,83 @@ class MusicInfoControl extends StatelessWidget {
                         ),
                         _PropertyRow(
                           label: i18n.t('common.album'),
-                          child: _DialogField(controller: albumController),
+                          child: _DialogField(
+                            controller: albumController,
+                            readOnly: saving,
+                          ),
                         ),
                         _PropertyRow(
                           label: i18n.t('song.albumArtist'),
                           child: _DialogField(
                             controller: albumArtistController,
+                            readOnly: saving,
                           ),
                         ),
                         _PropertyRow(
                           label: i18n.t('common.playCount'),
-                          child: Row(
-                            children: [
-                              Expanded(
-                                child: Tooltip(
-                                  message: playCountTooltip,
-                                  child: _DialogField(
-                                    controller: playCountController,
-                                    readOnly: true,
+                          child: ListenableBuilder(
+                            listenable: Listenable.merge([
+                              titleController,
+                              playCountController,
+                            ]),
+                            builder: (context, child) {
+                              final playCount =
+                                  int.tryParse(playCountController.text) ?? 0;
+                              final tooltip =
+                                  playCount == 0
+                                      ? i18n.t('song.notPlayedYet', {
+                                        'title': titleController.text,
+                                      })
+                                      : i18n.t('song.hasBeenPlayed', {
+                                        'title': titleController.text,
+                                        'count': playCount.toString(),
+                                      });
+                              return Row(
+                                children: [
+                                  Expanded(
+                                    child: Tooltip(
+                                      message: tooltip,
+                                      child: _DialogField(
+                                        controller: playCountController,
+                                        readOnly: true,
+                                      ),
+                                    ),
                                   ),
-                                ),
-                              ),
-                              if (playCount > 0) ...[
-                                const SizedBox(width: 8),
-                                _MusicDialogIconButton(
-                                  key: const ValueKey(
-                                    'MusicDialog.ClearPlayCountButton',
-                                  ),
-                                  iconWidget: const _ElectronIcon(
-                                    _ElectronIconName.undo,
-                                    size: 18,
-                                  ),
-                                  tooltip: i18n.t('song.resetPlayCountToZero'),
-                                  disabled: saving,
-                                  onPressed: onClearPlayCount,
-                                ),
-                              ],
-                            ],
+                                  if (playCount > 0) ...[
+                                    const SizedBox(width: 8),
+                                    _MusicDialogIconButton(
+                                      key: const ValueKey(
+                                        'MusicDialog.ClearPlayCountButton',
+                                      ),
+                                      iconWidget: const _ElectronIcon(
+                                        _ElectronIconName.undo,
+                                        size: 18,
+                                      ),
+                                      tooltip: i18n.t(
+                                        'song.resetPlayCountToZero',
+                                      ),
+                                      disabled: saving,
+                                      onPressed: onClearPlayCount,
+                                    ),
+                                  ],
+                                ],
+                              );
+                            },
                           ),
                         ),
                         _PropertyRow(
                           label: i18n.t('song.publisher'),
-                          child: _DialogField(controller: publisherController),
+                          child: _DialogField(
+                            controller: publisherController,
+                            readOnly: saving,
+                          ),
                         ),
                         _PropertyRow(
                           label: i18n.t('song.trackNumber'),
                           child: _DialogField(
                             key: const ValueKey('TrackNumberTextBox'),
                             controller: trackNumberController,
+                            readOnly: saving,
                           ),
                         ),
                         _PropertyRow(
@@ -236,6 +285,7 @@ class MusicInfoControl extends StatelessWidget {
                           child: _DialogField(
                             key: const ValueKey('YearTextBox'),
                             controller: yearController,
+                            readOnly: saving,
                           ),
                         ),
                         _PropertyRow(

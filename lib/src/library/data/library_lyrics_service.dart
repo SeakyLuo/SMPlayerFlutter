@@ -10,6 +10,8 @@ import 'id3_tag_service.dart';
 import 'library_models.dart';
 import 'package:smplayer_flutter/src/settings/settings_model.dart' as settings;
 
+part 'library_lyrics_candidate_search.dart';
+
 const _activeState = 1;
 const _id3TagService = Id3TagService();
 
@@ -186,6 +188,8 @@ class LibraryLyricsService {
     required List<LibrarySong> songs,
     bool overwrite = false,
     void Function(LyricsBatchProgress progress)? onProgress,
+    void Function(LyricsBatchDetail detail, LyricsBatchProgress progress)?
+    onDetailCompleted,
     bool Function()? isCanceled,
     Future<void> Function()? waitIfPaused,
   }) async {
@@ -209,8 +213,8 @@ class LibraryLyricsService {
       }
 
       final song = songs[index];
-      onProgress?.call(
-        LyricsBatchProgress(
+      LyricsBatchProgress currentProgress() {
+        return LyricsBatchProgress(
           currentIndex: index + 1,
           total: songs.length,
           currentSongTitle: [
@@ -224,15 +228,24 @@ class LibraryLyricsService {
           failed: failed,
           backedUp: backedUp,
           backupBytes: backupBytes,
-        ),
-      );
+        );
+      }
+
+      void recordDetail(LyricsBatchDetail detail) {
+        details.add(detail);
+        final progress = currentProgress();
+        onProgress?.call(progress);
+        onDetailCompleted?.call(detail, progress);
+      }
+
+      onProgress?.call(currentProgress());
 
       try {
         final localLyrics = await _getSongLyricsByPath(song.path);
         final existingRawLyrics = localLyrics.rawText;
         if (!overwrite && existingRawLyrics.trim().isNotEmpty) {
           skipped += 1;
-          details.add(
+          recordDetail(
             LyricsBatchDetail(
               songId: song.id,
               title: song.title,
@@ -273,7 +286,7 @@ class LibraryLyricsService {
 
         if (internetLyrics.trim().isEmpty) {
           missing += 1;
-          details.add(
+          recordDetail(
             LyricsBatchDetail(
               songId: song.id,
               title: song.title,
@@ -290,7 +303,7 @@ class LibraryLyricsService {
             _normalizeLyricsForCompare(existingRawLyrics) ==
                 _normalizeLyricsForCompare(internetLyrics)) {
           skipped += 1;
-          details.add(
+          recordDetail(
             LyricsBatchDetail(
               songId: song.id,
               title: song.title,
@@ -312,7 +325,7 @@ class LibraryLyricsService {
         await _writeLyricsToSongPath(song.path, internetLyrics);
         if (existingRawLyrics.trim().isEmpty) {
           saved += 1;
-          details.add(
+          recordDetail(
             LyricsBatchDetail(
               songId: song.id,
               title: song.title,
@@ -324,7 +337,7 @@ class LibraryLyricsService {
           );
         } else {
           overwritten += 1;
-          details.add(
+          recordDetail(
             LyricsBatchDetail(
               songId: song.id,
               title: song.title,
@@ -338,7 +351,7 @@ class LibraryLyricsService {
         }
       } on Object {
         failed += 1;
-        details.add(
+        recordDetail(
           LyricsBatchDetail(
             songId: song.id,
             title: song.title,
@@ -528,23 +541,21 @@ class LibraryLyricsService {
       return '';
     }
 
+    try {
+      return await _getRawLyricsBySongMid(songMid);
+    } catch (_) {
+      return '';
+    }
+  }
+
+  Future<String> _getRawLyricsBySongMid(String songMid) async {
     final uri = Uri.parse(
       'https://c.y.qq.com/lyric/fcgi-bin/fcg_query_lyric_new.fcg',
     ).replace(
       queryParameters: {'songmid': songMid, 'format': 'json', 'nobase64': '1'},
     );
-    try {
-      final response = await _fetchLyricsJson(uri);
-      final lyrics =
-          _decodeHtmlEntities(response['lyric'] as String? ?? '').trim();
-      if (_isInvalidInternetLyricsResponse(lyrics)) {
-        return '';
-      }
-
-      return lyrics;
-    } catch (_) {
-      return '';
-    }
+    final response = await _fetchLyricsJson(uri);
+    return _decodeHtmlEntities(response['lyric'] as String? ?? '').trim();
   }
 
   Future<LyricsSnapshot?> _getSyncedInternetLyrics(
@@ -565,9 +576,21 @@ class LibraryLyricsService {
     }
 
     final snapshot = await _settingsSnapshotResolver();
-    return (snapshot == null || snapshot.preserveInternetLyricsTimestamps)
-        ? rawLyrics
-        : _stripLyricsTimestamps(rawLyrics);
+    return _prepareInternetLyricsWithPreference(
+      rawLyrics,
+      preserveTimestamps:
+          snapshot == null || snapshot.preserveInternetLyricsTimestamps,
+    );
+  }
+
+  String _prepareInternetLyricsWithPreference(
+    String rawLyrics, {
+    required bool preserveTimestamps,
+  }) {
+    if (_isNoLyricsPlaceholder(rawLyrics)) {
+      return '';
+    }
+    return preserveTimestamps ? rawLyrics : _stripLyricsTimestamps(rawLyrics);
   }
 
   String _stripLyricsTimestamps(String rawText) {

@@ -32,6 +32,7 @@ import 'package:smplayer_flutter/src/settings/settings_formatters.dart';
 import 'package:smplayer_flutter/src/settings/settings_model.dart';
 
 part 'settings_controls.dart';
+part 'settings_port_setting_row.dart';
 part 'batch_add_lyrics_control.dart';
 part 'preference_page.dart';
 part 'settings_layout_parts.dart';
@@ -62,8 +63,10 @@ class _SharedLyricsBatchState extends ChangeNotifier {
   var cancelRequested = false;
   var paused = false;
   var showDetails = false;
+  var canceled = false;
   LyricsBatchProgress? progress;
   LyricsBatchResult? result;
+  final liveDetails = <LyricsBatchDetail>[];
 
   void update(VoidCallback change) {
     change();
@@ -156,6 +159,7 @@ class _SettingsPageState extends State<SettingsPage> {
   var _systemFonts = const <String>[];
   String? _appVersion;
   var _updatingAiAgent = false;
+  var _editingAiAgentPort = false;
 
   SettingsSnapshot get _snapshot => _settingsController.snapshot;
   bool get _isDataTransferBusy => _dataTransferState != DataTransferState.idle;
@@ -184,6 +188,10 @@ class _SettingsPageState extends State<SettingsPage> {
   bool get _showLyricsBatchDetails => _sharedLyricsBatchState.showDetails;
   set _showLyricsBatchDetails(bool value) => _sharedLyricsBatchState.update(
     () => _sharedLyricsBatchState.showDetails = value,
+  );
+  bool get _lyricsBatchCanceled => _sharedLyricsBatchState.canceled;
+  set _lyricsBatchCanceled(bool value) => _sharedLyricsBatchState.update(
+    () => _sharedLyricsBatchState.canceled = value,
   );
   LyricsBatchProgress? get _lyricsBatchProgress =>
       _sharedLyricsBatchState.progress;
@@ -337,8 +345,6 @@ class _SettingsPageState extends State<SettingsPage> {
                 songs: widget.librarySongs,
                 selectedTrackId: null,
                 isPlaying: false,
-                onPlay: (_) {},
-                onOpenSongMenu: (_, _) {},
                 onApplyArtistSplits:
                     (splits) => _applyScanResultArtistSplits(splits, i18n),
                 onDismissArtistSplitSuggestions:
@@ -421,6 +427,21 @@ class _SettingsPageState extends State<SettingsPage> {
             if (_showLyricsBatchDetails && _lyricsBatchResult != null)
               LyricsBatchDetailsDialog(
                 result: _lyricsBatchResult!,
+                onClear:
+                    _lyricsBatchRunning ||
+                            _lyricsBatchCanceled ||
+                            (_lyricsBatchResult!.saved == 0 &&
+                                _lyricsBatchResult!.overwritten == 0)
+                        ? null
+                        : () {
+                          setState(() {
+                            _lyricsBatchResult = null;
+                            _lyricsBatchProgress = null;
+                            _showLyricsBatchDetails = false;
+                            _lyricsBatchCanceled = false;
+                            _sharedLyricsBatchState.liveDetails.clear();
+                          });
+                        },
                 onClose: () {
                   setState(() {
                     _showLyricsBatchDetails = false;
@@ -755,11 +776,13 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   Future<void> _startLyricsBatch(SmPlayerI18n i18n) async {
+    _sharedLyricsBatchState.liveDetails.clear();
     setState(() {
       _showLyricsBatchOptions = false;
       _lyricsBatchRunning = true;
       _lyricsBatchCancelRequested = false;
       _lyricsBatchPaused = false;
+      _lyricsBatchCanceled = false;
       _lyricsBatchProgress = null;
       _lyricsBatchResult = null;
     });
@@ -776,19 +799,38 @@ class _SettingsPageState extends State<SettingsPage> {
             _lyricsBatchProgress = progress;
           });
         },
+        onDetailCompleted: (detail, progress) {
+          _sharedLyricsBatchState.update(() {
+            _sharedLyricsBatchState.liveDetails.add(detail);
+            _sharedLyricsBatchState.progress = progress;
+            _sharedLyricsBatchState.result = LyricsBatchResult(
+              total: progress.total,
+              saved: progress.saved,
+              overwritten: progress.overwritten,
+              skipped: progress.skipped,
+              missing: progress.missing,
+              failed: progress.failed,
+              backedUp: progress.backedUp,
+              backupBytes: progress.backupBytes,
+              details: _sharedLyricsBatchState.liveDetails,
+            );
+          });
+        },
       );
       if (_lyricsBatchCancelRequested) {
-        _lyricsBatchResult = null;
+        _lyricsBatchResult = result;
+        _sharedLyricsBatchState.liveDetails.clear();
         _lyricsBatchProgress = null;
         if (mounted) {
           setState(() {
-            _lyricsBatchResult = null;
+            _lyricsBatchResult = result;
             _lyricsBatchProgress = null;
           });
         }
         return;
       }
       _lyricsBatchResult = result;
+      _sharedLyricsBatchState.liveDetails.clear();
       if (!mounted) return;
       setState(() {
         _lyricsBatchResult = result;
@@ -865,6 +907,9 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   Future<void> _requestCancelLyricsBatch(SmPlayerI18n i18n) async {
+    setState(() {
+      _lyricsBatchPaused = true;
+    });
     final confirmed = await showSmPlayerConfirmDialog(
       context: context,
       i18n: i18n,
@@ -872,16 +917,48 @@ class _SettingsPageState extends State<SettingsPage> {
       message: i18n.t('settings.lyricsBatchCancelConfirmMessage'),
       confirmText: i18n.t('common.confirm'),
     );
-    if (!mounted || !confirmed || !_lyricsBatchRunning) {
+    if (!mounted) {
+      return;
+    }
+    if (!confirmed) {
+      if (_lyricsBatchRunning) {
+        setState(() {
+          _lyricsBatchPaused = false;
+        });
+      }
+      return;
+    }
+    if (!_lyricsBatchRunning) {
       return;
     }
     setState(() {
       _lyricsBatchCancelRequested = true;
       _lyricsBatchPaused = false;
+      _lyricsBatchCanceled = true;
       _lyricsBatchProgress = null;
-      _lyricsBatchResult = null;
-      _showLyricsBatchDetails = false;
     });
+    final result = _lyricsBatchResult;
+    unawaited(
+      showAppNotification(
+        context: context,
+        message: i18n.t('settings.lyricsBatchStopped'),
+        duration: undoableNotificationDuration,
+        actionLabel:
+            result != null && result.details.isNotEmpty
+                ? i18n.t('common.detail')
+                : null,
+        onAction:
+            result != null && result.details.isNotEmpty
+                ? () {
+                  if (mounted) {
+                    setState(() {
+                      _showLyricsBatchDetails = true;
+                    });
+                  }
+                }
+                : null,
+      ),
+    );
   }
 
   void _updateSettings(AppSettingsUpdate update) {
@@ -904,7 +981,7 @@ class _SettingsPageState extends State<SettingsPage> {
     });
     try {
       if (enabled) {
-        await aiAgentRemoteController.start();
+        await aiAgentRemoteController.start(port: previousSnapshot.aiAgentPort);
       } else {
         await aiAgentRemoteController.stop();
       }
@@ -915,7 +992,7 @@ class _SettingsPageState extends State<SettingsPage> {
       if (enabled) {
         await aiAgentRemoteController.stop();
       } else {
-        await aiAgentRemoteController.start();
+        await aiAgentRemoteController.start(port: previousSnapshot.aiAgentPort);
       }
       if (mounted) {
         _showMessage(i18n.t('settings.aiAgentUpdateFailed'));
@@ -930,6 +1007,58 @@ class _SettingsPageState extends State<SettingsPage> {
     if (updated) {
       widget.onUpdateSettings?.call(update);
     }
+  }
+
+  Future<bool> _setAiAgentPort(int port, SmPlayerI18n i18n) async {
+    final previousSnapshot = _settingsController.snapshot;
+    final update = AppSettingsUpdate(aiAgentPort: port);
+    var updated = false;
+    setState(() {
+      _updatingAiAgent = true;
+    });
+    try {
+      if (previousSnapshot.aiAgentEnabled) {
+        await aiAgentRemoteController.changePort(port);
+      } else {
+        aiAgentRemoteController.configurePort(port);
+      }
+      await _settingsController.updateSettings(update);
+      updated = true;
+    } on Object {
+      _settingsController.restoreSnapshot(previousSnapshot);
+      if (previousSnapshot.aiAgentEnabled) {
+        if (aiAgentRemoteController.port != previousSnapshot.aiAgentPort) {
+          await aiAgentRemoteController.changePort(
+            previousSnapshot.aiAgentPort,
+          );
+        }
+      } else {
+        aiAgentRemoteController.configurePort(previousSnapshot.aiAgentPort);
+      }
+      if (mounted) {
+        _showMessage(i18n.t('settings.aiAgentPortUpdateFailed'));
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _updatingAiAgent = false;
+        });
+      }
+    }
+    if (updated) {
+      widget.onUpdateSettings?.call(update);
+    }
+    return updated;
+  }
+
+  Future<void> _copyAiAgentPrompt(SmPlayerI18n i18n) async {
+    await _copyAiAgentValue(
+      i18n.t('settings.aiAgentPrompt', {
+        'appName': i18n.t('app.shell'),
+        'endpoint': aiAgentRemoteController.endpoint,
+      }),
+      i18n,
+    );
   }
 
   Future<void> _copyAiAgentValue(String value, SmPlayerI18n i18n) async {

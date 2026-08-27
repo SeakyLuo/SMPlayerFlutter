@@ -19,6 +19,7 @@ class PopupDialog extends StatefulWidget {
     this.height = 760,
     this.horizontalInset = 48,
     this.verticalInset = 48,
+    this.borderRadius = 12,
     this.onWindowDragStart,
     this.onWindowDragEnd,
   });
@@ -39,6 +40,7 @@ class PopupDialog extends StatefulWidget {
   final double height;
   final double horizontalInset;
   final double verticalInset;
+  final double borderRadius;
   final VoidCallback? onWindowDragStart;
   final VoidCallback? onWindowDragEnd;
 
@@ -198,7 +200,7 @@ class _PopupDialogState extends State<PopupDialog> {
                           decoration: BoxDecoration(
                             color: colors.surface,
                             borderRadius: BorderRadius.circular(
-                              mobile ? 0 : 12,
+                              mobile ? 0 : widget.borderRadius,
                             ),
                             border:
                                 mobile

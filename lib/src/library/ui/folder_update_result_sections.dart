@@ -1,20 +1,17 @@
 import 'dart:async';
 
+import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
-import 'package:smplayer_flutter/src/app/smplayer_vector_icons.dart';
-import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
-import 'package:smplayer_flutter/src/playback/playing_wave.dart';
+import 'package:smplayer_flutter/src/playback/playlist_control_item.dart';
 import 'package:smplayer_flutter/src/settings/artist_split_review_panel.dart';
 
 import '../data/library_models.dart';
-import 'artwork_floating_action_button.dart';
-import 'default_album_artwork.dart';
 import 'folder_update_result_file_title.dart';
 import 'local_folder_model.dart';
 import 'popup_dialog.dart';
-import 'song_artwork.dart';
 
-const _folderUpdateResultRowHeight = 66.0;
+const _folderUpdateResultRowHeight = 78.0;
+const _folderUpdateResultListBorderWidth = 1.0;
 const _folderUpdateResultMaxVisibleRows = 14;
 
 class FolderUpdateResultFileSection extends StatelessWidget {
@@ -37,8 +34,8 @@ class FolderUpdateResultFileSection extends StatelessWidget {
   final Map<String, LibrarySong> songsByPathKey;
   final int? selectedTrackId;
   final bool isPlaying;
-  final ValueChanged<int> onPlay;
-  final FutureOr<void> Function(LibrarySong song, Offset position)
+  final ValueChanged<int>? onPlay;
+  final FutureOr<void> Function(LibrarySong song, Offset position)?
   onOpenSongMenu;
   final double maxHeight;
 
@@ -53,250 +50,173 @@ class FolderUpdateResultFileSection extends StatelessWidget {
         items.length > _folderUpdateResultMaxVisibleRows
             ? _folderUpdateResultMaxVisibleRows
             : items.length;
-    final desiredHeight = visibleRows * _folderUpdateResultRowHeight;
-    final listHeight = desiredHeight > maxHeight ? maxHeight : desiredHeight;
+    const rowHeight = _folderUpdateResultRowHeight;
+    final desiredContentHeight = visibleRows * rowHeight;
+    final desiredListHeight =
+        desiredContentHeight + _folderUpdateResultListBorderWidth * 2;
+    final listHeight =
+        desiredListHeight > maxHeight ? maxHeight : desiredListHeight;
+    final scrollable =
+        items.length > visibleRows || desiredListHeight > maxHeight;
     final colors = _FolderUpdateResultColors.resolve(context);
-    return SizedBox(
-      height: listHeight,
-      child: Container(
-        decoration: BoxDecoration(
-          color: colors.listBackground,
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: colors.border),
-        ),
-        clipBehavior: Clip.antiAlias,
-        child: ListView.builder(
-          padding: EdgeInsets.zero,
-          itemExtent: _folderUpdateResultRowHeight,
-          itemCount: items.length,
-          itemBuilder: (context, index) {
-            final item = items[index];
-            final path = item.path;
-            final title = item.title;
-            final showsFullPath = title == path;
-            final song =
-                playable
-                    ? songsByPathKey[normalizePath(path).toLowerCase()]
-                    : null;
-            final current = song != null && song.id == selectedTrackId;
-            return _FolderUpdateResultRow(
-              title: title,
-              fullPath: showsFullPath,
-              first: index == 0,
-              odd: index.isEven,
-              song: song,
-              current: current,
-              isPlaying: current && isPlaying,
-              onPlay: song == null ? null : () => onPlay(song.id),
-              onOpenSongMenu:
-                  song == null
-                      ? null
-                      : (position) => onOpenSongMenu(song, position),
+    final popupColors = PopupDialogColors.resolve(context);
+    final playlistColors = PlaylistControlItemColors(
+      border: colors.rowBorder,
+      hover: Color.alphaBlend(colors.rowHover, popupColors.surface),
+      hoverBorder: colors.border,
+      current: Color.alphaBlend(
+        popupColors.accent.withValues(alpha: 0.16),
+        popupColors.surface,
+      ),
+      currentForeground: popupColors.accentStrong,
+      currentMuted: popupColors.accentStrong.withValues(alpha: 0.78),
+      textStrong: colors.textStrong,
+      textMuted: colors.textMuted,
+      artworkBackground: popupColors.fieldSurface,
+      actionForeground: colors.textMuted,
+      actionHover: popupColors.accent.withValues(alpha: 0.12),
+    );
+
+    Widget buildItem(int index) {
+      final item = items[index];
+      final path = item.path;
+      final title = item.title;
+      final showsFullPath = title == path;
+      final song =
+          playable ? songsByPathKey[normalizePath(path).toLowerCase()] : null;
+      final current = song != null && song.id == selectedTrackId;
+      if (song != null && onPlay != null && onOpenSongMenu != null) {
+        void play() {
+          onPlay!(song.id);
+        }
+
+        return PlaylistControlItem(
+          key: ValueKey('FolderUpdateResult.Song.${song.id}'),
+          song: song,
+          current: current,
+          playing: current && isPlaying,
+          selected: false,
+          selectionMode: false,
+          showAlbum: true,
+          variant: PlaylistControlItemVariant.compact,
+          colors: playlistColors,
+          showCompactPrimaryActions: true,
+          collapseCompactPrimaryActions: true,
+          compactTrailingPadding: 20,
+          showFavoriteAction: false,
+          swipeEnabled: false,
+          showBottomBorder: index != items.length - 1,
+          onActivateRow: play,
+          onPlayTrack: play,
+          onTogglePlayPause: play,
+          onToggleSelection: () {},
+          onOpenContextMenu: (position) => onOpenSongMenu!(song, position),
+        );
+      }
+      return _FolderUpdateResultRow(
+        title: title,
+        fullPath: showsFullPath,
+        first: index == 0,
+        odd: index.isEven,
+      );
+    }
+
+    final content =
+        scrollable
+            ? Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: ListView.builder(
+                padding: EdgeInsets.zero,
+                itemExtent: rowHeight,
+                itemCount: items.length,
+                itemBuilder: (context, index) => buildItem(index),
+              ),
+            )
+            : Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                for (var index = 0; index < items.length; index += 1)
+                  SizedBox(height: rowHeight, child: buildItem(index)),
+              ],
             );
-          },
+    return Align(
+      alignment: Alignment.topCenter,
+      child: SizedBox(
+        height: listHeight,
+        child: Container(
+          decoration: BoxDecoration(
+            color: colors.listBackground,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: colors.border,
+              width: _folderUpdateResultListBorderWidth,
+            ),
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: content,
         ),
       ),
     );
   }
 }
 
-class FolderUpdateResultArtwork extends StatefulWidget {
-  const FolderUpdateResultArtwork({
-    super.key,
-    required this.song,
-    required this.current,
-    required this.isPlaying,
-    required this.onPlay,
-    required this.hovered,
-  });
-
-  final LibrarySong song;
-  final bool current;
-  final bool isPlaying;
-  final VoidCallback onPlay;
-  final bool hovered;
-
-  @override
-  State<FolderUpdateResultArtwork> createState() =>
-      _FolderUpdateResultArtworkState();
-}
-
-class _FolderUpdateResultArtworkState extends State<FolderUpdateResultArtwork> {
-  var _hovered = false;
-  var _focused = false;
-
-  @override
-  Widget build(BuildContext context) {
-    final showPlayOverlay = widget.hovered || _hovered || _focused;
-    return SizedBox(
-      width: 42,
-      height: 42,
-      child: MouseRegion(
-        onEnter: (_) => setState(() => _hovered = true),
-        onExit: (_) => setState(() => _hovered = false),
-        child: Stack(
-          alignment: Alignment.center,
-          children: [
-            ClipRRect(
-              borderRadius: BorderRadius.circular(6),
-              child: SongArtwork(
-                artworkPath: widget.song.thumbnailPath,
-                fallback: const DefaultAlbumArtwork(logoOpacity: 0.9),
-              ),
-            ),
-            if (widget.current && !showPlayOverlay)
-              SmPlayerPlayingWaveGlass(
-                playing: widget.isPlaying,
-                keyPrefix: 'FolderUpdateResult.Playing.${widget.song.id}',
-              ),
-            IgnorePointer(
-              ignoring: !showPlayOverlay,
-              child: AnimatedOpacity(
-                duration: const Duration(milliseconds: 120),
-                opacity: showPlayOverlay ? 1 : 0,
-                child: Focus(
-                  onFocusChange:
-                      (focused) => setState(() => _focused = focused),
-                  child: ArtworkFloatingActionButton(
-                    tooltip:
-                        widget.isPlaying
-                            ? context.smPlayerI18n.t('player.pause')
-                            : context.smPlayerI18n.t('context.play'),
-                    size: 34,
-                    iconSize: 16,
-                    icon:
-                        widget.isPlaying
-                            ? const SmPlayerPauseIcon(
-                              size: 16,
-                              color: Colors.white,
-                            )
-                            : const SmPlayerPlayIcon(
-                              size: 16,
-                              color: Colors.white,
-                            ),
-                    onPressed: widget.onPlay,
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _FolderUpdateResultRow extends StatefulWidget {
+class _FolderUpdateResultRow extends StatelessWidget {
   const _FolderUpdateResultRow({
     required this.title,
     required this.fullPath,
     required this.first,
     required this.odd,
-    required this.song,
-    required this.current,
-    required this.isPlaying,
-    required this.onPlay,
-    required this.onOpenSongMenu,
   });
 
   final String title;
   final bool fullPath;
   final bool first;
   final bool odd;
-  final LibrarySong? song;
-  final bool current;
-  final bool isPlaying;
-  final VoidCallback? onPlay;
-  final FutureOr<void> Function(Offset)? onOpenSongMenu;
-
-  @override
-  State<_FolderUpdateResultRow> createState() => _FolderUpdateResultRowState();
-}
-
-class _FolderUpdateResultRowState extends State<_FolderUpdateResultRow> {
-  var _hovered = false;
-  var _contextMenuOpen = false;
-
-  Future<void> _openContextMenu(Offset position) async {
-    setState(() {
-      _contextMenuOpen = true;
-    });
-    try {
-      await widget.onOpenSongMenu!(position);
-    } finally {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted) return;
-        setState(() {
-          _contextMenuOpen = false;
-        });
-      });
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
     final colors = _FolderUpdateResultColors.resolve(context);
-    final playable = widget.song != null;
-    final background = colors.rowBackground(
-      playable: playable,
-      odd: widget.odd,
-    );
-    final rowColor =
-        (_hovered || _contextMenuOpen) && playable
-            ? colors.rowHover
-            : background;
-
-    return MouseRegion(
-      cursor: playable ? SystemMouseCursors.click : MouseCursor.defer,
-      onEnter: (_) => setState(() => _hovered = true),
-      onExit: (_) => setState(() => _hovered = false),
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onSecondaryTapDown:
-            playable
-                ? (details) =>
-                    unawaited(_openContextMenu(details.globalPosition))
-                : null,
-        child: Container(
-          decoration: BoxDecoration(
-            color: rowColor,
-            border:
-                widget.first
-                    ? null
-                    : Border(top: BorderSide(color: colors.rowBorder)),
-          ),
-          padding: const EdgeInsets.symmetric(horizontal: 14),
-          child: Row(
-            children: [
-              if (playable) ...[
-                FolderUpdateResultArtwork(
-                  song: widget.song!,
-                  current: widget.current,
-                  isPlaying: widget.isPlaying,
-                  onPlay: widget.onPlay!,
-                  hovered: _hovered,
-                ),
-                const SizedBox(width: 10),
-              ],
-              Expanded(
-                child: Text(
-                  widget.title,
-                  maxLines: widget.fullPath ? 2 : 1,
-                  overflow:
-                      widget.fullPath
-                          ? TextOverflow.visible
-                          : TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: playable ? colors.textStrong : colors.textMuted,
-                    fontSize: widget.fullPath ? 13 : 16,
-                    fontWeight: FontWeight.w500,
-                    height: widget.fullPath ? 1.25 : null,
-                  ),
-                ),
+    final popupColors = PopupDialogColors.resolve(context);
+    final nightMode = Theme.of(context).brightness == Brightness.dark;
+    return Container(
+      decoration: BoxDecoration(
+        color: colors.rowBackground(playable: false, odd: odd),
+        border: first ? null : Border(top: BorderSide(color: colors.rowBorder)),
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      child: Row(
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: popupColors.accent.withValues(
+                alpha: nightMode ? 0.16 : 0.09,
               ),
-            ],
+              borderRadius: BorderRadius.circular(9),
+            ),
+            child: Icon(
+              FluentIcons.music_note_2_20_regular,
+              size: 20,
+              color: popupColors.accentStrong.withValues(alpha: 0.82),
+            ),
           ),
-        ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              title,
+              maxLines: fullPath ? 2 : 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: fullPath ? colors.textMuted : colors.textStrong,
+                fontSize: fullPath ? 13 : 15,
+                fontWeight: fullPath ? FontWeight.w500 : FontWeight.w600,
+                height: fullPath ? 1.25 : 1.2,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

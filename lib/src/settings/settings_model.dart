@@ -1,4 +1,5 @@
 import 'package:smplayer_flutter/src/playback/media_control_model.dart';
+import 'package:smplayer_flutter/src/remote/ai_agent_api.dart';
 
 export 'package:smplayer_flutter/src/playback/media_control_model.dart'
     show PlaybackMode, PlaybackRuntimeSettings, PlaybackSettingsUpdate;
@@ -124,6 +125,7 @@ class SettingsSnapshot {
     required this.localViewMode,
     required this.quitOnClose,
     required this.aiAgentEnabled,
+    required this.aiAgentPort,
     required this.lastPage,
     required this.lastPlaylistId,
     required this.lastReleaseNotesVersion,
@@ -180,6 +182,7 @@ class SettingsSnapshot {
       localViewMode = LocalViewMode.grid,
       quitOnClose = true,
       aiAgentEnabled = false,
+      aiAgentPort = defaultAiAgentApiPort,
       lastPage = '/songs',
       lastPlaylistId = 0,
       lastReleaseNotesVersion = '';
@@ -234,6 +237,7 @@ class SettingsSnapshot {
   final LocalViewMode localViewMode;
   final bool quitOnClose;
   final bool aiAgentEnabled;
+  final int aiAgentPort;
   final String lastPage;
   final int lastPlaylistId;
   final String lastReleaseNotesVersion;
@@ -297,6 +301,7 @@ class SettingsSnapshot {
     LocalViewMode? localViewMode,
     bool? quitOnClose,
     bool? aiAgentEnabled,
+    int? aiAgentPort,
     String? lastPage,
     int? lastPlaylistId,
     String? lastReleaseNotesVersion,
@@ -369,6 +374,7 @@ class SettingsSnapshot {
       localViewMode: localViewMode ?? this.localViewMode,
       quitOnClose: quitOnClose ?? this.quitOnClose,
       aiAgentEnabled: aiAgentEnabled ?? this.aiAgentEnabled,
+      aiAgentPort: aiAgentPort ?? this.aiAgentPort,
       lastPage: lastPage ?? this.lastPage,
       lastPlaylistId: lastPlaylistId ?? this.lastPlaylistId,
       lastReleaseNotesVersion:
@@ -420,6 +426,7 @@ class AppSettingsUpdate {
     this.localViewMode,
     this.quitOnClose,
     this.aiAgentEnabled,
+    this.aiAgentPort,
     this.lastReleaseNotesVersion,
   });
 
@@ -464,6 +471,7 @@ class AppSettingsUpdate {
   final LocalViewMode? localViewMode;
   final bool? quitOnClose;
   final bool? aiAgentEnabled;
+  final int? aiAgentPort;
   final String? lastReleaseNotesVersion;
 }
 
@@ -514,6 +522,7 @@ extension AppSettingsUpdateApply on SettingsSnapshot {
       localViewMode: update.localViewMode,
       quitOnClose: update.quitOnClose,
       aiAgentEnabled: update.aiAgentEnabled,
+      aiAgentPort: update.aiAgentPort,
       lastReleaseNotesVersion: update.lastReleaseNotesVersion,
     );
   }

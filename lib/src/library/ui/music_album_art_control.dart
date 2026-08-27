@@ -5,7 +5,7 @@ class MusicAlbumArtControl extends StatelessWidget {
     super.key,
     required this.song,
     required this.loading,
-    required this.saving,
+    required this.operation,
     required this.artworkUrl,
     required this.artworkDirty,
     required this.recommendation,
@@ -19,7 +19,7 @@ class MusicAlbumArtControl extends StatelessWidget {
 
   final LibrarySong song;
   final bool loading;
-  final bool saving;
+  final MusicDialogOperation? operation;
   final String artworkUrl;
   final bool artworkDirty;
   final AlbumArtRecommendation? recommendation;
@@ -32,16 +32,19 @@ class MusicAlbumArtControl extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final saving = operation == MusicDialogOperation.saveArtwork;
+    final changingArtwork = operation == MusicDialogOperation.changeArtwork;
     return AlbumArtEditorControl(
       loading: loading,
       saving: saving,
-      showBusy: loading || saving,
+      changingArtwork: changingArtwork,
+      showBusy: false,
       artworkUrl: artworkUrl,
       artworkDirty: artworkDirty,
       recommendation: recommendation,
       songId: song.id,
       fallbackArtwork: true,
-      onApplyRecommendation: onApplyRecommendation,
+      onApplyRecommendation: operation == null ? onApplyRecommendation : null,
       onChangeArtwork: onChangeArtwork,
       onChooseArtworkFromLibrary: onChooseArtworkFromLibrary,
       onSaveArtwork: onSaveArtwork,
@@ -56,6 +59,7 @@ class AlbumArtEditorControl extends ConsumerStatefulWidget {
     super.key,
     this.loading = false,
     required this.saving,
+    this.changingArtwork = false,
     required this.showBusy,
     required this.artworkUrl,
     required this.artworkDirty,
@@ -72,6 +76,7 @@ class AlbumArtEditorControl extends ConsumerStatefulWidget {
 
   final bool loading;
   final bool saving;
+  final bool changingArtwork;
   final bool showBusy;
   final String artworkUrl;
   final bool artworkDirty;
@@ -165,6 +170,7 @@ class _AlbumArtEditorControlState extends ConsumerState<AlbumArtEditorControl> {
       340.0,
       MediaQuery.sizeOf(context).width - 92,
     );
+    final operationRunning = widget.saving || widget.changingArtwork;
 
     return Column(
       children: [
@@ -178,10 +184,11 @@ class _AlbumArtEditorControlState extends ConsumerState<AlbumArtEditorControl> {
               ),
               label: i18n.t('playlists.delete'),
               commandBar: true,
-              disabled: widget.loading || widget.saving || !hasArtworkFile,
+              disabled: widget.loading || operationRunning || !hasArtworkFile,
               onPressed: widget.onRequestDelete,
             ),
             _ArtworkSourceButton(
+              loading: widget.changingArtwork,
               disabled: widget.loading || widget.saving,
               onChangeArtwork: widget.onChangeArtwork,
               onChooseArtworkFromLibrary: widget.onChooseArtworkFromLibrary,
@@ -191,7 +198,8 @@ class _AlbumArtEditorControlState extends ConsumerState<AlbumArtEditorControl> {
               label: i18n.t('settings.save'),
               primary: true,
               commandBar: true,
-              disabled: widget.loading || widget.saving,
+              loading: widget.saving,
+              disabled: widget.loading || widget.changingArtwork,
               onPressed: widget.onSaveArtwork,
             ),
             if (widget.onResetArtwork != null)
@@ -202,7 +210,7 @@ class _AlbumArtEditorControlState extends ConsumerState<AlbumArtEditorControl> {
                 ),
                 label: i18n.t('common.reset'),
                 commandBar: true,
-                disabled: widget.loading || widget.saving,
+                disabled: widget.loading || operationRunning,
                 onPressed: widget.onResetArtwork,
               ),
           ],

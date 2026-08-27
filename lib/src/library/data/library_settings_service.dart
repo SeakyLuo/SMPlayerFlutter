@@ -95,6 +95,7 @@ class LibrarySettingsService {
           HideMultiSelectCommandBarAfterOperation = ?,
           QuitOnClose = ?,
           AiAgentEnabled = ?,
+          AiAgentPort = ?,
           MusicProgress = ?,
           LocalViewMode = ?,
           LastReleaseNotesVersion = ?
@@ -140,6 +141,7 @@ class LibrarySettingsService {
           _boolValue(next.hideMultiSelectCommandBarAfterOperation),
           _boolValue(next.quitOnClose),
           _boolValue(next.aiAgentEnabled),
+          next.aiAgentPort,
           next.saveMusicProgress ? snapshot.musicProgress : 0,
           _localViewModeValue(next.localViewMode),
           next.lastReleaseNotesVersion,
@@ -429,6 +431,7 @@ class LibrarySettingsService {
       localViewMode: _localViewModeFromValue(row['LocalViewMode'] as int),
       quitOnClose: (row['QuitOnClose'] as int) != 0,
       aiAgentEnabled: (row['AiAgentEnabled'] as int) != 0,
+      aiAgentPort: row['AiAgentPort'] as int,
       lastPage:
           (row['LastPage'] as String?)?.isEmpty ?? true
               ? '/songs'

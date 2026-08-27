@@ -995,7 +995,10 @@ class SettingsActionButton extends StatelessWidget {
         ),
       ),
     );
-    return button;
+    if (tooltip == null) {
+      return button;
+    }
+    return Tooltip(message: tooltip!, child: button);
   }
 }
 

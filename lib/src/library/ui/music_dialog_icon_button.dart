@@ -31,7 +31,7 @@ class _MusicDialogIconButton extends StatelessWidget {
             : nightMode
             ? GlobalUI.buttonHoverBgColorNight
             : GlobalUI.buttonHoverBgColorDay;
-    return SmPlayerTextIconButtonTheme(
+    final button = SmPlayerTextIconButtonTheme(
       colors: SmPlayerTextIconButtonColors(
         commandText: foreground,
         commandTextHover: foreground,
@@ -44,19 +44,23 @@ class _MusicDialogIconButton extends StatelessWidget {
       ),
       child: SmPlayerTextIconButton(
         label: tooltip ?? '',
-        tooltip: tooltip,
-        tooltipEnabled: tooltip != null,
+        tooltipEnabled: false,
         showLabel: false,
         iconWidget: iconWidget,
         onPressed: onPressed,
         disabled: disabled,
         minWidth: size,
-        height: size == 42 ? 40 : size,
+        maxWidth: size,
+        height: size,
         iconSize: iconSize,
         borderRadius: 8,
         opacityWhenDisabled: 1,
         glassEnabled: false,
       ).withDialogButtonShadow(colors.buttonShadow, radius: 8),
     );
+    if (tooltip == null) {
+      return button;
+    }
+    return PopupDialogHoverTooltip(message: tooltip!, child: button);
   }
 }
