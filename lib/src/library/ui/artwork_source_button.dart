@@ -2,11 +2,13 @@ part of 'music_dialog.dart';
 
 class _ArtworkSourceButton extends StatelessWidget {
   const _ArtworkSourceButton({
+    this.loading = false,
     required this.disabled,
     required this.onChangeArtwork,
     required this.onChooseArtworkFromLibrary,
   });
 
+  final bool loading;
   final bool disabled;
   final VoidCallback onChangeArtwork;
   final VoidCallback? onChooseArtworkFromLibrary;
@@ -21,6 +23,7 @@ class _ArtworkSourceButton extends StatelessWidget {
             iconWidget: const _ElectronIcon(_ElectronIconName.edit, size: 20),
             label: i18n.t('song.changeArtwork'),
             commandBar: true,
+            loading: loading,
             disabled: disabled,
             onPressed:
                 disabled

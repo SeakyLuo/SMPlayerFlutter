@@ -1,5 +1,5 @@
 import 'dart:async';
-import 'dart:math' show max;
+import 'dart:math' show max, min;
 import 'dart:ui';
 
 import 'package:flutter/gestures.dart';
@@ -57,8 +57,8 @@ class PlaylistControlItemColors {
   final Color actionHover;
 }
 
-const _queueItemSwipeLimit = 108.0;
-const _queueItemSwipeOpenTrigger = 58.0;
+const _queueSwipeActionWidth = 64.0;
+const _queueSwipeMinimumContentWidth = 56.0;
 const _queueActionSize = 32.0;
 const _queueActionGap = 8.0;
 final _openPlaylistSwipeOwner = ValueNotifier<Object?>(null);
@@ -156,6 +156,7 @@ class _PlaylistControlItemState extends State<PlaylistControlItem> {
   var _menuPin = _PlaylistControlMenuPin.none;
   var _swipeOffset = 0.0;
   var _swipeDragDirection = 0;
+  var _swipeLayoutWidth = 0.0;
   PointerDeviceKind? _pointerKind;
   final _swipeOwner = Object();
 
@@ -177,16 +178,10 @@ class _PlaylistControlItemState extends State<PlaylistControlItem> {
   @override
   void didUpdateWidget(covariant PlaylistControlItem oldWidget) {
     super.didUpdateWidget(oldWidget);
-    final currentDirectionUnavailable =
-        _swipeOffset < 0 && widget.onRemoveFromListClick == null ||
-        _swipeOffset > 0 &&
-            (!widget.favoriteSwipeEnabled ||
-                widget.onToggleFavoriteClick == null);
     if (widget.song.id != oldWidget.song.id ||
         widget.selectionMode ||
         !widget.swipeEnabled ||
-        widget.favoriteLoading ||
-        currentDirectionUnavailable) {
+        widget.favoriteLoading) {
       _swipeOffset = 0;
       if (identical(_openPlaylistSwipeOwner.value, _swipeOwner)) {
         _openPlaylistSwipeOwner.value = null;
@@ -229,9 +224,49 @@ class _PlaylistControlItemState extends State<PlaylistControlItem> {
   void _resetSwipe() {
     setState(() {
       _swipeOffset = 0;
+      _swipeDragDirection = 0;
     });
     if (identical(_openPlaylistSwipeOwner.value, _swipeOwner)) {
       _openPlaylistSwipeOwner.value = null;
+    }
+  }
+
+  bool get _showFavoriteSwipeAction =>
+      widget.showFavoriteAction &&
+      widget.favoriteSwipeEnabled &&
+      widget.onToggleFavoriteClick != null;
+
+  int get _startSwipeActionCount =>
+      (_showFavoriteSwipeAction ? 1 : 0) +
+      (widget.onAddToPlaylistClick == null ? 0 : 1);
+
+  int get _endSwipeActionCount =>
+      1 +
+      (widget.onPlayNextClick == null ? 0 : 1) +
+      (widget.onRemoveFromListClick == null ? 0 : 1);
+
+  double _swipeExtent(int actionCount) {
+    return min(
+      actionCount * _queueSwipeActionWidth,
+      max(0, _swipeLayoutWidth - _queueSwipeMinimumContentWidth),
+    );
+  }
+
+  double get _startSwipeExtent => _swipeExtent(_startSwipeActionCount);
+
+  double get _endSwipeExtent => _swipeExtent(_endSwipeActionCount);
+
+  double _swipeOpenTrigger(double extent) {
+    return (extent * 0.45).clamp(36.0, 72.0);
+  }
+
+  Future<void> _openSwipePinnedMenu(
+    _PlaylistControlMenuPin pin,
+    FutureOr<void> Function() open,
+  ) async {
+    await _openPinnedMenu(pin, open);
+    if (mounted) {
+      _resetSwipe();
     }
   }
 
@@ -256,9 +291,6 @@ class _PlaylistControlItemState extends State<PlaylistControlItem> {
   }
 
   bool get _swipeConfigured =>
-      (widget.onRemoveFromListClick != null ||
-          (widget.favoriteSwipeEnabled &&
-              widget.onToggleFavoriteClick != null)) &&
       widget.swipeEnabled &&
       !widget.selectionMode &&
       widget.dropPosition == null &&
@@ -281,16 +313,8 @@ class _PlaylistControlItemState extends State<PlaylistControlItem> {
       0 when logicalDelta > 0 => 1,
       _ => _swipeDragDirection,
     };
-    final minimum =
-        widget.onRemoveFromListClick == null || _swipeDragDirection > 0
-            ? 0.0
-            : -_queueItemSwipeLimit;
-    final maximum =
-        !widget.favoriteSwipeEnabled ||
-                widget.onToggleFavoriteClick == null ||
-                _swipeDragDirection < 0
-            ? 0.0
-            : _queueItemSwipeLimit;
+    final minimum = _swipeDragDirection > 0 ? 0.0 : -_endSwipeExtent;
+    final maximum = _swipeDragDirection < 0 ? 0.0 : _startSwipeExtent;
     final nextOffset = (_swipeOffset + logicalDelta).clamp(minimum, maximum);
     setState(() {
       _swipeOffset = nextOffset;
@@ -303,8 +327,10 @@ class _PlaylistControlItemState extends State<PlaylistControlItem> {
     }
     setState(() {
       _swipeOffset = switch (_swipeOffset) {
-        <= -_queueItemSwipeOpenTrigger => -_queueItemSwipeLimit,
-        >= _queueItemSwipeOpenTrigger => _queueItemSwipeLimit,
+        final offset when offset <= -_swipeOpenTrigger(_endSwipeExtent) =>
+          -_endSwipeExtent,
+        final offset when offset >= _swipeOpenTrigger(_startSwipeExtent) =>
+          _startSwipeExtent,
         _ => 0,
       };
     });
@@ -406,6 +432,7 @@ class _PlaylistControlItemState extends State<PlaylistControlItem> {
         ),
         child: LayoutBuilder(
           builder: (context, constraints) {
+            _swipeLayoutWidth = constraints.maxWidth;
             final baseRowPadding =
                 compactVariant
                     ? EdgeInsets.fromLTRB(
@@ -736,6 +763,108 @@ class _PlaylistControlItemState extends State<PlaylistControlItem> {
         ),
       ),
     );
+    final disableAnimations = MediaQuery.disableAnimationsOf(context);
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    final neutralSwipeBackground =
+        dark ? const Color(0xff26384a) : const Color(0xffdbe8f2);
+    final alternateSwipeBackground =
+        dark ? const Color(0xff1f2f40) : const Color(0xffcdddea);
+    final neutralSwipeForeground =
+        dark
+            ? const Color(0xfff4f8fc)
+            : _PlaylistControlItemColors.accentStrong;
+    final favoriteSwipeLabel = i18n.t(
+      widget.song.favorite ? 'context.removeFavorite' : 'context.addFavorite',
+    );
+    final addToLabel =
+        widget.addToPlaylistLabel ?? i18n.t('context.addToPlaylist');
+    final playNextLabel = widget.playNextLabel ?? i18n.t('context.playNext');
+    final removeLabel = widget.removeLabel ?? i18n.t('nowPlaying.remove');
+    final moreLabel = widget.moreLabel ?? i18n.t('player.more');
+    final startSwipeActions = <Widget>[
+      if (_showFavoriteSwipeAction)
+        _QueueSwipeAction(
+          label: favoriteSwipeLabel,
+          icon: Icon(
+            widget.song.favorite
+                ? FluentIcons.heart_20_filled
+                : FluentIcons.heart_20_regular,
+            size: 19,
+          ),
+          foregroundColor: Colors.white,
+          backgroundColor: _PlaylistControlItemColors.favorite,
+          toggled: widget.song.favorite,
+          onPressed: () {
+            _resetSwipe();
+            widget.onToggleFavoriteClick!();
+          },
+        ),
+      if (widget.onAddToPlaylistClick != null)
+        Builder(
+          builder:
+              (buttonContext) => _QueueSwipeAction(
+                label: addToLabel,
+                icon: const Icon(FluentIcons.add_20_regular, size: 20),
+                foregroundColor: neutralSwipeForeground,
+                backgroundColor: neutralSwipeBackground,
+                active: _menuPin == _PlaylistControlMenuPin.addTo,
+                onPressed: () {
+                  unawaited(
+                    _openSwipePinnedMenu(
+                      _PlaylistControlMenuPin.addTo,
+                      () => widget.onAddToPlaylistClick!(buttonContext),
+                    ),
+                  );
+                },
+              ),
+        ),
+    ];
+    final endSwipeActions = <Widget>[
+      if (widget.onPlayNextClick != null)
+        _QueueSwipeAction(
+          label: playNextLabel,
+          icon: const SmPlayerPlayNextIcon(size: 19),
+          foregroundColor: neutralSwipeForeground,
+          backgroundColor: neutralSwipeBackground,
+          onPressed: () {
+            _resetSwipe();
+            widget.onPlayNextClick!();
+          },
+        ),
+      Builder(
+        builder:
+            (buttonContext) => _QueueSwipeAction(
+              label: moreLabel,
+              icon: const SmPlayerMoreHorizontalIcon(size: 20),
+              foregroundColor: neutralSwipeForeground,
+              backgroundColor: alternateSwipeBackground,
+              active: _menuPin == _PlaylistControlMenuPin.more,
+              onPressed: () {
+                final box = buttonContext.findRenderObject() as RenderBox;
+                final offset = box.localToGlobal(
+                  Offset(0, box.size.height + 8),
+                );
+                unawaited(
+                  _openSwipePinnedMenu(
+                    _PlaylistControlMenuPin.more,
+                    () => widget.onOpenContextMenu(offset),
+                  ),
+                );
+              },
+            ),
+      ),
+      if (widget.onRemoveFromListClick != null)
+        _QueueSwipeAction(
+          label: removeLabel,
+          icon: const Icon(FluentIcons.dismiss_20_regular, size: 20),
+          foregroundColor: Colors.white,
+          backgroundColor: _PlaylistControlItemColors.destructive,
+          onPressed: () {
+            _resetSwipe();
+            widget.onRemoveFromListClick!();
+          },
+        ),
+    ];
     final row = MouseRegion(
       opaque: false,
       onEnter: (_) {
@@ -778,13 +907,50 @@ class _PlaylistControlItemState extends State<PlaylistControlItem> {
               height: rowHeight,
               child: Stack(
                 children: [
+                  Positioned.fill(
+                    child: IgnorePointer(
+                      ignoring: _swipeOffset >= 0,
+                      child: AnimatedOpacity(
+                        opacity: _swipeOffset < 0 ? 1 : 0,
+                        duration:
+                            disableAnimations
+                                ? Duration.zero
+                                : const Duration(milliseconds: 90),
+                        child: Align(
+                          alignment: AlignmentDirectional.centerEnd,
+                          child: _QueueSwipeActionRail(
+                            width: _endSwipeExtent,
+                            actions: endSwipeActions,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  Positioned.fill(
+                    child: IgnorePointer(
+                      ignoring: _swipeOffset <= 0,
+                      child: AnimatedOpacity(
+                        opacity: _swipeOffset > 0 ? 1 : 0,
+                        duration:
+                            disableAnimations
+                                ? Duration.zero
+                                : const Duration(milliseconds: 90),
+                        child: Align(
+                          alignment: AlignmentDirectional.centerStart,
+                          child: _QueueSwipeActionRail(
+                            width: _startSwipeExtent,
+                            actions: startSwipeActions,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
                   TweenAnimationBuilder<double>(
                     tween: Tween<double>(end: _swipeOffset),
                     duration:
-                        MediaQuery.disableAnimationsOf(context)
+                        disableAnimations
                             ? Duration.zero
-                            : _swipeOffset.abs() == _queueItemSwipeLimit ||
-                                _swipeOffset == 0
+                            : _swipeDragDirection == 0
                             ? const Duration(milliseconds: 170)
                             : Duration.zero,
                     curve: Curves.easeOut,
@@ -795,60 +961,6 @@ class _PlaylistControlItemState extends State<PlaylistControlItem> {
                         ),
                     child: content,
                   ),
-                  if (widget.onRemoveFromListClick != null)
-                    Positioned.fill(
-                      child: IgnorePointer(
-                        ignoring: _swipeOffset >= 0,
-                        child: AnimatedOpacity(
-                          opacity: _swipeOffset < 0 ? 1 : 0,
-                          duration:
-                              MediaQuery.disableAnimationsOf(context)
-                                  ? Duration.zero
-                                  : const Duration(milliseconds: 90),
-                          child: Align(
-                            alignment: AlignmentDirectional.centerEnd,
-                            child: _QueueSwipeRemoveAction(
-                              label:
-                                  widget.removeLabel ??
-                                  context.smPlayerI18n.t('nowPlaying.remove'),
-                              onPressed: () {
-                                _resetSwipe();
-                                widget.onRemoveFromListClick!();
-                              },
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  if (widget.favoriteSwipeEnabled &&
-                      widget.onToggleFavoriteClick != null)
-                    Positioned.fill(
-                      child: IgnorePointer(
-                        ignoring: _swipeOffset <= 0,
-                        child: AnimatedOpacity(
-                          opacity: _swipeOffset > 0 ? 1 : 0,
-                          duration:
-                              MediaQuery.disableAnimationsOf(context)
-                                  ? Duration.zero
-                                  : const Duration(milliseconds: 90),
-                          child: Align(
-                            alignment: AlignmentDirectional.centerStart,
-                            child: _QueueSwipeFavoriteAction(
-                              favorite: widget.song.favorite,
-                              label: context.smPlayerI18n.t(
-                                widget.song.favorite
-                                    ? 'context.removeFavorite'
-                                    : 'context.addFavorite',
-                              ),
-                              onPressed: () {
-                                _resetSwipe();
-                                widget.onToggleFavoriteClick!();
-                              },
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
                   if (dropPosition != null)
                     Positioned(
                       left: compactVariant || viewportCompact ? 8 : 18,
@@ -905,60 +1017,87 @@ class _QueueDropIndicator extends StatelessWidget {
   }
 }
 
-class _QueueSwipeRemoveAction extends StatelessWidget {
-  const _QueueSwipeRemoveAction({required this.label, required this.onPressed});
+class _QueueSwipeActionRail extends StatelessWidget {
+  const _QueueSwipeActionRail({required this.width, required this.actions});
 
-  final String label;
-  final VoidCallback onPressed;
+  final double width;
+  final List<Widget> actions;
 
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      width: _queueItemSwipeLimit,
+      width: width,
       height: double.infinity,
-      child: TextButton.icon(
-        style: TextButton.styleFrom(
-          foregroundColor: Colors.white,
-          backgroundColor: _PlaylistControlItemColors.destructive,
-          padding: const EdgeInsets.symmetric(horizontal: 20),
-          shape: const RoundedRectangleBorder(),
-          textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
-        ),
-        onPressed: onPressed,
-        icon: const Icon(FluentIcons.dismiss_20_regular, size: 18),
-        label: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
+      child: Row(
+        children: [for (final action in actions) Expanded(child: action)],
       ),
     );
   }
 }
 
-class _QueueSwipeFavoriteAction extends StatelessWidget {
-  const _QueueSwipeFavoriteAction({
-    required this.favorite,
+class _QueueSwipeAction extends StatelessWidget {
+  const _QueueSwipeAction({
     required this.label,
+    required this.icon,
+    required this.foregroundColor,
+    required this.backgroundColor,
     required this.onPressed,
+    this.active = false,
+    this.toggled,
   });
 
-  final bool favorite;
   final String label;
+  final Widget icon;
+  final Color foregroundColor;
+  final Color backgroundColor;
   final VoidCallback onPressed;
+  final bool active;
+  final bool? toggled;
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      width: _queueItemSwipeLimit,
-      height: double.infinity,
-      child: TextButton.icon(
-        style: TextButton.styleFrom(
-          foregroundColor: Colors.white,
-          backgroundColor: _PlaylistControlItemColors.favorite,
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          shape: const RoundedRectangleBorder(),
-          textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
+    final effectiveBackground =
+        active
+            ? Color.alphaBlend(
+              Colors.white.withValues(alpha: 0.16),
+              backgroundColor,
+            )
+            : backgroundColor;
+    return Semantics(
+      excludeSemantics: true,
+      button: true,
+      label: label,
+      toggled: toggled,
+      child: Material(
+        color: effectiveBackground,
+        child: InkWell(
+          onTap: onPressed,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                IconTheme(
+                  data: IconThemeData(color: foregroundColor, size: 20),
+                  child: SizedBox(height: 22, child: Center(child: icon)),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: foregroundColor,
+                    fontSize: 10.5,
+                    fontWeight: FontWeight.w600,
+                    height: 1.1,
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
-        onPressed: onPressed,
-        icon: SmPlayerFavoriteIcon(favorite: favorite, size: 18),
-        label: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
       ),
     );
   }

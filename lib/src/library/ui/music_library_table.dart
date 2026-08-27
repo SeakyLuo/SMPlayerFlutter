@@ -84,6 +84,9 @@ class _WideSongTable extends StatelessWidget {
                 ).copyWith(scrollbars: false),
                 child: ListView.builder(
                   controller: scrollController,
+                  padding: EdgeInsets.only(
+                    bottom: multiSelect ? multiSelectCommandBarScrollSpacer : 0,
+                  ),
                   itemExtent: _wideVirtualRowHeight,
                   itemCount: songs.length,
                   itemBuilder: (context, index) {
@@ -623,6 +626,7 @@ class _WideSongRowState extends State<_WideSongRow> {
   Widget build(BuildContext context) {
     final colors = _LibraryPalette.of(context);
     final hoverActive = _hoverActive;
+    final actionHoverActive = hoverActive && !widget.selectionMode;
     return MouseRegion(
       opaque: false,
       onEnter: (_) {
@@ -643,7 +647,8 @@ class _WideSongRowState extends State<_WideSongRow> {
         });
       },
       child: InkWell(
-        onTap: widget.onSelected,
+        onTap:
+            widget.selectionMode ? widget.onToggleSelection : widget.onSelected,
         onDoubleTap: widget.selectionMode ? null : widget.onAddNextAndPlay,
         onSecondaryTapDown: (details) {
           unawaited(
@@ -667,111 +672,128 @@ class _WideSongRowState extends State<_WideSongRow> {
                         : Colors.transparent,
                 border: Border(top: BorderSide(color: colors.rowBorder)),
               ),
-              child: Row(
-                children: [
-                  SizedBox(
-                    width: widget.columnWidths[_LibraryColumn.artwork]!,
-                    child: Center(
-                      child:
-                          widget.selectionMode
-                              ? _SelectionMark(selected: widget.selected)
-                              : LibraryRowArtwork(
-                                song: widget.song,
-                                size: 42,
-                                current: widget.current,
-                                playing: widget.playing,
-                                rowHovered: hoverActive,
-                                onPlay: widget.onAddNextAndPlay,
-                                onTogglePlayPause: widget.onTogglePlayPause,
+              child: IgnorePointer(
+                ignoring: widget.selectionMode,
+                child: Row(
+                  children: [
+                    SizedBox(
+                      width: widget.columnWidths[_LibraryColumn.artwork]!,
+                      child: Center(
+                        child: Stack(
+                          clipBehavior: Clip.none,
+                          children: [
+                            LibraryRowArtwork(
+                              song: widget.song,
+                              size: 42,
+                              current: widget.current,
+                              playing: widget.playing,
+                              rowHovered: hoverActive && !widget.selectionMode,
+                              onPlay: widget.onAddNextAndPlay,
+                              onTogglePlayPause: widget.onTogglePlayPause,
+                            ),
+                            if (widget.selectionMode)
+                              Positioned(
+                                top: -5,
+                                right: -5,
+                                child: _SelectionMark(
+                                  selected: widget.selected,
+                                ),
                               ),
+                          ],
+                        ),
+                      ),
                     ),
-                  ),
-                  _SongTextCell(
-                    width: widget.columnWidths[_LibraryColumn.title]!,
-                    text: widget.song.title,
-                    strong: true,
-                    current: widget.current,
-                  ),
-                  _ArtistLinksCell(
-                    width: widget.columnWidths[_LibraryColumn.artist]!,
-                    song: widget.song,
-                    i18n: widget.i18n,
-                    current: widget.current,
-                  ),
-                  _RouteTextCell(
-                    width: widget.columnWidths[_LibraryColumn.album]!,
-                    text: _displayAlbum(widget.song, widget.i18n),
-                    current: widget.current,
-                    onTap: () {
-                      context.go(
-                        '/albums?album=${Uri.encodeQueryComponent(_displayAlbum(widget.song, widget.i18n))}',
-                      );
-                    },
-                  ),
-                  _SongTextCell(
-                    width: widget.columnWidths[_LibraryColumn.duration]!,
-                    text: _formatDuration(widget.song.duration),
-                    current: widget.current,
-                  ),
-                  SizedBox(
-                    width: widget.columnWidths[_LibraryColumn.favorite]!,
-                    child: Stack(
-                      alignment: Alignment.center,
-                      children: [
-                        IgnorePointer(
-                          ignoring: hoverActive,
-                          child: AnimatedOpacity(
-                            opacity:
-                                widget.song.favorite && !hoverActive ? 1 : 0,
-                            duration: const Duration(milliseconds: 120),
-                            child: IconButton(
-                              tooltip: widget.i18n.t('common.favorite'),
-                              icon: const SmPlayerFavoriteIcon(
-                                favorite: true,
-                                size: 18,
-                                animate: false,
+                    _SongTextCell(
+                      width: widget.columnWidths[_LibraryColumn.title]!,
+                      text: widget.song.title,
+                      strong: true,
+                      current: widget.current,
+                    ),
+                    _ArtistLinksCell(
+                      width: widget.columnWidths[_LibraryColumn.artist]!,
+                      song: widget.song,
+                      i18n: widget.i18n,
+                      current: widget.current,
+                    ),
+                    _RouteTextCell(
+                      width: widget.columnWidths[_LibraryColumn.album]!,
+                      text: _displayAlbum(widget.song, widget.i18n),
+                      current: widget.current,
+                      onTap: () {
+                        context.go(
+                          '/albums?album=${Uri.encodeQueryComponent(_displayAlbum(widget.song, widget.i18n))}',
+                        );
+                      },
+                    ),
+                    _SongTextCell(
+                      width: widget.columnWidths[_LibraryColumn.duration]!,
+                      text: _formatDuration(widget.song.duration),
+                      current: widget.current,
+                    ),
+                    SizedBox(
+                      width: widget.columnWidths[_LibraryColumn.favorite]!,
+                      child: Stack(
+                        alignment: Alignment.center,
+                        children: [
+                          IgnorePointer(
+                            ignoring: actionHoverActive,
+                            child: AnimatedOpacity(
+                              opacity:
+                                  widget.song.favorite && !actionHoverActive
+                                      ? 1
+                                      : 0,
+                              duration: const Duration(milliseconds: 120),
+                              child: IconButton(
+                                tooltip: widget.i18n.t('common.favorite'),
+                                icon: const SmPlayerFavoriteIcon(
+                                  favorite: true,
+                                  size: 18,
+                                  animate: false,
+                                ),
+                                color: colors.favorite,
+                                onPressed: widget.onToggleFavorite,
                               ),
-                              color: colors.favorite,
-                              onPressed: widget.onToggleFavorite,
                             ),
                           ),
-                        ),
-                        IgnorePointer(
-                          ignoring: !hoverActive,
-                          child: AnimatedOpacity(
-                            opacity: hoverActive ? 1 : 0,
-                            duration: const Duration(milliseconds: 120),
-                            child: _MusicLibraryRowActionButton(
-                              key: ValueKey(
-                                'MusicLibrary.FavoriteAction.${widget.song.id}',
+                          IgnorePointer(
+                            ignoring: !actionHoverActive,
+                            child: AnimatedOpacity(
+                              opacity: actionHoverActive ? 1 : 0,
+                              duration: const Duration(milliseconds: 120),
+                              child: _MusicLibraryRowActionButton(
+                                key: ValueKey(
+                                  'MusicLibrary.FavoriteAction.${widget.song.id}',
+                                ),
+                                tooltip:
+                                    widget.song.favorite
+                                        ? widget.i18n.t(
+                                          'context.removeFavorite',
+                                        )
+                                        : widget.i18n.t('context.addFavorite'),
+                                icon: SmPlayerFavoriteIcon(
+                                  favorite: widget.song.favorite,
+                                  size: 18,
+                                ),
+                                active: widget.song.favorite,
+                                onPressed: widget.onToggleFavorite,
                               ),
-                              tooltip:
-                                  widget.song.favorite
-                                      ? widget.i18n.t('context.removeFavorite')
-                                      : widget.i18n.t('context.addFavorite'),
-                              icon: SmPlayerFavoriteIcon(
-                                favorite: widget.song.favorite,
-                                size: 18,
-                              ),
-                              active: widget.song.favorite,
-                              onPressed: widget.onToggleFavorite,
                             ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
-                  ),
-                  _SongTextCell(
-                    width: widget.columnWidths[_LibraryColumn.playCount]!,
-                    text: widget.song.playCount.toString(),
-                    current: widget.current,
-                  ),
-                  _SongTextCell(
-                    width: widget.columnWidths[_LibraryColumn.dateAdded]!,
-                    text: _formatDateTime(widget.song.dateAdded),
-                    current: widget.current,
-                  ),
-                ],
+                    _SongTextCell(
+                      width: widget.columnWidths[_LibraryColumn.playCount]!,
+                      text: widget.song.playCount.toString(),
+                      current: widget.current,
+                    ),
+                    _SongTextCell(
+                      width: widget.columnWidths[_LibraryColumn.dateAdded]!,
+                      text: _formatDateTime(widget.song.dateAdded),
+                      current: widget.current,
+                    ),
+                  ],
+                ),
               ),
             ),
           ],

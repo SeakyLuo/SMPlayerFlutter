@@ -28,6 +28,79 @@ Future<void> setNowPlayingQueue(WidgetRef ref, List<int> songIds) {
   return ref.read(libraryRepositoryProvider).replaceNowPlaying(nextSongIds);
 }
 
+Future<void> reconcileNowPlayingQueueWithLibrary({
+  required WidgetRef ref,
+  required LibraryContentData previousSnapshot,
+  required LibraryContentData nextSnapshot,
+  required SmPlayerI18n i18n,
+}) async {
+  final currentSongIds = currentNowPlayingSongIds(ref, previousSnapshot);
+  final nextSongIds = normalizePlaybackQueueSongIds(
+    currentSongIds,
+    nextSnapshot.songs.map((song) => song.id),
+  );
+  if (listEquals(currentSongIds, nextSongIds)) {
+    return;
+  }
+
+  final mediaController = ref.read(mediaControlControllerProvider);
+  final mediaState = mediaController.state;
+  final trackId = mediaState.track.id;
+  final persistQueue = setNowPlayingQueue(ref, nextSongIds);
+  if (trackId == null) {
+    await persistQueue;
+    return;
+  }
+
+  if (nextSongIds.contains(trackId)) {
+    syncMediaControlForQueueChange(
+      mediaController: mediaController,
+      currentSongIds: currentSongIds,
+      nextSongIds: nextSongIds,
+    );
+    await persistQueue;
+    return;
+  }
+
+  if (nextSongIds.isEmpty) {
+    mediaController.clearTrack();
+    await persistQueue;
+    return;
+  }
+
+  final selectedIndex = mediaState.selectedQueueIndex;
+  final removedTrackIndex =
+      selectedIndex != null &&
+              selectedIndex < currentSongIds.length &&
+              currentSongIds[selectedIndex] == trackId
+          ? selectedIndex
+          : currentSongIds.indexOf(trackId);
+  final nextSongIdSet = nextSongIds.toSet();
+  final nextTrackIndex = currentSongIds.indexWhere(
+    nextSongIdSet.contains,
+    removedTrackIndex + 1,
+  );
+  final replacementIndex =
+      nextTrackIndex >= 0
+          ? matchingQueueIndexByOccurrence(
+            currentSongIds[nextTrackIndex],
+            currentSongIds,
+            nextTrackIndex,
+            nextSongIds,
+          )!
+          : nextSongIds.length - 1;
+  playQueueIndexFromSongs(
+    ref: ref,
+    songs: nextSnapshot.songs,
+    i18n: i18n,
+    songIds: nextSongIds,
+    queueIndex: replacementIndex,
+    mediaController: mediaController,
+    autoplay: mediaState.isPlaying,
+  );
+  await persistQueue;
+}
+
 void syncMediaControlForQueueChange({
   required MediaControlController mediaController,
   required List<int> currentSongIds,

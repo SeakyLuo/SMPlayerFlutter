@@ -183,7 +183,7 @@ class PlaylistControl extends StatelessWidget {
       keepFavoriteActionInCompact: entry.keepFavoriteActionInCompact,
       keepAddToActionInCompact: entry.keepAddToActionInCompact,
       favoriteLoading: entry.favoriteLoading,
-      swipeEnabled: onReorder == null,
+      swipeEnabled: true,
       favoriteSwipeEnabled: entry.favoriteSwipeEnabled,
       playNextLabel: entry.playNextLabel,
       removeLabel: entry.removeLabel,

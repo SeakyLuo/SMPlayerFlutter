@@ -5,6 +5,7 @@ extension _LocalPageScanActions on _LocalPageState {
     if (_refreshProgress != null || _refreshFolderRunning) {
       return;
     }
+    final previousSnapshot = ref.read(libraryContentDataProvider).value!;
     final cancellation = LocalFolderScanCancellation();
     _updateLocalPageState(() {
       _refreshFolderRunning = true;
@@ -31,6 +32,16 @@ extension _LocalPageScanActions on _LocalPageState {
         return;
       }
       ref.invalidate(libraryContentDataProvider);
+      final nextSnapshot = await ref.read(libraryContentDataProvider.future);
+      await reconcileNowPlayingQueueWithLibrary(
+        ref: ref,
+        previousSnapshot: previousSnapshot,
+        nextSnapshot: nextSnapshot,
+        i18n: i18n,
+      );
+      if (!mounted) {
+        return;
+      }
       _updateLocalPageState(() {
         _refreshProgress = null;
         _localOperationTitle = null;
@@ -99,6 +110,7 @@ extension _LocalPageScanActions on _LocalPageState {
     if (_rootScanRunning) {
       return;
     }
+    final previousSnapshot = ref.read(libraryContentDataProvider).value!;
     final cancellation = LocalFolderScanCancellation();
     _updateLocalPageState(() {
       _rootScanRunning = true;
@@ -127,7 +139,16 @@ extension _LocalPageScanActions on _LocalPageState {
                 cancellation: cancellation,
                 onProgress: _setScanProgress,
               );
-      ref.invalidate(libraryContentDataProvider);
+      if (mounted) {
+        ref.invalidate(libraryContentDataProvider);
+        final nextSnapshot = await ref.read(libraryContentDataProvider.future);
+        await reconcileNowPlayingQueueWithLibrary(
+          ref: ref,
+          previousSnapshot: previousSnapshot,
+          nextSnapshot: nextSnapshot,
+          i18n: i18n,
+        );
+      }
       if (mounted) {
         _updateLocalPageState(() {
           _refreshResultDialog = (

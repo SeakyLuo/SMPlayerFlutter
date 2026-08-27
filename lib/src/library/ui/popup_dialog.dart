@@ -26,6 +26,7 @@ part 'popup_dialog_text_field.dart';
 part 'popup_dialog_actions.dart';
 part 'popup_dialog_message_content.dart';
 part 'popup_dialog_colors.dart';
+part 'popup_dialog_hover_tooltip.dart';
 
 const popupDialogMobileBreakpoint = 720.0;
 const popupConfirmDialogDismissDelay = Duration(milliseconds: 170);

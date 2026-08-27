@@ -72,7 +72,8 @@ class LibraryDatabaseService {
         MainWindowMaximized INTEGER DEFAULT 0,
         LastDisplayMode INTEGER DEFAULT 0,
         QuitOnClose INTEGER DEFAULT 1,
-        AiAgentEnabled INTEGER DEFAULT 0
+        AiAgentEnabled INTEGER DEFAULT 0,
+        AiAgentPort INTEGER DEFAULT 29643
       )
     ''');
     db.execute('''
@@ -461,6 +462,7 @@ class LibraryDatabaseService {
       'LastDisplayMode': 'INTEGER DEFAULT 0',
       'QuitOnClose': 'INTEGER DEFAULT 1',
       'AiAgentEnabled': 'INTEGER DEFAULT 0',
+      'AiAgentPort': 'INTEGER DEFAULT 29643',
     });
     _addColumnsIfMissing(db, 'Music', {
       'Path': "TEXT DEFAULT ''",

@@ -43,8 +43,12 @@ extension _MusicDialogStatePropertyActions on _MusicDialogState {
   }
 
   Future<void> _saveProperties() async {
-    if (_saving ||
-        _loading ||
+    final sessionKey = _dialogSessionKey;
+    final sessionState = ref.read(
+      musicDialogPropertiesStateProvider(sessionKey),
+    );
+    if (sessionState.operation != null ||
+        sessionState.loading ||
         _properties == null ||
         _originalProperties == null) {
       return;
@@ -69,10 +73,16 @@ extension _MusicDialogStatePropertyActions on _MusicDialogState {
     );
     if (!_isPropertiesModified(nextProperties, _originalProperties!)) {
       _applyProperties(nextProperties);
+      ref
+          .read(musicDialogPropertiesStateProvider(sessionKey).notifier)
+          .refresh(dirty: false);
       _showMessage(i18n.t('song.propertiesUpdated'));
       return;
     }
-    _setSaving(true);
+    final notifier = ref.read(
+      musicDialogPropertiesStateProvider(sessionKey).notifier,
+    );
+    notifier.begin(MusicDialogOperation.saveProperties);
     try {
       await ref
           .read(libraryRepositoryProvider)
@@ -91,26 +101,27 @@ extension _MusicDialogStatePropertyActions on _MusicDialogState {
               playCount: nextProperties.playCount,
             ),
           );
-      if (!mounted) {
+      if (!mounted || _dialogSessionKey != sessionKey) {
         return;
       }
       _applyProperties(nextProperties);
       _syncSongMutation(_songWithProperties(nextProperties), i18n);
       _notifySaved();
+      notifier.finish(dirty: false, refresh: true);
       _showMessage(i18n.t('song.propertiesUpdated'));
     } catch (_) {
-      if (mounted) {
+      if (mounted && _dialogSessionKey == sessionKey) {
+        notifier.finish(dirty: _propertiesDirty);
         _showMessage(i18n.t('song.updateFailed'));
-      }
-    } finally {
-      if (mounted) {
-        _setSaving(false);
       }
     }
   }
 
   void _clearPlayCount() {
-    if (_saving || _loading || _properties == null) {
+    final state = ref.read(
+      musicDialogPropertiesStateProvider(_dialogSessionKey),
+    );
+    if (state.operation != null || state.loading || _properties == null) {
       return;
     }
 

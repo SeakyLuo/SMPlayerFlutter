@@ -53,6 +53,12 @@ class PopupDialogActionButton extends StatelessWidget {
         disabled: onPressed == null,
         onPressed: onPressed,
         minWidth: 88,
+        height: 36,
+        horizontalPadding: 16,
+        fontSize: 16,
+        fontWeight: FontWeight.w700,
+        fontVariations: const [],
+        glassEnabled: false,
       );
     }
 

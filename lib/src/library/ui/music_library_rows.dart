@@ -59,7 +59,9 @@ class _CompactSongList extends StatelessWidget {
         Expanded(
           child: ListView.builder(
             controller: scrollController,
-            padding: const EdgeInsets.only(bottom: 4),
+            padding: EdgeInsets.only(
+              bottom: multiSelect ? multiSelectCommandBarScrollSpacer : 4,
+            ),
             itemExtent: 76,
             itemCount: songs.length,
             itemBuilder: (context, index) {
@@ -310,7 +312,8 @@ class _CompactSongRowState extends State<_CompactSongRow> {
         });
       },
       child: InkWell(
-        onTap: widget.onSelected,
+        onTap:
+            widget.selectionMode ? widget.onToggleSelection : widget.onSelected,
         onDoubleTap: widget.selectionMode ? null : widget.onAddNextAndPlay,
         hoverColor: Colors.transparent,
         onSecondaryTapDown: (details) {
@@ -322,7 +325,9 @@ class _CompactSongRowState extends State<_CompactSongRow> {
           key: ValueKey('MusicLibrary.CompactRow.${widget.song.id}'),
           decoration: BoxDecoration(
             color:
-                hoverActive || widget.current ? rowSurface : Colors.transparent,
+                hoverActive || widget.current || widget.selected
+                    ? rowSurface
+                    : Colors.transparent,
           ),
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 4),
@@ -330,162 +335,179 @@ class _CompactSongRowState extends State<_CompactSongRow> {
               padding: const EdgeInsets.fromLTRB(6, 8, 8, 8),
               decoration: BoxDecoration(
                 color:
-                    hoverActive || widget.current
+                    hoverActive || widget.current || widget.selected
                         ? Colors.transparent
                         : rowSurface,
                 border: Border(top: BorderSide(color: colors.rowBorder)),
               ),
-              child: Stack(
-                alignment: Alignment.centerRight,
-                children: [
-                  Row(
-                    children: [
-                      widget.selectionMode
-                          ? SizedBox(
-                            width: 46,
-                            child: _SelectionMark(selected: widget.selected),
-                          )
-                          : LibraryRowArtwork(
-                            song: widget.song,
-                            size: 46,
-                            current: widget.current,
-                            playing: widget.playing,
-                            rowHovered: hoverActive,
-                            onPlay: widget.onAddNextAndPlay,
-                            onTogglePlayPause: widget.onTogglePlayPause,
-                          ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisAlignment: MainAxisAlignment.center,
+              child: IgnorePointer(
+                ignoring: widget.selectionMode,
+                child: Stack(
+                  alignment: Alignment.centerRight,
+                  children: [
+                    Row(
+                      children: [
+                        Stack(
+                          clipBehavior: Clip.none,
                           children: [
-                            Text(
-                              widget.song.title,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                color:
-                                    widget.current
-                                        ? colors.accentStrong
-                                        : colors.textStrong,
-                                fontSize: 14,
-                                fontWeight: FontWeight.w600,
-                              ),
+                            LibraryRowArtwork(
+                              song: widget.song,
+                              size: 46,
+                              current: widget.current,
+                              playing: widget.playing,
+                              rowHovered: hoverActive && !widget.selectionMode,
+                              onPlay: widget.onAddNextAndPlay,
+                              onTogglePlayPause: widget.onTogglePlayPause,
                             ),
-                            Row(
-                              children: [
-                                Flexible(
-                                  child: _InlineRouteText(
-                                    text: _displayArtists(
-                                      widget.song,
-                                      widget.i18n,
-                                    ),
-                                    current: widget.current,
-                                    onTap: () {
-                                      final artists = getSongArtists(
-                                        widget.song,
-                                      );
-                                      final artist =
-                                          artists.isEmpty
-                                              ? widget.i18n.t(
-                                                'common.artistUnknown',
-                                              )
-                                              : artists.first;
-                                      context.go(
-                                        '/artists?artist=${Uri.encodeQueryComponent(artist)}',
-                                      );
-                                    },
-                                  ),
+                            if (widget.selectionMode)
+                              Positioned(
+                                top: -5,
+                                right: -5,
+                                child: _SelectionMark(
+                                  selected: widget.selected,
                                 ),
-                                Text(
-                                  ' · ',
-                                  style: TextStyle(
-                                    color:
-                                        widget.current
-                                            ? colors.currentMuted
-                                            : colors.textMuted,
-                                    fontSize: 14,
-                                    height: 1.35,
-                                  ),
-                                ),
-                                Flexible(
-                                  child: _InlineRouteText(
-                                    text: _displayAlbum(
-                                      widget.song,
-                                      widget.i18n,
-                                    ),
-                                    current: widget.current,
-                                    onTap: () {
-                                      context.go(
-                                        '/albums?album=${Uri.encodeQueryComponent(_displayAlbum(widget.song, widget.i18n))}',
-                                      );
-                                    },
-                                  ),
-                                ),
-                              ],
-                            ),
-                            Text(
-                              _compactSongDetailText(widget.song, widget.i18n),
-                              key: ValueKey(
-                                'MusicLibrary.CompactDetails.${widget.song.id}',
                               ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                color:
-                                    widget.current
-                                        ? colors.currentMuted
-                                        : colors.textMuted,
-                                fontSize: 12,
-                                height: 1.25,
-                              ),
-                            ),
                           ],
                         ),
-                      ),
-                      SizedBox(
-                        key: ValueKey(
-                          'MusicLibrary.CompactDuration.${widget.song.id}',
-                        ),
-                        width: 42,
-                        child: Text(
-                          _formatDuration(widget.song.duration),
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            color:
-                                widget.current
-                                    ? colors.currentMuted
-                                    : colors.textMuted,
-                            fontSize: 12,
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Text(
+                                widget.song.title,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  color:
+                                      widget.current
+                                          ? colors.accentStrong
+                                          : colors.textStrong,
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              Row(
+                                children: [
+                                  Flexible(
+                                    child: _InlineRouteText(
+                                      text: _displayArtists(
+                                        widget.song,
+                                        widget.i18n,
+                                      ),
+                                      current: widget.current,
+                                      onTap: () {
+                                        final artists = getSongArtists(
+                                          widget.song,
+                                        );
+                                        final artist =
+                                            artists.isEmpty
+                                                ? widget.i18n.t(
+                                                  'common.artistUnknown',
+                                                )
+                                                : artists.first;
+                                        context.go(
+                                          '/artists?artist=${Uri.encodeQueryComponent(artist)}',
+                                        );
+                                      },
+                                    ),
+                                  ),
+                                  Text(
+                                    ' · ',
+                                    style: TextStyle(
+                                      color:
+                                          widget.current
+                                              ? colors.currentMuted
+                                              : colors.textMuted,
+                                      fontSize: 14,
+                                      height: 1.35,
+                                    ),
+                                  ),
+                                  Flexible(
+                                    child: _InlineRouteText(
+                                      text: _displayAlbum(
+                                        widget.song,
+                                        widget.i18n,
+                                      ),
+                                      current: widget.current,
+                                      onTap: () {
+                                        context.go(
+                                          '/albums?album=${Uri.encodeQueryComponent(_displayAlbum(widget.song, widget.i18n))}',
+                                        );
+                                      },
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              Text(
+                                _compactSongDetailText(
+                                  widget.song,
+                                  widget.i18n,
+                                ),
+                                key: ValueKey(
+                                  'MusicLibrary.CompactDetails.${widget.song.id}',
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  color:
+                                      widget.current
+                                          ? colors.currentMuted
+                                          : colors.textMuted,
+                                  fontSize: 12,
+                                  height: 1.25,
+                                ),
+                              ),
+                            ],
                           ),
                         ),
-                      ),
-                    ],
-                  ),
-                  _CompactMusicLibraryRowActionOverlay(
-                    visible: hoverActive,
-                    maskColor: rowSurface,
-                    actions: _MusicLibraryRowActions(
-                      song: widget.song,
-                      visible: true,
-                      i18n: widget.i18n,
-                      onToggleFavorite: widget.onToggleFavorite,
-                      onAddToPlaylist:
-                          (buttonContext) => unawaited(
-                            _openMenu(
-                              () =>
-                                  widget.onOpenAddToPlaylistMenu(buttonContext),
+                        SizedBox(
+                          key: ValueKey(
+                            'MusicLibrary.CompactDuration.${widget.song.id}',
+                          ),
+                          width: 42,
+                          child: Text(
+                            _formatDuration(widget.song.duration),
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              color:
+                                  widget.current
+                                      ? colors.currentMuted
+                                      : colors.textMuted,
+                              fontSize: 12,
                             ),
                           ),
-                      onPlayNext: widget.onPlayNext,
-                      onOpenContextMenu:
-                          (position) => unawaited(
-                            _openMenu(() => widget.onOpenContextMenu(position)),
-                          ),
+                        ),
+                      ],
                     ),
-                  ),
-                ],
+                    _CompactMusicLibraryRowActionOverlay(
+                      visible: hoverActive && !widget.selectionMode,
+                      maskColor: rowSurface,
+                      actions: _MusicLibraryRowActions(
+                        song: widget.song,
+                        visible: true,
+                        i18n: widget.i18n,
+                        onToggleFavorite: widget.onToggleFavorite,
+                        onAddToPlaylist:
+                            (buttonContext) => unawaited(
+                              _openMenu(
+                                () => widget.onOpenAddToPlaylistMenu(
+                                  buttonContext,
+                                ),
+                              ),
+                            ),
+                        onPlayNext: widget.onPlayNext,
+                        onOpenContextMenu:
+                            (position) => unawaited(
+                              _openMenu(
+                                () => widget.onOpenContextMenu(position),
+                              ),
+                            ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
@@ -771,17 +793,13 @@ class _SelectionMark extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = _LibraryPalette.of(context);
     return Center(
       child: Container(
         width: 24,
         height: 24,
-        decoration: BoxDecoration(
-          color: selected ? colors.accentStrong : colors.selectionMark,
+        decoration: const BoxDecoration(
+          color: Color(0xff0063b1),
           shape: BoxShape.circle,
-          border: Border.all(
-            color: selected ? colors.accentStrong : colors.selectionBorder,
-          ),
         ),
         child:
             selected

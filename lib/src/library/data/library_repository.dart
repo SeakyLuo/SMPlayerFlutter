@@ -925,6 +925,23 @@ class LibraryRepository {
     );
   }
 
+  Future<List<SongPropertiesSnapshot>> getSongPropertiesBatch(
+    List<int> songIds,
+  ) async {
+    final databaseFile = await _resolveDatabaseFile();
+    return _songPropertiesService.getSongPropertiesBatch(databaseFile, songIds);
+  }
+
+  Future<BatchSongPropertiesUpdateResult> updateSongPropertiesBatch(
+    Map<int, SongPropertiesUpdate> updates,
+  ) async {
+    final databaseFile = await _resolveDatabaseFile();
+    return _songPropertiesService.updateSongPropertiesBatch(
+      databaseFile,
+      updates,
+    );
+  }
+
   Future<void> updateSongPlayCount(int songId, int playCount) async {
     final databaseFile = await _resolveDatabaseFile();
     await _songPropertiesService.updateSongPlayCount(
@@ -981,6 +998,13 @@ class LibraryRepository {
     return _lyricsService.getInternetLyrics(databaseFile, songId);
   }
 
+  Future<List<InternetLyricsCandidate>> searchInternetLyricsCandidates(
+    int songId,
+  ) async {
+    final databaseFile = await _resolveDatabaseFile();
+    return _lyricsService.searchInternetLyricsCandidates(databaseFile, songId);
+  }
+
   Future<void> openLyricsSearchInBrowser(int songId) async {
     final databaseFile = await _resolveDatabaseFile();
     final uri = await _lyricsService.getLyricsSearchUri(databaseFile, songId);
@@ -993,6 +1017,8 @@ class LibraryRepository {
   Future<LyricsBatchResult> batchAddInternetLyrics({
     bool overwrite = false,
     void Function(LyricsBatchProgress progress)? onProgress,
+    void Function(LyricsBatchDetail detail, LyricsBatchProgress progress)?
+    onDetailCompleted,
     bool Function()? isCanceled,
     Future<void> Function()? waitIfPaused,
   }) async {
@@ -1002,6 +1028,7 @@ class LibraryRepository {
       songs: songs,
       overwrite: overwrite,
       onProgress: onProgress,
+      onDetailCompleted: onDetailCompleted,
       isCanceled: isCanceled,
       waitIfPaused: waitIfPaused,
     );

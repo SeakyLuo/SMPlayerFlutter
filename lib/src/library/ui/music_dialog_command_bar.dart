@@ -286,13 +286,20 @@ MenuFlyoutItem _musicDialogCommandButtonToMenuFlyoutItem(
   _MusicDialogCommandButton button,
   int overflowIndex,
 ) {
+  final disabled = button.disabled || button.loading;
   return MenuFlyoutItem(
     key: 'music-dialog-commandbar-overflow-$overflowIndex',
     text: button.label,
-    icon: button.icon,
-    iconWidget: button.iconWidget,
-    disabled: button.disabled,
-    onPressed: button.disabled ? null : button.onPressed,
+    icon: button.loading ? null : button.icon,
+    iconWidget:
+        button.loading
+            ? const SizedBox.square(
+              dimension: 16,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            )
+            : button.iconWidget,
+    disabled: disabled,
+    onPressed: disabled ? null : button.onPressed,
   );
 }
 
@@ -308,6 +315,7 @@ Widget _asMusicDialogCommandBarChild(Widget child) {
       label: child.label,
       primary: child.primary,
       disabled: child.disabled,
+      loading: child.loading,
       commandBar: true,
       compact: child.compact,
       showLabel: child.showLabel,
@@ -378,7 +386,10 @@ double _estimateMusicDialogCommandBarItemWidth(
     maxLines: 1,
     textDirection: Directionality.of(context),
   )..layout();
-  final iconWidth = child.icon == null && child.iconWidget == null ? 0.0 : 20.0;
+  final iconWidth =
+      !child.loading && child.icon == null && child.iconWidget == null
+          ? 0.0
+          : 20.0;
   final iconGap = iconWidth == 0 ? 0.0 : 8.0;
   final horizontalPadding = mobile ? 20.0 : 28.0;
   return (horizontalPadding + iconGap + iconWidth + labelPainter.width)

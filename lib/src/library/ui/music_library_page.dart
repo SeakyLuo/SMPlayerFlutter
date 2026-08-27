@@ -37,6 +37,7 @@ import 'menu_flyout_helpers.dart';
 import 'headered_playlist_model.dart' show getNextPlaylistName;
 import 'library_page_actions.dart';
 import 'music_dialog.dart';
+import 'multi_select_command_bar.dart';
 import 'page_selection_store.dart';
 import 'quick_jump_tooltip.dart';
 import 'song_display_helpers.dart' as song_display;
@@ -138,6 +139,14 @@ class _MusicLibraryPageState extends ConsumerState<MusicLibraryPage> {
   }
 
   @override
+  void didUpdateWidget(covariant MusicLibraryPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.searchQuery != oldWidget.searchQuery) {
+      _selection.clearSelection();
+    }
+  }
+
+  @override
   void dispose() {
     _clearAppBarPortalOwner();
     _scrollController.removeListener(_handleScroll);
@@ -156,9 +165,13 @@ class _MusicLibraryPageState extends ConsumerState<MusicLibraryPage> {
     required bool showPortal,
     required String routePath,
     required String title,
-    required bool active,
+    required bool quickJumpActive,
+    required bool multiSelect,
+    required String multiSelectLabel,
+    required String exitMultiSelectTooltip,
   }) {
-    final signature = '$showPortal:$routePath:$title:$active';
+    final signature =
+        '$showPortal:$routePath:$title:$quickJumpActive:$multiSelect';
     if (_appBarPortalSignature == signature) {
       return;
     }
@@ -184,9 +197,28 @@ class _MusicLibraryPageState extends ConsumerState<MusicLibraryPage> {
           dynamicOverflow: false,
           children: [
             CommandBarButton(
+              key: const ValueKey('MusicLibrary.MultiSelectToggle'),
+              icon: FluentIcons.multiselect_ltr_24_regular,
+              label: multiSelectLabel,
+              showLabel: false,
+              active: multiSelect,
+              activeMatchesHover: true,
+              tooltip: multiSelect ? exitMultiSelectTooltip : multiSelectLabel,
+              canOverflow: false,
+              minWidth: 40,
+              maxWidth: 40,
+              horizontalPadding: 0,
+              onPressed: () {
+                setState(() {
+                  _quickJumpPanelOpen = false;
+                  _selection.toggleMultiSelect();
+                });
+              },
+            ),
+            CommandBarButton(
               key: const ValueKey('MusicLibrary.QuickJumpToggle'),
               label: '#-Z',
-              active: active,
+              active: quickJumpActive,
               canOverflow: false,
               minWidth: 40,
               maxWidth: 40,
@@ -302,7 +334,10 @@ class _MusicLibraryPageState extends ConsumerState<MusicLibraryPage> {
                           'count': sortedSongs.length,
                         })
                         : i18n.t('library.allSongs'),
-                active: _quickJumpPanelOpen,
+                quickJumpActive: _quickJumpPanelOpen,
+                multiSelect: _selection.multiSelect,
+                multiSelectLabel: i18n.t('albums.multiSelect'),
+                exitMultiSelectTooltip: i18n.t('common.exitMultiSelectTooltip'),
               );
               if (!compact && _quickJumpPanelOpen) {
                 WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -329,6 +364,14 @@ class _MusicLibraryPageState extends ConsumerState<MusicLibraryPage> {
                 compact,
                 i18n,
               );
+              final visibleSongIds = [for (final song in sortedSongs) song.id];
+              final selectedVisibleSongs = [
+                for (final song in sortedSongs)
+                  if (_selection.isSelected(song.id)) song,
+              ];
+              final selectedVisibleSongIds = [
+                for (final song in selectedVisibleSongs) song.id,
+              ];
               return Stack(
                 children: [
                   _LibraryScaffold(
@@ -339,6 +382,8 @@ class _MusicLibraryPageState extends ConsumerState<MusicLibraryPage> {
                             setState(() {
                               _quickJumpPanelOpen = false;
                             });
+                          } else if (_selection.multiSelect) {
+                            setState(_selection.cancel);
                           }
                         },
                       },
@@ -623,6 +668,104 @@ class _MusicLibraryPageState extends ConsumerState<MusicLibraryPage> {
                         });
                       },
                     ),
+                  MultiSelectCommandBar(
+                    visible: _selection.multiSelect,
+                    bottomInset: multiSelectCommandBarShellBottomInset,
+                    selectedCount: selectedVisibleSongIds.length,
+                    playlists: customPlaylists,
+                    addToSongIds: selectedVisibleSongIds,
+                    nowPlayingSongIds: snapshot.nowPlaying.songIds,
+                    defaultPlaylistName: getNextPlaylistName(
+                      i18n.t('common.songs'),
+                      playlists,
+                    ),
+                    includeNowPlayingInAddTo: true,
+                    includeFavoritesInAddTo: selectedVisibleSongs.any(
+                      (song) => !song.favorite,
+                    ),
+                    onPlay:
+                        selectedVisibleSongIds.isEmpty
+                            ? null
+                            : () => _playSongIds(selectedVisibleSongIds),
+                    onAddToNowPlaying:
+                        selectedVisibleSongIds.isEmpty
+                            ? null
+                            : () {
+                              unawaited(
+                                addSongsToNowPlayingWithUndo(
+                                  context: context,
+                                  ref: ref,
+                                  i18n: i18n,
+                                  songIds: selectedVisibleSongIds,
+                                ),
+                              );
+                            },
+                    onToggleFavorite:
+                        selectedVisibleSongIds.isEmpty
+                            ? null
+                            : () {
+                              unawaited(
+                                setSongsFavoriteWithUndo(
+                                  context: context,
+                                  ref: ref,
+                                  i18n: i18n,
+                                  songIds: [
+                                    for (final song in selectedVisibleSongs)
+                                      if (!song.favorite) song.id,
+                                  ],
+                                  favorite: true,
+                                ),
+                              );
+                            },
+                    onCreatePlaylist:
+                        selectedVisibleSongIds.isEmpty
+                            ? null
+                            : () async {
+                              await createPlaylistWithSongs(
+                                context: context,
+                                ref: ref,
+                                i18n: i18n,
+                                playlists: playlists,
+                                defaultName: getNextPlaylistName(
+                                  i18n.t('common.songs'),
+                                  playlists,
+                                ),
+                                songIds: selectedVisibleSongIds,
+                              );
+                            },
+                    onAddToPlaylist:
+                        selectedVisibleSongIds.isEmpty
+                            ? null
+                            : (playlistId) {
+                              unawaited(
+                                addSongsToPlaylistWithUndo(
+                                  context: context,
+                                  ref: ref,
+                                  i18n: i18n,
+                                  playlistId: playlistId,
+                                  songIds: selectedVisibleSongIds,
+                                ),
+                              );
+                            },
+                    hideAfterOperation:
+                        snapshot.hideMultiSelectCommandBarAfterOperation,
+                    onSelectAll: () {
+                      setState(() {
+                        _selection.selectAll(visibleSongIds);
+                      });
+                    },
+                    onReverseSelection: () {
+                      setState(() {
+                        _selection.reverseSelection(visibleSongIds);
+                      });
+                    },
+                    onClearSelection: () {
+                      setState(_selection.clearSelection);
+                    },
+                    onCancel: () {
+                      setState(_selection.cancel);
+                    },
+                  ),
                 ],
               );
             },
@@ -872,7 +1015,7 @@ class _MusicLibraryPageState extends ConsumerState<MusicLibraryPage> {
               .addPreferenceItem('song', '${song.id}', song.title, level);
         },
         preferenceLevel: preferenceLevel,
-        showSelect: false,
+        showSelect: true,
         onUndoPreference:
             preferenceLevel == null
                 ? null

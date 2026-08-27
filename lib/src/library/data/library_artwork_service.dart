@@ -47,11 +47,15 @@ class LibraryArtworkService {
       ''',
         [songId, _activeState],
       );
+      if (rows.isEmpty) {
+        return _createSongArtworkSnapshot(songId, '');
+      }
+      final row = rows.first;
       return await _resolveSongArtworkSnapshot(
         db,
         songId,
-        rows.first['path'] as String,
-        rows.first['thumbnailPath'] as String,
+        row['path'] as String,
+        row['thumbnailPath'] as String,
       );
     } finally {
       db.dispose();

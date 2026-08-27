@@ -18,41 +18,45 @@ class _PopupDialogCloseButton extends StatelessWidget {
         nightMode
             ? GlobalUI.buttonHoverBgColorNight
             : GlobalUI.buttonHoverBgColorDay;
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(10),
-        boxShadow: colors.buttonShadow,
-      ),
-      child: SmPlayerTextIconButtonTheme(
-        colors: SmPlayerTextIconButtonColors(
-          commandText: colors.buttonText,
-          commandTextHover: colors.buttonText,
-          control: colors.buttonSurface,
-          controlHover: hoverSurface,
-          controlHoverBorder: colors.buttonBorder,
-          controlActive: colors.activeButtonSurface,
-          controlBorder: colors.buttonBorder,
-          accentStrong: colors.activeButtonText,
+    return PopupDialogHoverTooltip(
+      message: label,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(10),
+          boxShadow: colors.buttonShadow,
         ),
-        child: SmPlayerTextIconButton(
-          key: const ValueKey('popup-dialog-close-button'),
-          label: label,
-          onPressed: onClose,
-          showLabel: false,
-          minWidth: 40,
-          maxWidth: 40,
-          height: 40,
-          iconSize: 18,
-          borderRadius: 10,
-          glassEnabled: false,
-          iconWidget: Builder(
-            builder:
-                (context) => SvgIcon(
-                  key: const ValueKey('popup-dialog-close-icon'),
-                  svg: _popupDialogCloseIconSvg,
-                  size: 18,
-                  color: IconTheme.of(context).color,
-                ),
+        child: SmPlayerTextIconButtonTheme(
+          colors: SmPlayerTextIconButtonColors(
+            commandText: colors.buttonText,
+            commandTextHover: colors.buttonText,
+            control: colors.buttonSurface,
+            controlHover: hoverSurface,
+            controlHoverBorder: colors.buttonBorder,
+            controlActive: colors.activeButtonSurface,
+            controlBorder: colors.buttonBorder,
+            accentStrong: colors.activeButtonText,
+          ),
+          child: SmPlayerTextIconButton(
+            key: const ValueKey('popup-dialog-close-button'),
+            label: label,
+            onPressed: onClose,
+            showLabel: false,
+            tooltipEnabled: false,
+            minWidth: 40,
+            maxWidth: 40,
+            height: 40,
+            iconSize: 18,
+            borderRadius: 10,
+            glassEnabled: false,
+            iconWidget: Builder(
+              builder:
+                  (context) => SvgIcon(
+                    key: const ValueKey('popup-dialog-close-icon'),
+                    svg: _popupDialogCloseIconSvg,
+                    size: 18,
+                    color: IconTheme.of(context).color,
+                  ),
+            ),
           ),
         ),
       ),

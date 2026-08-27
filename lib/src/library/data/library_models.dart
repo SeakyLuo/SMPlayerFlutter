@@ -220,6 +220,16 @@ class SongPropertiesUpdate {
   final int playCount;
 }
 
+class BatchSongPropertiesUpdateResult {
+  const BatchSongPropertiesUpdateResult({
+    required this.updatedSongIds,
+    required this.failedSongIds,
+  });
+
+  final List<int> updatedSongIds;
+  final List<int> failedSongIds;
+}
+
 enum LyricsSource { none, lrcFile, textFile, musicFile, internet }
 
 class LyricsLine {
@@ -246,6 +256,20 @@ class LyricsSnapshot {
   final bool isSynced;
   final String rawText;
   final List<LyricsLine> lines;
+}
+
+class InternetLyricsCandidate {
+  const InternetLyricsCandidate({
+    required this.sourceKey,
+    required this.title,
+    required this.artist,
+    required this.lyrics,
+  });
+
+  final String sourceKey;
+  final String title;
+  final String artist;
+  final LyricsSnapshot lyrics;
 }
 
 class LocalLyricsSearchMatch {

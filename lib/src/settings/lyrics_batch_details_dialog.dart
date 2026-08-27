@@ -6,6 +6,8 @@ import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/data/library_repository.dart';
 import 'package:smplayer_flutter/src/library/ui/popup_dialog.dart';
 
+part 'lyrics_batch_details_dialog_colors.dart';
+
 const _lyricsBatchDetailResultOrder = [
   LyricsBatchDetailResult.overwritten,
   LyricsBatchDetailResult.saved,
@@ -19,10 +21,12 @@ class LyricsBatchDetailsDialog extends StatefulWidget {
     super.key,
     required this.result,
     required this.onClose,
+    this.onClear,
   });
 
   final LyricsBatchResult result;
   final VoidCallback onClose;
+  final VoidCallback? onClear;
 
   @override
   State<LyricsBatchDetailsDialog> createState() =>
@@ -32,10 +36,18 @@ class LyricsBatchDetailsDialog extends StatefulWidget {
 class _LyricsBatchDetailsDialogState extends State<LyricsBatchDetailsDialog> {
   String? _selectedDetailId;
   final _collapsedResults = <LyricsBatchDetailResult>{};
+  final _scrollController = ScrollController();
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     final i18n = context.smPlayerI18n;
+    final colors = PopupDialogColors.resolve(context);
     final groups =
         _lyricsBatchDetailResultOrder
             .map(
@@ -60,72 +72,80 @@ class _LyricsBatchDetailsDialogState extends State<LyricsBatchDetailsDialog> {
       height: 860,
       horizontalInset: 64,
       verticalInset: 64,
+      borderRadius: 18,
       onClose: widget.onClose,
       navChildren: [
         _LyricsBatchDialogTitle(i18n.t('settings.lyricsBatchTaskDetails')),
       ],
+      footer:
+          widget.onClear == null
+              ? null
+              : _LyricsBatchDetailsFooter(
+                label: i18n.t('common.clear'),
+                onClear: widget.onClear!,
+              ),
       child: LayoutBuilder(
         builder: (context, constraints) {
           final mobile = constraints.maxWidth <= popupDialogMobileBreakpoint;
+          final scrollbarGutter = mobile ? 16.0 : 28.0;
+          const scrollbarThickness = 8.0;
           return Padding(
             key: const ValueKey('lyrics-detail-dialog-content'),
             padding:
                 mobile
-                    ? const EdgeInsets.fromLTRB(16, 14, 16, 0)
-                    : const EdgeInsets.fromLTRB(28, 18, 28, 28),
-            child: ListView.separated(
-              itemBuilder: (context, index) {
-                final group = groups[index];
-                final collapsed = _collapsedResults.contains(group.result);
-                return _LyricsBatchDetailGroup(
-                  result: group.result,
-                  details: group.details,
-                  collapsed: collapsed,
-                  selectedDetailId: _selectedDetailId,
-                  onToggleGroup: () {
-                    setState(() {
-                      if (collapsed) {
-                        _collapsedResults.remove(group.result);
-                      } else {
-                        _collapsedResults.add(group.result);
-                      }
-                    });
-                  },
-                  onToggleDetail: (id) {
-                    setState(() {
-                      _selectedDetailId = _selectedDetailId == id ? null : id;
-                    });
-                  },
-                );
-              },
-              separatorBuilder: (_, _) => SizedBox(height: mobile ? 0 : 12),
-              itemCount: groups.length,
+                    ? const EdgeInsets.fromLTRB(16, 14, 0, 0)
+                    : const EdgeInsets.fromLTRB(28, 18, 0, 28),
+            child: ScrollConfiguration(
+              behavior: ScrollConfiguration.of(
+                context,
+              ).copyWith(scrollbars: false),
+              child: RawScrollbar(
+                controller: _scrollController,
+                thumbVisibility: true,
+                interactive: true,
+                thickness: scrollbarThickness,
+                radius: const Radius.circular(4),
+                thumbColor: colors.textMuted.withValues(alpha: 0.78),
+                crossAxisMargin: (scrollbarGutter - scrollbarThickness) / 2,
+                child: Padding(
+                  padding: EdgeInsets.only(right: scrollbarGutter),
+                  child: ListView.separated(
+                    controller: _scrollController,
+                    itemBuilder: (context, index) {
+                      final group = groups[index];
+                      final collapsed = _collapsedResults.contains(
+                        group.result,
+                      );
+                      return _LyricsBatchDetailGroup(
+                        result: group.result,
+                        details: group.details,
+                        collapsed: collapsed,
+                        selectedDetailId: _selectedDetailId,
+                        onToggleGroup: () {
+                          setState(() {
+                            if (collapsed) {
+                              _collapsedResults.remove(group.result);
+                            } else {
+                              _collapsedResults.add(group.result);
+                            }
+                          });
+                        },
+                        onToggleDetail: (id) {
+                          setState(() {
+                            _selectedDetailId =
+                                _selectedDetailId == id ? null : id;
+                          });
+                        },
+                      );
+                    },
+                    separatorBuilder: (_, _) => const SizedBox(height: 12),
+                    itemCount: groups.length,
+                  ),
+                ),
+              ),
             ),
           );
         },
-      ),
-    );
-  }
-}
-
-class _LyricsBatchDialogTitle extends StatelessWidget {
-  const _LyricsBatchDialogTitle(this.text);
-
-  final String text;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = PopupDialogColors.resolve(context);
-    final mobile =
-        MediaQuery.sizeOf(context).width <= popupDialogMobileBreakpoint;
-    return Text(
-      text,
-      overflow: TextOverflow.ellipsis,
-      style: TextStyle(
-        color: colors.textStrong,
-        fontSize: mobile ? 18 : 28,
-        fontWeight: FontWeight.w700,
-        height: 1.2,
       ),
     );
   }
@@ -152,6 +172,7 @@ class _LyricsBatchDetailGroup extends StatelessWidget {
   Widget build(BuildContext context) {
     final i18n = context.smPlayerI18n;
     final colors = PopupDialogColors.resolve(context);
+    final detailColors = _LyricsBatchDetailsColors.resolve(context);
     final mobile =
         MediaQuery.sizeOf(context).width <= popupDialogMobileBreakpoint;
     return Column(
@@ -186,25 +207,25 @@ class _LyricsBatchDetailGroup extends StatelessWidget {
                         fontWeight: FontWeight.w700,
                       ),
                     ),
-                    const SizedBox(width: 8),
-                    _LyricsBatchHeaderCountPill(
-                      result: result,
-                      count: details.length,
-                    ),
                   ],
                 ),
+              ),
+              const SizedBox(width: 10),
+              _LyricsBatchHeaderCountPill(
+                result: result,
+                count: details.length,
               ),
             ],
           ),
         ),
-        if (!collapsed) SizedBox(height: mobile ? 0 : 8),
+        if (!collapsed) const SizedBox(height: 8),
         if (!collapsed)
           ClipRRect(
             borderRadius: BorderRadius.circular(14),
             child: DecoratedBox(
               decoration: BoxDecoration(
-                color: colors.surface.withValues(alpha: 0.72),
-                border: Border.all(color: colors.border),
+                color: detailColors.listSurface,
+                border: Border.all(color: detailColors.listBorder),
               ),
               child: Column(
                 children: [
@@ -220,7 +241,7 @@ class _LyricsBatchDetailGroup extends StatelessWidget {
                           ),
                     ),
                     if (index != details.length - 1)
-                      Divider(height: 1, color: colors.border),
+                      Divider(height: 1, color: detailColors.rowBorder),
                   ],
                 ],
               ),
@@ -245,85 +266,87 @@ class _LyricsBatchDetailTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final i18n = context.smPlayerI18n;
-    final colors = PopupDialogColors.resolve(context);
+    final colors = _LyricsBatchDetailsColors.resolve(context);
     final reason = _lyricsBatchReasonLabel(i18n, detail.reason);
     final overwritten = detail.result == LyricsBatchDetailResult.overwritten;
     return DecoratedBox(
       decoration: const BoxDecoration(),
       child: Column(
         children: [
-          Material(
-            color:
-                expanded && !overwritten
-                    ? colors.accent.withValues(alpha: 0.10)
-                    : Colors.transparent,
-            child: InkWell(
-              onTap: onToggle,
-              hoverColor: const Color(0xebf4f8fd),
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(minHeight: 76),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 12,
-                  ),
-                  child: Row(
-                    children: [
-                      _LyricsBatchArtwork(thumbnailPath: detail.thumbnailPath),
-                      const SizedBox(width: 14),
-                      Expanded(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              detail.title,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                color: Color(0xff111827),
-                                fontSize: 14,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                            if (detail.artist.isNotEmpty) ...[
-                              const SizedBox(height: 4),
+          ColoredBox(
+            color: colors.rowSurface,
+            child: MouseRegion(
+              cursor: SystemMouseCursors.click,
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: onToggle,
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(minHeight: 76),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 12,
+                    ),
+                    child: Row(
+                      children: [
+                        _LyricsBatchArtwork(
+                          thumbnailPath: detail.thumbnailPath,
+                        ),
+                        const SizedBox(width: 14),
+                        Expanded(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
                               Text(
-                                detail.artist,
+                                detail.title,
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                                 style: TextStyle(
-                                  color: colors.textMuted,
-                                  fontSize: 12,
-                                  height: 1.3,
+                                  color: colors.title,
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w700,
                                 ),
                               ),
+                              if (detail.artist.isNotEmpty) ...[
+                                const SizedBox(height: 4),
+                                Text(
+                                  detail.artist,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    color: colors.subtitle,
+                                    fontSize: 12,
+                                    height: 1.3,
+                                  ),
+                                ),
+                              ],
                             ],
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            _LyricsBatchStatusPill(
+                              result: detail.result,
+                              label: [
+                                _lyricsBatchResultLabel(i18n, detail.result),
+                                if (reason.isNotEmpty) '($reason)',
+                              ].join(' '),
+                            ),
+                            const SizedBox(width: 10),
+                            Icon(
+                              expanded
+                                  ? FluentIcons.chevron_down_24_regular
+                                  : FluentIcons.chevron_right_24_regular,
+                              size: 16,
+                              color: colors.chevron,
+                            ),
                           ],
                         ),
-                      ),
-                      const SizedBox(width: 10),
-                      Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          _LyricsBatchStatusPill(
-                            result: detail.result,
-                            label: [
-                              _lyricsBatchResultLabel(i18n, detail.result),
-                              if (reason.isNotEmpty) '($reason)',
-                            ].join(' '),
-                          ),
-                          const SizedBox(width: 10),
-                          Icon(
-                            expanded
-                                ? FluentIcons.chevron_down_24_regular
-                                : FluentIcons.chevron_right_24_regular,
-                            size: 16,
-                            color: const Color(0xff94a3b8),
-                          ),
-                        ],
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -382,38 +405,6 @@ class _LyricsBatchArtwork extends StatelessWidget {
   }
 }
 
-class _LyricsBatchStatusPill extends StatelessWidget {
-  const _LyricsBatchStatusPill({required this.result, required this.label});
-
-  final LyricsBatchDetailResult result;
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    final statusColors = _lyricsBatchStatusColors(result);
-    return Container(
-      key: ValueKey('lyrics-detail-status-${result.name}'),
-      constraints: const BoxConstraints(minHeight: 28),
-      padding: const EdgeInsets.symmetric(horizontal: 10),
-      decoration: BoxDecoration(
-        color: statusColors.$1,
-        borderRadius: BorderRadius.circular(999),
-      ),
-      alignment: Alignment.center,
-      child: Text(
-        label,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: TextStyle(
-          color: statusColors.$2,
-          fontSize: 12,
-          fontWeight: FontWeight.w700,
-        ),
-      ),
-    );
-  }
-}
-
 class _LyricsBatchInlinePanel extends StatelessWidget {
   const _LyricsBatchInlinePanel({
     required this.overwritten,
@@ -425,74 +416,21 @@ class _LyricsBatchInlinePanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = _LyricsBatchDetailsColors.resolve(context);
     return DecoratedBox(
       key: const ValueKey('lyrics-detail-inline-panel'),
       decoration: BoxDecoration(
-        color: overwritten ? Colors.white : const Color(0xfffbfdff),
+        color: overwritten ? colors.overwrittenInlinePanel : colors.inlinePanel,
       ),
       child: Padding(
         padding:
             overwritten
-                ? const EdgeInsets.fromLTRB(12, 0, 12, 12)
-                : const EdgeInsets.fromLTRB(14, 0, 14, 16),
+                ? const EdgeInsets.fromLTRB(12, 14, 12, 12)
+                : const EdgeInsets.fromLTRB(16, 16, 16, 20),
         child: child,
       ),
     );
   }
-}
-
-class _LyricsBatchHeaderCountPill extends StatelessWidget {
-  const _LyricsBatchHeaderCountPill({
-    required this.result,
-    required this.count,
-  });
-
-  final LyricsBatchDetailResult result;
-  final int count;
-
-  @override
-  Widget build(BuildContext context) {
-    final statusColors = _lyricsBatchStatusColors(result);
-    return Container(
-      key: ValueKey('lyrics-detail-group-count-${result.name}'),
-      constraints: const BoxConstraints(minWidth: 24, minHeight: 22),
-      padding: const EdgeInsets.symmetric(horizontal: 8),
-      decoration: BoxDecoration(
-        color: statusColors.$1,
-        borderRadius: BorderRadius.circular(999),
-      ),
-      alignment: Alignment.center,
-      child: Text(
-        '$count',
-        style: TextStyle(
-          color: statusColors.$2,
-          fontSize: 12,
-          fontWeight: FontWeight.w700,
-        ),
-      ),
-    );
-  }
-}
-
-(Color, Color) _lyricsBatchStatusColors(LyricsBatchDetailResult result) {
-  return switch (result) {
-    LyricsBatchDetailResult.overwritten => (
-      const Color(0xffffedd5),
-      const Color(0xffc2410c),
-    ),
-    LyricsBatchDetailResult.saved => (
-      const Color(0xffdcfce7),
-      const Color(0xff15803d),
-    ),
-    LyricsBatchDetailResult.skipped => (
-      const Color(0xfff1f5f9),
-      const Color(0xff64748b),
-    ),
-    LyricsBatchDetailResult.missing || LyricsBatchDetailResult.failed => (
-      const Color(0xfffee2e2),
-      const Color(0xffb91c1c),
-    ),
-  };
 }
 
 class _LyricsBatchExpandedDetail extends StatelessWidget {
@@ -509,39 +447,13 @@ class _LyricsBatchExpandedDetail extends StatelessWidget {
       return _LyricsBatchOverwriteDetail(source: source, target: target);
     }
 
-    return _LyricsBatchExpandedPanel(
-      overwritten: false,
-      child: _LyricsTextPreview(
-        title:
-            target.trim().isNotEmpty
-                ? i18n.t('settings.lyricsBatchDetailWrittenLyrics')
-                : i18n.t('settings.lyricsBatchCurrentLyrics'),
-        text: target.trim().isNotEmpty ? target : source,
-      ),
-    );
-  }
-}
-
-class _LyricsBatchExpandedPanel extends StatelessWidget {
-  const _LyricsBatchExpandedPanel({
-    required this.overwritten,
-    required this.child,
-  });
-
-  final bool overwritten;
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = PopupDialogColors.resolve(context);
-    return DecoratedBox(
-      key: const ValueKey('lyrics-detail-expanded-panel'),
-      decoration: BoxDecoration(
-        color: overwritten ? Colors.transparent : colors.surface,
-        borderRadius: BorderRadius.circular(overwritten ? 0 : 14),
-        border: overwritten ? null : Border.all(color: const Color(0xffd6e0ee)),
-      ),
-      child: child,
+    return _LyricsTextPreview(
+      title:
+          target.trim().isNotEmpty
+              ? i18n.t('settings.lyricsBatchDetailWrittenLyrics')
+              : i18n.t('settings.lyricsBatchCurrentLyrics'),
+      text: target.trim().isNotEmpty ? target : source,
+      plain: true,
     );
   }
 }
@@ -567,164 +479,148 @@ class _LyricsBatchOverwriteDetailState
   @override
   Widget build(BuildContext context) {
     final i18n = context.smPlayerI18n;
+    final colors = _LyricsBatchDetailsColors.resolve(context);
     return LayoutBuilder(
       builder: (context, constraints) {
         final mobile = constraints.maxWidth <= popupDialogMobileBreakpoint;
-        return _LyricsBatchExpandedPanel(
-          overwritten: true,
-          child: DecoratedBox(
-            decoration: const BoxDecoration(color: Colors.transparent),
-            child: Column(
-              children: [
-                Container(
-                  margin: const EdgeInsets.only(bottom: 10),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 10,
+        return Column(
+          children: [
+            Container(
+              margin: const EdgeInsets.only(bottom: 10),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              decoration: BoxDecoration(
+                color: colors.overwriteBannerBackground,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: colors.overwriteBannerBorder),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    FluentIcons.info_24_regular,
+                    size: 16,
+                    color: colors.overwriteBannerIcon,
                   ),
-                  decoration: BoxDecoration(
-                    color: Color(0xfffff7ed),
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: const Color(0x73fdba74)),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      i18n.t('settings.lyricsBatchOverwriteWarning'),
+                      style: TextStyle(
+                        color: colors.overwriteBannerText,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
                   ),
-                  child: Row(
-                    children: [
-                      const Icon(
-                        FluentIcons.info_24_regular,
-                        size: 16,
-                        color: Color(0xfff97316),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          i18n.t('settings.lyricsBatchOverwriteWarning'),
-                          style: const TextStyle(
-                            color: Color(0xff9a3412),
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 16),
-                      OutlinedButton(
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor:
-                              _canceled
-                                  ? const Color(0xff2563eb)
-                                  : const Color(0xff334155),
-                          backgroundColor:
-                              _canceled
-                                  ? const Color(0xffeff6ff)
-                                  : const Color(0xe6ffffff),
-                          side: BorderSide(
-                            color:
-                                _canceled
-                                    ? const Color(0xff93c5fd)
-                                    : const Color(0xffcbd5e1),
-                          ),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          padding: const EdgeInsets.symmetric(horizontal: 12),
-                        ),
-                        onPressed: () {
-                          setState(() {
-                            _canceled = !_canceled;
-                          });
-                        },
-                        child: Text(
+                  const SizedBox(width: 16),
+                  OutlinedButton(
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor:
                           _canceled
-                              ? i18n.t('settings.lyricsBatchAgainOverwrite')
-                              : i18n.t('settings.lyricsBatchCancelOverwrite'),
-                          style: const TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
+                              ? colors.overwriteCanceledText
+                              : colors.overwriteButtonText,
+                      backgroundColor:
+                          _canceled
+                              ? colors.overwriteCanceledBackground
+                              : colors.overwriteButtonBackground,
+                      side: BorderSide(
+                        color:
+                            _canceled
+                                ? colors.overwriteCanceledBorder
+                                : colors.overwriteButtonBorder,
                       ),
-                    ],
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                    ),
+                    onPressed: () {
+                      setState(() {
+                        _canceled = !_canceled;
+                      });
+                    },
+                    child: Text(
+                      _canceled
+                          ? i18n.t('settings.lyricsBatchAgainOverwrite')
+                          : i18n.t('settings.lyricsBatchCancelOverwrite'),
+                      style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
                   ),
-                ),
-                Padding(
-                  padding: EdgeInsets.zero,
-                  child:
-                      mobile
-                          ? Column(
-                            children: [
-                              _LyricsTextPreview(
-                                title: i18n.t(
-                                  'settings.lyricsBatchCurrentLyrics',
-                                ),
-                                badge: i18n.t('settings.lyricsBatchOldVersion'),
-                                text: widget.source,
-                              ),
-                              const Padding(
-                                padding: EdgeInsets.symmetric(vertical: 12),
-                                child: CircleAvatar(
-                                  radius: 15,
-                                  backgroundColor: Color(0xffeff6ff),
-                                  child: Icon(
-                                    FluentIcons.arrow_down_20_regular,
-                                    size: 16,
-                                    color: Color(0xff2563eb),
-                                  ),
-                                ),
-                              ),
-                              _LyricsTextPreview(
-                                title: i18n.t('settings.lyricsBatchNewLyrics'),
-                                badge: i18n.t('settings.lyricsBatchNewVersion'),
-                                newBadge: true,
-                                text: widget.target,
-                              ),
-                            ],
-                          )
-                          : Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Expanded(
-                                child: _LyricsTextPreview(
-                                  title: i18n.t(
-                                    'settings.lyricsBatchCurrentLyrics',
-                                  ),
-                                  badge: i18n.t(
-                                    'settings.lyricsBatchOldVersion',
-                                  ),
-                                  text: widget.source,
-                                ),
-                              ),
-                              const Padding(
-                                padding: EdgeInsets.symmetric(
-                                  horizontal: 10,
-                                  vertical: 72,
-                                ),
-                                child: CircleAvatar(
-                                  radius: 15,
-                                  backgroundColor: Color(0xffeff6ff),
-                                  child: Icon(
-                                    FluentIcons.arrow_right_20_regular,
-                                    size: 16,
-                                    color: Color(0xff2563eb),
-                                  ),
-                                ),
-                              ),
-                              Expanded(
-                                child: _LyricsTextPreview(
-                                  title: i18n.t(
-                                    'settings.lyricsBatchNewLyrics',
-                                  ),
-                                  badge: i18n.t(
-                                    'settings.lyricsBatchNewVersion',
-                                  ),
-                                  newBadge: true,
-                                  text: widget.target,
-                                ),
-                              ),
-                            ],
-                          ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
+            Padding(
+              padding: EdgeInsets.zero,
+              child:
+                  mobile
+                      ? Column(
+                        children: [
+                          _LyricsTextPreview(
+                            title: i18n.t('settings.lyricsBatchCurrentLyrics'),
+                            badge: i18n.t('settings.lyricsBatchOldVersion'),
+                            text: widget.source,
+                          ),
+                          Padding(
+                            padding: EdgeInsets.symmetric(vertical: 12),
+                            child: CircleAvatar(
+                              radius: 15,
+                              backgroundColor: colors.compareArrowBackground,
+                              child: Icon(
+                                FluentIcons.arrow_down_20_regular,
+                                size: 16,
+                                color: colors.compareArrow,
+                              ),
+                            ),
+                          ),
+                          _LyricsTextPreview(
+                            title: i18n.t('settings.lyricsBatchNewLyrics'),
+                            badge: i18n.t('settings.lyricsBatchNewVersion'),
+                            newBadge: true,
+                            text: widget.target,
+                          ),
+                        ],
+                      )
+                      : Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            child: _LyricsTextPreview(
+                              title: i18n.t(
+                                'settings.lyricsBatchCurrentLyrics',
+                              ),
+                              badge: i18n.t('settings.lyricsBatchOldVersion'),
+                              text: widget.source,
+                            ),
+                          ),
+                          Padding(
+                            padding: EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 72,
+                            ),
+                            child: CircleAvatar(
+                              radius: 15,
+                              backgroundColor: colors.compareArrowBackground,
+                              child: Icon(
+                                FluentIcons.arrow_right_20_regular,
+                                size: 16,
+                                color: colors.compareArrow,
+                              ),
+                            ),
+                          ),
+                          Expanded(
+                            child: _LyricsTextPreview(
+                              title: i18n.t('settings.lyricsBatchNewLyrics'),
+                              badge: i18n.t('settings.lyricsBatchNewVersion'),
+                              newBadge: true,
+                              text: widget.target,
+                            ),
+                          ),
+                        ],
+                      ),
+            ),
+          ],
         );
       },
     );
@@ -737,36 +633,42 @@ class _LyricsTextPreview extends StatelessWidget {
     required this.text,
     this.badge,
     this.newBadge = false,
+    this.plain = false,
   });
 
   final String title;
   final String text;
   final String? badge;
   final bool newBadge;
+  final bool plain;
 
   @override
   Widget build(BuildContext context) {
     final i18n = context.smPlayerI18n;
-    final colors = PopupDialogColors.resolve(context);
+    final popupColors = PopupDialogColors.resolve(context);
+    final colors = _LyricsBatchDetailsColors.resolve(context);
     return DecoratedBox(
       key: const ValueKey('lyrics-detail-text-preview'),
       decoration: BoxDecoration(
-        color: const Color(0xb8f8fafc),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xffd6e0ee)),
+        color: plain ? Colors.transparent : colors.previewBackground,
+        borderRadius: BorderRadius.circular(plain ? 0 : 12),
+        border: plain ? null : Border.all(color: colors.previewBorder),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(14, 12, 14, 8),
+            padding:
+                plain
+                    ? const EdgeInsets.fromLTRB(12, 0, 12, 8)
+                    : const EdgeInsets.fromLTRB(14, 12, 14, 8),
             child: Row(
               children: [
                 Expanded(
                   child: Text(
                     title,
                     style: TextStyle(
-                      color: colors.textStrong,
+                      color: popupColors.textStrong,
                       fontSize: 14,
                       fontWeight: FontWeight.w700,
                     ),
@@ -779,8 +681,8 @@ class _LyricsTextPreview extends StatelessWidget {
                     decoration: BoxDecoration(
                       color:
                           newBadge
-                              ? const Color(0xffdbeafe)
-                              : const Color(0xffe2e8f0),
+                              ? colors.newBadgeBackground
+                              : colors.oldBadgeBackground,
                       borderRadius: BorderRadius.circular(999),
                     ),
                     alignment: Alignment.center,
@@ -789,8 +691,8 @@ class _LyricsTextPreview extends StatelessWidget {
                       style: TextStyle(
                         color:
                             newBadge
-                                ? const Color(0xff2563eb)
-                                : const Color(0xff64748b),
+                                ? colors.newBadgeText
+                                : colors.oldBadgeText,
                         fontSize: 12,
                         fontWeight: FontWeight.w700,
                       ),
@@ -802,13 +704,16 @@ class _LyricsTextPreview extends StatelessWidget {
           ConstrainedBox(
             constraints: const BoxConstraints(minHeight: 120, maxHeight: 360),
             child: SingleChildScrollView(
-              padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
+              padding:
+                  plain
+                      ? const EdgeInsets.fromLTRB(12, 8, 12, 4)
+                      : const EdgeInsets.fromLTRB(14, 12, 14, 14),
               child: Text(
                 text.trim().isEmpty
                     ? i18n.t('settings.lyricsBatchDetailNoLyrics')
                     : text,
                 style: TextStyle(
-                  color: newBadge ? const Color(0xff1f3b64) : colors.textStrong,
+                  color: popupColors.textStrong,
                   fontFamily: 'monospace',
                   fontSize: 13,
                   height: 1.75,
@@ -820,38 +725,4 @@ class _LyricsTextPreview extends StatelessWidget {
       ),
     );
   }
-}
-
-String _lyricsBatchDetailId(LyricsBatchDetailResult result, int index) {
-  return '${result.index}-$index';
-}
-
-String _lyricsBatchResultLabel(
-  SmPlayerI18n i18n,
-  LyricsBatchDetailResult result,
-) {
-  return switch (result) {
-    LyricsBatchDetailResult.saved => i18n.t('settings.lyricsBatchSaved'),
-    LyricsBatchDetailResult.overwritten => i18n.t(
-      'settings.lyricsBatchOverwritten',
-    ),
-    LyricsBatchDetailResult.skipped => i18n.t('settings.lyricsBatchSkipped'),
-    LyricsBatchDetailResult.missing => i18n.t('settings.lyricsBatchMissing'),
-    LyricsBatchDetailResult.failed => i18n.t('settings.lyricsBatchFailed'),
-  };
-}
-
-String _lyricsBatchReasonLabel(
-  SmPlayerI18n i18n,
-  LyricsBatchSkipReason? reason,
-) {
-  return switch (reason) {
-    LyricsBatchSkipReason.alreadyExists => i18n.t(
-      'settings.lyricsBatchReasonAlreadyExists',
-    ),
-    LyricsBatchSkipReason.sameContent => i18n.t(
-      'settings.lyricsBatchReasonSameContent',
-    ),
-    null => '',
-  };
 }

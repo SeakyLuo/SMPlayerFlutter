@@ -9,6 +9,7 @@ class _MusicDialogCommandButton extends StatelessWidget {
     this.iconWidget,
     this.primary = false,
     this.disabled = false,
+    this.loading = false,
     this.commandBar = false,
     this.compact = false,
     this.showLabel = true,
@@ -20,6 +21,7 @@ class _MusicDialogCommandButton extends StatelessWidget {
   final Widget? iconWidget;
   final bool primary;
   final bool disabled;
+  final bool loading;
   final bool commandBar;
   final bool compact;
   final bool showLabel;
@@ -147,17 +149,26 @@ class _MusicDialogCommandButton extends StatelessWidget {
         }),
         overlayColor: const WidgetStatePropertyAll(Colors.transparent),
       ),
-      onPressed: disabled ? null : onPressed,
+      onPressed: disabled || loading ? null : onPressed,
       child: Row(
         mainAxisSize: MainAxisSize.min,
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          if (icon case final IconData icon) ...[
+          if (loading) ...[
+            SizedBox.square(
+              dimension: 20,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: foreground,
+              ),
+            ),
+            if (showLabel) const SizedBox(width: 8),
+          ] else if (icon case final IconData icon) ...[
             Icon(icon, size: 20),
             if (showLabel) const SizedBox(width: 8),
           ],
-          if (iconWidget case final Widget iconWidget) ...[
-            iconWidget,
+          if (!loading && iconWidget != null) ...[
+            iconWidget!,
             if (showLabel) const SizedBox(width: 8),
           ],
           if (showLabel)
@@ -184,13 +195,17 @@ class _MusicDialogCommandButton extends StatelessWidget {
         commandBarDisabled
             ? Opacity(opacity: 0.45, child: styledButton)
             : styledButton;
-    if (commandBar) {
-      return Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 3),
-        child: resolvedButton,
-      );
+    final paddedButton =
+        commandBar
+            ? Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 3),
+              child: resolvedButton,
+            )
+            : resolvedButton;
+    if (!showLabel) {
+      return PopupDialogHoverTooltip(message: label, child: paddedButton);
     }
-    return resolvedButton;
+    return paddedButton;
   }
 }
 

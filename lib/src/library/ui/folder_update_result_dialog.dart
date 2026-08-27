@@ -19,8 +19,8 @@ class FolderUpdateResultDialog extends StatefulWidget {
     required this.songs,
     required this.selectedTrackId,
     required this.isPlaying,
-    required this.onPlay,
-    required this.onOpenSongMenu,
+    this.onPlay,
+    this.onOpenSongMenu,
     required this.onApplyArtistSplits,
     required this.onDismissArtistSplitSuggestions,
     required this.onClose,
@@ -31,8 +31,8 @@ class FolderUpdateResultDialog extends StatefulWidget {
   final List<LibrarySong> songs;
   final int? selectedTrackId;
   final bool isPlaying;
-  final ValueChanged<int> onPlay;
-  final FutureOr<void> Function(LibrarySong song, Offset position)
+  final ValueChanged<int>? onPlay;
+  final FutureOr<void> Function(LibrarySong song, Offset position)?
   onOpenSongMenu;
   final FutureOr<void> Function(List<ArtistSplitResultItem> splits)
   onApplyArtistSplits;
@@ -126,7 +126,7 @@ class FolderUpdateResultDialogState extends State<FolderUpdateResultDialog> {
       onClose: widget.onClose,
       navChildren: [Expanded(child: _FolderUpdateResultTitle(title))],
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(28, 0, 28, 28),
+        padding: const EdgeInsets.fromLTRB(16, 0, 16, 20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [

@@ -14,13 +14,13 @@ You may fork, modify, and redistribute this project for non-commercial purposes,
 
 # MIGHT DO
 1. Lock-Screen wall paper like Groove.
-2. Album properties.
-3. allow music artist and album in immersive mode
+2. allow music artist and album in immersive mode
 
 ## TODO
 1. remote play
-2. Lyrics priority in notification.
+2. Switch network Lyrics.
 3. 正在播放支持swipe delete/like
+4. Album properties.
 
 ## FIXME
 1. 最小高度宽屏和窄屏下不对

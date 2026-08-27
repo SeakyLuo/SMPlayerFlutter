@@ -197,7 +197,7 @@ class _AlbumArtLibraryPickerDialogState
               mobile
                   ? const EdgeInsets.fromLTRB(12, 12, 12, 20)
                   : const EdgeInsets.fromLTRB(28, 18, 28, 24),
-          child: _AlbumArtLibraryPickerFooterButtonTheme(
+          child: _SongDialogPickerFooterButtonTheme(
             child: Row(
               mainAxisAlignment: MainAxisAlignment.end,
               spacing: 10,
@@ -312,8 +312,8 @@ class _AlbumArtLibraryPickerDialogState
   }
 }
 
-class _AlbumArtLibraryPickerFooterButtonTheme extends StatelessWidget {
-  const _AlbumArtLibraryPickerFooterButtonTheme({required this.child});
+class _SongDialogPickerFooterButtonTheme extends StatelessWidget {
+  const _SongDialogPickerFooterButtonTheme({required this.child});
 
   final Widget child;
 

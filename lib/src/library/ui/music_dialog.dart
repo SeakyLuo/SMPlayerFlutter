@@ -22,6 +22,7 @@ import 'package:smplayer_flutter/src/library/data/library_providers.dart';
 import 'package:smplayer_flutter/src/library/data/library_repository.dart';
 import 'package:smplayer_flutter/src/library/ui/command_bar_colors.dart';
 import 'package:smplayer_flutter/src/library/ui/menu_flyout.dart';
+import 'package:smplayer_flutter/src/library/ui/music_dialog_session_providers.dart';
 import 'package:smplayer_flutter/src/library/ui/page_search_history_panel.dart';
 import 'package:smplayer_flutter/src/library/ui/popup_dialog.dart';
 import 'package:smplayer_flutter/src/library/ui/song_display_helpers.dart'
@@ -50,6 +51,7 @@ part 'artwork_source_button.dart';
 part 'music_dialog_electron_icon.dart';
 part 'album_art_recommendation_text.dart';
 part 'album_art_library_picker_dialog.dart';
+part 'lyrics_search_picker_dialog.dart';
 part 'music_dialog_state_helpers.dart';
 part 'music_dialog_state_shortcut_actions.dart';
 part 'music_dialog_state_load_actions.dart';
@@ -57,6 +59,7 @@ part 'music_dialog_state_property_actions.dart';
 part 'music_dialog_state_lyrics_actions.dart';
 part 'music_dialog_state_artwork_actions.dart';
 part 'music_dialog_state_reset_actions.dart';
+part 'music_dialog_tab_builders.dart';
 
 typedef MusicDialogPlayTrackCallback =
     void Function(int trackId, List<int> queueSongIds);
@@ -132,15 +135,13 @@ class MusicDialog extends ConsumerStatefulWidget {
 class _MusicDialogState extends ConsumerState<MusicDialog> {
   static const maxArtistCells = 6;
 
-  void _updateState(VoidCallback callback) {
+  void _updateDialogStructure(VoidCallback callback) {
     setState(callback);
   }
 
   late var _mode = widget.initialMode;
-  var _loading = true;
-  var _lyricsLoading = true;
-  var _artworkLoading = true;
-  var _saving = false;
+  var _dialogSession = Object();
+  late MusicDialogSessionKey _dialogSessionKey;
   var _updatingControllers = false;
   var _showLyricsTimestamps = true;
   var _artworkDeletePending = false;
@@ -155,10 +156,12 @@ class _MusicDialogState extends ConsumerState<MusicDialog> {
   String _artworkSourcePath = '';
   var _artworkMissing = false;
   var _originalArtworkMissing = false;
-  var _artworkRecommendationLoading = false;
   var _artworkRecommendationRequestKey = '';
+  var _artworkRecommendationGeneration = 0;
   AlbumArtRecommendation? _artworkRecommendation;
   var _libraryArtworkPickerOpen = false;
+  var _lyricsSearchPickerOpen = false;
+  var _lyricsSearchCandidates = const <InternetLyricsCandidate>[];
   var _loadGeneration = 0;
   int? _scheduledBrowseSongId;
   var _dependenciesInitialized = false;
@@ -188,6 +191,7 @@ class _MusicDialogState extends ConsumerState<MusicDialog> {
   @override
   void initState() {
     super.initState();
+    _dialogSessionKey = (session: _dialogSession, songId: widget.song.id);
     _addControllerListeners();
     _recordBrowseAfterFrame(widget.song.id);
   }
@@ -225,7 +229,11 @@ class _MusicDialogState extends ConsumerState<MusicDialog> {
       _mode = widget.initialMode;
     }
     if (oldWidget.song.id != widget.song.id) {
+      final previousSessionKey = _dialogSessionKey;
       _mode = widget.initialMode;
+      _dialogSession = Object();
+      _dialogSessionKey = (session: _dialogSession, songId: widget.song.id);
+      _disposeDialogSession(previousSessionKey);
       _recordBrowseAfterFrame(widget.song.id);
       _loadSong();
     }
@@ -274,7 +282,9 @@ class _MusicDialogState extends ConsumerState<MusicDialog> {
 
   void _handleEditorChanged() {
     if (mounted && !_updatingControllers) {
-      setState(() {});
+      ref
+          .read(musicDialogPropertiesStateProvider(_dialogSessionKey).notifier)
+          .setDirty(_propertiesDirty);
     }
   }
 
@@ -283,24 +293,22 @@ class _MusicDialogState extends ConsumerState<MusicDialog> {
       if (_showLyricsTimestamps) {
         _lyricsRawText = _lyricsController.text;
       }
-      setState(() {});
+      ref
+          .read(musicDialogLyricsStateProvider(_dialogSessionKey).notifier)
+          .updateLyricsEditor(
+            dirty: _lyricsDirty,
+            canToggleTimestamps: _lyricsCanToggleTimestamps,
+          );
     }
   }
 
   void _setPlayCountText(String value) {
-    setState(() {
-      _playCountController.text = value;
-    });
-  }
-
-  void _setSaving(bool value) {
-    setState(() {
-      _saving = value;
-    });
+    _playCountController.text = value;
   }
 
   @override
   void dispose() {
+    _disposeDialogSession(_dialogSessionKey);
     _titleController.dispose();
     _subtitleController.dispose();
     _albumController.dispose();
@@ -330,6 +338,11 @@ class _MusicDialogState extends ConsumerState<MusicDialog> {
   @override
   Widget build(BuildContext context) {
     final i18n = context.smPlayerI18n;
+    ref.listen(libraryContentDataProvider, (previous, next) {
+      if (next.hasValue) {
+        unawaited(_loadArtworkRecommendation(librarySnapshotChanged: true));
+      }
+    });
     final currentTrackId = widget.currentTrackId;
     final isCurrentSong =
         currentTrackId == null
@@ -340,28 +353,6 @@ class _MusicDialogState extends ConsumerState<MusicDialog> {
             ? widget.canPause
             : isCurrentSong && widget.isPlaying;
     final canPlay = widget.onPlay != null || widget.onPlayTrack != null;
-    final librarySongs =
-        ref.watch(libraryContentDataProvider).valueOrNull?.songs ??
-        const <LibrarySong>[];
-    final artworkRecommendationRequestKey =
-        _artworkMissing &&
-                !_artworkRecommendationLoading &&
-                _artworkRecommendation == null &&
-                librarySongs.isNotEmpty
-            ? _albumArtRecommendationRequestKey(widget.song, librarySongs)
-            : '';
-    if (_artworkMissing &&
-        !_artworkRecommendationLoading &&
-        _artworkRecommendation == null &&
-        librarySongs.isNotEmpty &&
-        artworkRecommendationRequestKey != _artworkRecommendationRequestKey) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) {
-          _loadArtworkRecommendation();
-        }
-      });
-    }
-
     return Focus(
       autofocus: true,
       focusNode: _shortcutFocusNode,
@@ -410,82 +401,43 @@ class _MusicDialogState extends ConsumerState<MusicDialog> {
               ),
             ],
             child: switch (_mode) {
-              SongDialogMode.properties => MusicInfoControl(
-                loading: _loading,
-                saving: _saving,
-                properties: _properties,
-                artistControllers: _artistControllers,
-                titleController: _titleController,
-                subtitleController: _subtitleController,
-                albumController: _albumController,
-                albumArtistController: _albumArtistController,
-                playCountController: _playCountController,
-                publisherController: _publisherController,
-                trackNumberController: _trackNumberController,
-                yearController: _yearController,
-                bitrateController: _bitrateController,
-                composersController: _composersController,
-                dateCreatedController: _dateCreatedController,
-                dateModifiedController: _dateModifiedController,
-                durationController: _durationController,
-                fileSizeController: _fileSizeController,
-                fileTypeController: _fileTypeController,
-                genreController: _genreController,
-                pathController: _pathController,
+              SongDialogMode.properties => _buildPropertiesControl(
                 canPause: canPause,
-                propertiesDirty: _propertiesDirty,
-                onPlay: canPlay ? _play : null,
-                onSave: _saveProperties,
-                onReset: _resetProperties,
-                onClearPlayCount: _clearPlayCount,
-                onAddArtistCell: _addArtistCell,
-                onRemoveArtistCell: _removeArtistCell,
-                onReveal: widget.onReveal,
+                canPlay: canPlay,
               ),
-              SongDialogMode.lyrics => MusicLyricsControl(
-                loading: _lyricsLoading,
-                saving: _saving,
-                lyrics: _lyrics,
-                lyricsController: _lyricsController,
-                lyricsScrollController: _lyricsScrollController,
-                lyricsDirty: _lyricsDirty,
-                showLyricsTimestamps: _showLyricsTimestamps,
-                lyricsCanToggleTimestamps: _lyricsCanToggleTimestamps,
-                onSearch: _searchLyrics,
-                onImport: _importLyrics,
-                onSave: _saveLyrics,
-                onReset: _resetLyrics,
-                onToggleTimestamps: _toggleLyricsTimestamps,
-              ),
-              SongDialogMode.albumArt => MusicAlbumArtControl(
-                song: widget.song,
-                loading: _artworkLoading,
-                saving: _saving,
-                artworkUrl: _displayArtworkUrl,
-                artworkDirty: _artworkDirty,
-                recommendation: _artworkMissing ? _artworkRecommendation : null,
-                onApplyRecommendation: _applyAlbumArtRecommendation,
-                onChangeArtwork: _changeArtwork,
-                onChooseArtworkFromLibrary: () {
-                  setState(() {
-                    _libraryArtworkPickerOpen = true;
-                  });
-                },
-                onSaveArtwork: _saveArtwork,
-                onResetArtwork: _resetArtwork,
-                onRequestDelete: _deleteArtwork,
-              ),
+              SongDialogMode.lyrics => _buildLyricsControl(),
+              SongDialogMode.albumArt => _buildAlbumArtControl(),
             },
           ),
           if (_libraryArtworkPickerOpen)
-            AlbumArtLibraryPickerDialog(
-              albumName: widget.song.album,
-              currentSong: widget.song,
-              songs: librarySongs,
-              onApply: _applyAlbumArtLibraryChoice,
+            Consumer(
+              builder: (context, ref, child) {
+                final librarySongs =
+                    ref.watch(libraryContentDataProvider).valueOrNull?.songs ??
+                    const <LibrarySong>[];
+                return AlbumArtLibraryPickerDialog(
+                  albumName: widget.song.album,
+                  currentSong: widget.song,
+                  songs: librarySongs,
+                  onApply: _applyAlbumArtLibraryChoice,
+                  onClose: () {
+                    setState(() {
+                      _libraryArtworkPickerOpen = false;
+                    });
+                  },
+                );
+              },
+            ),
+          if (_lyricsSearchPickerOpen)
+            LyricsSearchPickerDialog(
+              song: widget.song,
+              candidates: _lyricsSearchCandidates,
+              onApply: (candidate) {
+                unawaited(_applyInternetLyricsCandidate(candidate));
+              },
               onClose: () {
                 setState(() {
-                  _libraryArtworkPickerOpen = false;
+                  _lyricsSearchPickerOpen = false;
                 });
               },
             ),

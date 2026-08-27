@@ -3,14 +3,12 @@ part of 'music_dialog.dart';
 class MusicLyricsControl extends StatelessWidget {
   const MusicLyricsControl({
     super.key,
+    required this.sessionKey,
     required this.loading,
-    required this.saving,
+    required this.operation,
     required this.lyrics,
     required this.lyricsController,
     required this.lyricsScrollController,
-    required this.lyricsDirty,
-    required this.showLyricsTimestamps,
-    required this.lyricsCanToggleTimestamps,
     required this.onSearch,
     required this.onImport,
     required this.onSave,
@@ -18,14 +16,12 @@ class MusicLyricsControl extends StatelessWidget {
     required this.onToggleTimestamps,
   });
 
+  final MusicDialogSessionKey sessionKey;
   final bool loading;
-  final bool saving;
+  final MusicDialogOperation? operation;
   final LyricsSnapshot? lyrics;
   final TextEditingController lyricsController;
   final ScrollController lyricsScrollController;
-  final bool lyricsDirty;
-  final bool showLyricsTimestamps;
-  final bool lyricsCanToggleTimestamps;
   final VoidCallback onSearch;
   final VoidCallback onImport;
   final VoidCallback onSave;
@@ -38,57 +34,79 @@ class MusicLyricsControl extends StatelessWidget {
     final colors = PopupDialogColors.resolve(context);
     final mobile =
         MediaQuery.sizeOf(context).width <= popupDialogMobileBreakpoint;
+    final saving = operation == MusicDialogOperation.saveLyrics;
+    final importing = operation == MusicDialogOperation.importLyrics;
+    final editorLocked = saving || importing;
 
     return Column(
       children: [
-        _MusicDialogCommandBar(
-          showBusy: saving,
-          children: [
-            _MusicDialogCommandButton(
-              iconWidget: const _ElectronIcon(
-                _ElectronIconName.search,
-                size: 20,
-              ),
-              label: i18n.t('common.search'),
-              commandBar: true,
-              disabled: loading || saving,
-              onPressed: onSearch,
-            ),
-            _MusicDialogCommandButton(
-              iconWidget: const _ElectronIcon(
-                _ElectronIconName.import,
-                size: 20,
-              ),
-              label: i18n.t('common.import'),
-              commandBar: true,
-              disabled: loading || saving,
-              onPressed: onImport,
-            ),
-            _MusicDialogCommandButton(
-              iconWidget: const _ElectronIcon(_ElectronIconName.save, size: 20),
-              label: i18n.t('settings.save'),
-              primary: true,
-              commandBar: true,
-              disabled: loading || saving,
-              onPressed: onSave,
-            ),
-            if (lyricsDirty)
-              _MusicDialogCommandButton(
-                iconWidget: const _ElectronIcon(
-                  _ElectronIconName.undo,
-                  size: 20,
+        Consumer(
+          builder: (context, ref, child) {
+            final state = ref.watch(musicDialogLyricsStateProvider(sessionKey));
+            final searching =
+                ref
+                    .watch(internetLyricsCandidateSearchProvider(sessionKey))
+                    .isLoading;
+            final operationRunning = state.operation != null;
+            return _MusicDialogCommandBar(
+              showBusy: false,
+              children: [
+                _MusicDialogCommandButton(
+                  iconWidget: const _ElectronIcon(
+                    _ElectronIconName.search,
+                    size: 20,
+                  ),
+                  label: i18n.t('common.search'),
+                  commandBar: true,
+                  loading: searching,
+                  disabled: loading || operationRunning,
+                  onPressed: onSearch,
                 ),
-                label: i18n.t('common.reset'),
-                commandBar: true,
-                disabled: loading || saving,
-                onPressed: onReset,
-              ),
-            if (lyricsCanToggleTimestamps)
-              _LyricsTimestampToggle(
-                value: showLyricsTimestamps,
-                onChanged: loading || saving ? null : onToggleTimestamps,
-              ),
-          ],
+                _MusicDialogCommandButton(
+                  iconWidget: const _ElectronIcon(
+                    _ElectronIconName.import,
+                    size: 20,
+                  ),
+                  label: i18n.t('common.import'),
+                  commandBar: true,
+                  loading: importing,
+                  disabled: loading || operationRunning || searching,
+                  onPressed: onImport,
+                ),
+                _MusicDialogCommandButton(
+                  iconWidget: const _ElectronIcon(
+                    _ElectronIconName.save,
+                    size: 20,
+                  ),
+                  label: i18n.t('settings.save'),
+                  primary: true,
+                  commandBar: true,
+                  loading: saving,
+                  disabled: loading || operationRunning || searching,
+                  onPressed: onSave,
+                ),
+                if (state.dirty)
+                  _MusicDialogCommandButton(
+                    iconWidget: const _ElectronIcon(
+                      _ElectronIconName.undo,
+                      size: 20,
+                    ),
+                    label: i18n.t('common.reset'),
+                    commandBar: true,
+                    disabled: loading || operationRunning || searching,
+                    onPressed: onReset,
+                  ),
+                if (state.lyricsCanToggleTimestamps)
+                  _LyricsTimestampToggle(
+                    value: state.showLyricsTimestamps,
+                    onChanged:
+                        loading || operationRunning || searching
+                            ? null
+                            : onToggleTimestamps,
+                  ),
+              ],
+            );
+          },
         ),
         Expanded(
           child:
@@ -110,13 +128,11 @@ class MusicLyricsControl extends StatelessWidget {
                               ? const EdgeInsets.fromLTRB(12, 0, 12, 28)
                               : const EdgeInsets.fromLTRB(28, 0, 28, 44),
                       child: _DialogTextFieldFrame(
-                        readOnly: saving,
+                        readOnly: editorLocked,
                         emphasizeReadOnly: false,
                         childBuilder: (context, focusNode) {
                           return ScrollConfiguration(
-                            behavior: ScrollConfiguration.of(
-                              context,
-                            ).copyWith(scrollbars: false),
+                            behavior: const _LyricsEditorScrollBehavior(),
                             child: TextField(
                               focusNode: focusNode,
                               controller: lyricsController,
@@ -124,12 +140,12 @@ class MusicLyricsControl extends StatelessWidget {
                               expands: true,
                               maxLines: null,
                               minLines: null,
-                              enabled: !saving,
+                              enabled: !editorLocked,
                               textAlignVertical: TextAlignVertical.top,
                               cursorColor: colors.accentStrong,
                               style: TextStyle(
                                 color:
-                                    saving
+                                    editorLocked
                                         ? colors.fieldDisabledText
                                         : colors.text,
                                 fontSize: 16,
@@ -138,7 +154,7 @@ class MusicLyricsControl extends StatelessWidget {
                               ),
                               decoration: _dialogFieldDecoration(
                                 context,
-                                readOnly: saving,
+                                readOnly: editorLocked,
                                 emphasizeReadOnly: false,
                                 multiline: true,
                                 hintText:
@@ -155,5 +171,18 @@ class MusicLyricsControl extends StatelessWidget {
         ),
       ],
     );
+  }
+}
+
+class _LyricsEditorScrollBehavior extends MaterialScrollBehavior {
+  const _LyricsEditorScrollBehavior();
+
+  @override
+  Widget buildScrollbar(
+    BuildContext context,
+    Widget child,
+    ScrollableDetails details,
+  ) {
+    return child;
   }
 }
