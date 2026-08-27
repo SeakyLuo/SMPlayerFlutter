@@ -247,9 +247,7 @@ class LibraryRepository {
     database: _database,
   );
   static const _playlistService = LibraryPlaylistService();
-  static const _preferenceService = LibraryPreferenceService(
-    database: _database,
-  );
+  static const _preferenceService = LibraryPreferenceService();
   static const _readService = LibraryReadService();
   static const _localRefreshService = LibraryLocalRefreshService(
     songPropertiesService: _songPropertiesService,

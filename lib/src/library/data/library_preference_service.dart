@@ -10,16 +10,11 @@ import 'package:smplayer_flutter/src/settings/settings_model.dart'
         PreferenceSectionKey,
         PreferenceSettingsSnapshot;
 
-import 'library_database_service.dart';
-
 const _activeState = 1;
 const _inactiveState = 0;
 
 class LibraryPreferenceService {
-  const LibraryPreferenceService({required LibraryDatabaseService database})
-    : _database = database;
-
-  final LibraryDatabaseService _database;
+  const LibraryPreferenceService();
 
   Future<void> addPreferenceItem(
     File databaseFile,
@@ -125,7 +120,7 @@ class LibraryPreferenceService {
       return PreferenceSettingsSnapshot.defaults();
     }
 
-    final db = _database.openInitializedLibraryDatabase(databaseFile);
+    final db = sqlite3.open(databaseFile.path);
     try {
       _migrateUnknownAlbumPreference(db, unknownAlbumName);
       final setting = _ensurePreferenceSetting(db);
@@ -502,11 +497,12 @@ class LibraryPreferenceService {
 
   PreferenceItemSnapshot _toPreferenceItemSnapshot(Row row) {
     final type = _preferenceEntityTypeFromValue(row['type'] as int);
-    final resolved = _resolvePreferenceItem(row, type);
+    final itemId = _preferenceItemId(row, type);
+    final resolved = _resolvePreferenceItem(row, type, itemId);
     return PreferenceItemSnapshot(
       id: row['id'] as int,
       type: type,
-      itemId: row['itemId'] as String,
+      itemId: itemId,
       name: resolved.name,
       tooltip: resolved.tooltip,
       isEnabled: (row['isEnabled'] as int) != 0,
@@ -519,8 +515,8 @@ class LibraryPreferenceService {
   ({String name, String tooltip, bool isValid}) _resolvePreferenceItem(
     Row row,
     PreferenceEntityType type,
+    String itemId,
   ) {
-    final itemId = row['itemId'] as String;
     final itemName = row['itemName'] as String? ?? '';
     switch (type) {
       case PreferenceEntityType.song:
@@ -577,6 +573,20 @@ class LibraryPreferenceService {
       case PreferenceEntityType.leastPlayed:
         return (name: 'Least Played', tooltip: 'Least Played', isValid: true);
     }
+  }
+
+  String _preferenceItemId(Row row, PreferenceEntityType type) {
+    return switch (type) {
+      PreferenceEntityType.recentAdded ||
+      PreferenceEntityType.myFavorites ||
+      PreferenceEntityType.mostPlayed ||
+      PreferenceEntityType.leastPlayed => '',
+      PreferenceEntityType.song ||
+      PreferenceEntityType.artist ||
+      PreferenceEntityType.album ||
+      PreferenceEntityType.playlist ||
+      PreferenceEntityType.folder => row['itemId'] as String,
+    };
   }
 
   void _migrateUnknownAlbumPreference(Database db, String unknownAlbumName) {
