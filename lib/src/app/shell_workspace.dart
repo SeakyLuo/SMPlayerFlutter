@@ -704,10 +704,6 @@ String _workspaceTitle({
     return '';
   }
 
-  if (path.startsWith('/immersive-mode')) {
-    return '';
-  }
-
   if (path.startsWith('/now-playing')) {
     return '';
   }

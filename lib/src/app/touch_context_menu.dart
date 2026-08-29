@@ -8,6 +8,10 @@ const touchContextMenuMoveTolerance = 10.0;
 
 var _pendingTouchContextMenuInvocation = false;
 var _dispatchingSyntheticContextMenu = false;
+var _lastPointerDeviceKind = PointerDeviceKind.mouse;
+
+bool get usesTouchMenuDensity =>
+    _lastPointerDeviceKind == PointerDeviceKind.touch;
 
 bool takeTouchContextMenuInvocation() {
   final pending = _pendingTouchContextMenuInvocation;
@@ -37,6 +41,7 @@ class _TouchContextMenuAdapterState extends State<TouchContextMenuAdapter> {
 
   void _handlePointerDown(PointerDownEvent event) {
     if (!_dispatchingSyntheticContextMenu) {
+      _lastPointerDeviceKind = event.kind;
       _pendingTouchContextMenuInvocation = false;
     }
     if (event.kind != PointerDeviceKind.touch ||

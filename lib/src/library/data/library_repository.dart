@@ -976,14 +976,22 @@ class LibraryRepository {
   Future<List<LocalLyricsSearchMatch>> searchLocalLyrics(
     String query, {
     String folderPath = '',
-    void Function(LocalLyricsIndexProgress progress)? onIndexProgress,
   }) async {
     final databaseFile = await _resolveDatabaseFile();
-    return _lyricsSearchService.search(
+    return _lyricsSearchService.searchAvailable(
       databaseFile,
       query,
       folderPath: folderPath,
-      onIndexProgress: onIndexProgress,
+    );
+  }
+
+  Future<void> indexMissingLocalLyrics({
+    void Function(LocalLyricsIndexProgress progress)? onProgress,
+  }) async {
+    final databaseFile = await _resolveDatabaseFile();
+    await _lyricsSearchService.indexMissingSongs(
+      databaseFile,
+      onProgress: onProgress,
     );
   }
 
