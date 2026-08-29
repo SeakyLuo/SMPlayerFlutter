@@ -5,12 +5,14 @@ class _SearchFilterTabs extends StatelessWidget {
     required this.i18n,
     required this.activeFilter,
     required this.results,
+    required this.lyricsIndexing,
     required this.onChanged,
   });
 
   final SmPlayerI18n i18n;
   final SearchFilterKey activeFilter;
   final SearchResults results;
+  final bool lyricsIndexing;
   final ValueChanged<SearchFilterKey> onChanged;
 
   @override
@@ -98,7 +100,11 @@ class _SearchFilterTabs extends StatelessWidget {
                   label: tab.label,
                   count: tab.count,
                   selected: tab.key == activeFilter,
-                  enabled: tab.key == SearchFilterKey.all || tab.count > 0,
+                  enabled:
+                      tab.key == SearchFilterKey.all ||
+                      tab.key == activeFilter ||
+                      tab.count > 0 ||
+                      (tab.key == SearchFilterKey.lyrics && lyricsIndexing),
                   onPressed: () {
                     onChanged(tab.key);
                   },

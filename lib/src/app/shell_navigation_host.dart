@@ -64,9 +64,8 @@ class ShellNavigationHost extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    if (layout.isImmersiveModeRoute ||
-        (layout.navigationMode == SmPlayerNavigationMode.minimal &&
-            !layout.isNavigationPaneVisible)) {
+    if (layout.navigationMode == SmPlayerNavigationMode.minimal &&
+        !layout.isNavigationPaneVisible) {
       return const SizedBox.shrink();
     }
     return AnimatedPositioned(

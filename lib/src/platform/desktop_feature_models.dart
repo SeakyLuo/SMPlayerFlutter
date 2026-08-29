@@ -57,15 +57,22 @@ class DesktopRecentSong {
     required this.id,
     required this.title,
     required this.path,
+    required this.artworkPath,
   });
 
   factory DesktopRecentSong.fromLibrarySong(LibrarySong song) {
-    return DesktopRecentSong(id: song.id, title: song.title, path: song.path);
+    return DesktopRecentSong(
+      id: song.id,
+      title: song.title,
+      path: song.path,
+      artworkPath: song.thumbnailPath,
+    );
   }
 
   final int id;
   final String title;
   final String path;
+  final String artworkPath;
 }
 
 class DesktopTrayState {
@@ -88,7 +95,9 @@ class DesktopTrayState {
   String get signature {
     final recentSignature = recentSongs
         .take(desktopRecentSongLimit)
-        .map((song) => '${song.id}:${song.title}:${song.path}')
+        .map(
+          (song) => '${song.id}:${song.title}:${song.path}:${song.artworkPath}',
+        )
         .join('|');
     return [
       appTitle,

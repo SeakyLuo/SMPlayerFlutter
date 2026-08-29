@@ -170,6 +170,8 @@ class _ImmersiveModePageState extends ConsumerState<ImmersiveModePage>
     with SingleTickerProviderStateMixin {
   final _selection = PageSelectionController<int>.stored('now-playing-full');
   final _queueController = ScrollController();
+  final _songInfoKey = GlobalKey();
+  final _lyricsKey = GlobalKey();
   var _isPlaylistOpen = false;
   SongDialogMode? _dialogMode;
   int? _artworkLookupSongId;
@@ -489,6 +491,8 @@ class _ImmersiveModePageState extends ConsumerState<ImmersiveModePage>
                                       .state;
                               return ImmersiveModeStage(
                                 song: currentSong,
+                                songInfoKey: _songInfoKey,
+                                lyricsKey: _lyricsKey,
                                 artworkPath: displayArtworkPath,
                                 mediaControlState: mediaControlState,
                                 i18n: i18n,

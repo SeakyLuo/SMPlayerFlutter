@@ -297,7 +297,8 @@ HRESULT SetShellLinkTitle(IShellLinkW* link, const std::wstring& title) {
 
 HRESULT AddJumpListTask(IObjectCollection* collection,
                         const std::wstring& executable_path,
-                        const std::wstring& file_path) {
+                        const std::wstring& file_path,
+                        const std::wstring& icon_path) {
   Microsoft::WRL::ComPtr<IShellLinkW> link;
   HRESULT result =
       ::CoCreateInstance(CLSID_ShellLink, nullptr, CLSCTX_INPROC_SERVER,
@@ -319,7 +320,8 @@ HRESULT AddJumpListTask(IObjectCollection* collection,
   if (FAILED(result)) {
     return result;
   }
-  link->SetIconLocation(executable_path.c_str(), 0);
+  link->SetIconLocation(
+      icon_path.empty() ? executable_path.c_str() : icon_path.c_str(), 0);
 
   result = SetShellLinkTitle(link.Get(), FileNameFromPath(file_path));
   if (FAILED(result)) {
@@ -334,12 +336,17 @@ winrt::Windows::Foundation::TimeSpan TimeSpanFromSeconds(double seconds) {
       std::chrono::duration<double>(std::max(0.0, seconds)));
 }
 
+struct JumpListItem {
+  std::wstring file_path;
+  std::wstring icon_path;
+};
+
 HRESULT UpdateWindowsJumpList(const std::wstring& category_name,
-                              const std::vector<std::wstring>& file_paths) {
+                              const std::vector<JumpListItem>& items) {
   ::SHAddToRecentDocs(SHARD_PATHW, nullptr);
-  for (auto iterator = file_paths.rbegin(); iterator != file_paths.rend();
+  for (auto iterator = items.rbegin(); iterator != items.rend();
        ++iterator) {
-    ::SHAddToRecentDocs(SHARD_PATHW, iterator->c_str());
+    ::SHAddToRecentDocs(SHARD_PATHW, iterator->file_path.c_str());
   }
 
   Microsoft::WRL::ComPtr<ICustomDestinationList> destination_list;
@@ -359,7 +366,7 @@ HRESULT UpdateWindowsJumpList(const std::wstring& category_name,
     return result;
   }
 
-  if (!file_paths.empty()) {
+  if (!items.empty()) {
     const std::wstring executable_path = CurrentExecutablePath();
     Microsoft::WRL::ComPtr<IObjectCollection> collection;
     result = ::CoCreateInstance(CLSID_EnumerableObjectCollection, nullptr,
@@ -368,8 +375,9 @@ HRESULT UpdateWindowsJumpList(const std::wstring& category_name,
     if (FAILED(result)) {
       return result;
     }
-    for (const std::wstring& file_path : file_paths) {
-      result = AddJumpListTask(collection.Get(), executable_path, file_path);
+    for (const JumpListItem& item : items) {
+      result = AddJumpListTask(collection.Get(), executable_path,
+                               item.file_path, item.icon_path);
       if (FAILED(result)) {
         return result;
       }
@@ -505,34 +513,51 @@ void FlutterWindow::RegisterDesktopFeatureChannel() {
             std::get_if<flutter::EncodableMap>(call.arguments());
         if (!arguments) {
           result->Error("invalid_arguments",
-                        "setRecentDocuments expects a label and paths.");
+                        "setRecentDocuments expects a label and items.");
           return;
         }
+        const auto app_title_iterator =
+            arguments->find(flutter::EncodableValue("appTitle"));
         const auto label_iterator =
             arguments->find(flutter::EncodableValue("label"));
-        const auto paths_iterator =
-            arguments->find(flutter::EncodableValue("paths"));
+        const auto items_iterator =
+            arguments->find(flutter::EncodableValue("items"));
+        const std::wstring app_title = Utf16FromUtf8(
+            std::get<std::string>(app_title_iterator->second));
+        ::SetWindowTextW(GetHandle(), app_title.c_str());
+        Microsoft::WRL::ComPtr<IPropertyStore> window_properties;
+        if (SUCCEEDED(::SHGetPropertyStoreForWindow(
+                GetHandle(), IID_PPV_ARGS(&window_properties)))) {
+          PROPVARIANT app_title_value;
+          if (SUCCEEDED(::InitPropVariantFromString(app_title.c_str(),
+                                                    &app_title_value))) {
+            window_properties->SetValue(
+                PKEY_AppUserModel_RelaunchDisplayNameResource,
+                app_title_value);
+            ::PropVariantClear(&app_title_value);
+            window_properties->Commit();
+          }
+        }
         const std::string& category_label =
             std::get<std::string>(label_iterator->second);
-        const auto& recent_paths =
+        const auto& recent_items =
             std::get<std::vector<flutter::EncodableValue>>(
-                paths_iterator->second);
+                items_iterator->second);
 
-        std::vector<std::wstring> file_paths;
-        file_paths.reserve(recent_paths.size());
-        for (const flutter::EncodableValue& argument : recent_paths) {
-          const auto* file_path = std::get_if<std::string>(&argument);
-          if (!file_path || file_path->empty()) {
-            continue;
-          }
-          const std::wstring utf16_path = Utf16FromUtf8(*file_path);
-          if (!utf16_path.empty()) {
-            file_paths.push_back(utf16_path);
-          }
+        std::vector<JumpListItem> items;
+        items.reserve(recent_items.size());
+        for (const flutter::EncodableValue& argument : recent_items) {
+          const auto& item = std::get<flutter::EncodableMap>(argument);
+          items.push_back({
+              Utf16FromUtf8(std::get<std::string>(
+                  item.at(flutter::EncodableValue("path")))),
+              Utf16FromUtf8(std::get<std::string>(
+                  item.at(flutter::EncodableValue("iconPath")))),
+          });
         }
 
         const HRESULT update_result =
-            UpdateWindowsJumpList(Utf16FromUtf8(category_label), file_paths);
+            UpdateWindowsJumpList(Utf16FromUtf8(category_label), items);
         if (FAILED(update_result)) {
           result->Error("jump_list_update_failed",
                         "Failed to update Windows Jump List.");
@@ -1015,36 +1040,30 @@ void FlutterWindow::PaintNativeSplash() {
 
   const int center_x = (client_rect.right - client_rect.left) / 2;
   const int center_y = (client_rect.bottom - client_rect.top) / 2;
-  RECT plate_rect{center_x - 66, center_y - 96, center_x + 66, center_y + 36};
 
-  HBRUSH shadow_brush =
-      ::CreateSolidBrush(dark ? RGB(5, 7, 10) : RGB(210, 230, 250));
-  RECT shadow_rect = plate_rect;
-  ::OffsetRect(&shadow_rect, 0, 12);
-  ::FillRect(hdc, &shadow_rect, shadow_brush);
-  ::DeleteObject(shadow_brush);
-
-  HBRUSH plate_brush =
-      ::CreateSolidBrush(dark ? RGB(24, 34, 48) : RGB(255, 255, 255));
-  HPEN plate_pen =
-      ::CreatePen(PS_SOLID, 1, dark ? RGB(38, 52, 70) : RGB(220, 232, 244));
-  HGDIOBJ old_brush = ::SelectObject(hdc, plate_brush);
-  HGDIOBJ old_pen = ::SelectObject(hdc, plate_pen);
-  ::RoundRect(hdc, plate_rect.left, plate_rect.top, plate_rect.right,
-              plate_rect.bottom, 32, 32);
+  const int logo_left = center_x - 66;
+  const int logo_top = center_y - 96;
+  const COLORREF logo_color = dark ? RGB(95, 158, 209) : RGB(39, 80, 189);
+  HPEN logo_pen = ::CreatePen(PS_SOLID, 13, logo_color);
+  HGDIOBJ old_pen = ::SelectObject(hdc, logo_pen);
+  ::MoveToEx(hdc, logo_left + 30, logo_top + 90, nullptr);
+  ::LineTo(hdc, logo_left + 30, logo_top + 36);
+  ::LineTo(hdc, logo_left + 66, logo_top + 59);
+  ::LineTo(hdc, logo_left + 102, logo_top + 33);
+  ::LineTo(hdc, logo_left + 102, logo_top + 85);
   ::SelectObject(hdc, old_pen);
-  ::SelectObject(hdc, old_brush);
-  ::DeleteObject(plate_pen);
-  ::DeleteObject(plate_brush);
+  ::DeleteObject(logo_pen);
 
-  HICON icon = static_cast<HICON>(
-      ::LoadImageW(::GetModuleHandle(nullptr), MAKEINTRESOURCE(IDI_APP_ICON),
-                   IMAGE_ICON, 86, 86, LR_DEFAULTCOLOR));
-  if (icon != nullptr) {
-    ::DrawIconEx(hdc, center_x - 43, center_y - 73, icon, 86, 86, 0, nullptr,
-                 DI_NORMAL);
-    ::DestroyIcon(icon);
-  }
+  HBRUSH logo_brush = ::CreateSolidBrush(logo_color);
+  HGDIOBJ old_brush = ::SelectObject(hdc, logo_brush);
+  HGDIOBJ old_fill_pen = ::SelectObject(hdc, ::GetStockObject(NULL_PEN));
+  ::Ellipse(hdc, logo_left + 12, logo_top + 85, logo_left + 43,
+            logo_top + 108);
+  ::Ellipse(hdc, logo_left + 84, logo_top + 80, logo_left + 115,
+            logo_top + 103);
+  ::SelectObject(hdc, old_fill_pen);
+  ::SelectObject(hdc, old_brush);
+  ::DeleteObject(logo_brush);
 
   HFONT title_font = ::CreateFontW(
       22, 0, 0, 0, FW_SEMIBOLD, FALSE, FALSE, FALSE, DEFAULT_CHARSET,
@@ -1055,7 +1074,10 @@ void FlutterWindow::PaintNativeSplash() {
   ::SetTextColor(hdc, dark ? RGB(244, 248, 255) : RGB(24, 32, 43));
   RECT title_rect{client_rect.left, center_y + 62, client_rect.right,
                   center_y + 96};
-  ::DrawTextW(hdc, L"Simple Melody Player", -1, &title_rect,
+  wchar_t app_title[128] = {};
+  ::LoadStringW(::GetModuleHandleW(nullptr), IDS_APP_TITLE, app_title,
+                static_cast<int>(sizeof(app_title) / sizeof(app_title[0])));
+  ::DrawTextW(hdc, app_title, -1, &title_rect,
               DT_CENTER | DT_SINGLELINE | DT_VCENTER);
   ::SelectObject(hdc, old_font);
   ::DeleteObject(title_font);

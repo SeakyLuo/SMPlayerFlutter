@@ -136,7 +136,8 @@ Future<void> showMenuFlyout(
           }()
           : overlayBox.globalToLocal(position);
   final hasExplicitPosition = position != null;
-  final touchInvocation = takeTouchContextMenuInvocation();
+  final touchInvocation =
+      takeTouchContextMenuInvocation() || usesTouchMenuDensity;
   final resolvedDensity =
       density ??
       (touchInvocation ? MenuFlyoutDensity.touch : MenuFlyoutDensity.compact);
@@ -1188,7 +1189,7 @@ class _MenuFlyoutItemWidgetState extends State<_MenuFlyoutItemWidget> {
       return Center(
         child: SizedBox.square(
           dimension: iconSize,
-          child: ShuffleIcon(size: iconSize, color: color),
+          child: Center(child: ShuffleIcon(size: iconSize * 0.8, color: color)),
         ),
       );
     }

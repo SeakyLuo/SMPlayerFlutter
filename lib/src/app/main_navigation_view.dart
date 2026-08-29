@@ -404,7 +404,10 @@ class _MainNavigationViewState extends State<MainNavigationView> {
     );
     final useMacOSTitlebarActions =
         widget.showTitlebar && defaultTargetPlatform == TargetPlatform.macOS;
-    final topPadding = widget.showTitlebar ? 8.0 : 0.0;
+    final topPadding =
+        widget.showTitlebar && defaultTargetPlatform != TargetPlatform.windows
+            ? 8.0
+            : 0.0;
 
     return Material(
       key: _rootKey,
@@ -449,10 +452,10 @@ class _MainNavigationViewState extends State<MainNavigationView> {
                           if (widget.showTitlebar) ...[
                             if (useMacOSTitlebarActions)
                               const SizedBox(height: 32)
-                            else
+                            else if (widget.canGoBack)
                               _MainNavigationViewTitle(
                                 collapsed: contentCollapsed,
-                                hideAppName: false,
+                                hideAppName: true,
                                 appName: resolvedAppName,
                                 titlebarLeadingInset: 0,
                                 canGoBack: widget.canGoBack,
@@ -466,8 +469,21 @@ class _MainNavigationViewState extends State<MainNavigationView> {
                                         ? _showFloatingTooltip
                                         : null,
                                 onTooltipDismissed: _hideFloatingTooltip,
+                              )
+                            else
+                              SizedBox(
+                                height:
+                                    SmPlayerShellMetrics.minimalTitlebarHeight,
+                                width: double.infinity,
+                                child: _WindowDragRegion(
+                                  onWindowDragStart: widget.onWindowDragStart,
+                                  onWindowDragEnd: widget.onWindowDragEnd,
+                                  onTap: widget.onTitlebarTap,
+                                  child: const SizedBox.expand(),
+                                ),
                               ),
-                            const SizedBox(height: 8),
+                            if (useMacOSTitlebarActions || widget.canGoBack)
+                              const SizedBox(height: 8),
                           ],
                           if (!useMacOSTitlebarActions) ...[
                             _NavigationIconButton(
