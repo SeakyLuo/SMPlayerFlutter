@@ -521,6 +521,10 @@ class _ImmersiveModeLyricsState extends ConsumerState<ImmersiveModeLyrics> {
                   children: [
                     LayoutBuilder(
                       builder: (context, stageConstraints) {
+                        final anchorOffset = _anchorOffset(
+                          stageConstraints.maxHeight,
+                        );
+                        final lineHalfHeight = _lyricMinHeight() / 2;
                         final lyricsScroll = MouseRegion(
                           cursor:
                               _dragging
@@ -583,9 +587,14 @@ class _ImmersiveModeLyricsState extends ConsumerState<ImmersiveModeLyrics> {
                                   controller: _scrollController,
                                   padding: EdgeInsets.fromLTRB(
                                     0,
-                                    stageConstraints.maxHeight / 2,
+                                    max(0, anchorOffset - lineHalfHeight),
                                     widget.compact ? 0 : 20,
-                                    widget.compact ? 0 : 32,
+                                    max(
+                                      widget.compact ? 0 : 32,
+                                      stageConstraints.maxHeight -
+                                          anchorOffset -
+                                          lineHalfHeight,
+                                    ),
                                   ),
                                   child: Column(
                                     children: [
@@ -707,7 +716,7 @@ class _ImmersiveModeLyricsState extends ConsumerState<ImmersiveModeLyrics> {
                 ),
               ),
             ),
-            if (previewLine != null)
+            if (previewLine != null && displayLines.length > 1)
               Positioned(
                 top: _anchorOffset(constraints.maxHeight),
                 right: seekButtonRight,

@@ -19,30 +19,34 @@ class _DialogField extends StatelessWidget {
       readOnly: readOnly,
       emphasizeReadOnly: true,
       childBuilder: (context, focusNode) {
-        return TextField(
-          focusNode: focusNode,
-          controller: controller,
-          readOnly: readOnly,
-          showCursor: !readOnly,
-          enableInteractiveSelection: true,
-          minLines: 1,
-          maxLines: 1,
-          cursorColor: colors.accentStrong,
-          style: TextStyle(
-            color: readOnly ? colors.fieldDisabledText : colors.text,
-            fontSize: 16,
-            height: 1.25,
-            fontWeight: FontWeight.w400,
-          ),
-          strutStyle: const StrutStyle(
-            fontSize: 16,
-            height: 1.25,
-            forceStrutHeight: true,
-          ),
-          decoration: _dialogFieldDecoration(
-            context,
+        return SizedBox(
+          height: 42,
+          child: TextField(
+            focusNode: focusNode,
+            controller: controller,
             readOnly: readOnly,
-            contentPadding: contentPadding,
+            showCursor: !readOnly,
+            enableInteractiveSelection: true,
+            minLines: 1,
+            maxLines: 1,
+            textAlignVertical: TextAlignVertical.center,
+            cursorColor: colors.accentStrong,
+            style: TextStyle(
+              color: readOnly ? colors.fieldDisabledText : colors.text,
+              fontSize: 16,
+              height: 1,
+              fontWeight: FontWeight.w400,
+            ),
+            strutStyle: const StrutStyle(
+              fontSize: 16,
+              height: 1,
+              forceStrutHeight: true,
+            ),
+            decoration: _dialogFieldDecoration(
+              context,
+              readOnly: readOnly,
+              contentPadding: contentPadding,
+            ),
           ),
         );
       },
@@ -269,7 +273,7 @@ class MusicDialogArtistFieldGrid extends StatelessWidget {
                   children: [
                     _DialogField(
                       controller: entry.$2,
-                      contentPadding: const EdgeInsets.fromLTRB(12, 11, 34, 11),
+                      contentPadding: const EdgeInsets.fromLTRB(12, 16, 34, 10),
                     ),
                     if (showActions && controllers.length > 1)
                       Positioned(
@@ -381,14 +385,12 @@ InputDecoration _dialogFieldDecoration(
   EdgeInsetsGeometry? contentPadding,
 }) {
   return InputDecoration(
-    isCollapsed: !multiline,
-    constraints:
-        multiline ? null : const BoxConstraints(minHeight: 42, maxHeight: 42),
+    isDense: !multiline,
     contentPadding:
         contentPadding ??
         (multiline
             ? const EdgeInsets.all(12)
-            : const EdgeInsets.symmetric(horizontal: 12, vertical: 11)),
+            : const EdgeInsets.fromLTRB(12, 16, 12, 10)),
     hintText: hintText,
     hintStyle: TextStyle(color: PopupDialogColors.resolve(context).textMuted),
     border: InputBorder.none,

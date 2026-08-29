@@ -1,10 +1,8 @@
-import 'dart:io';
-
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
-import 'package:smplayer_flutter/src/app/shell_models.dart';
 import 'package:smplayer_flutter/src/app/text_icon_button.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
+import 'package:smplayer_flutter/src/playback/immersive_mode_constants.dart';
 import 'package:smplayer_flutter/src/playback/immersive_mode_theme.dart';
 import 'package:smplayer_flutter/src/playback/immersive_mode_top_button_style.dart';
 
@@ -32,21 +30,14 @@ class ImmersiveModeAppBar extends StatelessWidget {
     final glassSettings = immersiveModeTopButtonGlassSettingsFor(
       immersiveColors,
     );
-    final desktopTitlebarInset =
-        Platform.isMacOS || Platform.isWindows
-            ? SmPlayerShellMetrics.minimalTitlebarHeight
-            : MediaQuery.viewPaddingOf(context).top;
-    final top =
-        desktopTitlebarInset +
-        (Platform.isMacOS || Platform.isWindows ? 30 : 18);
     return SizedBox(
       width: double.infinity,
-      height: top + 56,
+      height: immersiveModeAppBarHeight,
       child: Stack(
         children: [
           Positioned(
-            top: top,
-            left: 76,
+            top: immersiveModeTopButtonTopInset,
+            left: immersiveModeTopButtonEdgeInset,
             child: SmPlayerTextIconButtonTheme(
               colors: topButtonColors,
               child: SmPlayerTextIconButton(
@@ -65,8 +56,8 @@ class ImmersiveModeAppBar extends StatelessWidget {
             ),
           ),
           Positioned(
-            top: top,
-            right: 76,
+            top: immersiveModeTopButtonTopInset,
+            right: immersiveModeTopButtonEdgeInset,
             child: SmPlayerTextIconButtonTheme(
               colors: topButtonColors,
               child: SmPlayerTextIconButton(
