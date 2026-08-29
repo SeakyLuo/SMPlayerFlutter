@@ -7,7 +7,7 @@ import 'library_database_service.dart';
 import 'library_models.dart';
 
 const _activeState = 1;
-const _lyricsIndexReadBatchSize = 6;
+const _lyricsIndexReadBatchSize = 2;
 
 typedef LocalLyricsResolver = Future<LyricsSnapshot> Function(String songPath);
 

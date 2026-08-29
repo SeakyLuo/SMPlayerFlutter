@@ -452,10 +452,10 @@ class _MainNavigationViewState extends State<MainNavigationView> {
                           if (widget.showTitlebar) ...[
                             if (useMacOSTitlebarActions)
                               const SizedBox(height: 32)
-                            else if (widget.canGoBack)
+                            else
                               _MainNavigationViewTitle(
                                 collapsed: contentCollapsed,
-                                hideAppName: true,
+                                hideAppName: contentCollapsed,
                                 appName: resolvedAppName,
                                 titlebarLeadingInset: 0,
                                 canGoBack: widget.canGoBack,
@@ -469,20 +469,8 @@ class _MainNavigationViewState extends State<MainNavigationView> {
                                         ? _showFloatingTooltip
                                         : null,
                                 onTooltipDismissed: _hideFloatingTooltip,
-                              )
-                            else
-                              SizedBox(
-                                height:
-                                    SmPlayerShellMetrics.minimalTitlebarHeight,
-                                width: double.infinity,
-                                child: _WindowDragRegion(
-                                  onWindowDragStart: widget.onWindowDragStart,
-                                  onWindowDragEnd: widget.onWindowDragEnd,
-                                  onTap: widget.onTitlebarTap,
-                                  child: const SizedBox.expand(),
-                                ),
                               ),
-                            if (useMacOSTitlebarActions || widget.canGoBack)
+                            if (useMacOSTitlebarActions)
                               const SizedBox(height: 8),
                           ],
                           if (!useMacOSTitlebarActions) ...[

@@ -65,6 +65,31 @@ class _MainNavigationViewTitle extends StatelessWidget {
   final _NavigationTooltipRequest? onTooltipRequested;
   final VoidCallback onTooltipDismissed;
 
+  Widget _identityControl({required bool collapsedContext}) {
+    if (!canGoBack) {
+      return const _MainNavigationAppLogo();
+    }
+    return SizedBox(
+      width: SmPlayerShellMetrics.navigationButtonSize,
+      height: SmPlayerShellMetrics.minimalTitlebarHeight,
+      child: Center(
+        child: _NavigationIconButton(
+          key: const ValueKey('MainNavigationView.BackButton'),
+          icon: FluentIcons.arrow_left_24_regular,
+          tooltip: backLabel,
+          onPressed: onGoBack ?? () {},
+          collapsedContext: collapsedContext,
+          collapsedSize: SmPlayerShellMetrics.minimalTitlebarHeight,
+          size: SmPlayerShellMetrics.minimalTitlebarHeight,
+          iconSize: 18,
+          borderRadius: 8,
+          onTooltipRequested: collapsedContext ? onTooltipRequested : null,
+          onTooltipDismissed: onTooltipDismissed,
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final colors = MainNavigationViewColors.of(context);
@@ -72,7 +97,7 @@ class _MainNavigationViewTitle extends StatelessWidget {
       behavior: HitTestBehavior.translucent,
       onPointerDown: (_) => closeOpenMenuFlyouts(),
       child: SizedBox(
-        height: 40,
+        height: SmPlayerShellMetrics.minimalTitlebarHeight,
         width: double.infinity,
         child:
             collapsed
@@ -86,33 +111,15 @@ class _MainNavigationViewTitle extends StatelessWidget {
                       child: const SizedBox.expand(),
                     ),
                     if (canGoBack)
-                      Center(
-                        child: _NavigationIconButton(
-                          key: const ValueKey('MainNavigationView.BackButton'),
-                          icon: FluentIcons.arrow_left_24_regular,
-                          tooltip: backLabel,
-                          onPressed: onGoBack ?? () {},
-                          collapsedContext: true,
-                          onTooltipRequested: onTooltipRequested,
-                          onTooltipDismissed: onTooltipDismissed,
-                        ),
-                      ),
+                      Center(child: _identityControl(collapsedContext: true)),
                   ],
                 )
                 : Row(
                   children: [
                     if (titlebarLeadingInset > 0)
                       SizedBox(width: titlebarLeadingInset),
-                    if (canGoBack) ...[
-                      _NavigationIconButton(
-                        key: const ValueKey('MainNavigationView.BackButton'),
-                        icon: FluentIcons.arrow_left_24_regular,
-                        tooltip: backLabel,
-                        onPressed: onGoBack ?? () {},
-                        onTooltipDismissed: onTooltipDismissed,
-                      ),
-                      const SizedBox(width: 6),
-                    ],
+                    _identityControl(collapsedContext: false),
+                    const SizedBox(width: 6),
                     Expanded(
                       child: _WindowDragRegion(
                         onWindowDragStart: onWindowDragStart,
@@ -128,13 +135,33 @@ class _MainNavigationViewTitle extends StatelessWidget {
                                   style: TextStyle(
                                     color: colors.textStrong,
                                     fontSize: 14,
-                                    fontWeight: FontWeight.w600,
+                                    fontWeight: FontWeight.w500,
                                   ),
                                 ),
                       ),
                     ),
                   ],
                 ),
+      ),
+    );
+  }
+}
+
+class _MainNavigationAppLogo extends StatelessWidget {
+  const _MainNavigationAppLogo();
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: SmPlayerShellMetrics.navigationButtonSize,
+      height: SmPlayerShellMetrics.minimalTitlebarHeight,
+      child: Center(
+        child: Image.asset(
+          'assets/branding/app-icon.png',
+          width: 18,
+          height: 18,
+          filterQuality: FilterQuality.medium,
+        ),
       ),
     );
   }

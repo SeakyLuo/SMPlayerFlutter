@@ -228,6 +228,7 @@ class _NavigationIconButton extends StatefulWidget {
     required this.onPressed,
     this.collapsedContext = false,
     this.size = SmPlayerShellMetrics.navigationButtonSize,
+    this.collapsedSize,
     this.iconSize = SmPlayerShellMetrics.navigationIconSize,
     this.borderRadius = SmPlayerShellMetrics.navigationButtonRadius,
     this.useMutedForeground = false,
@@ -240,6 +241,7 @@ class _NavigationIconButton extends StatefulWidget {
   final VoidCallback onPressed;
   final bool collapsedContext;
   final double size;
+  final double? collapsedSize;
   final double iconSize;
   final double borderRadius;
   final bool useMutedForeground;
@@ -265,6 +267,7 @@ class _NavigationIconButtonState extends State<_NavigationIconButton> {
       collapsedHoverColor: colors.collapsedHover,
       collapsedContext: widget.collapsedContext,
       size: widget.size,
+      collapsedSize: widget.collapsedSize,
       iconSize: widget.iconSize,
       borderRadius: widget.borderRadius,
       useMutedForeground: widget.useMutedForeground,

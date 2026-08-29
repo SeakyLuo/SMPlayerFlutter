@@ -758,12 +758,15 @@ class _ImmersiveModeLyricsState extends ConsumerState<ImmersiveModeLyrics> {
                           key: const ValueKey('ImmersiveMode.LyricSeekIcon'),
                           size: seekButtonIconSize,
                         ),
-                        child: Text(
-                          formatImmersiveModeLyricSeekTimeValue(
-                            previewLine.seekSeconds,
-                          ),
-                          style: const TextStyle(
-                            fontFeatures: [FontFeature.tabularFigures()],
+                        child: Transform.translate(
+                          offset: const Offset(0, -1),
+                          child: Text(
+                            formatImmersiveModeLyricSeekTimeValue(
+                              previewLine.seekSeconds,
+                            ),
+                            style: const TextStyle(
+                              fontFeatures: [FontFeature.tabularFigures()],
+                            ),
                           ),
                         ),
                       ),
