@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:isolate';
 import 'dart:math' as math;
 import 'dart:typed_data';
 
@@ -66,8 +67,8 @@ class Id3TagService {
     return (await readSongMetadata(songPath)).properties;
   }
 
-  Future<String> readEmbeddedLyrics(String songPath) async {
-    return (await readSongMetadata(songPath)).embeddedLyrics;
+  Future<String> readEmbeddedLyrics(String songPath) {
+    return Isolate.run(() => _readEmbeddedLyricsInBackground(songPath));
   }
 
   Future<Id3Picture?> readFirstPicture(String songPath) async {
@@ -221,7 +222,46 @@ class Id3TagService {
     );
   }
 
-  Future<void> writeEmbeddedLyrics(String songPath, String rawLyrics) async {
+  Future<String> _readEmbeddedLyricsDirect(String songPath) async {
+    final extension = p.extension(songPath).toLowerCase();
+    if (extension == '.m4a' ||
+        extension == '.mp4' ||
+        extension == '.aac' ||
+        extension == '.alac' ||
+        extension == '.wav') {
+      return '';
+    }
+    if (extension != '.mp3') {
+      return (await readSongMetadata(songPath)).embeddedLyrics;
+    }
+
+    final file = await File(songPath).open();
+    try {
+      final header = await file.read(10);
+      if (header.length < 10 || ascii.decode(header.sublist(0, 3)) != 'ID3') {
+        return '';
+      }
+      final tagBody = await file.read(_readSynchsafeSize(header, 6));
+      final tagBytes =
+          Uint8List(header.length + tagBody.length)
+            ..setRange(0, header.length, header)
+            ..setRange(header.length, header.length + tagBody.length, tagBody);
+      return _embeddedLyricsFromId3Tag(_readId3Tag(tagBytes));
+    } finally {
+      await file.close();
+    }
+  }
+
+  Future<void> writeEmbeddedLyrics(String songPath, String rawLyrics) {
+    return Isolate.run(
+      () => _writeEmbeddedLyricsInBackground(songPath, rawLyrics),
+    );
+  }
+
+  Future<void> _writeEmbeddedLyricsDirect(
+    String songPath,
+    String rawLyrics,
+  ) async {
     if (p.extension(songPath).toLowerCase() != '.mp3') {
       return;
     }
@@ -295,4 +335,15 @@ class Id3TagService {
       audioBytes,
     );
   }
+}
+
+Future<String> _readEmbeddedLyricsInBackground(String songPath) {
+  return const Id3TagService()._readEmbeddedLyricsDirect(songPath);
+}
+
+Future<void> _writeEmbeddedLyricsInBackground(
+  String songPath,
+  String rawLyrics,
+) {
+  return const Id3TagService()._writeEmbeddedLyricsDirect(songPath, rawLyrics);
 }
