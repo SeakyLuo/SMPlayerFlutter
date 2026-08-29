@@ -52,7 +52,13 @@ END
 
 // Icon with lowest ID value placed first to ensure application icon
 // remains consistent on all systems.
-IDI_APP_ICON            ICON                    "resources\\app_icon.ico"
+IDI_APP_ICON            ICON                    "..\\..\\assets\\branding\\app-icon.ico"
+
+STRINGTABLE
+BEGIN
+    IDS_APP_TITLE                    "Simple Melody Player"
+    IDS_AUDIO_FILE_DESCRIPTION       "Simple Melody Player audio file"
+END
 
 
 /////////////////////////////////////////////////////////////////////////////
@@ -98,14 +104,68 @@ BEGIN
             VALUE "ProductName", "Simple Melody Player" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"
         END
+        BLOCK "080404b0"
+        BEGIN
+            VALUE "CompanyName", "com.seaky" "\0"
+            VALUE "FileDescription", "简音播放器" "\0"
+            VALUE "FileVersion", VERSION_AS_STRING "\0"
+            VALUE "InternalName", "简音播放器" "\0"
+            VALUE "LegalCopyright", "Copyright (C) 2026 com.seaky. All rights reserved." "\0"
+            VALUE "OriginalFilename", "SimpleMelodyPlayer.exe" "\0"
+            VALUE "ProductName", "简音播放器" "\0"
+            VALUE "ProductVersion", VERSION_AS_STRING "\0"
+        END
+        BLOCK "040404b0"
+        BEGIN
+            VALUE "CompanyName", "com.seaky" "\0"
+            VALUE "FileDescription", "簡音播放器" "\0"
+            VALUE "FileVersion", VERSION_AS_STRING "\0"
+            VALUE "InternalName", "簡音播放器" "\0"
+            VALUE "LegalCopyright", "Copyright (C) 2026 com.seaky. All rights reserved." "\0"
+            VALUE "OriginalFilename", "SimpleMelodyPlayer.exe" "\0"
+            VALUE "ProductName", "簡音播放器" "\0"
+            VALUE "ProductVersion", VERSION_AS_STRING "\0"
+        END
     END
     BLOCK "VarFileInfo"
     BEGIN
-        VALUE "Translation", 0x409, 1252
+        VALUE "Translation", 0x409, 1252, 0x804, 1200, 0x404, 1200
     END
 END
 
 #endif    // English (United States) resources
+/////////////////////////////////////////////////////////////////////////////
+
+
+/////////////////////////////////////////////////////////////////////////////
+// Chinese (Simplified) resources
+
+#if !defined(AFX_RESOURCE_DLL) || defined(AFX_TARG_CHS)
+LANGUAGE LANG_CHINESE, SUBLANG_CHINESE_SIMPLIFIED
+
+STRINGTABLE
+BEGIN
+    IDS_APP_TITLE                    "简音播放器"
+    IDS_AUDIO_FILE_DESCRIPTION       "简音播放器音频文件"
+END
+
+#endif    // Chinese (Simplified) resources
+/////////////////////////////////////////////////////////////////////////////
+
+
+/////////////////////////////////////////////////////////////////////////////
+// Chinese (Traditional) resources
+
+#if !defined(AFX_RESOURCE_DLL) || defined(AFX_TARG_CHT)
+LANGUAGE LANG_CHINESE, SUBLANG_CHINESE_TRADITIONAL
+
+STRINGTABLE
+BEGIN
+    IDS_APP_TITLE                    "簡音播放器"
+    IDS_AUDIO_FILE_DESCRIPTION       "簡音播放器音訊檔案"
+END
+
+#endif    // Chinese (Traditional) resources
 /////////////////////////////////////////////////////////////////////////////
 
 

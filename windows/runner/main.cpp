@@ -1,14 +1,18 @@
 #include <flutter/dart_project.h>
 #include <flutter/flutter_view_controller.h>
+#include <propkey.h>
+#include <propvarutil.h>
 #include <shlobj.h>
 #include <shobjidl.h>
 #include <windows.h>
+#include <wrl/client.h>
 
 #include <array>
 #include <cwchar>
 #include <string>
 
 #include "flutter_window.h"
+#include "resource.h"
 #include "utils.h"
 
 namespace {
@@ -69,19 +73,124 @@ std::wstring CurrentExecutablePath() {
   return buffer;
 }
 
+std::wstring LocalizedResourceString(UINT resource_id) {
+  wchar_t* value = nullptr;
+  const int length = ::LoadStringW(::GetModuleHandleW(nullptr), resource_id,
+                                   reinterpret_cast<wchar_t*>(&value), 0);
+  return std::wstring(value, length);
+}
+
+std::wstring IndirectResource(const std::wstring& executable_path,
+                              int resource_id) {
+  return L"@" + executable_path + L",-" +
+         std::to_wstring(resource_id);
+}
+
+std::wstring IconResource(const std::wstring& executable_path,
+                          int resource_id) {
+  return executable_path + L",-" + std::to_wstring(resource_id);
+}
+
+HRESULT SetPropertyStoreString(IPropertyStore* property_store,
+                               REFPROPERTYKEY key,
+                               const std::wstring& value) {
+  PROPVARIANT property_value;
+  HRESULT result = ::InitPropVariantFromString(value.c_str(), &property_value);
+  if (FAILED(result)) {
+    return result;
+  }
+  result = property_store->SetValue(key, property_value);
+  ::PropVariantClear(&property_value);
+  return result;
+}
+
+void RegisterWindowsStartMenuShortcut(const std::wstring& executable_path) {
+  PWSTR programs_directory = nullptr;
+  if (FAILED(::SHGetKnownFolderPath(FOLDERID_Programs, KF_FLAG_CREATE, nullptr,
+                                    &programs_directory))) {
+    return;
+  }
+
+  const std::wstring programs_path(programs_directory);
+  ::CoTaskMemFree(programs_directory);
+  const std::wstring app_title = LocalizedResourceString(IDS_APP_TITLE);
+  const std::wstring shortcut_path = programs_path + L"\\" + app_title + L".lnk";
+
+  Microsoft::WRL::ComPtr<IShellLinkW> shell_link;
+  if (FAILED(::CoCreateInstance(CLSID_ShellLink, nullptr,
+                                CLSCTX_INPROC_SERVER,
+                                IID_PPV_ARGS(&shell_link)))) {
+    return;
+  }
+  shell_link->SetPath(executable_path.c_str());
+  shell_link->SetIconLocation(executable_path.c_str(), 0);
+  shell_link->SetDescription(app_title.c_str());
+
+  Microsoft::WRL::ComPtr<IPropertyStore> property_store;
+  if (SUCCEEDED(shell_link.As(&property_store))) {
+    SetPropertyStoreString(property_store.Get(), PKEY_AppUserModel_ID,
+                           kWindowsAppUserModelId);
+    property_store->Commit();
+  }
+
+  Microsoft::WRL::ComPtr<IPersistFile> persist_file;
+  if (SUCCEEDED(shell_link.As(&persist_file)) &&
+      SUCCEEDED(persist_file->Save(shortcut_path.c_str(), TRUE))) {
+    for (const wchar_t* shortcut_name : {
+             L"Simple Melody Player.lnk",
+             L"\u7B80\u97F3\u64AD\u653E\u5668.lnk",
+             L"\u7C21\u97F3\u64AD\u653E\u5668.lnk",
+         }) {
+      const std::wstring stale_shortcut_path =
+          programs_path + L"\\" + shortcut_name;
+      if (stale_shortcut_path != shortcut_path) {
+        ::DeleteFileW(stale_shortcut_path.c_str());
+      }
+    }
+    ::SHChangeNotify(SHCNE_UPDATEITEM, SHCNF_PATHW, shortcut_path.c_str(),
+                     nullptr);
+  }
+}
+
+void ApplyWindowsWindowIdentity(HWND window,
+                                const std::wstring& executable_path) {
+  Microsoft::WRL::ComPtr<IPropertyStore> property_store;
+  if (FAILED(::SHGetPropertyStoreForWindow(window,
+                                           IID_PPV_ARGS(&property_store)))) {
+    return;
+  }
+  SetPropertyStoreString(property_store.Get(), PKEY_AppUserModel_ID,
+                         kWindowsAppUserModelId);
+  SetPropertyStoreString(property_store.Get(),
+                         PKEY_AppUserModel_RelaunchCommand,
+                         QuoteWindowsArgument(executable_path));
+  SetPropertyStoreString(
+      property_store.Get(), PKEY_AppUserModel_RelaunchDisplayNameResource,
+      IndirectResource(executable_path, IDS_APP_TITLE));
+  SetPropertyStoreString(
+      property_store.Get(), PKEY_AppUserModel_RelaunchIconResource,
+      IconResource(executable_path, IDI_APP_ICON));
+  property_store->Commit();
+}
+
 void RegisterWindowsShellIntegrations() {
   const std::wstring executable_path = CurrentExecutablePath();
   if (executable_path.empty()) {
     return;
   }
 
+  RegisterWindowsStartMenuShortcut(executable_path);
+  const std::wstring app_title = LocalizedResourceString(IDS_APP_TITLE);
+  const std::wstring audio_file_description =
+      LocalizedResourceString(IDS_AUDIO_FILE_DESCRIPTION);
+
   HKEY app_key = nullptr;
   if (::RegCreateKeyExW(HKEY_CURRENT_USER,
                         L"Software\\Classes\\Applications\\smplayer_flutter.exe",
                         0, nullptr, 0, KEY_WRITE, nullptr, &app_key,
                         nullptr) == ERROR_SUCCESS) {
-    SetRegistryStringValue(app_key, nullptr, L"Simple Melody Player");
-    SetRegistryStringValue(app_key, L"FriendlyAppName", L"Simple Melody Player");
+    SetRegistryStringValue(app_key, nullptr, app_title);
+    SetRegistryStringValue(app_key, L"FriendlyAppName", app_title);
     HKEY app_command_key = nullptr;
     if (::RegCreateKeyExW(app_key, L"shell\\open\\command", 0, nullptr, 0,
                           KEY_WRITE, nullptr, &app_command_key,
@@ -101,9 +210,9 @@ void RegisterWindowsShellIntegrations() {
           0, nullptr, 0, KEY_WRITE, nullptr, &capabilities_key,
           nullptr) == ERROR_SUCCESS) {
     SetRegistryStringValue(capabilities_key, L"ApplicationName",
-                           L"Simple Melody Player");
+                           app_title);
     SetRegistryStringValue(capabilities_key, L"ApplicationDescription",
-                           L"Simple Melody Player audio file");
+                           audio_file_description);
     HKEY associations_key = nullptr;
     if (::RegCreateKeyExW(capabilities_key, L"FileAssociations", 0, nullptr, 0,
                           KEY_WRITE, nullptr, &associations_key,
@@ -133,9 +242,9 @@ void RegisterWindowsShellIntegrations() {
                         nullptr, 0, KEY_WRITE, nullptr, &audio_prog_id_key,
                         nullptr) == ERROR_SUCCESS) {
     SetRegistryStringValue(audio_prog_id_key, nullptr,
-                           L"Simple Melody Player audio file");
+                           audio_file_description);
     SetRegistryStringValue(audio_prog_id_key, L"FriendlyTypeName",
-                           L"Simple Melody Player audio file");
+                           audio_file_description);
     HKEY icon_key = nullptr;
     if (::RegCreateKeyExW(audio_prog_id_key, L"DefaultIcon", 0, nullptr, 0,
                           KEY_WRITE, nullptr, &icon_key,
@@ -268,9 +377,10 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
   FlutterWindow window(project);
   Win32Window::Point origin(10, 10);
   Win32Window::Size size(1280, 720);
-  if (!window.Create(L"Simple Melody Player", origin, size)) {
+  if (!window.Create(LocalizedResourceString(IDS_APP_TITLE), origin, size)) {
     return EXIT_FAILURE;
   }
+  ApplyWindowsWindowIdentity(window.GetHandle(), CurrentExecutablePath());
   window.SetQuitOnClose(true);
 
   ::MSG msg;

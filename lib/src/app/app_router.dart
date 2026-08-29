@@ -27,8 +27,6 @@ import 'package:smplayer_flutter/src/library/ui/music_library_page.dart';
 import 'package:smplayer_flutter/src/library/ui/my_favorites_page.dart';
 import 'package:smplayer_flutter/src/library/ui/playlists_page.dart';
 import 'package:smplayer_flutter/src/library/ui/search_page.dart';
-import 'package:smplayer_flutter/src/playback/immersive_mode_page.dart';
-import 'package:smplayer_flutter/src/playback/immersive_mode_route.dart';
 import 'package:smplayer_flutter/src/playback/now_playing_page.dart';
 import 'package:smplayer_flutter/src/platform/desktop_feature_service.dart';
 import 'package:smplayer_flutter/src/platform/external_open_model.dart';
@@ -175,15 +173,6 @@ GoRouter createSmPlayerRouter({
                       child: NowPlayingPage(
                         searchQuery: state.uri.queryParameters['search'] ?? '',
                       ),
-                    ),
-              ),
-              GoRoute(
-                path: '/immersive-mode',
-                pageBuilder:
-                    (context, state) => _smPlayerBranchPage(
-                      state: state,
-                      settingsController: settingsController,
-                      child: const ImmersiveModePage(),
                     ),
               ),
             ],
@@ -456,8 +445,7 @@ class _SmPlayerRouteShell extends ConsumerWidget {
         isPlaylistDetailRoute ||
         isAlbumDetailRoute ||
         isCompactArtistDetailRoute ||
-        isHiddenFoldersRoute ||
-        path == '/immersive-mode';
+        isHiddenFoldersRoute;
     final repository = ref.read(libraryRepositoryProvider);
 
     return SmPlayerShellPage(
@@ -521,10 +509,6 @@ class _SmPlayerRouteShell extends ConsumerWidget {
 
         if (isHiddenFoldersRoute) {
           context.go('/local');
-          return;
-        }
-
-        if (path == immersiveModeRoutePath) {
           return;
         }
       },
