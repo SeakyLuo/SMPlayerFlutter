@@ -350,7 +350,7 @@
   "local.scopeCurrent": "Current folder",
   "local.scopeSubtree": "Include subfolders",
   "local.searchHelp": "Try a broader keyword.",
-  "local.searchDirectory": "Search Folder",
+  "local.searchDirectory": "Search in Folder",
   "local.searchDirectoryPrompt": "Search under \"{name}\"",
   "local.searchFolderButtonTooltip": "Search in folder",
   "local.searchScope": "Search Scope",

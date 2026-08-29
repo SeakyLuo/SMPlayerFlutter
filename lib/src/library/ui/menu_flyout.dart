@@ -100,6 +100,8 @@ enum MenuFlyoutAnchorPlacement { below, above }
 
 enum MenuFlyoutDensity { compact, touch }
 
+enum MenuFlyoutAnchorAlignment { start, end }
+
 final _openMenuFlyoutClosers = <VoidCallback>{};
 
 void closeOpenMenuFlyouts() {
@@ -118,6 +120,7 @@ Future<void> showMenuFlyout(
   ValueListenable<List<MenuFlyoutItem>>? itemsListenable,
   Offset? position,
   MenuFlyoutAnchorPlacement anchorPlacement = MenuFlyoutAnchorPlacement.below,
+  MenuFlyoutAnchorAlignment anchorAlignment = MenuFlyoutAnchorAlignment.start,
   bool avoidPlayerBar = true,
   bool scrollRoot = false,
   MenuFlyoutLayer layer = MenuFlyoutLayer.defaultLayer,
@@ -181,6 +184,7 @@ Future<void> showMenuFlyout(
             requestedPosition: resolvedPosition,
             hasExplicitPosition: hasExplicitPosition,
             anchorPlacement: anchorPlacement,
+            anchorAlignment: anchorAlignment,
             avoidPlayerBar: avoidPlayerBar,
             scrollRoot: scrollRoot,
             metrics: _MenuFlyoutMetrics.forDensity(resolvedDensity),
@@ -283,6 +287,7 @@ class _MenuFlyoutOverlay extends StatefulWidget {
     required this.requestedPosition,
     required this.hasExplicitPosition,
     required this.anchorPlacement,
+    required this.anchorAlignment,
     required this.avoidPlayerBar,
     required this.scrollRoot,
     required this.metrics,
@@ -296,6 +301,7 @@ class _MenuFlyoutOverlay extends StatefulWidget {
   final Offset requestedPosition;
   final bool hasExplicitPosition;
   final MenuFlyoutAnchorPlacement anchorPlacement;
+  final MenuFlyoutAnchorAlignment anchorAlignment;
   final bool avoidPlayerBar;
   final bool scrollRoot;
   final _MenuFlyoutMetrics metrics;
@@ -479,53 +485,45 @@ class _MenuFlyoutOverlayState extends State<_MenuFlyoutOverlay>
   ) {
     return [
       for (var index = 0; index < _panels.length; index++)
-        _panels[index]
-            .copyWith(
-              position:
-                  index == 0
-                      ? _resolvedRequestedPosition()
-                      : _panels[index].position,
-            )
-            .resolve(
-              size: size,
-              boundaryBottom: boundaryBottom,
-              width: _menuFlyoutPanelWidth(
+        () {
+          final panel = _panels[index];
+          final width =
+              _menuFlyoutPanelWidth(
                 context,
-                _panels[index].items,
+                panel.items,
                 widget.metrics,
-              ).clamp(0, size.width - _menuFlyoutMargin * 2),
-              maxWidth: widget.metrics.maxWidth,
-              metrics: widget.metrics,
-            ),
+              ).clamp(0, size.width - _menuFlyoutMargin * 2).toDouble();
+          final anchorPosition =
+              index == 0 ? _resolvedRequestedPosition() : panel.position;
+          final position =
+              index == 0 &&
+                      widget.anchorAlignment == MenuFlyoutAnchorAlignment.end
+                  ? Offset(anchorPosition.dx - width, anchorPosition.dy)
+                  : anchorPosition;
+          return panel
+              .copyWith(position: position)
+              .resolve(
+                size: size,
+                boundaryBottom: boundaryBottom,
+                width: width,
+                maxWidth: widget.metrics.maxWidth,
+                metrics: widget.metrics,
+              );
+        }(),
     ];
   }
 
   Offset _resolvedRequestedPosition() {
     if (widget.hasExplicitPosition) {
       if (!widget.anchorContext.mounted) {
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted) {
-            widget.onClose();
-          }
-        });
         return widget.requestedPosition;
       }
       final renderObject = widget.anchorContext.findRenderObject();
       if (renderObject is! RenderBox || !renderObject.attached) {
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted) {
-            widget.onClose();
-          }
-        });
         return widget.requestedPosition;
       }
       final positionObject = widget.positionContext.findRenderObject();
       if (positionObject is! RenderBox || !positionObject.attached) {
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted) {
-            widget.onClose();
-          }
-        });
         return widget.requestedPosition;
       }
       final anchorTop =
@@ -568,11 +566,15 @@ class _MenuFlyoutOverlayState extends State<_MenuFlyoutOverlay>
     }
     final anchorOffset = switch (widget.anchorPlacement) {
       MenuFlyoutAnchorPlacement.below => Offset(
-        0,
+        widget.anchorAlignment == MenuFlyoutAnchorAlignment.end
+            ? renderObject.size.width
+            : 0,
         renderObject.size.height + 4,
       ),
       MenuFlyoutAnchorPlacement.above => Offset(
-        0,
+        widget.anchorAlignment == MenuFlyoutAnchorAlignment.end
+            ? renderObject.size.width
+            : 0,
         -_menuFlyoutItemsHeight(_panels.first.items, widget.metrics) - 8,
       ),
     };

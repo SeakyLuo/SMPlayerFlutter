@@ -2,6 +2,7 @@ import 'dart:ui' show ImageFilter;
 
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
+import 'package:smplayer_flutter/src/app/clipped_rounded_surface.dart';
 
 import '../../i18n/app_i18n.dart';
 import '../data/library_models.dart';
@@ -53,7 +54,13 @@ class _ScanProgressOverlayState extends State<ScanProgressOverlay> {
     final i18n = context.smPlayerI18n;
     final colors = LocalPageColors.of(context);
     final nightMode = Theme.of(context).brightness == Brightness.dark;
-    final value = (progress.current / progress.total).clamp(0, 1).toDouble();
+    final stageValue =
+        (progress.current / progress.total).clamp(0, 1).toDouble();
+    final value = switch (progress.stage) {
+      LocalFolderRefreshStage.checking => stageValue * 0.90,
+      LocalFolderRefreshStage.reading => 0.90 + stageValue * 0.08,
+      LocalFolderRefreshStage.updating => 0.98 + stageValue * 0.02,
+    };
     final percent = (value * 100).round();
     final stageText = switch (progress.stage) {
       LocalFolderRefreshStage.checking => i18n.t(
@@ -400,15 +407,12 @@ class _LocalRefreshStats extends StatelessWidget {
     final i18n = context.smPlayerI18n;
     final colors = LocalPageColors.of(context);
     final nightMode = Theme.of(context).brightness == Brightness.dark;
-    return Container(
-      decoration: BoxDecoration(
-        color: nightMode ? const Color(0x12ffffff) : const Color(0x94ffffff),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(
-          color: nightMode ? const Color(0x24d6e0ec) : const Color(0xb3ccd5e0),
-        ),
+    return SmPlayerClippedRoundedSurface(
+      color: nightMode ? const Color(0x12ffffff) : const Color(0x94ffffff),
+      radius: 8,
+      borderSide: BorderSide(
+        color: nightMode ? const Color(0x24d6e0ec) : const Color(0xb3ccd5e0),
       ),
-      clipBehavior: Clip.antiAlias,
       child: Row(
         children: [
           _LocalRefreshStat(

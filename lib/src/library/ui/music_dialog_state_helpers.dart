@@ -6,13 +6,6 @@ extension _MusicDialogStateHelpers on _MusicDialogState {
           .read(internetLyricsCandidateSearchProvider(_dialogSessionKey))
           .isLoading;
 
-  void _disposeDialogSession(MusicDialogSessionKey key) {
-    ref.invalidate(musicDialogPropertiesStateProvider(key));
-    ref.invalidate(musicDialogLyricsStateProvider(key));
-    ref.invalidate(musicDialogArtworkStateProvider(key));
-    ref.invalidate(internetLyricsCandidateSearchProvider(key));
-  }
-
   List<String> _normalizeArtists(List<String> values) {
     final seen = <String>{};
     final artists = <String>[];

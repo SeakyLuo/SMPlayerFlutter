@@ -2,6 +2,8 @@ import 'dart:io';
 
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
+import 'package:smplayer_flutter/src/app/clipped_rounded_surface.dart';
+import 'package:smplayer_flutter/src/app/smplayer_auto_hide_scrollbar.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/data/library_repository.dart';
 import 'package:smplayer_flutter/src/library/ui/popup_dialog.dart';
@@ -47,7 +49,6 @@ class _LyricsBatchDetailsDialogState extends State<LyricsBatchDetailsDialog> {
   @override
   Widget build(BuildContext context) {
     final i18n = context.smPlayerI18n;
-    final colors = PopupDialogColors.resolve(context);
     final groups =
         _lyricsBatchDetailResultOrder
             .map(
@@ -88,7 +89,6 @@ class _LyricsBatchDetailsDialogState extends State<LyricsBatchDetailsDialog> {
         builder: (context, constraints) {
           final mobile = constraints.maxWidth <= popupDialogMobileBreakpoint;
           final scrollbarGutter = mobile ? 16.0 : 28.0;
-          const scrollbarThickness = 8.0;
           return Padding(
             key: const ValueKey('lyrics-detail-dialog-content'),
             padding:
@@ -99,14 +99,9 @@ class _LyricsBatchDetailsDialogState extends State<LyricsBatchDetailsDialog> {
               behavior: ScrollConfiguration.of(
                 context,
               ).copyWith(scrollbars: false),
-              child: RawScrollbar(
+              child: SmPlayerAutoHideScrollbar(
                 controller: _scrollController,
-                thumbVisibility: true,
-                interactive: true,
-                thickness: scrollbarThickness,
-                radius: const Radius.circular(4),
-                thumbColor: colors.textMuted.withValues(alpha: 0.78),
-                crossAxisMargin: (scrollbarGutter - scrollbarThickness) / 2,
+                crossAxisMargin: (scrollbarGutter - 7) / 2,
                 child: Padding(
                   padding: EdgeInsets.only(right: scrollbarGutter),
                   child: ListView.separated(
@@ -220,31 +215,25 @@ class _LyricsBatchDetailGroup extends StatelessWidget {
         ),
         if (!collapsed) const SizedBox(height: 8),
         if (!collapsed)
-          ClipRRect(
-            borderRadius: BorderRadius.circular(14),
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                color: detailColors.listSurface,
-                border: Border.all(color: detailColors.listBorder),
-              ),
-              child: Column(
-                children: [
-                  for (var index = 0; index < details.length; index++) ...[
-                    _LyricsBatchDetailTile(
-                      detail: details[index],
-                      expanded:
-                          selectedDetailId ==
-                          _lyricsBatchDetailId(result, index),
-                      onToggle:
-                          () => onToggleDetail(
-                            _lyricsBatchDetailId(result, index),
-                          ),
-                    ),
-                    if (index != details.length - 1)
-                      Divider(height: 1, color: detailColors.rowBorder),
-                  ],
+          SmPlayerClippedRoundedSurface(
+            color: detailColors.listSurface,
+            radius: 14,
+            borderSide: BorderSide(color: detailColors.listBorder),
+            child: Column(
+              children: [
+                for (var index = 0; index < details.length; index++) ...[
+                  _LyricsBatchDetailTile(
+                    detail: details[index],
+                    expanded:
+                        selectedDetailId == _lyricsBatchDetailId(result, index),
+                    onToggle:
+                        () =>
+                            onToggleDetail(_lyricsBatchDetailId(result, index)),
+                  ),
+                  if (index != details.length - 1)
+                    Divider(height: 1, color: detailColors.rowBorder),
                 ],
-              ),
+              ],
             ),
           ),
       ],

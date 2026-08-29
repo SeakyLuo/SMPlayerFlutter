@@ -47,122 +47,115 @@ class Id3Picture {
   final String format;
 }
 
+class Id3SongMetadata {
+  const Id3SongMetadata({
+    this.properties = const Id3SongTagProperties(),
+    this.embeddedLyrics = '',
+    this.picture,
+  });
+
+  final Id3SongTagProperties properties;
+  final String embeddedLyrics;
+  final Id3Picture? picture;
+}
+
 class Id3TagService {
   const Id3TagService();
 
   Future<Id3SongTagProperties> readSongTagProperties(String songPath) async {
-    final extension = p.extension(songPath).toLowerCase();
-    if (extension == '.flac') {
-      final metadata = _readFlacMetadata(await File(songPath).readAsBytes());
-      return _propertiesFromVorbisComments(metadata.comments);
-    }
-    if (extension == '.ogg' || extension == '.oga' || extension == '.opus') {
-      final comments = _readOggComments(await File(songPath).readAsBytes());
-      return _propertiesFromVorbisComments(comments);
-    }
-    if (extension == '.m4a' ||
-        extension == '.mp4' ||
-        extension == '.aac' ||
-        extension == '.alac') {
-      final atoms = _readMp4Metadata(await File(songPath).readAsBytes());
-      return _propertiesFromMp4Atoms(atoms);
-    }
-    if (extension == '.wav') {
-      final metadata = _readWavMetadata(await File(songPath).readAsBytes());
-      return _propertiesFromWavInfo(metadata.info);
-    }
-    if (extension == '.aiff' || extension == '.aif') {
-      final metadata = _readAiffMetadata(await File(songPath).readAsBytes());
-      return _propertiesFromId3Tag(metadata.tag);
-    }
-    if (extension == '.ape') {
-      final metadata = _readApeMetadata(await File(songPath).readAsBytes());
-      return _propertiesFromApeValues(metadata.values);
-    }
-    if (extension == '.wma') {
-      final metadata = _readAsfMetadata(await File(songPath).readAsBytes());
-      return _propertiesFromAsfMetadata(metadata);
-    }
-    if (extension != '.mp3') {
-      return const Id3SongTagProperties();
-    }
-
-    final tag = _readId3Tag(await File(songPath).readAsBytes());
-    return _propertiesFromId3Tag(tag);
+    return (await readSongMetadata(songPath)).properties;
   }
 
   Future<String> readEmbeddedLyrics(String songPath) async {
-    final extension = p.extension(songPath).toLowerCase();
-    if (extension == '.flac') {
-      final metadata = _readFlacMetadata(await File(songPath).readAsBytes());
-      return _firstCommentValue(metadata.comments, [
-        'UNSYNCEDLYRICS',
-        'LYRICS',
-      ]).trim();
-    }
-    if (extension == '.ogg' || extension == '.oga' || extension == '.opus') {
-      final comments = _readOggComments(await File(songPath).readAsBytes());
-      return _firstCommentValue(comments, ['UNSYNCEDLYRICS', 'LYRICS']).trim();
-    }
-    if (extension == '.aiff' || extension == '.aif') {
-      final metadata = _readAiffMetadata(await File(songPath).readAsBytes());
-      return _embeddedLyricsFromId3Tag(metadata.tag);
-    }
-    if (extension == '.ape') {
-      final metadata = _readApeMetadata(await File(songPath).readAsBytes());
-      return _firstApeValue(metadata.values, [
-        'LYRICS',
-        'UNSYNCEDLYRICS',
-        'UNSYNCED LYRICS',
-      ]).trim();
-    }
-    if (extension == '.wma') {
-      final metadata = _readAsfMetadata(await File(songPath).readAsBytes());
-      return _firstAsfValue(metadata.values, ['WM/LYRICS', 'LYRICS']).trim();
-    }
-    if (extension != '.mp3') {
-      return '';
-    }
-
-    final tag = _readId3Tag(await File(songPath).readAsBytes());
-    return _embeddedLyricsFromId3Tag(tag);
+    return (await readSongMetadata(songPath)).embeddedLyrics;
   }
 
   Future<Id3Picture?> readFirstPicture(String songPath) async {
+    return (await readSongMetadata(songPath)).picture;
+  }
+
+  Future<Id3SongMetadata> readSongMetadata(String songPath) async {
+    final bytes = await File(songPath).readAsBytes();
+    return readSongMetadataBytes(songPath, bytes);
+  }
+
+  Id3SongMetadata readSongMetadataBytes(String songPath, Uint8List bytes) {
     final extension = p.extension(songPath).toLowerCase();
     if (extension == '.flac') {
-      final metadata = _readFlacMetadata(await File(songPath).readAsBytes());
-      return metadata.picture;
+      final metadata = _readFlacMetadata(bytes);
+      return Id3SongMetadata(
+        properties: _propertiesFromVorbisComments(metadata.comments),
+        embeddedLyrics:
+            _firstCommentValue(metadata.comments, [
+              'UNSYNCEDLYRICS',
+              'LYRICS',
+            ]).trim(),
+        picture: metadata.picture,
+      );
     }
     if (extension == '.ogg' || extension == '.oga' || extension == '.opus') {
-      final comments = _readOggComments(await File(songPath).readAsBytes());
-      return _pictureFromVorbisComments(comments);
+      final comments = _readOggComments(bytes);
+      return Id3SongMetadata(
+        properties: _propertiesFromVorbisComments(comments),
+        embeddedLyrics:
+            _firstCommentValue(comments, ['UNSYNCEDLYRICS', 'LYRICS']).trim(),
+        picture: _pictureFromVorbisComments(comments),
+      );
     }
     if (extension == '.m4a' ||
         extension == '.mp4' ||
         extension == '.aac' ||
         extension == '.alac') {
-      final atoms = _readMp4Metadata(await File(songPath).readAsBytes());
-      return atoms.picture;
+      final metadata = _readMp4Metadata(bytes);
+      return Id3SongMetadata(
+        properties: _propertiesFromMp4Atoms(metadata),
+        picture: metadata.picture,
+      );
+    }
+    if (extension == '.wav') {
+      final metadata = _readWavMetadata(bytes);
+      return Id3SongMetadata(properties: _propertiesFromWavInfo(metadata.info));
     }
     if (extension == '.aiff' || extension == '.aif') {
-      final metadata = _readAiffMetadata(await File(songPath).readAsBytes());
-      return _pictureFromId3Tag(metadata.tag);
+      final metadata = _readAiffMetadata(bytes);
+      return Id3SongMetadata(
+        properties: _propertiesFromId3Tag(metadata.tag),
+        embeddedLyrics: _embeddedLyricsFromId3Tag(metadata.tag),
+        picture: _pictureFromId3Tag(metadata.tag),
+      );
     }
     if (extension == '.ape') {
-      final metadata = _readApeMetadata(await File(songPath).readAsBytes());
-      return metadata.picture;
+      final metadata = _readApeMetadata(bytes);
+      return Id3SongMetadata(
+        properties: _propertiesFromApeValues(metadata.values),
+        embeddedLyrics:
+            _firstApeValue(metadata.values, [
+              'LYRICS',
+              'UNSYNCEDLYRICS',
+              'UNSYNCED LYRICS',
+            ]).trim(),
+        picture: metadata.picture,
+      );
     }
     if (extension == '.wma') {
-      final metadata = _readAsfMetadata(await File(songPath).readAsBytes());
-      return metadata.picture;
+      final metadata = _readAsfMetadata(bytes);
+      return Id3SongMetadata(
+        properties: _propertiesFromAsfMetadata(metadata),
+        embeddedLyrics:
+            _firstAsfValue(metadata.values, ['WM/LYRICS', 'LYRICS']).trim(),
+        picture: metadata.picture,
+      );
     }
     if (extension != '.mp3') {
-      return null;
+      return const Id3SongMetadata();
     }
 
-    final tag = _readId3Tag(await File(songPath).readAsBytes());
-    return _pictureFromId3Tag(tag);
+    final tag = _readId3Tag(bytes);
+    return Id3SongMetadata(
+      properties: _propertiesFromId3Tag(tag),
+      embeddedLyrics: _embeddedLyricsFromId3Tag(tag),
+      picture: _pictureFromId3Tag(tag),
+    );
   }
 
   Future<void> writeSongTagProperties(

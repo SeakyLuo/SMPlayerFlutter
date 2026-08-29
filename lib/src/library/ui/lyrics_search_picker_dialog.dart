@@ -208,9 +208,8 @@ class _LyricsCandidateListState extends State<_LyricsCandidateList> {
 
   @override
   Widget build(BuildContext context) {
-    return Scrollbar(
+    return SmPlayerAutoHideScrollbar(
       controller: _controller,
-      thumbVisibility: true,
       child: ListView.separated(
         controller: _controller,
         padding: const EdgeInsets.only(right: 8, bottom: 8),
@@ -441,9 +440,8 @@ class _LyricsCandidateTextPreviewState
     }
     return ConstrainedBox(
       constraints: BoxConstraints(maxHeight: widget.maxExpandedHeight!),
-      child: Scrollbar(
+      child: SmPlayerAutoHideScrollbar(
         controller: _controller,
-        thumbVisibility: true,
         child: SingleChildScrollView(
           controller: _controller,
           padding: const EdgeInsets.only(right: 10),
@@ -492,9 +490,8 @@ class _LyricsCandidateFullPreviewState
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: colors.border),
       ),
-      child: Scrollbar(
+      child: SmPlayerAutoHideScrollbar(
         controller: _controller,
-        thumbVisibility: true,
         child: SingleChildScrollView(
           controller: _controller,
           padding: const EdgeInsets.all(16),

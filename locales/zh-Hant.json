@@ -347,7 +347,7 @@
   "local.scopeCurrent": "目前資料夾",
   "local.scopeSubtree": "包含子資料夾",
   "local.searchHelp": "換一個更廣泛的關鍵字。",
-  "local.searchDirectory": "搜尋資料夾",
+  "local.searchDirectory": "在資料夾中搜尋",
   "local.searchDirectoryPrompt": "在“{name}”中搜尋",
   "local.searchFolderButtonTooltip": "在資料夾中搜尋",
   "local.searchScope": "搜尋範圍",

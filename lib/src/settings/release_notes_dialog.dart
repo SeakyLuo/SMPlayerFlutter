@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:smplayer_flutter/src/app/smplayer_auto_hide_scrollbar.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/ui/popup_dialog.dart';
 import 'package:smplayer_flutter/src/settings/release_notes_model.dart';
 
-class ReleaseNotesDialog extends StatelessWidget {
+class ReleaseNotesDialog extends StatefulWidget {
   const ReleaseNotesDialog({
     super.key,
     required this.version,
@@ -12,6 +13,19 @@ class ReleaseNotesDialog extends StatelessWidget {
 
   final String? version;
   final VoidCallback onClose;
+
+  @override
+  State<ReleaseNotesDialog> createState() => _ReleaseNotesDialogState();
+}
+
+class _ReleaseNotesDialogState extends State<ReleaseNotesDialog> {
+  final _scrollController = ScrollController();
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -26,18 +40,20 @@ class ReleaseNotesDialog extends StatelessWidget {
       ariaLabel: i18n.t('settings.releaseNotes'),
       width: 640,
       height: 600,
-      onClose: onClose,
+      onClose: widget.onClose,
       navChildren: [
         Expanded(child: PopupDialogTitle(i18n.t('settings.releaseNotes'))),
       ],
       child: Padding(
         padding: const EdgeInsets.fromLTRB(28, 0, 28, 44),
-        child: Scrollbar(
+        child: SmPlayerAutoHideScrollbar(
+          controller: _scrollController,
           child: ScrollConfiguration(
             behavior: ScrollConfiguration.of(
               context,
             ).copyWith(scrollbars: false),
             child: ListView.separated(
+              controller: _scrollController,
               primary: false,
               padding: const EdgeInsets.only(right: 14),
               itemCount: releaseNotes.length,

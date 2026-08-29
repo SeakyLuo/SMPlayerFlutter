@@ -4,6 +4,7 @@ import 'package:path/path.dart' as p;
 import 'package:sqlite3/sqlite3.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import 'id3_tag_service.dart';
 import 'library_audio_metadata_service.dart';
 import 'library_artist_split_service.dart';
 import 'library_artwork_service.dart';
@@ -1215,8 +1216,8 @@ class LibraryRepository {
     return _playbackHistoryService.recordArtistPlayed(databaseFile, artist);
   }
 
-  Future<String> _cacheSongArtwork(String filePath) async {
-    return _artworkService.cacheSongArtwork(filePath);
+  Future<String> _cacheSongArtwork(String filePath, Id3Picture? picture) async {
+    return _artworkService.cacheSongArtwork(filePath, picture);
   }
 
   Future<void> _pruneArtworkCache(Database db) async {

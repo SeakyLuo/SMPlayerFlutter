@@ -17,15 +17,20 @@ class AudioFileMetadata {
     required this.duration,
     required this.thumbnailPath,
     required this.dateAdded,
+    required this.fileSize,
+    required this.dateModifiedMs,
   });
 
   final Id3SongTagProperties properties;
   final int duration;
   final String thumbnailPath;
   final String dateAdded;
+  final int fileSize;
+  final int dateModifiedMs;
 }
 
-typedef CacheSongArtwork = Future<String> Function(String filePath);
+typedef CacheSongArtwork =
+    Future<String> Function(String filePath, Id3Picture? picture);
 
 class LibraryAudioMetadataService {
   const LibraryAudioMetadataService();
@@ -33,6 +38,7 @@ class LibraryAudioMetadataService {
   Future<Map<String, AudioFileMetadata>> readAudioFileMetadataBatch(
     List<String> filePaths, {
     required CacheSongArtwork cacheSongArtwork,
+    Map<String, AudioFileMetadata> existingMetadataByPath = const {},
     LocalFolderScanCancellation? cancellation,
     void Function(String filePath, int completedCount)? onProgress,
   }) async {
@@ -46,10 +52,20 @@ class LibraryAudioMetadataService {
         cancellation?.throwIfCanceled();
         final filePath = filePaths[nextIndex];
         nextIndex += 1;
-        metadataByPath[filePath] = await _readAudioFileMetadata(
-          filePath,
-          cacheSongArtwork: cacheSongArtwork,
-        );
+        final stats = await File(filePath).stat();
+        final existing = existingMetadataByPath[filePath];
+        metadataByPath[filePath] =
+            existing != null &&
+                    existing.fileSize == stats.size &&
+                    existing.dateModifiedMs ==
+                        stats.modified.millisecondsSinceEpoch
+                ? existing
+                : await _readAudioFileMetadata(
+                  filePath,
+                  fileSize: stats.size,
+                  dateModifiedMs: stats.modified.millisecondsSinceEpoch,
+                  cacheSongArtwork: cacheSongArtwork,
+                );
         completedCount += 1;
         onProgress?.call(filePath, completedCount);
         cancellation?.throwIfCanceled();
@@ -69,27 +85,53 @@ class LibraryAudioMetadataService {
 
   Future<AudioFileMetadata> _readAudioFileMetadata(
     String filePath, {
+    required int fileSize,
+    required int dateModifiedMs,
     required CacheSongArtwork cacheSongArtwork,
   }) async {
     final parsed = await Isolate.run(
-      () => _readAudioFileMetadataProperties(filePath),
+      () =>
+          _readAudioFileMetadataProperties(filePath, fileSize, dateModifiedMs),
     );
-    final thumbnailPath = await cacheSongArtwork(filePath);
+    final thumbnailPath = await cacheSongArtwork(filePath, parsed.picture);
     return AudioFileMetadata(
       properties: parsed.properties,
       duration: parsed.duration,
       thumbnailPath: thumbnailPath,
       dateAdded: parsed.dateAdded,
+      fileSize: parsed.fileSize,
+      dateModifiedMs: parsed.dateModifiedMs,
     );
   }
 }
 
-Future<({String dateAdded, Id3SongTagProperties properties, int duration})>
-_readAudioFileMetadataProperties(String filePath) async {
+Future<
+  ({
+    String dateAdded,
+    int dateModifiedMs,
+    int duration,
+    int fileSize,
+    Id3Picture? picture,
+    Id3SongTagProperties properties,
+  })
+>
+_readAudioFileMetadataProperties(
+  String filePath,
+  int fileSize,
+  int dateModifiedMs,
+) async {
   final dateAdded = await _readFileCreationDateIso(filePath);
-  final properties = await _id3TagService.readSongTagProperties(filePath);
-  final duration = await _readAudioDurationSeconds(filePath);
-  return (dateAdded: dateAdded, properties: properties, duration: duration);
+  final bytes = await File(filePath).readAsBytes();
+  final metadata = _id3TagService.readSongMetadataBytes(filePath, bytes);
+  final duration = _readAudioDurationSecondsFromBytes(filePath, bytes);
+  return (
+    dateAdded: dateAdded,
+    dateModifiedMs: dateModifiedMs,
+    duration: duration,
+    fileSize: fileSize,
+    picture: metadata.picture,
+    properties: metadata.properties,
+  );
 }
 
 Future<String> _readFileCreationDateIso(String filePath) async {
@@ -149,7 +191,7 @@ Future<String> _readFileCreationDateIso(String filePath) async {
   return stats.changed.toUtc().toIso8601String();
 }
 
-Future<int> _readAudioDurationSeconds(String filePath) async {
+int _readAudioDurationSecondsFromBytes(String filePath, Uint8List bytes) {
   final extension = p.extension(filePath).toLowerCase();
   if (extension != '.flac' &&
       extension != '.m4a' &&
@@ -163,7 +205,6 @@ Future<int> _readAudioDurationSeconds(String filePath) async {
       extension != '.mp3') {
     return 0;
   }
-  final bytes = await File(filePath).readAsBytes();
   return switch (extension) {
     '.flac' => _readFlacDurationSeconds(bytes),
     '.m4a' || '.mp4' || '.aac' || '.alac' => _readMp4DurationSeconds(bytes),

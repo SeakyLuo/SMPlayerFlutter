@@ -54,6 +54,8 @@ final multiSelectCommandBarBackdropFilter = ImageFilter.compose(
 );
 const multiSelectCommandBarGlassOverlayOpacity = 0.08;
 
+enum MultiSelectCommandBarDensity { standard, comfortable }
+
 class MultiSelectCommandBar extends ConsumerWidget {
   const MultiSelectCommandBar({
     super.key,
@@ -87,6 +89,7 @@ class MultiSelectCommandBar extends ConsumerWidget {
     this.horizontalBleed = 0,
     this.leftBleed,
     this.rightBleed,
+    this.density = MultiSelectCommandBarDensity.standard,
   });
 
   final bool visible;
@@ -115,6 +118,7 @@ class MultiSelectCommandBar extends ConsumerWidget {
   final double horizontalBleed;
   final double? leftBleed;
   final double? rightBleed;
+  final MultiSelectCommandBarDensity density;
   final VoidCallback onSelectAll;
   final VoidCallback onReverseSelection;
   final VoidCallback onClearSelection;
@@ -181,6 +185,12 @@ class MultiSelectCommandBar extends ConsumerWidget {
                 alignment: Alignment.bottomCenter,
                 child: LayoutBuilder(
                   builder: (context, constraints) {
+                    final comfortable =
+                        density == MultiSelectCommandBarDensity.comfortable;
+                    final compactActionSize = comfortable ? 44.0 : 40.0;
+                    final compactWideActionWidth = comfortable ? 92.0 : 88.0;
+                    final actionHeight = comfortable ? 42.0 : 36.0;
+                    final actionIconSize = comfortable ? 18.0 : 16.0;
                     final hostWidth =
                         constraints.maxWidth.isFinite
                             ? constraints.maxWidth
@@ -253,7 +263,7 @@ class MultiSelectCommandBar extends ConsumerWidget {
                         (compactPhone ? 10 + 12 + 96 + 8 : 12 + 18 + 112 + 12);
                     final compactCoreActionWidths = <double>[
                       compactPhone
-                          ? 40
+                          ? compactActionSize
                           : _multiSelectActionNaturalWidth(
                             context,
                             i18n.t('common.cancel'),
@@ -261,33 +271,33 @@ class MultiSelectCommandBar extends ConsumerWidget {
                       if (!compactPhone) 1,
                       if (showPlay && onPlay != null)
                         compactPhone
-                            ? 88
+                            ? compactWideActionWidth
                             : _multiSelectActionNaturalWidth(
                               context,
                               i18n.t('albums.playSelected'),
                             ),
                       if (showAddTo && hasAddToTargets)
                         compactPhone
-                            ? 88
+                            ? compactWideActionWidth
                             : _multiSelectActionNaturalWidth(
                               context,
                               i18n.t('albums.addSelectedTo'),
                               minWidth: 92,
                               horizontalPadding: 9,
                             ),
-                      compactPhone ? 40 : 44,
+                      compactPhone ? compactActionSize : 44,
                     ];
                     final supplementalActionWidths = <double>[
                       if (onRemove != null)
                         compactPhone
-                            ? 40
+                            ? compactActionSize
                             : _multiSelectActionNaturalWidth(
                               context,
                               removeLabel ?? i18n.t('context.removeFromList'),
                             ),
                       for (final action in resolvedExtraActions)
                         compactPhone
-                            ? 40
+                            ? compactActionSize
                             : _multiSelectActionNaturalWidth(
                               context,
                               action.text,
@@ -387,7 +397,8 @@ class MultiSelectCommandBar extends ConsumerWidget {
                     final resolvedActionGap =
                         compactSelection ? actionGap : 9.0;
                     final surfaceExtension = bottomInset;
-                    final surfaceHeight = 64.0 + surfaceExtension;
+                    final surfaceHeight =
+                        (comfortable ? 72.0 : 64.0) + surfaceExtension;
                     final contentGap =
                         compactPhone
                             ? 8.0
@@ -399,7 +410,9 @@ class MultiSelectCommandBar extends ConsumerWidget {
                         icon: FluentIcons.dismiss_20_regular,
                         label: i18n.t('common.cancel'),
                         hideLabel: compactPhone,
-                        minWidth: compactPhone ? 40 : 72,
+                        minWidth: compactPhone ? compactActionSize : 72,
+                        actionHeight: actionHeight,
+                        iconSize: actionIconSize,
                         style: style,
                         onPressed: cancel,
                       ),
@@ -413,8 +426,11 @@ class MultiSelectCommandBar extends ConsumerWidget {
                           icon: FluentIcons.play_20_regular,
                           label: i18n.t('albums.playSelected'),
                           disabled: !hasSelection,
-                          minWidth: compactPhone ? 40 : 72,
-                          maxWidth: compactPhone ? 88 : null,
+                          minWidth: compactPhone ? compactActionSize : 72,
+                          maxWidth:
+                              compactPhone ? compactWideActionWidth : null,
+                          actionHeight: actionHeight,
+                          iconSize: actionIconSize,
                           style: style,
                           onPressed: () {
                             onPlay?.call();
@@ -426,6 +442,10 @@ class MultiSelectCommandBar extends ConsumerWidget {
                           enabled: hasSelection,
                           compactSelection: compactSelection,
                           compactPhone: compactPhone,
+                          compactActionSize: compactActionSize,
+                          compactWideActionWidth: compactWideActionWidth,
+                          actionHeight: actionHeight,
+                          iconSize: actionIconSize,
                           style: style,
                           songIds: addToSongIds,
                           nowPlayingSongIds: nowPlayingSongIds,
@@ -449,8 +469,10 @@ class MultiSelectCommandBar extends ConsumerWidget {
                               removeLabel ?? i18n.t('context.removeFromList'),
                           disabled: !hasSelection,
                           hideLabel: compactPhone,
-                          minWidth: compactPhone ? 40 : 72,
-                          maxWidth: compactPhone ? 40 : null,
+                          minWidth: compactPhone ? compactActionSize : 72,
+                          maxWidth: compactPhone ? compactActionSize : null,
+                          actionHeight: actionHeight,
+                          iconSize: actionIconSize,
                           style: style,
                           onPressed: () {
                             onRemove?.call();
@@ -465,8 +487,10 @@ class MultiSelectCommandBar extends ConsumerWidget {
                               label: action.text,
                               disabled: action.disabled,
                               hideLabel: compactPhone,
-                              minWidth: compactPhone ? 40 : 72,
-                              maxWidth: compactPhone ? 40 : null,
+                              minWidth: compactPhone ? compactActionSize : 72,
+                              maxWidth: compactPhone ? compactActionSize : null,
+                              actionHeight: actionHeight,
+                              iconSize: actionIconSize,
                               style: style,
                               onPressed: () {
                                 action.onPressedWithContext?.call(
@@ -520,18 +544,22 @@ class MultiSelectCommandBar extends ConsumerWidget {
                                   iconWidget:
                                       const SmPlayerMoreHorizontalIcon(),
                                   showLabel: false,
-                                  minWidth: compactPhone ? 40 : 44,
-                                  maxWidth: compactPhone ? 40 : 44,
-                                  height: 36,
+                                  minWidth:
+                                      compactPhone ? compactActionSize : 44,
+                                  maxWidth:
+                                      compactPhone ? compactActionSize : 44,
+                                  height: actionHeight,
                                   horizontalPadding: compactPhone ? 9 : 10,
-                                  iconSize: 16,
+                                  iconSize: actionIconSize,
                                   opacityWhenDisabled: 1,
                                   onPressed: () {
                                     showMenuFlyout(
                                       moreButtonContext,
-                                      position: _menuFlyoutPositionAbove(
-                                        moreButtonContext,
-                                      ),
+                                      anchorPlacement:
+                                          MenuFlyoutAnchorPlacement.above,
+                                      anchorAlignment:
+                                          MenuFlyoutAnchorAlignment.end,
+                                      avoidPlayerBar: false,
                                       items: moreItems(moreButtonContext),
                                     );
                                   },
@@ -853,6 +881,8 @@ class _MultiSelectAction extends StatelessWidget {
     this.maxWidth,
     this.preserveLabel = false,
     this.horizontalPadding = 12,
+    this.actionHeight = 36,
+    this.iconSize = 16,
   });
 
   final IconData icon;
@@ -863,6 +893,8 @@ class _MultiSelectAction extends StatelessWidget {
   final double? maxWidth;
   final bool preserveLabel;
   final double horizontalPadding;
+  final double actionHeight;
+  final double iconSize;
   final _MultiSelectCommandBarStyle style;
   final VoidCallback? onPressed;
 
@@ -878,12 +910,12 @@ class _MultiSelectAction extends StatelessWidget {
           builder: (context, constraints) {
             final canShowLabel = showLabel && constraints.maxWidth >= 40;
             final resolvedMaxWidth =
-                canShowLabel ? maxWidth ?? double.infinity : 40.0;
+                canShowLabel ? maxWidth ?? double.infinity : minWidth;
             final controlWidthLimit = math.min(
               constraints.maxWidth,
               resolvedMaxWidth,
             );
-            final reservedWidth = horizontalPadding * 2 + 16 + 7;
+            final reservedWidth = horizontalPadding * 2 + iconSize + 7;
             final labelPainter = TextPainter(
               text: TextSpan(
                 text: label,
@@ -908,15 +940,15 @@ class _MultiSelectAction extends StatelessWidget {
               child: SmPlayerTextIconButton(
                 label: label,
                 tooltip: labelTruncated ? label : null,
-                iconWidget: _multiSelectActionIcon(icon),
+                iconWidget: _multiSelectActionIcon(icon, iconSize),
                 showLabel: canShowLabel,
                 disabled: disabled,
                 onPressed: onPressed,
-                minWidth: canShowLabel ? minWidth : 40,
-                maxWidth: hideLabel ? 40 : resolvedMaxWidth,
-                height: 36,
+                minWidth: minWidth,
+                maxWidth: hideLabel ? minWidth : resolvedMaxWidth,
+                height: actionHeight,
                 horizontalPadding: canShowLabel ? horizontalPadding : 0,
-                iconSize: 16,
+                iconSize: iconSize,
                 iconGap: 7,
                 opacityWhenDisabled: 1,
                 borderRadius: 8,
@@ -1006,6 +1038,10 @@ class _MultiSelectAddToAction extends StatefulWidget {
     required this.enabled,
     required this.compactSelection,
     required this.compactPhone,
+    required this.compactActionSize,
+    required this.compactWideActionWidth,
+    required this.actionHeight,
+    required this.iconSize,
     required this.style,
     required this.songIds,
     required this.nowPlayingSongIds,
@@ -1026,6 +1062,10 @@ class _MultiSelectAddToAction extends StatefulWidget {
   final bool enabled;
   final bool compactSelection;
   final bool compactPhone;
+  final double compactActionSize;
+  final double compactWideActionWidth;
+  final double actionHeight;
+  final double iconSize;
   final _MultiSelectCommandBarStyle style;
   final List<int> songIds;
   final List<int> nowPlayingSongIds;
@@ -1064,8 +1104,11 @@ class _MultiSelectAddToActionState extends State<_MultiSelectAddToAction> {
             icon: FluentIcons.add_20_regular,
             label: i18n.t('albums.addSelectedTo'),
             disabled: !widget.enabled,
-            minWidth: widget.compactPhone ? 40 : 92,
-            maxWidth: widget.compactPhone ? 88 : null,
+            minWidth: widget.compactPhone ? widget.compactActionSize : 92,
+            maxWidth:
+                widget.compactPhone ? widget.compactWideActionWidth : null,
+            actionHeight: widget.actionHeight,
+            iconSize: widget.iconSize,
             preserveLabel: !widget.compactSelection,
             horizontalPadding: widget.compactPhone ? 12 : 9,
             style: widget.style,
@@ -1123,7 +1166,14 @@ class _MultiSelectAddToActionState extends State<_MultiSelectAddToAction> {
 
               showMenuFlyout(
                 buttonContext,
-                position: _addToMenuFlyoutPosition(buttonContext),
+                position: _addToMenuFlyoutPosition(),
+                anchorPlacement: MenuFlyoutAnchorPlacement.above,
+                anchorAlignment:
+                    widget.menuPosition ==
+                            MultiSelectCommandBarAddToMenuPosition.pointer
+                        ? MenuFlyoutAnchorAlignment.start
+                        : MenuFlyoutAnchorAlignment.end,
+                avoidPlayerBar: false,
                 items: addToItem.submenu,
               );
             },
@@ -1133,25 +1183,20 @@ class _MultiSelectAddToActionState extends State<_MultiSelectAddToAction> {
     );
   }
 
-  Offset _addToMenuFlyoutPosition(BuildContext buttonContext) {
+  Offset? _addToMenuFlyoutPosition() {
     if (widget.menuPosition == MultiSelectCommandBarAddToMenuPosition.pointer) {
       final pointerPosition = _lastPointerDownPosition;
       _lastPointerDownPosition = null;
-      return pointerPosition ?? _menuFlyoutPositionAbove(buttonContext);
+      return pointerPosition;
     }
-    return _menuFlyoutPositionAbove(buttonContext);
+    return null;
   }
 }
 
-Offset _menuFlyoutPositionAbove(BuildContext context) {
-  final box = context.findRenderObject() as RenderBox;
-  return box.localToGlobal(Offset(0, -8));
-}
-
-Widget _multiSelectActionIcon(IconData icon) {
+Widget _multiSelectActionIcon(IconData icon, double size) {
   return SizedBox.square(
-    dimension: 16,
-    child: Center(child: Icon(icon, size: 16)),
+    dimension: size,
+    child: Center(child: Icon(icon, size: size)),
   );
 }
 

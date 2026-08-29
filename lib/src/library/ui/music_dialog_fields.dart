@@ -31,7 +31,13 @@ class _DialogField extends StatelessWidget {
           style: TextStyle(
             color: readOnly ? colors.fieldDisabledText : colors.text,
             fontSize: 16,
+            height: 1.25,
             fontWeight: FontWeight.w400,
+          ),
+          strutStyle: const StrutStyle(
+            fontSize: 16,
+            height: 1.25,
+            forceStrutHeight: true,
           ),
           decoration: _dialogFieldDecoration(
             context,
@@ -96,12 +102,27 @@ class _DialogTextFieldFrameState extends State<_DialogTextFieldFrame> {
       readOnly: widget.readOnly,
       emphasizeReadOnly: widget.emphasizeReadOnly,
     );
+    final borderColor = _dialogFieldBorderColor(
+      colors,
+      brightness,
+      focused: _focused,
+      readOnly: widget.readOnly,
+      emphasizeReadOnly: widget.emphasizeReadOnly,
+    );
+    final fillColor = _dialogFieldFillColor(
+      colors,
+      brightness,
+      readOnly: widget.readOnly,
+      emphasizeReadOnly: widget.emphasizeReadOnly,
+    );
     return AnimatedContainer(
       key: const ValueKey('MusicDialog.DialogTextFieldFrame'),
       duration: const Duration(milliseconds: 120),
       curve: Curves.easeOut,
       decoration: BoxDecoration(
+        color: fillColor,
         borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: borderColor),
         boxShadow:
             widget.readOnly
                 ? _readOnlyFieldBoxShadow(
@@ -110,34 +131,38 @@ class _DialogTextFieldFrameState extends State<_DialogTextFieldFrame> {
                 )
                 : _fieldBoxShadow(colors),
       ),
-      child: Stack(
-        children: [
-          TextSelectionTheme(
-            key: const ValueKey('MusicDialog.TextSelectionTheme'),
-            data: TextSelectionThemeData(
-              selectionColor: colors.accent.withValues(alpha: 0.22),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(8),
+        clipBehavior: Clip.antiAlias,
+        child: Stack(
+          children: [
+            TextSelectionTheme(
+              key: const ValueKey('MusicDialog.TextSelectionTheme'),
+              data: TextSelectionThemeData(
+                selectionColor: colors.accent.withValues(alpha: 0.22),
+              ),
+              child: widget.childBuilder(context, _focusNode),
             ),
-            child: widget.childBuilder(context, _focusNode),
-          ),
-          if (insetTopHighlight != null)
-            Positioned(
-              left: 1,
-              right: 1,
-              top: 1,
-              height: 1,
-              child: IgnorePointer(
-                child: DecoratedBox(
-                  key: const ValueKey('MusicDialog.FieldInsetTopHighlight'),
-                  decoration: BoxDecoration(
-                    color: insetTopHighlight,
-                    borderRadius: const BorderRadius.vertical(
-                      top: Radius.circular(7),
+            if (insetTopHighlight != null)
+              Positioned(
+                left: 1,
+                right: 1,
+                top: 1,
+                height: 1,
+                child: IgnorePointer(
+                  child: DecoratedBox(
+                    key: const ValueKey('MusicDialog.FieldInsetTopHighlight'),
+                    decoration: BoxDecoration(
+                      color: insetTopHighlight,
+                      borderRadius: const BorderRadius.vertical(
+                        top: Radius.circular(7),
+                      ),
                     ),
                   ),
                 ),
               ),
-            ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -244,7 +269,7 @@ class MusicDialogArtistFieldGrid extends StatelessWidget {
                   children: [
                     _DialogField(
                       controller: entry.$2,
-                      contentPadding: const EdgeInsets.fromLTRB(12, 0, 34, 0),
+                      contentPadding: const EdgeInsets.fromLTRB(12, 11, 34, 11),
                     ),
                     if (showActions && controllers.length > 1)
                       Positioned(
@@ -355,54 +380,58 @@ InputDecoration _dialogFieldDecoration(
   String hintText = '',
   EdgeInsetsGeometry? contentPadding,
 }) {
-  final colors = PopupDialogColors.resolve(context);
-  final nightMode = Theme.of(context).brightness == Brightness.dark;
-  final readOnlyBorderColor =
-      emphasizeReadOnly
-          ? nightMode
-              ? GlobalUI.readOnlyFieldBorderColorNight
-              : GlobalUI.readOnlyFieldBorderColorDay
-          : nightMode
-          ? const Color(0x1fd6e0ec)
-          : const Color(0x6bbec8d6);
-  final readOnlyFillColor =
-      emphasizeReadOnly
-          ? nightMode
-              ? GlobalUI.readOnlyFieldBgColorNight
-              : GlobalUI.readOnlyFieldBgColorDay
-          : colors.fieldDisabledSurface;
-  final border = OutlineInputBorder(
-    borderRadius: BorderRadius.circular(8),
-    borderSide: BorderSide(color: colors.inputBorder),
-  );
-  final readOnlyBorder = OutlineInputBorder(
-    borderRadius: BorderRadius.circular(8),
-    borderSide: BorderSide(color: readOnlyBorderColor),
-  );
   return InputDecoration(
-    isDense: false,
+    isCollapsed: !multiline,
     constraints:
         multiline ? null : const BoxConstraints(minHeight: 42, maxHeight: 42),
     contentPadding:
         contentPadding ??
         (multiline
             ? const EdgeInsets.all(12)
-            : const EdgeInsets.symmetric(horizontal: 12)),
+            : const EdgeInsets.symmetric(horizontal: 12, vertical: 11)),
     hintText: hintText,
-    hintStyle: TextStyle(color: colors.textMuted),
-    border: border,
-    enabledBorder: readOnly ? readOnlyBorder : border,
-    disabledBorder: readOnlyBorder,
-    focusedBorder: OutlineInputBorder(
-      borderRadius: BorderRadius.circular(8),
-      borderSide: BorderSide(
-        color:
-            readOnly
-                ? readOnlyBorderColor
-                : colors.accent.withValues(alpha: 0.72),
-      ),
-    ),
-    filled: true,
-    fillColor: readOnly ? readOnlyFillColor : colors.fieldSurface,
+    hintStyle: TextStyle(color: PopupDialogColors.resolve(context).textMuted),
+    border: InputBorder.none,
+    enabledBorder: InputBorder.none,
+    disabledBorder: InputBorder.none,
+    focusedBorder: InputBorder.none,
+    filled: false,
   );
+}
+
+Color _dialogFieldBorderColor(
+  PopupDialogResolvedColors colors,
+  Brightness brightness, {
+  required bool focused,
+  required bool readOnly,
+  required bool emphasizeReadOnly,
+}) {
+  if (!readOnly) {
+    return focused ? colors.accent.withValues(alpha: 0.72) : colors.inputBorder;
+  }
+  if (emphasizeReadOnly) {
+    return brightness == Brightness.dark
+        ? GlobalUI.readOnlyFieldBorderColorNight
+        : GlobalUI.readOnlyFieldBorderColorDay;
+  }
+  return brightness == Brightness.dark
+      ? const Color(0x1fd6e0ec)
+      : const Color(0x6bbec8d6);
+}
+
+Color _dialogFieldFillColor(
+  PopupDialogResolvedColors colors,
+  Brightness brightness, {
+  required bool readOnly,
+  required bool emphasizeReadOnly,
+}) {
+  if (!readOnly) {
+    return colors.fieldSurface;
+  }
+  if (emphasizeReadOnly) {
+    return brightness == Brightness.dark
+        ? GlobalUI.readOnlyFieldBgColorNight
+        : GlobalUI.readOnlyFieldBgColorDay;
+  }
+  return colors.fieldDisabledSurface;
 }

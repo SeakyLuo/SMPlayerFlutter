@@ -462,20 +462,17 @@ class _SettingsSelectOptionsPanel<T> extends StatelessWidget {
     );
     return Material(
       color: Colors.transparent,
-      child: Container(
-        clipBehavior: Clip.antiAlias,
-        decoration: BoxDecoration(
-          color: colors.dropdownSurface,
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: colors.inputBorder),
-          boxShadow: [
-            BoxShadow(
-              color: colors.dropdownShadow,
-              offset: const Offset(0, 18),
-              blurRadius: 44,
-            ),
-          ],
-        ),
+      child: SmPlayerClippedRoundedSurface(
+        color: colors.dropdownSurface,
+        radius: 10,
+        borderSide: BorderSide(color: colors.inputBorder),
+        boxShadow: [
+          BoxShadow(
+            color: colors.dropdownShadow,
+            offset: const Offset(0, 18),
+            blurRadius: 44,
+          ),
+        ],
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [

@@ -22,6 +22,11 @@ part 'playlist_control_item_overlays.dart';
 
 enum PlaylistControlItemVariant { standard, headeredPlaylist, compact }
 
+abstract final class PlaylistControlItemMetrics {
+  static const nowPlayingCompactDurationWidth = 50.0;
+  static const nowPlayingCompactTrailingInset = 10.0;
+}
+
 enum _PlaylistControlMenuPin { none, addTo, more, contextMenu }
 
 typedef PlaylistControlMenuHandler = FutureOr<void> Function(BuildContext);
@@ -356,7 +361,7 @@ class _PlaylistControlItemState extends State<PlaylistControlItem> {
     final viewportWidth = MediaQuery.sizeOf(context).width;
     final viewportCompact = viewportWidth <= 720;
     final hoverActionsVisible = _hoverActive;
-    final showActionSlot = !widget.selectionMode || hoverActionsVisible;
+    final showActionSlot = !widget.selectionMode;
     final multiSelectSelected = widget.selectionMode && widget.selected;
     final transparentHover = colors.hover.withValues(alpha: 0);
     final rowHovered = _hoverActive;
@@ -485,10 +490,7 @@ class _PlaylistControlItemState extends State<PlaylistControlItem> {
                 !overlayCompactActions;
             final showInlineActions = showActionSlot;
             final stableCompactTrailing =
-                showInlineActions &&
-                compact &&
-                actionCompactCollapsed &&
-                !overlayCompactActions;
+                compact && actionCompactCollapsed && !overlayCompactActions;
             final durationWidth =
                 compactVariant
                     ? widget.compactDurationWidth ??
@@ -636,13 +638,16 @@ class _PlaylistControlItemState extends State<PlaylistControlItem> {
                       ),
                     ),
                   ),
-                  if (showInlineActions && !compact) ...[
+                  if (!compact) ...[
                     const SizedBox(width: 14),
                     ConstrainedBox(
                       constraints: const BoxConstraints(minWidth: 170),
-                      child: Center(
-                        child: queueActions(compactCollapsed: false),
-                      ),
+                      child:
+                          showInlineActions
+                              ? Center(
+                                child: queueActions(compactCollapsed: false),
+                              )
+                              : null,
                     ),
                   ] else if (stableCompactTrailing) ...[
                     SizedBox(
@@ -651,17 +656,15 @@ class _PlaylistControlItemState extends State<PlaylistControlItem> {
                       child: Stack(
                         clipBehavior: Clip.none,
                         children: [
-                          Positioned(
-                            top: 0,
-                            right:
-                                compactVariant && actionCompactCollapsed
-                                    ? -_queueActionSize / 2
-                                    : 0,
-                            bottom: 0,
-                            child: queueActions(
-                              compactCollapsed: actionCompactCollapsed,
+                          if (showInlineActions)
+                            Positioned(
+                              top: 0,
+                              right: 0,
+                              bottom: 0,
+                              child: queueActions(
+                                compactCollapsed: actionCompactCollapsed,
+                              ),
                             ),
-                          ),
                           if (!hideDurationForNarrowHover)
                             Positioned(
                               top: 0,

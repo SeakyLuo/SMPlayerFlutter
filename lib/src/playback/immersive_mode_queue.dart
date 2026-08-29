@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 import 'package:smplayer_flutter/src/app/loading_state.dart';
 import 'package:smplayer_flutter/src/app/smplayer_vector_icons.dart';
+import 'package:smplayer_flutter/src/app/smplayer_auto_hide_scrollbar.dart';
 import 'package:smplayer_flutter/src/app/text_icon_button.dart';
 import 'package:smplayer_flutter/src/app/undoable_notification.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
@@ -18,16 +19,12 @@ import 'package:smplayer_flutter/src/library/ui/menu_flyout_helpers.dart';
 import 'package:smplayer_flutter/src/library/ui/multi_select_command_bar.dart';
 import 'package:smplayer_flutter/src/library/ui/music_dialog.dart';
 import 'package:smplayer_flutter/src/library/ui/page_selection_store.dart';
-import 'package:smplayer_flutter/src/library/ui/popup_dialog.dart';
 import 'package:smplayer_flutter/src/library/ui/song_display_helpers.dart'
     as song_display;
 import 'package:smplayer_flutter/src/playback/immersive_mode_constants.dart';
 import 'package:smplayer_flutter/src/playback/immersive_mode_model.dart';
 import 'package:smplayer_flutter/src/playback/immersive_mode_theme.dart';
 import 'package:smplayer_flutter/src/playback/playlist_control_item.dart';
-
-const _nowPlayingQueueCompactTrailingPadding = 10.0;
-const _nowPlayingQueueCompactDurationWidth = 50.0;
 
 List<int> _moveQueueSongIds(
   List<int> queueSongIds,
@@ -231,7 +228,6 @@ class ImmersiveModePlaylist extends StatefulWidget {
     required this.onAddToPlaylist,
     required this.onToggleFavorite,
     required this.onCreatePlaylist,
-    required this.onClearNowPlaying,
     required this.onQuickPlay,
     required this.onRandomPlay,
     required this.onAddToNowPlaying,
@@ -244,6 +240,7 @@ class ImmersiveModePlaylist extends StatefulWidget {
     required this.onRevealSong,
     required this.fullScreen,
     required this.coverColor,
+    required this.multiSelectCommandBar,
   });
 
   final bool open;
@@ -272,7 +269,6 @@ class ImmersiveModePlaylist extends StatefulWidget {
   final Future<void> Function(int, List<int>) onAddToPlaylist;
   final Future<void> Function(List<int>, bool) onToggleFavorite;
   final Future<void> Function(String, List<int>) onCreatePlaylist;
-  final VoidCallback onClearNowPlaying;
   final VoidCallback onQuickPlay;
   final VoidCallback onRandomPlay;
   final ValueChanged<LibrarySong> onAddToNowPlaying;
@@ -285,6 +281,7 @@ class ImmersiveModePlaylist extends StatefulWidget {
   final ValueChanged<String> onRevealSong;
   final bool fullScreen;
   final Color coverColor;
+  final Widget multiSelectCommandBar;
 
   @override
   State<ImmersiveModePlaylist> createState() => ImmersiveModePlaylistState();
@@ -323,7 +320,6 @@ class ImmersiveModePlaylistState extends State<ImmersiveModePlaylist> {
       widget.onToggleFavorite;
   Future<void> Function(String, List<int>) get onCreatePlaylist =>
       widget.onCreatePlaylist;
-  VoidCallback get onClearNowPlaying => widget.onClearNowPlaying;
   VoidCallback get onQuickPlay => widget.onQuickPlay;
   VoidCallback get onRandomPlay => widget.onRandomPlay;
   ValueChanged<LibrarySong> get onAddToNowPlaying => widget.onAddToNowPlaying;
@@ -340,6 +336,7 @@ class ImmersiveModePlaylistState extends State<ImmersiveModePlaylist> {
   ValueChanged<String> get onRevealSong => widget.onRevealSong;
   bool get fullScreen => widget.fullScreen;
   Color get coverColor => widget.coverColor;
+  Widget get multiSelectCommandBar => widget.multiSelectCommandBar;
 
   @override
   void initState() {
@@ -476,27 +473,9 @@ class ImmersiveModePlaylistState extends State<ImmersiveModePlaylist> {
     }
   }
 
-  Future<void> _confirmClearNowPlaying(BuildContext context) async {
-    final confirmed = await showPopupConfirmDialog(
-      context: context,
-      title: i18n.t('nowPlaying.clearNowPlaying'),
-      message: i18n.t('nowPlaying.clearNowPlayingConfirm'),
-      confirmLabel: i18n.t('common.clear'),
-      i18n: i18n,
-    );
-    if (!context.mounted) {
-      return;
-    }
-    if (confirmed) {
-      final before = currentQueueSongIds();
-      onClearNowPlaying();
-      showUndoableNotification(
-        context: context,
-        i18n: i18n,
-        message: i18n.t('notification.nowPlayingCleared'),
-        onUndo: () => onReplaceQueue(before),
-      );
-    }
+  void _toggleMultiSelect() {
+    selection.toggleMultiSelect();
+    onSelectionChanged();
   }
 
   @override
@@ -610,13 +589,15 @@ class ImmersiveModePlaylistState extends State<ImmersiveModePlaylist> {
                           const SizedBox(width: 8),
                           ImmersiveModeQueueHeaderActionButton(
                             key: const ValueKey(
-                              'ImmersiveMode.QueueClearNowPlayingButton',
+                              'ImmersiveMode.QueueMultiSelectButton',
                             ),
-                            tooltip: i18n.t('nowPlaying.clearNowPlaying'),
-                            icon: FluentIcons.broom_20_regular,
-                            onPressed: () {
-                              unawaited(_confirmClearNowPlaying(context));
-                            },
+                            tooltip:
+                                selection.multiSelect
+                                    ? i18n.t('common.exitMultiSelectTooltip')
+                                    : i18n.t('common.multiSelect'),
+                            icon: FluentIcons.multiselect_ltr_20_regular,
+                            active: selection.multiSelect,
+                            onPressed: _toggleMultiSelect,
                           ),
                           const SizedBox(width: 8),
                         ],
@@ -639,6 +620,13 @@ class ImmersiveModePlaylistState extends State<ImmersiveModePlaylist> {
                             : _buildQueueList(context),
                   ),
                 ],
+              ),
+              Positioned(
+                right: 0,
+                bottom: 0,
+                left: 0,
+                height: 72,
+                child: multiSelectCommandBar,
               ),
             ],
           ),
@@ -674,8 +662,10 @@ class ImmersiveModePlaylistState extends State<ImmersiveModePlaylist> {
           dropPosition: dropPosition,
           variant: PlaylistControlItemVariant.compact,
           collapseCompactPrimaryActions: true,
-          compactDurationWidth: _nowPlayingQueueCompactDurationWidth,
-          compactTrailingPadding: _nowPlayingQueueCompactTrailingPadding,
+          compactDurationWidth:
+              PlaylistControlItemMetrics.nowPlayingCompactDurationWidth,
+          compactTrailingPadding:
+              PlaylistControlItemMetrics.nowPlayingCompactTrailingInset,
           playNextLabel: i18n.t('context.playNext'),
           removeLabel: i18n.t('nowPlaying.remove'),
           onPlayTrack: () {
@@ -791,7 +781,7 @@ class ImmersiveModePlaylistState extends State<ImmersiveModePlaylist> {
         );
       },
     );
-    return Scrollbar(
+    return SmPlayerAutoHideScrollbar(
       key: const ValueKey('ImmersiveMode.QueueScrollbar'),
       controller: scrollController,
       child: ScrollConfiguration(
@@ -1030,11 +1020,13 @@ class ImmersiveModeQueueHeaderActionButton extends StatelessWidget {
     required this.tooltip,
     required this.icon,
     required this.onPressed,
+    this.active = false,
   });
 
   final String tooltip;
   final IconData icon;
   final VoidCallback onPressed;
+  final bool active;
 
   @override
   Widget build(BuildContext context) {
@@ -1042,8 +1034,11 @@ class ImmersiveModeQueueHeaderActionButton extends StatelessWidget {
       tooltip: tooltip,
       label: tooltip,
       showLabel: false,
+      active: active,
+      activeMatchesHover: true,
       onPressed: onPressed,
-      iconWidget: Icon(icon),
+      icon: icon,
+      iconSize: 20,
     );
   }
 }

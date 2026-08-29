@@ -17,6 +17,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../app/loading_state.dart';
+import '../../app/smplayer_auto_hide_scrollbar.dart';
 import '../../app/undoable_notification.dart';
 import '../../app/workspace_app_bar_portal.dart';
 import '../../i18n/app_i18n.dart';
@@ -488,7 +489,7 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
                             ),
                             SizedBox(width: albumGridShellGap),
                             Expanded(
-                              child: Scrollbar(
+                              child: SmPlayerAutoHideScrollbar(
                                 controller: _albumGridScrollController,
                                 child: ScrollConfiguration(
                                   behavior: ScrollConfiguration.of(

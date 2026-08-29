@@ -2,6 +2,8 @@ import 'dart:async';
 
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
+import 'package:smplayer_flutter/src/app/clipped_rounded_surface.dart';
+import 'package:smplayer_flutter/src/app/edge_auto_hide_scrollbar.dart';
 import 'package:smplayer_flutter/src/playback/playlist_control_item.dart';
 import 'package:smplayer_flutter/src/settings/artist_split_review_panel.dart';
 
@@ -121,41 +123,45 @@ class FolderUpdateResultFileSection extends StatelessWidget {
       );
     }
 
+    Widget buildSurface(Widget child) {
+      return SmPlayerClippedRoundedSurface(
+        color: colors.listBackground,
+        radius: 12,
+        borderSide: BorderSide(
+          color: colors.border,
+          width: _folderUpdateResultListBorderWidth,
+        ),
+        child: child,
+      );
+    }
+
     final content =
         scrollable
-            ? Padding(
-              padding: const EdgeInsets.only(right: 8),
-              child: ListView.builder(
-                padding: EdgeInsets.zero,
-                itemExtent: rowHeight,
-                itemCount: items.length,
-                itemBuilder: (context, index) => buildItem(index),
-              ),
+            ? EdgeAutoHideScrollbar(
+              trailingEdgeOffset: 10,
+              builder:
+                  (controller) => buildSurface(
+                    ListView.builder(
+                      controller: controller,
+                      padding: EdgeInsets.zero,
+                      itemExtent: rowHeight,
+                      itemCount: items.length,
+                      itemBuilder: (context, index) => buildItem(index),
+                    ),
+                  ),
             )
-            : Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                for (var index = 0; index < items.length; index += 1)
-                  SizedBox(height: rowHeight, child: buildItem(index)),
-              ],
+            : buildSurface(
+              Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  for (var index = 0; index < items.length; index += 1)
+                    SizedBox(height: rowHeight, child: buildItem(index)),
+                ],
+              ),
             );
     return Align(
       alignment: Alignment.topCenter,
-      child: SizedBox(
-        height: listHeight,
-        child: Container(
-          decoration: BoxDecoration(
-            color: colors.listBackground,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-              color: colors.border,
-              width: _folderUpdateResultListBorderWidth,
-            ),
-          ),
-          clipBehavior: Clip.antiAlias,
-          child: content,
-        ),
-      ),
+      child: SizedBox(height: listHeight, child: content),
     );
   }
 }
@@ -259,7 +265,7 @@ class _FolderUpdateResultColors {
     final nightMode = Theme.of(context).brightness == Brightness.dark;
     if (nightMode) {
       return _FolderUpdateResultColors(
-        listBackground: Colors.white.withValues(alpha: 0.035),
+        listBackground: Colors.white.withValues(alpha: 0.055),
         border: popupColors.border,
         rowBorder: popupColors.border,
         rowEven: Colors.white.withValues(alpha: 0.035),
@@ -272,7 +278,7 @@ class _FolderUpdateResultColors {
     }
 
     return _FolderUpdateResultColors(
-      listBackground: const Color(0xb8ffffff),
+      listBackground: const Color(0xd1f6f9fd),
       border: const Color(0x9ebec8d6),
       rowBorder: const Color(0x85bec8d6),
       rowEven: const Color(0xb8ffffff),
