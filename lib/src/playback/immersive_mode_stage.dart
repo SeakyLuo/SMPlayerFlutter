@@ -153,14 +153,18 @@ class _WideImmersiveModeStage extends StatelessWidget {
         final pageWidth = MediaQuery.sizeOf(context).width;
         final pageHeight = MediaQuery.sizeOf(context).height;
         final midCompact = pageWidth <= 1100;
-        final artworkSize = _electronArtworkSizeForWidth(pageWidth);
-        final stageHeight = _electronLyricStageHeightForWidth(pageWidth);
         final gap = midCompact ? 32.0 : clampDouble(pageWidth * 0.05, 40, 72);
-        final lyricAnchorOffset =
-            pageWidth <= immersiveModeImmersiveCompactBreakpoint
-                ? null
-                : artworkSize / 2;
+        final availableColumnWidth = (constraints.maxWidth - 48 - gap) / 2;
+        final artworkSize = min(
+          immersiveModeWideArtworkSize,
+          availableColumnWidth,
+        );
+        final stageHeight = artworkSize + 132;
         final contentPadding = immersiveModeContentPadding(pageWidth);
+        final lyricStageHeight = min(stageHeight, constraints.maxHeight - 8);
+        final lyricAnchorOffset = lyricStageHeight / 2;
+        final lyricsVerticalCorrection =
+            (contentPadding.bottom + 8 - contentPadding.top) / 2;
         final rowWidth = constraints.maxWidth - 48;
         final columnWidth = (rowWidth - gap) / 2;
         final stageTop =
@@ -172,8 +176,12 @@ class _WideImmersiveModeStage extends StatelessWidget {
         final songInfoStartOffset =
             Offset(24, pageHeight - 98) - Offset(songInfoFinalX, stageTop);
         final lyricsFinalX = contentPadding.left + 24 + columnWidth + gap;
+        final lyricsStageTop =
+            contentPadding.top +
+            max(0.0, (constraints.maxHeight - 8 - lyricStageHeight) / 2) +
+            lyricsVerticalCorrection;
         final lyricsStartOffset =
-            Offset(112, pageHeight - 54) - Offset(lyricsFinalX, stageTop);
+            Offset(112, pageHeight - 54) - Offset(lyricsFinalX, lyricsStageTop);
         return Padding(
           padding: const EdgeInsets.fromLTRB(24, 0, 24, 8),
           child: Row(
@@ -218,27 +226,32 @@ class _WideImmersiveModeStage extends StatelessWidget {
               Expanded(
                 child: Align(
                   alignment: Alignment.center,
-                  child: SizedBox(
-                    height: stageHeight,
-                    child: _ImmersiveEntranceMotion(
-                      motionKey: const ValueKey('ImmersiveMode.LyricsEntrance'),
-                      animation: entranceAnimation,
-                      startOffset: lyricsStartOffset,
-                      startScale: 0.78,
-                      startOpacity: 0,
-                      intervalStart: 0.08,
-                      child: ImmersiveModeLyrics(
-                        key: lyricsKey,
-                        song: song,
-                        progressSeconds: mediaControlState.progressSeconds,
-                        durationSeconds: mediaControlState.durationSeconds,
-                        isPlaying: mediaControlState.isPlaying,
-                        i18n: i18n,
-                        onSeekAndPlay: onSeekAndPlay,
-                        refreshRevision: refreshRevision,
-                        compact: false,
-                        midCompact: midCompact,
-                        anchorOffset: lyricAnchorOffset,
+                  child: Transform.translate(
+                    offset: Offset(0, lyricsVerticalCorrection),
+                    child: SizedBox(
+                      height: lyricStageHeight,
+                      child: _ImmersiveEntranceMotion(
+                        motionKey: const ValueKey(
+                          'ImmersiveMode.LyricsEntrance',
+                        ),
+                        animation: entranceAnimation,
+                        startOffset: lyricsStartOffset,
+                        startScale: 0.78,
+                        startOpacity: 0,
+                        intervalStart: 0.08,
+                        child: ImmersiveModeLyrics(
+                          key: lyricsKey,
+                          song: song,
+                          progressSeconds: mediaControlState.progressSeconds,
+                          durationSeconds: mediaControlState.durationSeconds,
+                          isPlaying: mediaControlState.isPlaying,
+                          i18n: i18n,
+                          onSeekAndPlay: onSeekAndPlay,
+                          refreshRevision: refreshRevision,
+                          compact: false,
+                          midCompact: midCompact,
+                          anchorOffset: lyricAnchorOffset,
+                        ),
                       ),
                     ),
                   ),
@@ -389,14 +402,6 @@ class _ImmersiveEntranceMotion extends StatelessWidget {
       },
     );
   }
-}
-
-double _electronArtworkSizeForWidth(double width) {
-  return clampDouble(width * 0.28, 220, 416);
-}
-
-double _electronLyricStageHeightForWidth(double width) {
-  return _electronArtworkSizeForWidth(width) + 132;
 }
 
 double _compactArtworkSize({required double width, required double height}) {

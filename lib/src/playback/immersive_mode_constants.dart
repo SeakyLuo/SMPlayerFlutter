@@ -9,6 +9,10 @@ const immersiveModeImmersiveCompactBreakpoint = 800.0;
 const immersiveModeQueueRowHeight = 78.0;
 const immersiveModeQueueEdgeInset = SmPlayerShellMetrics.minimalTitlebarHeight;
 const immersiveModeQueueMaxWidth = 540.0;
+const immersiveModeAppBarHeight = 92.0;
+const immersiveModeTopButtonTopInset = 42.0;
+const immersiveModeTopButtonEdgeInset = 24.0;
+const immersiveModeWideArtworkSize = 300.0;
 
 const immersiveModeMiniModeWindowSize = Size(360, 360);
 
