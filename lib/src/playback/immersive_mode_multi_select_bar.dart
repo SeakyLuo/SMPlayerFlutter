@@ -71,98 +71,93 @@ class ImmersiveModeMultiSelectCommandBar extends StatelessWidget {
       return false;
     }
 
-    return Positioned(
-      left: 0,
-      right: 0,
-      bottom: 0,
-      height: 64,
-      child: MultiSelectCommandBar(
-        visible: selection.multiSelect,
-        selectedCount: selection.selectedItems.length,
-        playlists: playlists,
-        addToSongIds: selectedSongIds(),
-        nowPlayingSongIds: songIds,
-        defaultPlaylistName: defaultNewPlaylistName,
-        currentPlaylistName: i18n.t('common.nowPlaying'),
-        includeFavoritesInAddTo: selectedSongsHaveUnfavorited(),
-        removeLabel: i18n.t('nowPlaying.remove'),
-        hideAfterOperation: hideMultiSelectCommandBarAfterOperation,
-        onToggleFavorite: () {
-          final selectedIds = selectedUnfavoritedSongIds();
-          onToggleFavorite(selectedIds, true);
-          final songsById = {for (final song in songs) song.id: song};
-          showUndoableNotification(
-            context: context,
+    return MultiSelectCommandBar(
+      visible: selection.multiSelect,
+      density: MultiSelectCommandBarDensity.comfortable,
+      selectedCount: selection.selectedItems.length,
+      playlists: playlists,
+      addToSongIds: selectedSongIds(),
+      nowPlayingSongIds: songIds,
+      defaultPlaylistName: defaultNewPlaylistName,
+      currentPlaylistName: i18n.t('common.nowPlaying'),
+      includeFavoritesInAddTo: selectedSongsHaveUnfavorited(),
+      removeLabel: i18n.t('nowPlaying.remove'),
+      hideAfterOperation: hideMultiSelectCommandBarAfterOperation,
+      onToggleFavorite: () {
+        final selectedIds = selectedUnfavoritedSongIds();
+        onToggleFavorite(selectedIds, true);
+        final songsById = {for (final song in songs) song.id: song};
+        showUndoableNotification(
+          context: context,
+          i18n: i18n,
+          message: songsAddedUndoMessage(
             i18n: i18n,
-            message: songsAddedUndoMessage(
-              i18n: i18n,
-              songIds: selectedIds,
-              songsById: songsById,
-              target: i18n.t('common.myFavorites'),
-            ),
-            onUndo: () => onToggleFavorite(selectedIds, false),
-          );
-        },
-        onAddToPlaylist: (playlistId) {
-          onAddToPlaylist(playlistId, selectedSongIds());
-          selection.hideAfterOperation(hideMultiSelectCommandBarAfterOperation);
-          onSelectionChanged();
-        },
-        onPlay: () {
-          onPlay(selectedSongIds());
-          selection.hideAfterOperation(hideMultiSelectCommandBarAfterOperation);
-          onSelectionChanged();
-        },
-        onRemove: () {
-          final selectedIndexes = selection.selectedItems.toList()..sort();
-          final removedSongIds = selectedSongIds();
-          final insertIndex = selectedIndexes.first;
-          final songsById = {for (final song in songs) song.id: song};
-          final nextSongIds = [
-            for (var index = 0; index < songIds.length; index += 1)
-              if (!selectedIndexes.contains(index)) songIds[index],
-          ];
-          onRemoveSelectedQueueIndexes(selectedIndexes, nextSongIds);
-          showUndoableNotification(
-            context: context,
+            songIds: selectedIds,
+            songsById: songsById,
+            target: i18n.t('common.myFavorites'),
+          ),
+          onUndo: () => onToggleFavorite(selectedIds, false),
+        );
+      },
+      onAddToPlaylist: (playlistId) {
+        onAddToPlaylist(playlistId, selectedSongIds());
+        selection.hideAfterOperation(hideMultiSelectCommandBarAfterOperation);
+        onSelectionChanged();
+      },
+      onPlay: () {
+        onPlay(selectedSongIds());
+        selection.hideAfterOperation(hideMultiSelectCommandBarAfterOperation);
+        onSelectionChanged();
+      },
+      onRemove: () {
+        final selectedIndexes = selection.selectedItems.toList()..sort();
+        final removedSongIds = selectedSongIds();
+        final insertIndex = selectedIndexes.first;
+        final songsById = {for (final song in songs) song.id: song};
+        final nextSongIds = [
+          for (var index = 0; index < songIds.length; index += 1)
+            if (!selectedIndexes.contains(index)) songIds[index],
+        ];
+        onRemoveSelectedQueueIndexes(selectedIndexes, nextSongIds);
+        showUndoableNotification(
+          context: context,
+          i18n: i18n,
+          message: songsRemovedUndoMessage(
             i18n: i18n,
-            message: songsRemovedUndoMessage(
-              i18n: i18n,
-              songIds: removedSongIds,
-              songsById: songsById,
-              target: i18n.t('common.nowPlaying'),
-            ),
-            onUndo:
-                () => onReplaceQueue(
-                  insertImmersiveModeQueueSongs(
-                    currentQueueSongIds(),
-                    insertIndex,
-                    removedSongIds,
-                  ),
+            songIds: removedSongIds,
+            songsById: songsById,
+            target: i18n.t('common.nowPlaying'),
+          ),
+          onUndo:
+              () => onReplaceQueue(
+                insertImmersiveModeQueueSongs(
+                  currentQueueSongIds(),
+                  insertIndex,
+                  removedSongIds,
                 ),
-          );
-          selection.clearSelection();
-          onSelectionChanged();
-        },
-        onSelectAll: () {
-          selection.selectAll(List.generate(songIds.length, (index) => index));
-          onSelectionChanged();
-        },
-        onReverseSelection: () {
-          selection.reverseSelection(
-            List.generate(songIds.length, (index) => index),
-          );
-          onSelectionChanged();
-        },
-        onClearSelection: () {
-          selection.clearSelection();
-          onSelectionChanged();
-        },
-        onCancel: () {
-          selection.cancel();
-          onSelectionChanged();
-        },
-      ),
+              ),
+        );
+        selection.clearSelection();
+        onSelectionChanged();
+      },
+      onSelectAll: () {
+        selection.selectAll(List.generate(songIds.length, (index) => index));
+        onSelectionChanged();
+      },
+      onReverseSelection: () {
+        selection.reverseSelection(
+          List.generate(songIds.length, (index) => index),
+        );
+        onSelectionChanged();
+      },
+      onClearSelection: () {
+        selection.clearSelection();
+        onSelectionChanged();
+      },
+      onCancel: () {
+        selection.cancel();
+        onSelectionChanged();
+      },
     );
   }
 }

@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:isolate';
 
 import 'package:path/path.dart' as p;
 import 'package:sqlite3/sqlite3.dart';
@@ -67,8 +68,8 @@ class LibrarySongPropertiesService {
       final file = File(row['path'] as String);
       final stats = await file.stat();
       final extension = p.extension(file.path).replaceFirst('.', '');
-      final id3Properties = await _id3TagService.readSongTagProperties(
-        file.path,
+      final id3Properties = await Isolate.run(
+        () => _id3TagService.readSongTagProperties(file.path),
       );
       final title = normalizeTagText(id3Properties.title);
       final artist = normalizeArtists(

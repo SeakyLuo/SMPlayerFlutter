@@ -13,6 +13,7 @@ import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:smplayer_flutter/src/app/auto_hide_scrollbar_visibility.dart';
 import 'package:smplayer_flutter/src/app/app_interaction_colors.dart';
 import 'package:smplayer_flutter/src/app/smplayer_vector_icons.dart';
+import 'package:smplayer_flutter/src/app/smplayer_auto_hide_scrollbar.dart';
 import 'package:smplayer_flutter/src/app/svg_icon.dart';
 import 'package:smplayer_flutter/src/app/text_icon_button.dart';
 import 'package:smplayer_flutter/src/app/undoable_notification.dart';
@@ -163,6 +164,7 @@ class _MusicDialogState extends ConsumerState<MusicDialog> {
   var _lyricsSearchPickerOpen = false;
   var _lyricsSearchCandidates = const <InternetLyricsCandidate>[];
   var _loadGeneration = 0;
+  final _requestedModes = <SongDialogMode>{};
   int? _scheduledBrowseSongId;
   var _dependenciesInitialized = false;
   final _shortcutFocusNode = FocusNode(debugLabel: 'MusicDialogShortcuts');
@@ -203,7 +205,7 @@ class _MusicDialogState extends ConsumerState<MusicDialog> {
       return;
     }
     _dependenciesInitialized = true;
-    _loadSong();
+    _scheduleLoadSong(_dialogSessionKey);
   }
 
   @override
@@ -225,18 +227,27 @@ class _MusicDialogState extends ConsumerState<MusicDialog> {
         refreshLatestLyrics: true,
       );
     }
-    if (oldWidget.initialMode != widget.initialMode) {
+    if (oldWidget.song.id == widget.song.id &&
+        oldWidget.initialMode != widget.initialMode) {
       _mode = widget.initialMode;
+      unawaited(_loadCurrentMode());
     }
     if (oldWidget.song.id != widget.song.id) {
-      final previousSessionKey = _dialogSessionKey;
       _mode = widget.initialMode;
       _dialogSession = Object();
       _dialogSessionKey = (session: _dialogSession, songId: widget.song.id);
-      _disposeDialogSession(previousSessionKey);
       _recordBrowseAfterFrame(widget.song.id);
-      _loadSong();
+      _scheduleLoadSong(_dialogSessionKey);
     }
+  }
+
+  void _scheduleLoadSong(MusicDialogSessionKey sessionKey) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || _dialogSessionKey != sessionKey) {
+        return;
+      }
+      unawaited(_loadSong());
+    });
   }
 
   void _recordBrowseAfterFrame(int songId) {
@@ -308,7 +319,6 @@ class _MusicDialogState extends ConsumerState<MusicDialog> {
 
   @override
   void dispose() {
-    _disposeDialogSession(_dialogSessionKey);
     _titleController.dispose();
     _subtitleController.dispose();
     _albumController.dispose();
@@ -337,9 +347,23 @@ class _MusicDialogState extends ConsumerState<MusicDialog> {
 
   @override
   Widget build(BuildContext context) {
+    ref.watch(
+      musicDialogPropertiesStateProvider(_dialogSessionKey).select((_) => null),
+    );
+    ref.watch(
+      musicDialogLyricsStateProvider(_dialogSessionKey).select((_) => null),
+    );
+    ref.watch(
+      musicDialogArtworkStateProvider(_dialogSessionKey).select((_) => null),
+    );
+    ref.watch(
+      internetLyricsCandidateSearchProvider(
+        _dialogSessionKey,
+      ).select((_) => null),
+    );
     final i18n = context.smPlayerI18n;
     ref.listen(libraryContentDataProvider, (previous, next) {
-      if (next.hasValue) {
+      if (next.hasValue && _requestedModes.contains(SongDialogMode.albumArt)) {
         unawaited(_loadArtworkRecommendation(librarySnapshotChanged: true));
       }
     });
@@ -372,32 +396,20 @@ class _MusicDialogState extends ConsumerState<MusicDialog> {
                 iconWidget: const _ElectronIcon(_ElectronIconName.info),
                 selected: _mode == SongDialogMode.properties,
                 first: true,
-                onPressed: () {
-                  setState(() {
-                    _mode = SongDialogMode.properties;
-                  });
-                },
+                onPressed: () => _selectMode(SongDialogMode.properties),
               ),
               PopupDialogTab(
                 label: _dialogTabLabel(i18n.t('context.seeLyrics')),
                 iconWidget: const _ElectronIcon(_ElectronIconName.lyrics),
                 selected: _mode == SongDialogMode.lyrics,
-                onPressed: () {
-                  setState(() {
-                    _mode = SongDialogMode.lyrics;
-                  });
-                },
+                onPressed: () => _selectMode(SongDialogMode.lyrics),
               ),
               PopupDialogTab(
                 label: _dialogTabLabel(i18n.t('context.seeAlbumArt')),
                 iconWidget: const _ElectronIcon(_ElectronIconName.pictures),
                 selected: _mode == SongDialogMode.albumArt,
                 last: true,
-                onPressed: () {
-                  setState(() {
-                    _mode = SongDialogMode.albumArt;
-                  });
-                },
+                onPressed: () => _selectMode(SongDialogMode.albumArt),
               ),
             ],
             child: switch (_mode) {

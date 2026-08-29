@@ -66,11 +66,8 @@ class _PreferenceScrollFrame extends StatelessWidget {
   Widget build(BuildContext context) {
     final mobile =
         MediaQuery.sizeOf(context).width <= popupDialogMobileBreakpoint;
-    return Scrollbar(
+    return SmPlayerAutoHideScrollbar(
       controller: controller,
-      interactive: true,
-      radius: const Radius.circular(999),
-      thickness: 5,
       child: ScrollConfiguration(
         behavior: ScrollConfiguration.of(context).copyWith(scrollbars: false),
         child: SingleChildScrollView(
@@ -126,10 +123,12 @@ class _PreferenceSectionFrame extends StatelessWidget {
     final mobile =
         MediaQuery.sizeOf(context).width <= popupDialogMobileBreakpoint;
     final radius = mobile ? 10.0 : 12.0;
-    return Container(
-      margin: EdgeInsets.only(bottom: mobile ? 10 : 14),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(radius),
+    return Padding(
+      padding: EdgeInsets.only(bottom: mobile ? 10 : 14),
+      child: SmPlayerClippedRoundedSurface(
+        color: colors.preferenceCardSurface,
+        radius: radius,
+        borderSide: BorderSide(color: colors.preferenceCardBorder),
         boxShadow: [
           BoxShadow(
             color: colors.cardShadow,
@@ -137,74 +136,64 @@ class _PreferenceSectionFrame extends StatelessWidget {
             blurRadius: 70,
           ),
         ],
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(radius),
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            color: colors.preferenceCardSurface,
-            border: Border.all(color: colors.preferenceCardBorder),
-            borderRadius: BorderRadius.circular(radius),
-          ),
-          child: Column(
-            children: [
-              Container(
-                constraints: BoxConstraints(minHeight: mobile ? 44 : 52),
-                padding: EdgeInsets.symmetric(horizontal: mobile ? 10 : 14),
-                decoration: BoxDecoration(
-                  color: colors.preferenceHeader,
-                  border: Border(
-                    bottom: BorderSide(color: colors.preferenceCardBorder),
-                  ),
-                ),
-                child: LayoutBuilder(
-                  builder: (context, constraints) {
-                    final compact = mobile;
-                    return Row(
-                      children: [
-                        Expanded(
-                          child: Row(
-                            children: [
-                              Flexible(
-                                child: Text(
-                                  title,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(
-                                    fontSize: compact ? 14 : 15,
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                                ),
-                              ),
-                              if (counter != null) ...[
-                                const SizedBox(width: 10),
-                                Text(
-                                  counter!,
-                                  style: TextStyle(
-                                    color: colors.textMuted,
-                                    fontSize: compact ? 12 : 13,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                              ],
-                            ],
-                          ),
-                        ),
-                        SizedBox(
-                          width:
-                              MediaQuery.sizeOf(context).width <=
-                                      popupDialogMobileBreakpoint
-                                  ? 8
-                                  : 14,
-                        ),
-                        action,
-                      ],
-                    );
-                  },
+        child: Column(
+          children: [
+            Container(
+              constraints: BoxConstraints(minHeight: mobile ? 44 : 52),
+              padding: EdgeInsets.symmetric(horizontal: mobile ? 10 : 14),
+              decoration: BoxDecoration(
+                color: colors.preferenceHeader,
+                border: Border(
+                  bottom: BorderSide(color: colors.preferenceCardBorder),
                 ),
               ),
-              child,
-            ],
-          ),
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final compact = mobile;
+                  return Row(
+                    children: [
+                      Expanded(
+                        child: Row(
+                          children: [
+                            Flexible(
+                              child: Text(
+                                title,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontSize: compact ? 14 : 15,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ),
+                            if (counter != null) ...[
+                              const SizedBox(width: 10),
+                              Text(
+                                counter!,
+                                style: TextStyle(
+                                  color: colors.textMuted,
+                                  fontSize: compact ? 12 : 13,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                      SizedBox(
+                        width:
+                            MediaQuery.sizeOf(context).width <=
+                                    popupDialogMobileBreakpoint
+                                ? 8
+                                : 14,
+                      ),
+                      action,
+                    ],
+                  );
+                },
+              ),
+            ),
+            child,
+          ],
         ),
       ),
     );

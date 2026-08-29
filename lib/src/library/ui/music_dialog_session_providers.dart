@@ -56,7 +56,8 @@ class MusicDialogTabState {
 }
 
 class MusicDialogTabStateNotifier
-    extends FamilyNotifier<MusicDialogTabState, MusicDialogSessionKey> {
+    extends
+        AutoDisposeFamilyNotifier<MusicDialogTabState, MusicDialogSessionKey> {
   @override
   MusicDialogTabState build(MusicDialogSessionKey arg) {
     return const MusicDialogTabState();
@@ -137,33 +138,34 @@ class MusicDialogTabStateNotifier
   }
 }
 
-final musicDialogPropertiesStateProvider = NotifierProvider.family<
+final musicDialogPropertiesStateProvider = NotifierProvider.autoDispose.family<
   MusicDialogTabStateNotifier,
   MusicDialogTabState,
   MusicDialogSessionKey
 >(MusicDialogTabStateNotifier.new);
 
-final musicDialogLyricsStateProvider = NotifierProvider.family<
+final musicDialogLyricsStateProvider = NotifierProvider.autoDispose.family<
   MusicDialogTabStateNotifier,
   MusicDialogTabState,
   MusicDialogSessionKey
 >(MusicDialogTabStateNotifier.new);
 
-final musicDialogArtworkStateProvider = NotifierProvider.family<
+final musicDialogArtworkStateProvider = NotifierProvider.autoDispose.family<
   MusicDialogTabStateNotifier,
   MusicDialogTabState,
   MusicDialogSessionKey
 >(MusicDialogTabStateNotifier.new);
 
-final internetLyricsCandidateSearchProvider = AsyncNotifierProvider.family<
-  InternetLyricsCandidateSearchNotifier,
-  List<InternetLyricsCandidate>,
-  MusicDialogSessionKey
->(InternetLyricsCandidateSearchNotifier.new);
+final internetLyricsCandidateSearchProvider = AsyncNotifierProvider.autoDispose
+    .family<
+      InternetLyricsCandidateSearchNotifier,
+      List<InternetLyricsCandidate>,
+      MusicDialogSessionKey
+    >(InternetLyricsCandidateSearchNotifier.new);
 
 class InternetLyricsCandidateSearchNotifier
     extends
-        FamilyAsyncNotifier<
+        AutoDisposeFamilyAsyncNotifier<
           List<InternetLyricsCandidate>,
           MusicDialogSessionKey
         > {

@@ -89,6 +89,8 @@ class LibraryDatabaseService {
         PlayCount INTEGER DEFAULT 0,
         LyricsOffsetMs INTEGER DEFAULT 0,
         DateAdded TEXT DEFAULT '',
+        FileSize INTEGER DEFAULT 0,
+        DateModifiedMs INTEGER DEFAULT 0,
         State INTEGER DEFAULT 1
       )
     ''');
@@ -475,6 +477,8 @@ class LibraryDatabaseService {
       'PlayCount': 'INTEGER DEFAULT 0',
       'LyricsOffsetMs': 'INTEGER DEFAULT 0',
       'DateAdded': "TEXT DEFAULT ''",
+      'FileSize': 'INTEGER DEFAULT 0',
+      'DateModifiedMs': 'INTEGER DEFAULT 0',
       'State': 'INTEGER DEFAULT 1',
     });
     _addColumnsIfMissing(db, 'Album', {

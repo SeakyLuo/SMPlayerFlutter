@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
+import 'package:smplayer_flutter/src/app/shell_models.dart';
 
 const immersiveModePlayerHeight = 120.0;
 const immersiveModePlayerTopRadius = 18.0;
 const immersiveModeLayoutCompactBreakpoint = 760.0;
 const immersiveModeImmersiveCompactBreakpoint = 800.0;
 const immersiveModeQueueRowHeight = 78.0;
+const immersiveModeQueueEdgeInset = SmPlayerShellMetrics.minimalTitlebarHeight;
+const immersiveModeQueueMaxWidth = 540.0;
 
 const immersiveModeMiniModeWindowSize = Size(360, 360);
 

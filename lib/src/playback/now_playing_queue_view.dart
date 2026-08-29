@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import 'package:smplayer_flutter/src/app/shell_models.dart';
+import 'package:smplayer_flutter/src/app/smplayer_auto_hide_scrollbar.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/data/library_models.dart';
 import 'package:smplayer_flutter/src/library/ui/multi_select_command_bar.dart';
@@ -10,10 +11,6 @@ import 'package:smplayer_flutter/src/library/ui/song_display_helpers.dart';
 import 'package:smplayer_flutter/src/playback/playlist_control.dart';
 
 const _nowPlayingQueueBottomInset = SmPlayerShellMetrics.playerTopRadius + 10.0;
-const _nowPlayingQueueScrollbarThickness = 5.0;
-const _nowPlayingQueueScrollbarHoverThickness = 7.0;
-const _nowPlayingQueueCompactTrailingPadding = 10.0;
-const _nowPlayingQueueCompactDurationWidth = 50.0;
 
 class NowPlayingQueueView extends StatelessWidget {
   const NowPlayingQueueView({
@@ -112,7 +109,7 @@ class NowPlayingQueueView extends StatelessWidget {
               child: playlist,
             )
             : playlist;
-    Widget scrollbar = Scrollbar(
+    Widget scrollbar = SmPlayerAutoHideScrollbar(
       key: const ValueKey('NowPlayingQueue.Scrollbar'),
       controller: scrollController,
       child: ScrollConfiguration(
@@ -123,18 +120,6 @@ class NowPlayingQueueView extends StatelessWidget {
     if (compactScrollbarTrailingOffset == 0) {
       return scrollbar;
     }
-    scrollbar = ScrollbarTheme(
-      data: ScrollbarTheme.of(context).copyWith(
-        thickness: WidgetStateProperty.resolveWith((states) {
-          return states.contains(WidgetState.hovered)
-              ? _nowPlayingQueueScrollbarHoverThickness
-              : _nowPlayingQueueScrollbarThickness;
-        }),
-        radius: const Radius.circular(999),
-        trackColor: const WidgetStatePropertyAll(Colors.transparent),
-      ),
-      child: scrollbar,
-    );
     return Transform.translate(
       offset: Offset(compactScrollbarTrailingOffset, 0),
       child: scrollbar,
@@ -169,9 +154,13 @@ class NowPlayingQueueView extends StatelessWidget {
       showCompactPrimaryActions: compactQueueLayout,
       overlayCompactActions: compactQueueLayout,
       compactDurationWidth:
-          compactQueueLayout ? _nowPlayingQueueCompactDurationWidth : null,
+          compactQueueLayout
+              ? PlaylistControlItemMetrics.nowPlayingCompactDurationWidth
+              : null,
       compactTrailingPadding:
-          compactQueueLayout ? _nowPlayingQueueCompactTrailingPadding : null,
+          compactQueueLayout
+              ? PlaylistControlItemMetrics.nowPlayingCompactTrailingInset
+              : null,
       favoriteLabel: i18n.t('common.favorite'),
       addToPlaylistLabel: i18n.t('context.addToPlaylist'),
       removeLabel: i18n.t('nowPlaying.remove'),

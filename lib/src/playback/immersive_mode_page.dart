@@ -331,6 +331,7 @@ class _ImmersiveModePageState extends ConsumerState<ImmersiveModePage>
               folders: snapshot.folders,
               onClose: () {
                 setState(() {
+                  _selection.cancel();
                   _isPlaylistOpen = false;
                 });
               },
@@ -352,9 +353,6 @@ class _ImmersiveModePageState extends ConsumerState<ImmersiveModePage>
               onAddToPlaylist: _addSongsToPlaylist,
               onToggleFavorite: _toggleSongsFavorite,
               onCreatePlaylist: _createPlaylist,
-              onClearNowPlaying: () {
-                _replaceQueue(const []);
-              },
               onQuickPlay: () {
                 unawaited(_quickPlay(snapshot));
               },
@@ -373,6 +371,36 @@ class _ImmersiveModePageState extends ConsumerState<ImmersiveModePage>
               onRevealSong: _revealPath,
               fullScreen: fullScreen,
               coverColor: _coverColor,
+              multiSelectCommandBar: ImmersiveModeMultiSelectCommandBar(
+                i18n: i18n,
+                songs: queueSongs,
+                songIds: queueSongIds,
+                playlists: customPlaylists,
+                defaultNewPlaylistName: getDefaultNewPlaylistName(
+                  i18n,
+                  _effectivePlaylists(snapshot.playlists),
+                ),
+                hideMultiSelectCommandBarAfterOperation:
+                    snapshot.hideMultiSelectCommandBarAfterOperation,
+                selection: _selection,
+                currentQueueSongIds: () {
+                  return _currentQueueSongIds(queueSongIds);
+                },
+                onToggleFavorite: _toggleSongsFavorite,
+                onAddToPlaylist: _addSongsToPlaylist,
+                onPlay: _playQueueSongIds,
+                onReplaceQueue: _replaceQueue,
+                onRemoveSelectedQueueIndexes: (selectedIndexes, nextSongIds) {
+                  _removeSelectedQueueIndexes(
+                    queueSongIds,
+                    selectedIndexes,
+                    nextSongIds,
+                  );
+                },
+                onSelectionChanged: () {
+                  setState(() {});
+                },
+              ),
             ),
           );
         }
@@ -387,10 +415,13 @@ class _ImmersiveModePageState extends ConsumerState<ImmersiveModePage>
             );
           }
           return Positioned(
-            top: 56,
-            right: 24,
-            bottom: 24,
-            width: min(viewportWidth * 0.4, 520),
+            top: immersiveModeQueueEdgeInset,
+            right: immersiveModeQueueEdgeInset,
+            bottom: immersiveModeQueueEdgeInset,
+            width: min(
+              immersiveModeQueueMaxWidth,
+              viewportWidth - immersiveModeQueueEdgeInset * 2,
+            ),
             child: KeyedSubtree(
               key: const ValueKey('ImmersiveMode.QueuePopoverHost'),
               child: buildQueuePopover(false),
@@ -515,45 +546,15 @@ class _ImmersiveModePageState extends ConsumerState<ImmersiveModePage>
                     onTogglePlaylist: () {
                       setState(() {
                         _dialogMode = null;
+                        if (_isPlaylistOpen) {
+                          _selection.cancel();
+                        }
                         _isPlaylistOpen = !_isPlaylistOpen;
                       });
                     },
                   ),
                   playerBarLayer,
                   queueLayer,
-                  ImmersiveModeMultiSelectCommandBar(
-                    i18n: i18n,
-                    songs: queueSongs,
-                    songIds: queueSongIds,
-                    playlists: customPlaylists,
-                    defaultNewPlaylistName: getDefaultNewPlaylistName(
-                      i18n,
-                      _effectivePlaylists(snapshot.playlists),
-                    ),
-                    hideMultiSelectCommandBarAfterOperation:
-                        snapshot.hideMultiSelectCommandBarAfterOperation,
-                    selection: _selection,
-                    currentQueueSongIds: () {
-                      return _currentQueueSongIds(queueSongIds);
-                    },
-                    onToggleFavorite: _toggleSongsFavorite,
-                    onAddToPlaylist: _addSongsToPlaylist,
-                    onPlay: _playQueueSongIds,
-                    onReplaceQueue: _replaceQueue,
-                    onRemoveSelectedQueueIndexes: (
-                      selectedIndexes,
-                      nextSongIds,
-                    ) {
-                      _removeSelectedQueueIndexes(
-                        queueSongIds,
-                        selectedIndexes,
-                        nextSongIds,
-                      );
-                    },
-                    onSelectionChanged: () {
-                      setState(() {});
-                    },
-                  ),
                   if (noticeText != null)
                     Positioned(
                       right: 76,

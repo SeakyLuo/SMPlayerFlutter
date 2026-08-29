@@ -35,12 +35,47 @@ extension _MusicDialogStateLoadActions on _MusicDialogState {
     _libraryArtworkPickerOpen = false;
     _lyricsSearchPickerOpen = false;
     _lyricsSearchCandidates = const [];
+    _requestedModes.clear();
 
-    await Future.wait<void>([
-      _loadProperties(repository, songId, generation),
-      _loadLyrics(repository, songId, generation),
-      _loadArtwork(repository, songId, generation),
-    ]);
+    await _loadMode(_mode, repository, songId, generation);
+  }
+
+  Future<void> _loadCurrentMode() {
+    return _loadMode(
+      _mode,
+      ref.read(libraryRepositoryProvider),
+      widget.song.id,
+      _loadGeneration,
+    );
+  }
+
+  void _selectMode(SongDialogMode mode) {
+    if (_mode != mode) {
+      _updateDialogStructure(() {
+        _mode = mode;
+      });
+    }
+    unawaited(_loadCurrentMode());
+  }
+
+  Future<void> _loadMode(
+    SongDialogMode mode,
+    LibraryRepository repository,
+    int songId,
+    int generation,
+  ) async {
+    if (!_isActiveLoad(songId, generation) || !_requestedModes.add(mode)) {
+      return;
+    }
+    await switch (mode) {
+      SongDialogMode.properties => _loadProperties(
+        repository,
+        songId,
+        generation,
+      ),
+      SongDialogMode.lyrics => _loadLyrics(repository, songId, generation),
+      SongDialogMode.albumArt => _loadArtwork(repository, songId, generation),
+    };
   }
 
   Future<void> _loadProperties(

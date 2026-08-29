@@ -349,7 +349,7 @@
   "local.scopeCurrent": "当前文件夹",
   "local.scopeSubtree": "包含子文件夹",
   "local.searchHelp": "换一个更宽泛的关键词。",
-  "local.searchDirectory": "搜索文件夹",
+  "local.searchDirectory": "在文件夹中搜索",
   "local.searchDirectoryPrompt": "在“{name}”中搜索",
   "local.searchFolderButtonTooltip": "在文件夹中搜索",
   "local.searchScope": "搜索范围",

@@ -2,6 +2,7 @@ import 'dart:math' show max;
 
 import 'package:flutter/material.dart';
 
+import '../../app/auto_hide_scrollbar_visibility.dart';
 import '../../app/workspace_app_bar_portal.dart';
 import '../../app/text_icon_button.dart';
 import 'default_album_artwork.dart';
@@ -145,9 +146,31 @@ class _LocalPageScrollbar extends StatefulWidget {
   State<_LocalPageScrollbar> createState() => _LocalPageScrollbarState();
 }
 
-class _LocalPageScrollbarState extends State<_LocalPageScrollbar> {
-  var _hovered = false;
+class _LocalPageScrollbarState extends State<_LocalPageScrollbar>
+    with AutoHideScrollbarVisibility {
   var _lastMaxScrollExtent = -1.0;
+
+  @override
+  void initState() {
+    super.initState();
+    widget.controller.addListener(showAutoHideScrollbar);
+  }
+
+  @override
+  void didUpdateWidget(_LocalPageScrollbar oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.controller == widget.controller) {
+      return;
+    }
+    oldWidget.controller.removeListener(showAutoHideScrollbar);
+    widget.controller.addListener(showAutoHideScrollbar);
+  }
+
+  @override
+  void dispose() {
+    widget.controller.removeListener(showAutoHideScrollbar);
+    super.dispose();
+  }
 
   ScrollPosition? get _activePosition {
     ScrollPosition? active;
@@ -196,48 +219,56 @@ class _LocalPageScrollbarState extends State<_LocalPageScrollbar> {
             );
             final trackRange = max(1.0, trackHeight - thumbHeight);
             final thumbTop = (position.pixels / maxScrollTop) * trackRange;
-            final thumbWidth = _hovered ? 7.0 : 5.0;
+            final thumbWidth = autoHideScrollbarExpanded ? 7.0 : 5.0;
 
             return MouseRegion(
-              onEnter:
-                  (_) => setState(() {
-                    _hovered = true;
-                  }),
-              onExit:
-                  (_) => setState(() {
-                    _hovered = false;
-                  }),
-              child: Stack(
-                children: [
-                  Positioned(
-                    top: thumbTop.clamp(0.0, trackRange),
-                    left: (constraints.maxWidth - thumbWidth) / 2,
-                    width: thumbWidth,
-                    height: thumbHeight,
-                    child: GestureDetector(
-                      behavior: HitTestBehavior.opaque,
-                      onVerticalDragUpdate: (details) {
-                        final scrollDelta =
-                            details.delta.dy * (maxScrollTop / trackRange);
-                        position.jumpTo(
-                          (position.pixels + scrollDelta).clamp(
-                            0.0,
-                            maxScrollTop,
+              onEnter: (_) => setAutoHideScrollbarHovered(true),
+              onExit: (_) => setAutoHideScrollbarHovered(false),
+              child: AnimatedOpacity(
+                opacity: autoHideScrollbarVisible ? 1 : 0,
+                duration: const Duration(milliseconds: 140),
+                curve: Curves.easeOut,
+                child: Stack(
+                  children: [
+                    Positioned(
+                      top: thumbTop.clamp(0.0, trackRange),
+                      left: (constraints.maxWidth - thumbWidth) / 2,
+                      width: thumbWidth,
+                      height: thumbHeight,
+                      child: GestureDetector(
+                        behavior: HitTestBehavior.opaque,
+                        onVerticalDragStart: (_) {
+                          beginAutoHideScrollbarDrag();
+                        },
+                        onVerticalDragUpdate: (details) {
+                          final scrollDelta =
+                              details.delta.dy * (maxScrollTop / trackRange);
+                          position.jumpTo(
+                            (position.pixels + scrollDelta).clamp(
+                              0.0,
+                              maxScrollTop,
+                            ),
+                          );
+                        },
+                        onVerticalDragEnd: (_) {
+                          endAutoHideScrollbarDrag();
+                        },
+                        onVerticalDragCancel: () {
+                          endAutoHideScrollbarDrag();
+                        },
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            color:
+                                autoHideScrollbarExpanded
+                                    ? const Color(0xad435060)
+                                    : const Color(0x805b697a),
+                            borderRadius: BorderRadius.circular(999),
                           ),
-                        );
-                      },
-                      child: DecoratedBox(
-                        decoration: BoxDecoration(
-                          color:
-                              _hovered
-                                  ? const Color(0xad435060)
-                                  : const Color(0x805b697a),
-                          borderRadius: BorderRadius.circular(999),
                         ),
                       ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             );
           },
