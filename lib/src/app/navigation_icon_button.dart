@@ -14,6 +14,7 @@ class SmPlayerNavigationIconButton extends StatefulWidget {
     required this.collapsedHoverColor,
     this.collapsedContext = false,
     this.size = SmPlayerShellMetrics.navigationButtonSize,
+    this.collapsedSize,
     this.iconSize = SmPlayerShellMetrics.navigationIconSize,
     this.borderRadius = SmPlayerShellMetrics.navigationButtonRadius,
     this.useMutedForeground = false,
@@ -31,6 +32,7 @@ class SmPlayerNavigationIconButton extends StatefulWidget {
   final Color collapsedHoverColor;
   final bool collapsedContext;
   final double size;
+  final double? collapsedSize;
   final double iconSize;
   final double borderRadius;
   final bool useMutedForeground;
@@ -50,7 +52,8 @@ class _SmPlayerNavigationIconButtonState
   Widget build(BuildContext context) {
     final size =
         widget.collapsedContext
-            ? SmPlayerShellMetrics.navigationCollapsedButtonSize
+            ? widget.collapsedSize ??
+                SmPlayerShellMetrics.navigationCollapsedButtonSize
             : widget.size;
     return MouseRegion(
       cursor: SystemMouseCursors.click,
