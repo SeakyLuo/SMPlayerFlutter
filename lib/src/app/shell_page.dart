@@ -46,7 +46,6 @@ import 'package:smplayer_flutter/src/playback/media_control_model.dart';
 import 'package:smplayer_flutter/src/playback/media_control_provider.dart';
 import 'package:smplayer_flutter/src/playback/media_control_track_factory.dart';
 import 'package:smplayer_flutter/src/playback/mini_mode_surface.dart';
-import 'package:smplayer_flutter/src/playback/immersive_mode_route.dart';
 import 'package:smplayer_flutter/src/playback/playback_queue_actions.dart';
 import 'package:smplayer_flutter/src/playback/quick_play_model.dart';
 import 'package:smplayer_flutter/src/remote/ai_agent_remote_controller.dart';
@@ -266,9 +265,7 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage>
       }
       _rememberRoute(currentLocation);
       _persistCurrentPage(currentLocation);
-      if (currentPath != '/immersive-mode') {
-        unawaited(_desktopFeatureService.setWindowFullScreen(false));
-      }
+      unawaited(_desktopFeatureService.setWindowFullScreen(false));
     }
   }
 
@@ -425,9 +422,7 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage>
           ),
         ),
         headeredPlaylistScrollbarBottomProvider.overrideWithValue(
-          layout.isImmersiveModeRoute
-              ? 10
-              : SmPlayerShellMetrics.playerTopRadius + 10,
+          SmPlayerShellMetrics.playerTopRadius + 10,
         ),
         smPlayerShellActionsProvider.overrideWithValue(
           SmPlayerShellActions(
@@ -476,8 +471,7 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage>
             child: widget.child ?? const SizedBox.shrink(),
           ),
           ShellImmersiveModeSyncHost(
-            visible:
-                layout.isImmersiveModeRoute || _isImmersiveModeOverlayVisible,
+            visible: _isImmersiveModeOverlayVisible,
             mediaControlController: _mediaControlController,
             resolvePlayerSong: _resolvePlayerSong,
             scheduleRestorePlaybackTrack: _scheduleRestorePlaybackTrack,
@@ -606,22 +600,8 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage>
             onWindowDragEnd: _stopWindowDrag,
             onTitlebarTap: _dismissNavigationSurface,
           ),
-          ShellTitlebarHost(
-            layout: layout,
-            windowControlsLight: _lastWindowControlsLight,
-            isWindowMaximized: _isWindowMaximized,
-            onPaneToggle: _toggleNavigationPane,
-            onGoBack: _goBack,
-            onWindowDragStart: _startWindowDrag,
-            onWindowDragEnd: _stopWindowDrag,
-            onTitlebarTap: _dismissNavigationSurface,
-            onMinimize: _minimizeDesktopWindow,
-            onToggleMaximize: _toggleDesktopWindowMaximized,
-            onClose: _closeDesktopWindow,
-          ),
           ShellNavigationPlayerBackdrop(
-            visible:
-                !layout.isImmersiveModeRoute && !_isImmersiveModeOverlayVisible,
+            visible: !_isImmersiveModeOverlayVisible,
             layout: layout,
             colors: shellColors,
           ),
@@ -649,9 +629,7 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage>
               onToggleDesktopLyrics: _toggleDesktopLyricsFromPlatform,
               onToggleFavorite: _togglePlayerFavorite,
               onQuickPlay: _quickPlayLibrary,
-              onOpenNowPlaying: () {
-                _navigateTo(immersiveModeRoutePath);
-              },
+              onOpenNowPlaying: _enterImmersiveMode,
               onArtworkError: _refreshPlayerArtworkAfterError,
               onToggleWindowFullScreen: _toggleDesktopWindowFullScreen,
               onEnterMiniMode: _enterMiniMode,
@@ -701,6 +679,20 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage>
           ),
           ShellImmersiveModeOverlayHost(
             visible: _isImmersiveModeOverlayVisible,
+          ),
+          ShellTitlebarHost(
+            layout: layout,
+            immersiveOverlayVisible: _isImmersiveModeOverlayVisible,
+            windowControlsLight: _lastWindowControlsLight,
+            isWindowMaximized: _isWindowMaximized,
+            onPaneToggle: _toggleNavigationPane,
+            onGoBack: _goBack,
+            onWindowDragStart: _startWindowDrag,
+            onWindowDragEnd: _stopWindowDrag,
+            onTitlebarTap: _dismissNavigationSurface,
+            onMinimize: _minimizeDesktopWindow,
+            onToggleMaximize: _toggleDesktopWindowMaximized,
+            onClose: _closeDesktopWindow,
           ),
           ShellOverlayHost(
             playerDialogNotifier: _playerDialogNotifier,

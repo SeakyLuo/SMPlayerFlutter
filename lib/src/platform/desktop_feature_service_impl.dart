@@ -267,20 +267,82 @@ class TrayWindowDesktopFeatureService
     _lastTrayState = state;
     final entries = buildDesktopTrayMenuEntries(state);
     final menu = tray.Menu(items: entries.map(_toTrayMenuItem).toList());
+    await _ignorePlatformErrors(windowManager.setTitle(state.appTitle));
     await _ignorePlatformErrors(tray.trayManager.setToolTip(state.appTitle));
     await _ignorePlatformErrors(tray.trayManager.setContextMenu(menu));
     if (Platform.isWindows) {
+      final recentItems = await Future.wait(
+        state.recentSongs.take(desktopRecentSongLimit).map((song) async {
+          return {
+            'path': song.path,
+            'iconPath': await _prepareWindowsJumpListArtworkIcon(song),
+          };
+        }),
+      );
       await _ignorePlatformErrors(
         _desktopFeatureChannel.invokeMethod<void>('setRecentDocuments', {
+          'appTitle': state.appTitle,
           'label': state.labels.recent,
-          'paths':
-              state.recentSongs
-                  .take(desktopRecentSongLimit)
-                  .map((song) => song.path)
-                  .toList(),
+          'items': recentItems,
         }),
       );
     }
+  }
+
+  Future<String> _prepareWindowsJumpListArtworkIcon(
+    DesktopRecentSong song,
+  ) async {
+    if (song.artworkPath.isEmpty) {
+      return '';
+    }
+    final artworkFile = File(song.artworkPath);
+    if (!artworkFile.existsSync()) {
+      return '';
+    }
+
+    final iconDirectory = Directory(
+      path.join(artworkFile.parent.path, 'JumpListIcons'),
+    );
+    if (!iconDirectory.existsSync()) {
+      iconDirectory.createSync();
+    }
+    final iconFile = File(
+      path.join(
+        iconDirectory.path,
+        '${path.basenameWithoutExtension(artworkFile.path)}_${song.id}.ico',
+      ),
+    );
+    if (iconFile.existsSync()) {
+      return iconFile.path;
+    }
+
+    final codec = await ui.instantiateImageCodec(
+      await artworkFile.readAsBytes(),
+      targetWidth: 64,
+      targetHeight: 64,
+    );
+    final frame = await codec.getNextFrame();
+    final pngData = await frame.image.toByteData(
+      format: ui.ImageByteFormat.png,
+    );
+    final pngBytes = pngData!.buffer.asUint8List();
+    final header =
+        ByteData(22)
+          ..setUint16(0, 0, Endian.little)
+          ..setUint16(2, 1, Endian.little)
+          ..setUint16(4, 1, Endian.little)
+          ..setUint8(6, 64)
+          ..setUint8(7, 64)
+          ..setUint8(8, 0)
+          ..setUint8(9, 0)
+          ..setUint16(10, 1, Endian.little)
+          ..setUint16(12, 32, Endian.little)
+          ..setUint32(14, pngBytes.length, Endian.little)
+          ..setUint32(18, 22, Endian.little);
+    await iconFile.writeAsBytes([...header.buffer.asUint8List(), ...pngBytes]);
+    frame.image.dispose();
+    codec.dispose();
+    return iconFile.path;
   }
 
   @override

@@ -15,6 +15,8 @@ class ImmersiveModeStage extends StatelessWidget {
   const ImmersiveModeStage({
     super.key,
     required this.song,
+    required this.songInfoKey,
+    required this.lyricsKey,
     required this.artworkPath,
     required this.mediaControlState,
     required this.i18n,
@@ -25,6 +27,8 @@ class ImmersiveModeStage extends StatelessWidget {
   });
 
   final LibrarySong? song;
+  final Key songInfoKey;
+  final Key lyricsKey;
   final String artworkPath;
   final MediaControlState mediaControlState;
   final SmPlayerI18n i18n;
@@ -41,6 +45,8 @@ class ImmersiveModeStage extends StatelessWidget {
     if (compact) {
       return _CompactImmersiveModeStage(
         song: song,
+        songInfoKey: songInfoKey,
+        lyricsKey: lyricsKey,
         artworkPath: artworkPath,
         mediaControlState: mediaControlState,
         i18n: i18n,
@@ -51,6 +57,8 @@ class ImmersiveModeStage extends StatelessWidget {
     }
     return _WideImmersiveModeStage(
       song: song,
+      songInfoKey: songInfoKey,
+      lyricsKey: lyricsKey,
       artworkPath: artworkPath,
       mediaControlState: mediaControlState,
       i18n: i18n,
@@ -118,6 +126,8 @@ class _ImmersiveModeEmptyState extends StatelessWidget {
 class _WideImmersiveModeStage extends StatelessWidget {
   const _WideImmersiveModeStage({
     required this.song,
+    required this.songInfoKey,
+    required this.lyricsKey,
     required this.artworkPath,
     required this.mediaControlState,
     required this.i18n,
@@ -127,6 +137,8 @@ class _WideImmersiveModeStage extends StatelessWidget {
   });
 
   final LibrarySong? song;
+  final Key songInfoKey;
+  final Key lyricsKey;
   final String artworkPath;
   final MediaControlState mediaControlState;
   final SmPlayerI18n i18n;
@@ -188,6 +200,7 @@ class _WideImmersiveModeStage extends StatelessWidget {
                             child: SizedBox(
                               width: artworkSize,
                               child: ImmersiveModeSongInfo(
+                                key: songInfoKey,
                                 song: song,
                                 artworkPath: artworkPath,
                                 artworkSize: artworkSize,
@@ -215,6 +228,7 @@ class _WideImmersiveModeStage extends StatelessWidget {
                       startOpacity: 0,
                       intervalStart: 0.08,
                       child: ImmersiveModeLyrics(
+                        key: lyricsKey,
                         song: song,
                         progressSeconds: mediaControlState.progressSeconds,
                         durationSeconds: mediaControlState.durationSeconds,
@@ -241,6 +255,8 @@ class _WideImmersiveModeStage extends StatelessWidget {
 class _CompactImmersiveModeStage extends StatelessWidget {
   const _CompactImmersiveModeStage({
     required this.song,
+    required this.songInfoKey,
+    required this.lyricsKey,
     required this.artworkPath,
     required this.mediaControlState,
     required this.i18n,
@@ -250,6 +266,8 @@ class _CompactImmersiveModeStage extends StatelessWidget {
   });
 
   final LibrarySong? song;
+  final Key songInfoKey;
+  final Key lyricsKey;
   final String artworkPath;
   final MediaControlState mediaControlState;
   final SmPlayerI18n i18n;
@@ -289,6 +307,7 @@ class _CompactImmersiveModeStage extends StatelessWidget {
                     child: SizedBox(
                       width: artworkSize,
                       child: ImmersiveModeSongInfo(
+                        key: songInfoKey,
                         song: song,
                         artworkPath: artworkPath,
                         artworkSize: artworkSize,
@@ -303,6 +322,7 @@ class _CompactImmersiveModeStage extends StatelessWidget {
                     key: const ValueKey('ImmersiveMode.LyricsEntrance'),
                     opacity: entranceAnimation,
                     child: ImmersiveModeLyrics(
+                      key: lyricsKey,
                       song: song,
                       progressSeconds: mediaControlState.progressSeconds,
                       durationSeconds: mediaControlState.durationSeconds,

@@ -373,8 +373,8 @@ class _WindowsCaptionIconPainter extends CustomPainter {
     switch (icon) {
       case _WindowsCaptionIcon.minimize:
         canvas.drawLine(
-          Offset(center.dx - 5, center.dy + 4),
-          Offset(center.dx + 5, center.dy + 4),
+          Offset(center.dx - 5, center.dy),
+          Offset(center.dx + 5, center.dy),
           paint,
         );
       case _WindowsCaptionIcon.maximize:

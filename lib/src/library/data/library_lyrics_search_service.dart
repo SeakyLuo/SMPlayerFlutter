@@ -25,19 +25,17 @@ class LibraryLyricsSearchService {
   static final _indexProgressListeners =
       <String, Set<void Function(LocalLyricsIndexProgress)>>{};
 
-  Future<List<LocalLyricsSearchMatch>> search(
+  List<LocalLyricsSearchMatch> searchAvailable(
     File databaseFile,
     String query, {
     String folderPath = '',
-    void Function(LocalLyricsIndexProgress progress)? onIndexProgress,
-  }) async {
+  }) {
     _ensureSchema(databaseFile);
     final normalizedQuery = _normalizeQuery(query);
     if (normalizedQuery.runes.length < 2) {
       return const [];
     }
 
-    await _ensureMissingSongsIndexed(databaseFile, onProgress: onIndexProgress);
     final db = sqlite3.open(databaseFile.path);
     try {
       _removeInactiveSongs(db);
@@ -80,6 +78,14 @@ class LibraryLyricsSearchService {
     } finally {
       db.dispose();
     }
+  }
+
+  Future<void> indexMissingSongs(
+    File databaseFile, {
+    void Function(LocalLyricsIndexProgress progress)? onProgress,
+  }) async {
+    _ensureSchema(databaseFile);
+    await _ensureMissingSongsIndexed(databaseFile, onProgress: onProgress);
   }
 
   Future<void> refreshAll(File databaseFile) async {

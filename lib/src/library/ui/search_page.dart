@@ -68,7 +68,7 @@ class SearchPage extends ConsumerStatefulWidget {
 class _SearchPageState extends ConsumerState<SearchPage> {
   static const _artistPreviewLimit = 10;
   static const _sectionPreviewLimit = 5;
-  static const _lyricsSearchRevision = 2;
+  static const _lyricsSearchRevision = 3;
 
   late final SettingsController _settingsController;
   final _selection = PageSelectionController<String>.stored('search');
@@ -148,7 +148,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
     final signature =
         '$showPortal:$title:$_activeFilter:${results.artists.length}:'
         '${results.albums.length}:${results.songs.length}:'
-        '${results.lyrics.length}:'
+        '${results.lyrics.length}:${_lyricsIndexProgress != null}:'
         '${results.playlists.length}:${results.folders.length}';
     if (_appBarPortalSignature == signature) {
       return;
@@ -176,6 +176,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
             i18n: i18n,
             activeFilter: _activeFilter,
             results: results,
+            lyricsIndexing: _lyricsIndexProgress != null,
             onChanged: _changeFilter,
           ),
         ),
@@ -369,6 +370,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                               i18n: i18n,
                               activeFilter: _activeFilter,
                               results: results,
+                              lyricsIndexing: _lyricsIndexProgress != null,
                               onChanged: _changeFilter,
                             ),
                           ),
@@ -384,26 +386,23 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                         ),
                         sliver: SliverList(
                           delegate: SliverChildListDelegate([
+                            if (_activeFilter == SearchFilterKey.lyrics &&
+                                _lyricsIndexProgress != null) ...[
+                              _SearchLoadingState(
+                                message: _lyricsIndexProgressMessage(i18n),
+                              ),
+                              const SizedBox(height: 18),
+                            ],
                             if (_showSearchStatus(
                               results,
                               visibleSections,
                             )) ...[
-                              if (_lyricsSearchLoading &&
-                                  (_activeFilter == SearchFilterKey.all ||
-                                      _activeFilter == SearchFilterKey.lyrics))
-                                _SearchLoadingState(
-                                  message: _lyricsSearchStatusMessage(
-                                    i18n,
-                                    query,
-                                  ),
-                                )
-                              else
-                                _SearchEmptyState(
-                                  message: _lyricsSearchStatusMessage(
-                                    i18n,
-                                    query,
-                                  ),
+                              _SearchEmptyState(
+                                message: _lyricsSearchStatusMessage(
+                                  i18n,
+                                  query,
                                 ),
+                              ),
                               const SizedBox(height: 18),
                             ],
                             for (final section in visibleSections) ...[
@@ -840,32 +839,19 @@ class _SearchPageState extends ConsumerState<SearchPage> {
         _lyricsSearchLoading = true;
         _lyricsIndexProgress = null;
       });
+      final repository = ref.read(libraryRepositoryProvider);
       try {
-        final matches = await ref
-            .read(libraryRepositoryProvider)
-            .searchLocalLyrics(
-              query,
-              folderPath: folderPath,
-              onIndexProgress: (progress) {
-                if (!mounted || generation != _lyricsSearchGeneration) {
-                  return;
-                }
-                setState(() {
-                  _lyricsIndexProgress = progress;
-                });
-              },
-            );
+        final matches = await repository.searchLocalLyrics(
+          query,
+          folderPath: folderPath,
+        );
         if (!mounted || generation != _lyricsSearchGeneration) {
           return;
         }
         setState(() {
           _lyricsMatches = matches;
           _lyricsSearchLoading = false;
-          _lyricsIndexProgress = null;
         });
-        if (matches.isEmpty) {
-          _leaveEmptyLyricsFilter();
-        }
       } catch (_) {
         if (!mounted || generation != _lyricsSearchGeneration) {
           return;
@@ -876,6 +862,37 @@ class _SearchPageState extends ConsumerState<SearchPage> {
           _lyricsIndexProgress = null;
         });
         _leaveEmptyLyricsFilter();
+        showAppNotification(
+          context: context,
+          message: context.smPlayerI18n.t('search.lyricsSearchFailed'),
+        );
+        return;
+      }
+
+      try {
+        await repository.indexMissingLocalLyrics(
+          onProgress: (progress) {
+            if (!mounted || generation != _lyricsSearchGeneration) {
+              return;
+            }
+            setState(() {
+              _lyricsIndexProgress = progress;
+            });
+          },
+        );
+        if (!mounted || generation != _lyricsSearchGeneration) {
+          return;
+        }
+        setState(() {
+          _lyricsIndexProgress = null;
+        });
+      } catch (_) {
+        if (!mounted || generation != _lyricsSearchGeneration) {
+          return;
+        }
+        setState(() {
+          _lyricsIndexProgress = null;
+        });
         showAppNotification(
           context: context,
           message: context.smPlayerI18n.t('search.lyricsSearchFailed'),
@@ -904,7 +921,11 @@ class _SearchPageState extends ConsumerState<SearchPage> {
     if (_lyricsSearchLoading &&
         (_activeFilter == SearchFilterKey.all ||
             _activeFilter == SearchFilterKey.lyrics)) {
-      return true;
+      return false;
+    }
+    if (_activeFilter == SearchFilterKey.lyrics &&
+        _lyricsIndexProgress != null) {
+      return false;
     }
     return _activeFilter == SearchFilterKey.lyrics
         ? results.lyrics.isEmpty
@@ -915,18 +936,15 @@ class _SearchPageState extends ConsumerState<SearchPage> {
     if (query.trim().runes.length < 2) {
       return i18n.t('search.lyricsMinimumQuery');
     }
-    if (_lyricsSearchLoading &&
-        (_activeFilter == SearchFilterKey.all ||
-            _activeFilter == SearchFilterKey.lyrics)) {
-      final progress = _lyricsIndexProgress;
-      return progress == null
-          ? i18n.t('search.lyricsPreparing')
-          : i18n.t('search.lyricsPreparingProgress', {
-            'current': progress.current,
-            'total': progress.total,
-          });
-    }
     return i18n.t('search.noResult');
+  }
+
+  String _lyricsIndexProgressMessage(SmPlayerI18n i18n) {
+    final progress = _lyricsIndexProgress!;
+    return i18n.t('search.lyricsPreparingProgress', {
+      'current': progress.current,
+      'total': progress.total,
+    });
   }
 
   Future<void> _restoreSettings() async {

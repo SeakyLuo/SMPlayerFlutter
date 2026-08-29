@@ -674,6 +674,7 @@ class ImmersiveModePlaylistState extends State<ImmersiveModePlaylist> {
           dropPosition: dropPosition,
           variant: PlaylistControlItemVariant.compact,
           collapseCompactPrimaryActions: true,
+          overlayCompactActions: fullScreen,
           compactDurationWidth: _nowPlayingQueueCompactDurationWidth,
           compactTrailingPadding: _nowPlayingQueueCompactTrailingPadding,
           playNextLabel: i18n.t('context.playNext'),

@@ -13,6 +13,7 @@ class ShellTitlebarHost extends StatelessWidget {
   const ShellTitlebarHost({
     super.key,
     required this.layout,
+    required this.immersiveOverlayVisible,
     required this.windowControlsLight,
     required this.isWindowMaximized,
     required this.onPaneToggle,
@@ -26,6 +27,7 @@ class ShellTitlebarHost extends StatelessWidget {
   });
 
   final ShellLayoutState layout;
+  final bool immersiveOverlayVisible;
   final bool? windowControlsLight;
   final bool isWindowMaximized;
   final VoidCallback onPaneToggle;
@@ -39,10 +41,11 @@ class ShellTitlebarHost extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final immersiveModeVisible = immersiveOverlayVisible;
     return Stack(
       children: [
         if (Platform.isMacOS &&
-            !layout.isImmersiveModeRoute &&
+            !immersiveModeVisible &&
             layout.navigationMode != SmPlayerNavigationMode.minimal)
           _MacOSSidebarTitlebarActions(
             layout: layout,
@@ -52,15 +55,14 @@ class ShellTitlebarHost extends StatelessWidget {
             onWindowDragEnd: onWindowDragEnd,
             onTitlebarTap: onTitlebarTap,
           ),
-        if (layout.minimalTitlebarHeight > 0)
+        if (!immersiveModeVisible && layout.minimalTitlebarHeight > 0)
           Positioned(
             top: 0,
             left: 0,
             right: 0,
             height: layout.minimalTitlebarHeight,
             child: MinimalTitlebar(
-              title:
-                  Platform.isMacOS ? '' : context.smPlayerI18n.t('app.shell'),
+              title: '',
               canGoBack: layout.canGoBack,
               backLabel: context.smPlayerI18n.t('sidebar.back'),
               onGoBack: onGoBack,
@@ -71,11 +73,10 @@ class ShellTitlebarHost extends StatelessWidget {
             ),
           ),
         if (Platform.isWindows &&
-            !layout.isImmersiveModeRoute &&
-            layout.minimalTitlebarHeight == 0)
+            (immersiveModeVisible || layout.minimalTitlebarHeight == 0))
           Positioned(
             top: 0,
-            left: layout.sidebarSurfaceWidth,
+            left: immersiveModeVisible ? 0 : layout.sidebarSurfaceWidth,
             right: 0,
             height: SmPlayerShellMetrics.minimalTitlebarHeight,
             child: WindowsAppTitleBar(
@@ -93,7 +94,7 @@ class ShellTitlebarHost extends StatelessWidget {
             ),
           ),
         if (Platform.isWindows &&
-            !layout.isImmersiveModeRoute &&
+            !immersiveModeVisible &&
             layout.minimalTitlebarHeight > 0)
           Positioned(
             top: 0,
