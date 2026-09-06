@@ -115,7 +115,7 @@ class MusicLyricsControl extends StatelessWidget {
                   : _SongDialogScrollbarHost(
                     controller: lyricsScrollController,
                     right: mobile ? 15 : 31,
-                    bottom: mobile ? 28 : 44,
+                    bottom: mobile ? 12 : 28,
                     positionKey: const ValueKey(
                       'MusicDialog.LyricsScrollbar.Position',
                     ),
@@ -125,8 +125,8 @@ class MusicLyricsControl extends StatelessWidget {
                     child: Padding(
                       padding:
                           mobile
-                              ? const EdgeInsets.fromLTRB(12, 0, 12, 28)
-                              : const EdgeInsets.fromLTRB(28, 0, 28, 44),
+                              ? const EdgeInsets.fromLTRB(12, 0, 12, 12)
+                              : const EdgeInsets.fromLTRB(28, 0, 28, 28),
                       child: _DialogTextFieldFrame(
                         readOnly: editorLocked,
                         emphasizeReadOnly: false,

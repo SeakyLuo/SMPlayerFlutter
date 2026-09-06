@@ -1,5 +1,7 @@
 part of 'library_lyrics_service.dart';
 
+const _maximumInternetLyricsCandidates = 10;
+
 extension LibraryLyricsCandidateSearch on LibraryLyricsService {
   Future<List<InternetLyricsCandidate>> searchInternetLyricsCandidates(
     File databaseFile,
@@ -27,12 +29,16 @@ extension LibraryLyricsCandidateSearch on LibraryLyricsService {
       if (_isInvalidInternetLyricsResponse(rawLyrics)) {
         return const [];
       }
-      final preparedLyrics = await _prepareInternetLyrics(rawLyrics);
+      final preparedLyrics = _prepareInternetLyricsWithPreference(
+        rawLyrics,
+        preserveTimestamps: true,
+      );
       return [
         InternetLyricsCandidate(
           sourceKey: 'resolver',
           title: song.title,
           artist: song.artist,
+          album: song.album,
           lyrics: _createLyricsSnapshot(preparedLyrics, LyricsSource.internet),
         ),
       ];
@@ -69,15 +75,12 @@ extension LibraryLyricsCandidateSearch on LibraryLyricsService {
     final metadataCandidates =
         candidatesByMid.values.toList()
           ..sort((left, right) => right.score.compareTo(left.score));
-    final limitedCandidates = metadataCandidates.take(8).toList();
+    final limitedCandidates =
+        metadataCandidates.take(_maximumInternetLyricsCandidates).toList();
     if (limitedCandidates.isEmpty) {
       return const [];
     }
 
-    final settingsSnapshot = await _settingsSnapshotResolver();
-    final preserveTimestamps =
-        settingsSnapshot == null ||
-        settingsSnapshot.preserveInternetLyricsTimestamps;
     final lyricsResults = await Future.wait(
       limitedCandidates.map((candidate) async {
         try {
@@ -90,7 +93,7 @@ extension LibraryLyricsCandidateSearch on LibraryLyricsService {
           }
           final preparedLyrics = _prepareInternetLyricsWithPreference(
             rawLyrics,
-            preserveTimestamps: preserveTimestamps,
+            preserveTimestamps: true,
           );
           return _LyricsCandidateLyricsResult(
             succeeded: true,
@@ -98,6 +101,7 @@ extension LibraryLyricsCandidateSearch on LibraryLyricsService {
               sourceKey: candidate.mid,
               title: candidate.title,
               artist: candidate.artist,
+              album: _internetLyricsAlbum(rawLyrics),
               lyrics: _createLyricsSnapshot(
                 preparedLyrics,
                 LyricsSource.internet,
@@ -157,7 +161,8 @@ extension LibraryLyricsCandidateSearch on LibraryLyricsService {
       final artist = item['singer'] as String? ?? '';
       final score =
           _evaluateLyricsMatch(attempt.title, title) * 2 +
-          _evaluateLyricsMatch(attempt.artist, artist);
+          _evaluateLyricsMatch(attempt.artist, artist) +
+          _evaluateLyricsVersionMatch(attempt.originalTitle, title);
       if (mid.isNotEmpty && score > 0) {
         candidates.add(
           _InternetLyricsCandidateMetadata(
@@ -171,6 +176,15 @@ extension LibraryLyricsCandidateSearch on LibraryLyricsService {
     }
     return candidates;
   }
+}
+
+String _internetLyricsAlbum(String rawLyrics) {
+  final match = RegExp(
+    r'^\[al:(.*)\]$',
+    caseSensitive: false,
+    multiLine: true,
+  ).firstMatch(rawLyrics);
+  return match?.group(1)?.trim() ?? '';
 }
 
 class _InternetLyricsCandidateMetadata {

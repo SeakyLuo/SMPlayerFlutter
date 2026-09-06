@@ -174,17 +174,50 @@ Future<AppNotificationClosedReason> _showAppOverlayNotification({
   return controller.closed;
 }
 
-class AppNotificationHost extends StatelessWidget {
+class AppNotificationHost extends StatefulWidget {
   const AppNotificationHost({super.key});
 
   @override
+  State<AppNotificationHost> createState() => _AppNotificationHostState();
+}
+
+class _AppNotificationHostState extends State<AppNotificationHost> {
+  final _overlayController = OverlayPortalController(
+    debugLabel: 'AppNotificationHost',
+  );
+  var _showing = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _notificationPresentation.addListener(_handlePresentationChanged);
+  }
+
+  @override
+  void dispose() {
+    _notificationPresentation.removeListener(_handlePresentationChanged);
+    super.dispose();
+  }
+
+  void _handlePresentationChanged() {
+    if (_showing) {
+      _overlayController.hide();
+      _showing = false;
+    }
+    if (_notificationPresentation.value == null) {
+      return;
+    }
+    _overlayController.show();
+    _showing = true;
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return ValueListenableBuilder<_AppNotificationPresentation?>(
-      valueListenable: _notificationPresentation,
-      builder: (context, presentation, _) {
-        if (presentation == null) {
-          return const SizedBox.shrink();
-        }
+    return OverlayPortal(
+      controller: _overlayController,
+      overlayLocation: OverlayChildLocation.rootOverlay,
+      overlayChildBuilder: (context) {
+        final presentation = _notificationPresentation.value!;
         final controller = presentation.controller;
         return _AppNotificationOverlay(
           message: presentation.message,
@@ -213,6 +246,7 @@ class AppNotificationHost extends StatelessWidget {
           },
         );
       },
+      child: const SizedBox.shrink(),
     );
   }
 }

@@ -421,6 +421,17 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage>
             onEnd: _stopWindowDrag,
           ),
         ),
+        smPlayerWindowControlsProvider.overrideWithValue(
+          SmPlayerWindowControls(
+            isMaximized: _isWindowMaximized,
+            light:
+                _lastWindowControlsLight ??
+                (Theme.of(context).brightness == Brightness.dark),
+            onMinimize: _minimizeDesktopWindow,
+            onToggleMaximize: _toggleDesktopWindowMaximized,
+            onClose: _closeDesktopWindow,
+          ),
+        ),
         headeredPlaylistScrollbarBottomProvider.overrideWithValue(
           SmPlayerShellMetrics.playerTopRadius + 10,
         ),

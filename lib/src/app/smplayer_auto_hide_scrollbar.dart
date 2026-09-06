@@ -10,6 +10,7 @@ class SmPlayerAutoHideScrollbar extends StatefulWidget {
     this.hoverThickness = 7,
     this.crossAxisMargin = 0,
     this.mainAxisMargin = 0,
+    this.showOnHover = false,
   });
 
   final ScrollController controller;
@@ -18,6 +19,7 @@ class SmPlayerAutoHideScrollbar extends StatefulWidget {
   final double hoverThickness;
   final double crossAxisMargin;
   final double mainAxisMargin;
+  final bool showOnHover;
 
   @override
   State<SmPlayerAutoHideScrollbar> createState() =>
@@ -53,7 +55,7 @@ class _SmPlayerAutoHideScrollbarState extends State<SmPlayerAutoHideScrollbar>
     final dark = Theme.of(context).brightness == Brightness.dark;
     final thumb = dark ? const Color(0x5cd0dbe8) : const Color(0x705b697a);
     final hoverThumb = dark ? const Color(0x94dee7f2) : const Color(0xa6435060);
-    return ScrollbarTheme(
+    final scrollbar = ScrollbarTheme(
       data: ScrollbarTheme.of(context).copyWith(
         thumbVisibility: const WidgetStatePropertyAll(true),
         trackVisibility: const WidgetStatePropertyAll(false),
@@ -83,6 +85,18 @@ class _SmPlayerAutoHideScrollbarState extends State<SmPlayerAutoHideScrollbar>
         trackVisibility: false,
         child: widget.child,
       ),
+    );
+    if (!widget.showOnHover) {
+      return scrollbar;
+    }
+    return MouseRegion(
+      onEnter: (_) {
+        setAutoHideScrollbarHovered(true);
+      },
+      onExit: (_) {
+        setAutoHideScrollbarHovered(false);
+      },
+      child: scrollbar,
     );
   }
 }

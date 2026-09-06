@@ -65,12 +65,6 @@ class LibraryReadService {
   List<LibrarySong> readSongs(Database db) {
     final rows = db.select(
       '''
-      WITH SettingsRow AS (
-        SELECT MyFavorites AS favoritePlaylistId
-        FROM Settings
-        ORDER BY Id
-        LIMIT 1
-      )
       SELECT
         Music.Id AS id,
         Music.Path AS path,
@@ -81,43 +75,46 @@ class LibraryReadService {
         Music.Duration AS duration,
         Music.PlayCount AS playCount,
         Music.LyricsOffsetMs AS lyricsOffsetMs,
-        CAST(Music.DateAdded AS TEXT) AS dateAdded,
-        EXISTS(
-          SELECT 1
-          FROM PlaylistItem, SettingsRow
-          WHERE PlaylistItem.PlaylistId = SettingsRow.favoritePlaylistId
-            AND PlaylistItem.ItemId = Music.Id
-            AND PlaylistItem.State = ?
-        ) AS favorite,
-        COALESCE((
-          SELECT group_concat(Name, char(31))
-          FROM (
-            SELECT MusicArtist.Name AS Name
-            FROM MusicArtist
-            WHERE MusicArtist.MusicId = Music.Id
-              AND MusicArtist.State = ?
-            ORDER BY MusicArtist.Priority, MusicArtist.Id
-          )
-        ), '') AS artistsValue
+        CAST(Music.DateAdded AS TEXT) AS dateAdded
       FROM Music
       WHERE Music.State = ?
       ORDER BY Music.Name COLLATE NOCASE, Music.Artist COLLATE NOCASE, Music.Id
     ''',
-      [_activeState, _activeState, _activeState],
+      [_activeState],
     );
+    final favorites =
+        db
+            .select(
+              '''
+      SELECT ItemId FROM PlaylistItem
+      WHERE State = ? AND PlaylistId = (
+        SELECT MyFavorites FROM Settings ORDER BY Id LIMIT 1
+      )
+    ''',
+              [_activeState],
+            )
+            .map((row) => row['ItemId'] as int)
+            .toSet();
+    final artistRows = db.select(
+      '''
+      SELECT MusicId, Name FROM MusicArtist
+      WHERE State = ? AND Name IS NOT NULL
+        AND MusicId IN (SELECT Id FROM Music WHERE State = ?)
+      ORDER BY MusicId, Priority, Id
+    ''',
+      [_activeState, _activeState],
+    );
+    final artistsBySong = <int, Set<String>>{};
+    for (final row in artistRows) {
+      final artist = normalizeTagText(row['Name'] as String);
+      if (artist.isNotEmpty) {
+        artistsBySong.putIfAbsent(row['MusicId'] as int, () => {}).add(artist);
+      }
+    }
 
     return rows.map((row) {
       final artist = normalizeTagText(row['artist'] as String);
-      final artistsValue = row['artistsValue'] as String;
-      final artists =
-          artistsValue.isEmpty
-              ? [artist]
-              : artistsValue
-                  .split(String.fromCharCode(31))
-                  .map(normalizeTagText)
-                  .where((value) => value.isNotEmpty)
-                  .toSet()
-                  .toList();
+      final artists = artistsBySong[row['id']]?.toList() ?? [artist];
 
       return LibrarySong(
         id: row['id'] as int,
@@ -131,7 +128,7 @@ class LibraryReadService {
         playCount: row['playCount'] as int,
         lyricsOffsetMs: row['lyricsOffsetMs'] as int,
         dateAdded: row['dateAdded'] as String,
-        favorite: (row['favorite'] as int) != 0,
+        favorite: favorites.contains(row['id']),
       );
     }).toList();
   }

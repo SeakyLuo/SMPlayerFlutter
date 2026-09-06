@@ -528,6 +528,7 @@ class _ImmersiveModePageState extends ConsumerState<ImmersiveModePage>
                                 mediaControlState: mediaControlState,
                                 i18n: i18n,
                                 refreshRevision: _lyricsRefreshRevision,
+                                lyricsRequestMode: settings.playerLyricsSource,
                                 onSeekAndPlay:
                                     ref
                                         .read(mediaControlControllerProvider)

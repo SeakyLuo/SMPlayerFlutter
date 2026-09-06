@@ -10,6 +10,8 @@ import 'package:smplayer_flutter/src/playback/immersive_mode_constants.dart';
 import 'package:smplayer_flutter/src/playback/immersive_mode_lyrics.dart';
 import 'package:smplayer_flutter/src/playback/immersive_mode_song_info.dart';
 import 'package:smplayer_flutter/src/playback/immersive_mode_theme.dart';
+import 'package:smplayer_flutter/src/settings/settings_model.dart'
+    show LyricsRequestMode;
 
 class ImmersiveModeStage extends StatelessWidget {
   const ImmersiveModeStage({
@@ -21,6 +23,7 @@ class ImmersiveModeStage extends StatelessWidget {
     required this.mediaControlState,
     required this.i18n,
     required this.refreshRevision,
+    required this.lyricsRequestMode,
     required this.onSeekAndPlay,
     required this.compact,
     required this.entranceAnimation,
@@ -33,6 +36,7 @@ class ImmersiveModeStage extends StatelessWidget {
   final MediaControlState mediaControlState;
   final SmPlayerI18n i18n;
   final int refreshRevision;
+  final LyricsRequestMode lyricsRequestMode;
   final ValueChanged<double> onSeekAndPlay;
   final bool compact;
   final Animation<double> entranceAnimation;
@@ -51,6 +55,7 @@ class ImmersiveModeStage extends StatelessWidget {
         mediaControlState: mediaControlState,
         i18n: i18n,
         refreshRevision: refreshRevision,
+        lyricsRequestMode: lyricsRequestMode,
         onSeekAndPlay: onSeekAndPlay,
         entranceAnimation: entranceAnimation,
       );
@@ -63,6 +68,7 @@ class ImmersiveModeStage extends StatelessWidget {
       mediaControlState: mediaControlState,
       i18n: i18n,
       refreshRevision: refreshRevision,
+      lyricsRequestMode: lyricsRequestMode,
       onSeekAndPlay: onSeekAndPlay,
       entranceAnimation: entranceAnimation,
     );
@@ -132,6 +138,7 @@ class _WideImmersiveModeStage extends StatelessWidget {
     required this.mediaControlState,
     required this.i18n,
     required this.refreshRevision,
+    required this.lyricsRequestMode,
     required this.onSeekAndPlay,
     required this.entranceAnimation,
   });
@@ -143,6 +150,7 @@ class _WideImmersiveModeStage extends StatelessWidget {
   final MediaControlState mediaControlState;
   final SmPlayerI18n i18n;
   final int refreshRevision;
+  final LyricsRequestMode lyricsRequestMode;
   final ValueChanged<double> onSeekAndPlay;
   final Animation<double> entranceAnimation;
 
@@ -248,6 +256,7 @@ class _WideImmersiveModeStage extends StatelessWidget {
                           i18n: i18n,
                           onSeekAndPlay: onSeekAndPlay,
                           refreshRevision: refreshRevision,
+                          lyricsRequestMode: lyricsRequestMode,
                           compact: false,
                           midCompact: midCompact,
                           anchorOffset: lyricAnchorOffset,
@@ -274,6 +283,7 @@ class _CompactImmersiveModeStage extends StatelessWidget {
     required this.mediaControlState,
     required this.i18n,
     required this.refreshRevision,
+    required this.lyricsRequestMode,
     required this.onSeekAndPlay,
     required this.entranceAnimation,
   });
@@ -285,6 +295,7 @@ class _CompactImmersiveModeStage extends StatelessWidget {
   final MediaControlState mediaControlState;
   final SmPlayerI18n i18n;
   final int refreshRevision;
+  final LyricsRequestMode lyricsRequestMode;
   final ValueChanged<double> onSeekAndPlay;
   final Animation<double> entranceAnimation;
 
@@ -343,6 +354,7 @@ class _CompactImmersiveModeStage extends StatelessWidget {
                       i18n: i18n,
                       onSeekAndPlay: onSeekAndPlay,
                       refreshRevision: refreshRevision,
+                      lyricsRequestMode: lyricsRequestMode,
                       compact: true,
                       midCompact: false,
                       anchorOffset: null,

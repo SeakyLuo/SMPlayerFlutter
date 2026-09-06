@@ -1,4 +1,5 @@
 #include "flutter_window.h"
+#include "directory_picker.h"
 
 #include <chrono>
 #include <dwmapi.h>
@@ -262,15 +263,7 @@ std::wstring FileNameFromPath(const std::wstring& file_path) {
 }
 
 std::wstring QuoteWindowsArgument(const std::wstring& value) {
-  std::wstring escaped = L"\"";
-  for (wchar_t character : value) {
-    if (character == L'\\' || character == L'"') {
-      escaped.push_back(L'\\');
-    }
-    escaped.push_back(character);
-  }
-  escaped.push_back(L'"');
-  return escaped;
+  return L"\"" + value + L"\"";
 }
 
 HRESULT SetShellLinkTitle(IShellLinkW* link, const std::wstring& title) {
@@ -459,6 +452,12 @@ void FlutterWindow::RegisterDesktopFeatureChannel() {
       [this](const flutter::MethodCall<flutter::EncodableValue>& call,
          std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>>
              result) {
+        if (call.method_name() == "pickDirectory") {
+          PickDirectory(GetHandle(),
+                        std::get<flutter::EncodableMap>(*call.arguments()),
+                        std::move(result));
+          return;
+        }
         if (call.method_name() == "updateDesktopLyricsWindow") {
           const auto* arguments =
               std::get_if<flutter::EncodableMap>(call.arguments());
@@ -865,8 +864,20 @@ void FlutterWindow::UpdateDesktopLyricsWindow(
       desktop_lyrics_loading_
           ? L"..."
           : lyric_text.empty() ? fallback_text : lyric_text;
+  const bool next_desktop_lyrics_playing = EncodableBool(state, "playing");
+  const ULONGLONG now = ::GetTickCount64();
   if (desktop_lyrics_text_ != next_desktop_lyrics_text) {
-    desktop_lyrics_text_started_at_ = ::GetTickCount64();
+    desktop_lyrics_text_started_at_ = now;
+    desktop_lyrics_scroll_paused_at_ =
+        next_desktop_lyrics_playing ? 0 : now;
+  } else if (desktop_lyrics_playing_ != next_desktop_lyrics_playing) {
+    if (next_desktop_lyrics_playing) {
+      desktop_lyrics_text_started_at_ +=
+          now - desktop_lyrics_scroll_paused_at_;
+      desktop_lyrics_scroll_paused_at_ = 0;
+    } else {
+      desktop_lyrics_scroll_paused_at_ = now;
+    }
   }
   desktop_lyrics_text_ = next_desktop_lyrics_text;
   desktop_lyrics_title_ = EncodableString(state, "songTitle");
@@ -888,7 +899,7 @@ void FlutterWindow::UpdateDesktopLyricsWindow(
   desktop_lyrics_opacity_ = EncodableInt(state, "opacity", 88);
   desktop_lyrics_locked_ = EncodableBool(state, "locked");
   desktop_lyrics_night_mode_ = EncodableBool(state, "nightMode");
-  desktop_lyrics_playing_ = EncodableBool(state, "playing");
+  desktop_lyrics_playing_ = next_desktop_lyrics_playing;
   wchar_t offset_buffer[32];
   const int offset_ms = EncodableInt(state, "offsetMs", 0);
   const double offset_seconds = std::round(offset_ms / 100.0) / 10.0;
@@ -956,7 +967,8 @@ void FlutterWindow::UpdateDesktopLyricsWindow(
                  SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE |
                      SWP_NOOWNERZORDER);
   ::SetTimer(desktop_lyrics_window_, 1,
-             desktop_lyrics_scrolling_ ? 33 : 100, nullptr);
+             desktop_lyrics_scrolling_ && desktop_lyrics_playing_ ? 33 : 100,
+             nullptr);
   if (!::IsWindowVisible(desktop_lyrics_window_)) {
     ::ShowWindow(desktop_lyrics_window_, SW_SHOWNOACTIVATE);
   }
@@ -1392,27 +1404,32 @@ void FlutterWindow::PaintDesktopLyricsWindow() {
     ::SetTextColor(hdc, desktop_lyrics_text_color_);
     draw_alpha_text(desktop_lyrics_text_, target, format);
   };
-  const bool lyrics_scrolling = lyric_size.cx > text_width;
-  if (desktop_lyrics_scrolling_ != lyrics_scrolling) {
-    desktop_lyrics_scrolling_ = lyrics_scrolling;
-    ::SetTimer(desktop_lyrics_window_, 1, lyrics_scrolling ? 33 : 100,
-               nullptr);
-  }
-  if (lyrics_scrolling) {
+  const bool lyrics_overflow = lyric_size.cx > text_width;
+  if (lyrics_overflow) {
     const int distance = lyric_size.cx - text_width;
     const int duration_ms =
-        std::min(12000, std::max(5000, ((distance / scaled_metric(28)) + 4) *
-                                       1000));
+        std::min(8000, std::max(3000, ((distance / scaled_metric(44)) + 2) *
+                                      1000));
+    const ULONGLONG animation_time =
+        desktop_lyrics_playing_ ? ::GetTickCount64()
+                                : desktop_lyrics_scroll_paused_at_;
     const ULONGLONG elapsed =
-        ::GetTickCount64() - desktop_lyrics_text_started_at_;
-    const int cycle_ms = duration_ms * 2;
-    const int phase = static_cast<int>(elapsed % cycle_ms);
-    const double raw_progress =
-        phase <= duration_ms
-            ? static_cast<double>(phase) / duration_ms
-            : 1.0 - static_cast<double>(phase - duration_ms) / duration_ms;
+        animation_time - desktop_lyrics_text_started_at_;
+    const double raw_progress = std::clamp(
+        static_cast<double>(elapsed) / duration_ms, 0.0, 1.0);
     const double eased_progress =
-        raw_progress * raw_progress * (3.0 - 2.0 * raw_progress);
+        raw_progress <= 0.16
+            ? 0.0
+            : raw_progress >= 0.84
+                ? 1.0
+                : (raw_progress - 0.16) / 0.68;
+    const bool lyrics_scrolling =
+        desktop_lyrics_playing_ && elapsed < duration_ms;
+    if (desktop_lyrics_scrolling_ != lyrics_scrolling) {
+      desktop_lyrics_scrolling_ = lyrics_scrolling;
+      ::SetTimer(desktop_lyrics_window_, 1, lyrics_scrolling ? 33 : 100,
+                 nullptr);
+    }
     const int saved_dc = ::SaveDC(hdc);
     ::IntersectClipRect(hdc, text_rect.left, text_rect.top, text_rect.right,
                         text_rect.bottom);
@@ -1423,6 +1440,10 @@ void FlutterWindow::PaintDesktopLyricsWindow() {
                 DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_NOCLIP);
     ::RestoreDC(hdc, saved_dc);
   } else {
+    if (desktop_lyrics_scrolling_) {
+      desktop_lyrics_scrolling_ = false;
+      ::SetTimer(desktop_lyrics_window_, 1, 100, nullptr);
+    }
     draw_lyrics(text_rect, DT_CENTER | DT_VCENTER | DT_SINGLELINE |
                                DT_END_ELLIPSIS);
   }
@@ -1575,7 +1596,8 @@ LRESULT CALLBACK FlutterWindow::DesktopLyricsWindowProc(HWND hwnd, UINT message,
       return 0;
     case WM_TIMER:
       {
-        bool repaint = window->desktop_lyrics_scrolling_;
+        bool repaint = window->desktop_lyrics_scrolling_ &&
+                       window->desktop_lyrics_playing_;
         POINT cursor_position;
         RECT window_rect;
         if (::GetCursorPos(&cursor_position) &&
@@ -1649,6 +1671,10 @@ LRESULT
 FlutterWindow::MessageHandler(HWND hwnd, UINT const message,
                               WPARAM const wparam,
                               LPARAM const lparam) noexcept {
+  if (message == kDirectoryPickerCompleted) {
+    CompleteDirectoryPicker(lparam);
+    return 0;
+  }
   if (native_splash_visible_) {
     switch (message) {
       case WM_ERASEBKGND:

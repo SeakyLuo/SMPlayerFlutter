@@ -982,6 +982,7 @@ private final class DesktopLyricsNativeView: NSView {
   private var hoveredButtonCommand: String?
   private var trackingArea: NSTrackingArea?
   private var lyricsTextStartedAt = Date()
+  private var lyricsScrollPausedAt: Date?
   private var previousLyricsText = ""
   private var scrollTimer: Timer?
   private var globalMouseMonitor: Any?
@@ -1034,12 +1035,24 @@ private final class DesktopLyricsNativeView: NSView {
 
   func apply(state: [String: Any]) {
     let nextLyricsText = DesktopLyricsNativeView.lyricsText(from: state)
+    let wasPlaying = (self.state["playing"] as? Bool) == true
+    let isPlaying = (state["playing"] as? Bool) == true
+    let now = Date()
     if previousLyricsText != nextLyricsText {
       previousLyricsText = nextLyricsText
-      lyricsTextStartedAt = Date()
+      lyricsTextStartedAt = now
+      lyricsScrollPausedAt = isPlaying ? nil : now
+    } else if wasPlaying != isPlaying {
+      if isPlaying, let pausedAt = lyricsScrollPausedAt {
+        lyricsTextStartedAt = lyricsTextStartedAt.addingTimeInterval(
+          now.timeIntervalSince(pausedAt))
+        lyricsScrollPausedAt = nil
+      } else if !isPlaying {
+        lyricsScrollPausedAt = now
+      }
     }
     self.state = state
-    startScrollTimer()
+    updateScrollTimer()
     needsDisplay = true
   }
 
@@ -1165,7 +1178,12 @@ private final class DesktopLyricsNativeView: NSView {
     needsDisplay = true
   }
 
-  private func startScrollTimer() {
+  private func updateScrollTimer() {
+    if (state["playing"] as? Bool) != true {
+      scrollTimer?.invalidate()
+      scrollTimer = nil
+      return
+    }
     if scrollTimer != nil {
       return
     }
@@ -1377,17 +1395,16 @@ private final class DesktopLyricsNativeView: NSView {
     strokeColor: NSColor
   ) {
     let distance = max(0, measuredWidth - rect.width)
-    let duration = min(12.0, max(5.0, Double(Int((distance / 28).rounded())) + 4.0))
-    let elapsed = Date().timeIntervalSince(lyricsTextStartedAt)
-    let cycle = duration * 2
-    let phase = elapsed.truncatingRemainder(dividingBy: cycle)
-    let rawProgress: Double
-    if phase <= duration {
-      rawProgress = phase / duration
-    } else {
-      rawProgress = 1.0 - ((phase - duration) / duration)
-    }
-    let easedProgress = rawProgress * rawProgress * (3.0 - 2.0 * rawProgress)
+    let duration = min(8.0, max(3.0, Double(Int((distance / 44).rounded())) + 2.0))
+    let animationTime = (state["playing"] as? Bool) == true
+      ? Date()
+      : (lyricsScrollPausedAt ?? Date())
+    let rawProgress = min(
+      1.0,
+      max(0.0, animationTime.timeIntervalSince(lyricsTextStartedAt) / duration))
+    let easedProgress = rawProgress <= 0.16
+      ? 0.0
+      : rawProgress >= 0.84 ? 1.0 : (rawProgress - 0.16) / 0.68
     let paragraph = NSMutableParagraphStyle()
     paragraph.alignment = .left
     paragraph.lineBreakMode = .byClipping

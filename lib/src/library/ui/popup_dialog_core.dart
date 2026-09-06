@@ -122,7 +122,7 @@ class _PopupDialogState extends State<PopupDialog> {
           namesRoute: true,
           scopesRoute: true,
           explicitChildNodes: true,
-          child: _PopupDialogLiquidGlassBackdrop(
+          child: _PopupDialogBackdrop(
             colors: colors,
             child: Stack(
               fit: StackFit.expand,
@@ -154,20 +154,37 @@ class _PopupDialogState extends State<PopupDialog> {
                     );
                     final useTrailingSpacer =
                         !mobile && !dialogClasses.usesFullWidthNavTitle;
+                    final providerContainer = ProviderScope.containerOf(
+                      context,
+                    );
+                    final windowDragCallbacks = providerContainer.read(
+                      smPlayerWindowDragProvider,
+                    );
+                    final onWindowDragStart =
+                        widget.onWindowDragStart ??
+                        windowDragCallbacks?.onStart;
+                    final onWindowDragEnd =
+                        widget.onWindowDragEnd ?? windowDragCallbacks?.onEnd;
+                    final windowControls =
+                        Platform.isWindows
+                            ? providerContainer.read(
+                              smPlayerWindowControlsProvider,
+                            )
+                            : null;
                     final navBar = Semantics(
                       label: widget.navLabel,
                       child: GestureDetector(
                         key: const ValueKey('popup-dialog-nav'),
                         behavior: HitTestBehavior.opaque,
                         onPanStart:
-                            widget.onWindowDragStart == null
+                            onWindowDragStart == null
                                 ? null
-                                : (_) => widget.onWindowDragStart!(),
+                                : (_) => onWindowDragStart(),
                         onPanEnd:
-                            widget.onWindowDragEnd == null
+                            onWindowDragEnd == null
                                 ? null
-                                : (_) => widget.onWindowDragEnd!(),
-                        onPanCancel: widget.onWindowDragEnd,
+                                : (_) => onWindowDragEnd(),
+                        onPanCancel: onWindowDragEnd,
                         child: Padding(
                           padding:
                               mobile
@@ -274,14 +291,14 @@ class _PopupDialogState extends State<PopupDialog> {
                               ),
                               behavior: HitTestBehavior.opaque,
                               onPanStart:
-                                  widget.onWindowDragStart == null
+                                  onWindowDragStart == null
                                       ? null
-                                      : (_) => widget.onWindowDragStart!(),
+                                      : (_) => onWindowDragStart(),
                               onPanEnd:
-                                  widget.onWindowDragEnd == null
+                                  onWindowDragEnd == null
                                       ? null
-                                      : (_) => widget.onWindowDragEnd!(),
-                              onPanCancel: widget.onWindowDragEnd,
+                                      : (_) => onWindowDragEnd(),
+                              onPanCancel: onWindowDragEnd,
                             ),
                           ),
                         if (mobile)
@@ -294,8 +311,26 @@ class _PopupDialogState extends State<PopupDialog> {
                               title: i18n.t('app.shell'),
                               colors: colors,
                               onClose: widget.onClose,
-                              onWindowDragStart: widget.onWindowDragStart,
-                              onWindowDragEnd: widget.onWindowDragEnd,
+                              onWindowDragStart: onWindowDragStart,
+                              onWindowDragEnd: onWindowDragEnd,
+                            ),
+                          ),
+                        if (windowControls != null)
+                          Positioned(
+                            top: 0,
+                            right: 0,
+                            width: WindowsAppTitleBar.controlsWidth,
+                            height: SmPlayerShellMetrics.minimalTitlebarHeight,
+                            child: WindowsAppTitleBar(
+                              isMaximized: windowControls.isMaximized,
+                              light: windowControls.light,
+                              showDragRegion: false,
+                              onWindowDragStart: null,
+                              onWindowDragEnd: null,
+                              onTitlebarTap: () {},
+                              onMinimize: windowControls.onMinimize,
+                              onToggleMaximize: windowControls.onToggleMaximize,
+                              onClose: windowControls.onClose,
                             ),
                           ),
                       ],

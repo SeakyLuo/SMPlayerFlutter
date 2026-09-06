@@ -33,6 +33,7 @@ import 'package:smplayer_flutter/src/playback/media_control_provider.dart';
 import 'package:smplayer_flutter/src/playback/media_control_track_factory.dart';
 import 'package:smplayer_flutter/src/settings/settings_model.dart'
     show LyricsRequestMode;
+import 'package:smplayer_flutter/src/settings/settings_controller.dart';
 import 'package:path/path.dart' as p;
 
 part 'music_dialog_helpers.dart';

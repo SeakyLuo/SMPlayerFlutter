@@ -402,7 +402,7 @@ extension _Id3TagServiceContainers on Id3TagService {
       }
       final atomEnd = offset + atomSize;
       final atomPath = '$path/$type';
-      final payload = Uint8List.fromList(bytes.sublist(payloadOffset, atomEnd));
+      final payload = Uint8List.sublistView(bytes, payloadOffset, atomEnd);
       atoms.add(_Mp4Atom(type: type, path: atomPath, payload: payload));
       final childStart = type == 'meta' ? payloadOffset + 4 : payloadOffset;
       if (_mp4ContainerAtomTypes.contains(type) && childStart < atomEnd) {

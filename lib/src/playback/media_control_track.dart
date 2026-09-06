@@ -409,15 +409,17 @@ class _PlayerTrackLyricsState extends State<_PlayerTrackLyrics>
           child: child,
         );
       },
-      child: Align(
+      child: OverflowBox(
         alignment: Alignment.centerLeft,
-        widthFactor: 1,
+        minWidth: lineWidth,
+        maxWidth: lineWidth,
         child: SizedBox(
           width: lineWidth,
           child: Text(
             widget.line,
             key: const ValueKey('MediaControl.CurrentLyricsLine'),
             maxLines: 1,
+            softWrap: false,
             overflow: TextOverflow.visible,
             style: style,
           ),

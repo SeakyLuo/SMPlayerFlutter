@@ -8,6 +8,9 @@ import 'package:path/path.dart' as p;
 
 import 'id3_tag_service.dart';
 import 'library_models.dart';
+import 'library_file_creation_time.dart';
+
+part 'library_audio_metadata_reader.dart';
 
 const _id3TagService = Id3TagService();
 
@@ -44,42 +47,64 @@ class LibraryAudioMetadataService {
   }) async {
     const concurrency = 6;
     final metadataByPath = <String, AudioFileMetadata>{};
-    var nextIndex = 0;
     var completedCount = 0;
-
-    Future<void> worker() async {
-      while (nextIndex < filePaths.length) {
-        cancellation?.throwIfCanceled();
-        final filePath = filePaths[nextIndex];
-        nextIndex += 1;
-        final stats = await File(filePath).stat();
+    const batchSize = 128;
+    for (var start = 0; start < filePaths.length; start += batchSize) {
+      cancellation?.throwIfCanceled();
+      final paths = filePaths.sublist(
+        start,
+        min(start + batchSize, filePaths.length),
+      );
+      final stats = await Future.wait(paths.map((path) => File(path).stat()));
+      final changed = <int>[];
+      for (var index = 0; index < paths.length; index += 1) {
+        final filePath = paths[index];
         final existing = existingMetadataByPath[filePath];
-        metadataByPath[filePath] =
-            existing != null &&
-                    existing.fileSize == stats.size &&
-                    existing.dateModifiedMs ==
-                        stats.modified.millisecondsSinceEpoch
-                ? existing
-                : await _readAudioFileMetadata(
-                  filePath,
-                  fileSize: stats.size,
-                  dateModifiedMs: stats.modified.millisecondsSinceEpoch,
-                  cacheSongArtwork: cacheSongArtwork,
-                );
-        completedCount += 1;
-        onProgress?.call(filePath, completedCount);
-        cancellation?.throwIfCanceled();
+        if (existing != null &&
+            existing.fileSize == stats[index].size &&
+            existing.dateModifiedMs ==
+                stats[index].modified.millisecondsSinceEpoch) {
+          metadataByPath[filePath] = existing;
+          completedCount += 1;
+          onProgress?.call(filePath, completedCount);
+        } else {
+          changed.add(index);
+        }
       }
-    }
+      cancellation?.throwIfCanceled();
+      final dates = await readFileCreationTimes([
+        for (final index in changed) paths[index],
+      ]);
+      var nextIndex = 0;
+      Future<void> worker() async {
+        while (nextIndex < changed.length) {
+          cancellation?.throwIfCanceled();
+          final dateIndex = nextIndex;
+          final index = changed[nextIndex];
+          final filePath = paths[index];
+          nextIndex += 1;
+          metadataByPath[filePath] = await _readAudioFileMetadata(
+            filePath,
+            fileSize: stats[index].size,
+            dateModifiedMs: stats[index].modified.millisecondsSinceEpoch,
+            dateAdded: dates[dateIndex],
+            cacheSongArtwork: cacheSongArtwork,
+          );
+          completedCount += 1;
+          onProgress?.call(filePath, completedCount);
+          cancellation?.throwIfCanceled();
+        }
+      }
 
-    await Future.wait([
-      for (
-        var workerIndex = 0;
-        workerIndex < min(concurrency, filePaths.length);
-        workerIndex += 1
-      )
-        worker(),
-    ]);
+      await Future.wait([
+        for (
+          var workerIndex = 0;
+          workerIndex < min(concurrency, changed.length);
+          workerIndex += 1
+        )
+          worker(),
+      ]);
+    }
     return metadataByPath;
   }
 
@@ -87,11 +112,16 @@ class LibraryAudioMetadataService {
     String filePath, {
     required int fileSize,
     required int dateModifiedMs,
+    required String dateAdded,
     required CacheSongArtwork cacheSongArtwork,
   }) async {
     final parsed = await Isolate.run(
-      () =>
-          _readAudioFileMetadataProperties(filePath, fileSize, dateModifiedMs),
+      () => _readAudioFileMetadataProperties(
+        filePath,
+        fileSize,
+        dateModifiedMs,
+        dateAdded,
+      ),
     );
     final thumbnailPath = await cacheSongArtwork(filePath, parsed.picture);
     return AudioFileMetadata(
@@ -119,11 +149,9 @@ _readAudioFileMetadataProperties(
   String filePath,
   int fileSize,
   int dateModifiedMs,
+  String dateAdded,
 ) async {
-  final dateAdded = await _readFileCreationDateIso(filePath);
-  final bytes = await File(filePath).readAsBytes();
-  final metadata = _id3TagService.readSongMetadataBytes(filePath, bytes);
-  final duration = _readAudioDurationSecondsFromBytes(filePath, bytes);
+  final (metadata, duration) = await _readAudioFileContents(filePath);
   return (
     dateAdded: dateAdded,
     dateModifiedMs: dateModifiedMs,
@@ -132,63 +160,6 @@ _readAudioFileMetadataProperties(
     picture: metadata.picture,
     properties: metadata.properties,
   );
-}
-
-Future<String> _readFileCreationDateIso(String filePath) async {
-  if (Platform.isMacOS) {
-    final result = await Process.run('stat', ['-f', '%B', filePath]);
-    if (result.exitCode != 0) {
-      throw FileSystemException(
-        'Failed to read file creation time',
-        filePath,
-        OSError('${result.stderr}', result.exitCode),
-      );
-    }
-    final seconds = int.parse('${result.stdout}'.trim());
-    return DateTime.fromMillisecondsSinceEpoch(
-      seconds * 1000,
-      isUtc: true,
-    ).toIso8601String();
-  }
-
-  if (Platform.isWindows) {
-    final result = await Process.run('powershell.exe', [
-      '-NoProfile',
-      '-Command',
-      r"[System.IO.File]::GetCreationTimeUtc($args[0]).ToString('o')",
-      filePath,
-    ]);
-    if (result.exitCode != 0) {
-      throw FileSystemException(
-        'Failed to read file creation time',
-        filePath,
-        OSError('${result.stderr}', result.exitCode),
-      );
-    }
-    return DateTime.parse('${result.stdout}'.trim()).toUtc().toIso8601String();
-  }
-
-  if (Platform.isLinux) {
-    final result = await Process.run('stat', ['-c', '%W', filePath]);
-    if (result.exitCode != 0) {
-      throw FileSystemException(
-        'Failed to read file creation time',
-        filePath,
-        OSError('${result.stderr}', result.exitCode),
-      );
-    }
-    final seconds = int.parse('${result.stdout}'.trim());
-    if (seconds <= 0) {
-      throw FileSystemException('File creation time is unavailable', filePath);
-    }
-    return DateTime.fromMillisecondsSinceEpoch(
-      seconds * 1000,
-      isUtc: true,
-    ).toIso8601String();
-  }
-
-  final stats = await File(filePath).stat();
-  return stats.changed.toUtc().toIso8601String();
 }
 
 int _readAudioDurationSecondsFromBytes(String filePath, Uint8List bytes) {
@@ -291,7 +262,7 @@ List<_AudioDurationMp4Atom> _readMp4DurationAtoms(
     }
     final payloadOffset = offset + headerSize;
     final atomPath = parentPath.isEmpty ? type : '$parentPath/$type';
-    final payload = Uint8List.fromList(bytes.sublist(payloadOffset, atomEnd));
+    final payload = Uint8List.sublistView(bytes, payloadOffset, atomEnd);
     atoms.add(_AudioDurationMp4Atom(path: atomPath, payload: payload));
     if (_audioDurationMp4ContainerAtomTypes.contains(type)) {
       atoms.addAll(

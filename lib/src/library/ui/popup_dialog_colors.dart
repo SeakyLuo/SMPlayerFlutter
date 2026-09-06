@@ -23,7 +23,7 @@ class PopupDialogColors {
   static const focusRing = Color(0x290078d7);
   static const destructive = Color(0xffd13438);
   static const destructiveHover = Color(0xffa4262c);
-  static const nightOverlay = Color(0x9e04080d);
+  static const nightOverlay = Color(0x7004080d);
   static const nightSurface = Color(0xfa161c24);
   static const nightBorder = Color(0x1fd6e0ec);
   static const nightInputBorder = Color(0x1fd6e0ec);

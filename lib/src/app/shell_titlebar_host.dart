@@ -62,7 +62,7 @@ class ShellTitlebarHost extends StatelessWidget {
             right: 0,
             height: layout.minimalTitlebarHeight,
             child: MinimalTitlebar(
-              title: '',
+              title: context.smPlayerI18n.t('app.shell'),
               canGoBack: layout.canGoBack,
               backLabel: context.smPlayerI18n.t('sidebar.back'),
               onGoBack: onGoBack,

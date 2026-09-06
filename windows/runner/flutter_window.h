@@ -82,6 +82,7 @@ class FlutterWindow : public Win32Window {
   HWND desktop_lyrics_window_ = nullptr;
   std::wstring desktop_lyrics_text_;
   ULONGLONG desktop_lyrics_text_started_at_ = 0;
+  ULONGLONG desktop_lyrics_scroll_paused_at_ = 0;
   std::wstring desktop_lyrics_title_;
   std::wstring desktop_lyrics_artist_;
   std::wstring desktop_lyrics_font_family_ = L"Segoe UI";
