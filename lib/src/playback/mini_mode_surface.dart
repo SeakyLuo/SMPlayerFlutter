@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:smplayer_flutter/src/app/shell_widgets.dart';
@@ -198,6 +199,7 @@ class _MiniModeSurfaceState extends ConsumerState<MiniModeSurface> {
             : i18n.t('player.play');
     final playbackModeTooltip =
         '${i18n.t('player.playbackMode')}: ${_miniModePlaybackModeName(i18n, state.mode)}';
+    final macOS = defaultTargetPlatform == TargetPlatform.macOS;
 
     return MouseRegion(
       onEnter: _showControls,
@@ -239,10 +241,15 @@ class _MiniModeSurfaceState extends ConsumerState<MiniModeSurface> {
                 left: 8,
                 child: _visibleControls(
                   Align(
-                    alignment: Alignment.centerLeft,
+                    alignment:
+                        macOS ? Alignment.centerRight : Alignment.centerLeft,
                     child: _MiniModeButton(
+                      key: const ValueKey('MiniMode.ExitButton'),
                       tooltip: i18n.t('player.exitMiniMode'),
-                      icon: _MiniModeIconName.arrowLeft,
+                      icon:
+                          macOS
+                              ? _MiniModeIconName.expand
+                              : _MiniModeIconName.arrowLeft,
                       disabled: false,
                       onPressed: widget.onExit,
                       size: 34,
@@ -1227,6 +1234,7 @@ class _MiniModeIcon extends StatelessWidget {
 
 enum _MiniModeIconName {
   arrowLeft,
+  expand,
   previous,
   next,
   play,
@@ -1304,6 +1312,7 @@ IconData? _miniModeMediaControlIcon(_MiniModeIconName icon) {
     _MiniModeIconName.volume => playerVolumeIcon(80, false),
     _MiniModeIconName.dice ||
     _MiniModeIconName.arrowLeft ||
+    _MiniModeIconName.expand ||
     _MiniModeIconName.heart ||
     _MiniModeIconName.heartFilled => null,
   };
@@ -1329,6 +1338,8 @@ class _MiniModeIconPainter extends CustomPainter {
             ? 1.3
             : icon == _MiniModeIconName.dice
             ? 1.55
+            : icon == _MiniModeIconName.expand
+            ? 1.7
             : 2.2;
     final stroke =
         Paint()
@@ -1349,6 +1360,19 @@ class _MiniModeIconPainter extends CustomPainter {
           Offset(9, 12),
           Offset(15, 6),
         ]);
+      case _MiniModeIconName.expand:
+        _drawPolyline(canvas, stroke, const [
+          Offset(11, 5),
+          Offset(19, 5),
+          Offset(19, 13),
+        ]);
+        _drawPolyline(canvas, stroke, const [Offset(19, 5), Offset(12, 12)]);
+        _drawPolyline(canvas, stroke, const [
+          Offset(13, 19),
+          Offset(5, 19),
+          Offset(5, 11),
+        ]);
+        _drawPolyline(canvas, stroke, const [Offset(5, 19), Offset(12, 12)]);
       case _MiniModeIconName.previous:
         _drawSkipTransport(canvas, stroke, reverse: true);
       case _MiniModeIconName.next:
