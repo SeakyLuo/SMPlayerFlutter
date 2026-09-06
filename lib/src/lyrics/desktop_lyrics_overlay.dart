@@ -174,6 +174,7 @@ class _DesktopLyricsOverlayState extends State<DesktopLyricsOverlay> {
                     ),
                   _ScrollingStrokeText(
                     text: lyricText,
+                    isPlaying: widget.isPlaying,
                     textColor: textColor,
                     strokeColor: strokeColor,
                     fontFamily:
@@ -269,6 +270,7 @@ class _StrokeText extends StatelessWidget {
 class _ScrollingStrokeText extends StatefulWidget {
   const _ScrollingStrokeText({
     required this.text,
+    required this.isPlaying,
     required this.textColor,
     required this.strokeColor,
     required this.fontSize,
@@ -277,6 +279,7 @@ class _ScrollingStrokeText extends StatefulWidget {
   });
 
   final String text;
+  final bool isPlaying;
   final Color textColor;
   final Color strokeColor;
   final double fontSize;
@@ -294,7 +297,10 @@ class _ScrollingStrokeTextState extends State<_ScrollingStrokeText>
   @override
   void initState() {
     super.initState();
-    _controller = AnimationController(vsync: this);
+    _controller = AnimationController(
+      vsync: this,
+      animationBehavior: AnimationBehavior.preserve,
+    );
   }
 
   @override
@@ -304,6 +310,9 @@ class _ScrollingStrokeTextState extends State<_ScrollingStrokeText>
         oldWidget.fontSize != widget.fontSize ||
         oldWidget.fontFamily != widget.fontFamily) {
       _controller.reset();
+    }
+    if (!widget.isPlaying) {
+      _controller.stop();
     }
   }
 
@@ -342,18 +351,28 @@ class _ScrollingStrokeTextState extends State<_ScrollingStrokeText>
         }
 
         final durationSeconds = min(
-          12,
-          max(5, (overflowDistance / 28).round() + 4),
+          8,
+          max(3, (overflowDistance / 44).round() + 2),
         );
         _controller.duration = Duration(seconds: durationSeconds);
-        if (!_controller.isAnimating) {
-          _controller.repeat(reverse: true);
+        if (widget.isPlaying &&
+            !_controller.isAnimating &&
+            !_controller.isCompleted) {
+          _controller.forward();
+        } else if (!widget.isPlaying) {
+          _controller.stop();
         }
         return ClipRect(
           child: AnimatedBuilder(
             animation: _controller,
             builder: (context, child) {
-              final value = Curves.easeInOut.transform(_controller.value);
+              final progress = _controller.value;
+              final value =
+                  progress <= 0.16
+                      ? 0.0
+                      : progress >= 0.84
+                      ? 1.0
+                      : Curves.linear.transform((progress - 0.16) / 0.68);
               return Transform.translate(
                 offset: Offset(-overflowDistance * value, 0),
                 child: child,

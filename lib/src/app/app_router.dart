@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'package:flutter/services.dart';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
@@ -639,7 +640,7 @@ class _LibraryRootGateState extends ConsumerState<_LibraryRootGate> {
     });
     try {
       final rootPath =
-          Platform.isMacOS
+          (Platform.isMacOS || Platform.isWindows)
               ? await pickDirectoryFromDesktopShell(
                 title: i18n.t('local.chooseMusicLibraryFolderDialogTitle'),
                 buttonLabel: i18n.t(
@@ -649,12 +650,6 @@ class _LibraryRootGateState extends ConsumerState<_LibraryRootGate> {
               )
               : await FilePicker.getDirectoryPath();
       if (rootPath == null || rootPath.isEmpty) {
-        if (mounted) {
-          showAppNotification(
-            context: context,
-            message: i18n.t('library.folderPickerUnavailable'),
-          );
-        }
         return;
       }
 
@@ -663,6 +658,13 @@ class _LibraryRootGateState extends ConsumerState<_LibraryRootGate> {
         AppSettingsUpdate(rootPath: rootPath),
       );
       _invalidateLibraryData(ref);
+    } on PlatformException {
+      if (mounted) {
+        showAppNotification(
+          context: context,
+          message: i18n.t('library.folderPickerUnavailable'),
+        );
+      }
     } finally {
       if (mounted) {
         setState(() {

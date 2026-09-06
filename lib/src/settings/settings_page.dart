@@ -524,7 +524,7 @@ class _SettingsPageState extends State<SettingsPage> {
     try {
       selectedRootPath =
           widget.onPickLibraryRoot == null
-              ? Platform.isMacOS
+              ? (Platform.isMacOS || Platform.isWindows)
                   ? await pickDirectoryFromDesktopShell(
                     title: i18n.t('local.chooseMusicLibraryFolderDialogTitle'),
                     buttonLabel: i18n.t(
@@ -536,6 +536,11 @@ class _SettingsPageState extends State<SettingsPage> {
                   )
                   : await FilePicker.getDirectoryPath()
               : await widget.onPickLibraryRoot!();
+    } on PlatformException {
+      if (mounted) {
+        _showMessage(i18n.t('library.folderPickerUnavailable'));
+      }
+      return;
     } finally {
       if (mounted) {
         setState(() {
@@ -544,7 +549,6 @@ class _SettingsPageState extends State<SettingsPage> {
       }
     }
     if (selectedRootPath == null || selectedRootPath.isEmpty) {
-      _showMessage(i18n.t('library.folderPickerUnavailable'));
       return;
     }
 

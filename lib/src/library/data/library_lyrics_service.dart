@@ -651,31 +651,37 @@ class LibraryLyricsService {
         keyword: '${song.title} ${song.artist}'.trim(),
         title: song.title,
         artist: song.artist,
+        originalTitle: song.title,
       ),
       _LyricsSearchAttempt(
         keyword: song.title,
         title: song.title,
         artist: song.artist,
+        originalTitle: song.title,
       ),
       _LyricsSearchAttempt(
         keyword: '$simplifiedTitle ${song.artist}'.trim(),
         title: simplifiedTitle,
         artist: song.artist,
+        originalTitle: song.title,
       ),
       _LyricsSearchAttempt(
         keyword: '${song.title} $simplifiedArtist'.trim(),
         title: song.title,
         artist: simplifiedArtist,
+        originalTitle: song.title,
       ),
       _LyricsSearchAttempt(
         keyword: '$simplifiedTitle $simplifiedArtist'.trim(),
         title: simplifiedTitle,
         artist: simplifiedArtist,
+        originalTitle: song.title,
       ),
       _LyricsSearchAttempt(
         keyword: simplifiedTitle,
         title: simplifiedTitle,
         artist: simplifiedArtist,
+        originalTitle: song.title,
       ),
     ];
     final seen = <String>{};
@@ -780,6 +786,59 @@ class LibraryLyricsService {
       }
     }
     return score;
+  }
+
+  int _evaluateLyricsVersionMatch(String target, String candidate) {
+    final targetVersions = _lyricsVersionTokens(target);
+    final candidateVersions = _lyricsVersionTokens(candidate);
+    if (targetVersions.isEmpty) {
+      return -30 * candidateVersions.length;
+    }
+    if (targetVersions.length == candidateVersions.length &&
+        targetVersions.containsAll(candidateVersions)) {
+      return 60;
+    }
+
+    final shared = targetVersions.intersection(candidateVersions).length;
+    final missing = targetVersions.difference(candidateVersions).length;
+    final extra = candidateVersions.difference(targetVersions).length;
+    return shared * 30 - missing * 50 - extra * 15;
+  }
+
+  Set<String> _lyricsVersionTokens(String value) {
+    final normalized = value.toLowerCase();
+    final versions = <String>{};
+    if (RegExp(r'(^|[^a-z])live([^a-z]|$)').hasMatch(normalized) ||
+        normalized.contains('现场') ||
+        normalized.contains('演唱会')) {
+      versions.add('live');
+    }
+    if (normalized.contains('remix') || normalized.contains('混音')) {
+      versions.add('remix');
+    }
+    if (normalized.contains('acoustic') || normalized.contains('不插电')) {
+      versions.add('acoustic');
+    }
+    if (normalized.contains('instrumental') ||
+        normalized.contains('off vocal') ||
+        normalized.contains('伴奏') ||
+        normalized.contains('纯音乐')) {
+      versions.add('instrumental');
+    }
+    if (normalized.contains('demo')) {
+      versions.add('demo');
+    }
+    if (normalized.contains('remaster') || normalized.contains('重制')) {
+      versions.add('remaster');
+    }
+    if (normalized.contains('radio edit') ||
+        normalized.contains('extended edit')) {
+      versions.add('edit');
+    }
+    if (normalized.contains('karaoke') || normalized.contains('卡拉ok')) {
+      versions.add('karaoke');
+    }
+    return versions;
   }
 
   String _normalizeLyricsLookupText(String value) {
@@ -1094,11 +1153,13 @@ class _LyricsSearchAttempt {
     required this.keyword,
     required this.title,
     required this.artist,
+    required this.originalTitle,
   });
 
   final String keyword;
   final String title;
   final String artist;
+  final String originalTitle;
 }
 
 String _normalizeTagText(String value) {

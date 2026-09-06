@@ -135,7 +135,9 @@ class MinimalTitlebar extends StatelessWidget {
   Widget build(BuildContext context) {
     final shellColors = ShellThemeColors.of(context);
     final leadingInset =
-        Platform.isMacOS ? SmPlayerShellMetrics.macOSTitlebarLeadingInset : 0.0;
+        Platform.isMacOS
+            ? SmPlayerShellMetrics.macOSTitlebarLeadingInset
+            : SmPlayerShellMetrics.navigationPaneHorizontalPadding;
     final titleColor =
         headeredPlaylistAppBar == null
             ? shellColors.headerText
@@ -163,6 +165,19 @@ class MinimalTitlebar extends StatelessWidget {
                 ),
               ),
             ),
+          )
+        else
+          SizedBox(
+            width: SmPlayerShellMetrics.navigationButtonSize,
+            height: SmPlayerShellMetrics.minimalTitlebarHeight,
+            child: Center(
+              child: Image.asset(
+                'assets/branding/app-icon.png',
+                width: 18,
+                height: 18,
+                filterQuality: FilterQuality.medium,
+              ),
+            ),
           ),
         Expanded(
           child: ShellWindowDragRegion(
@@ -173,10 +188,7 @@ class MinimalTitlebar extends StatelessWidget {
                 title.isEmpty
                     ? const SizedBox.expand()
                     : Padding(
-                      padding: EdgeInsets.only(
-                        left: canGoBack ? 6 : 10,
-                        right: 138,
-                      ),
+                      padding: EdgeInsets.only(left: 6, right: 138),
                       child: Align(
                         alignment: Alignment.centerLeft,
                         child: Text(

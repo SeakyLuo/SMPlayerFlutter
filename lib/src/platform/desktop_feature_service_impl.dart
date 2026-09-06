@@ -538,13 +538,17 @@ class TrayWindowDesktopFeatureService
 
   @override
   void onWindowClose() {
-    unawaited(_saveMainWindowState(immediate: true));
+    unawaited(_handleWindowClose());
+  }
+
+  Future<void> _handleWindowClose() async {
+    await _saveMainWindowState(immediate: true);
     final state = _lastTrayState;
     if (_quitting || state?.quitOnClose == true) {
       _emit(const DesktopFeatureAction(DesktopFeatureCommand.quit));
       return;
     }
-    unawaited(windowManager.hide());
+    await windowManager.hide();
     _emit(
       const DesktopFeatureAction(
         DesktopFeatureCommand.windowVisibilityChanged,

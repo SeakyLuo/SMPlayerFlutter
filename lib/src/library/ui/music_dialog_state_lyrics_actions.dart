@@ -208,12 +208,23 @@ extension _MusicDialogStateLyricsActions on _MusicDialogState {
         return;
       }
 
-      await repository.openLyricsSearchInBrowser(songId);
-      if (mounted &&
-          _dialogSessionKey == sessionKey &&
-          widget.song.id == songId) {
-        _showMessage(i18n.t('song.openBrowserSuccessful'));
-      }
+      showAppNotification(
+        context: context,
+        message: i18n.t('song.searchLyricsFailed'),
+        duration: undoableNotificationDuration,
+        actionLabel: i18n.t('song.openBrowser'),
+        onAction: () async {
+          try {
+            await repository.openLyricsSearchInBrowser(songId);
+          } catch (_) {
+            if (mounted &&
+                _dialogSessionKey == sessionKey &&
+                widget.song.id == songId) {
+              _showMessage(i18n.t('song.searchLyricsRequestFailed'));
+            }
+          }
+        },
+      );
     } catch (_) {
       if (mounted &&
           _dialogSessionKey == sessionKey &&
@@ -230,10 +241,14 @@ extension _MusicDialogStateLyricsActions on _MusicDialogState {
     final songId = widget.song.id;
     final i18n = context.smPlayerI18n;
     final snapshot = candidate.lyrics;
-    final nextText =
-        _showLyricsTimestamps
+    final appliedRawText =
+        smPlayerGlobalSettingsSnapshot.preserveInternetLyricsTimestamps
             ? snapshot.rawText
             : _stripLyricsTimestamps(snapshot.rawText);
+    final nextText =
+        _showLyricsTimestamps
+            ? appliedRawText
+            : _stripLyricsTimestamps(appliedRawText);
     if (_lyricsController.text == nextText) {
       if (_dialogSessionKey != sessionKey || widget.song.id != songId) {
         return;
@@ -266,8 +281,8 @@ extension _MusicDialogStateLyricsActions on _MusicDialogState {
     }
 
     _updatingControllers = true;
-    _lyrics = snapshot;
-    _lyricsRawText = snapshot.rawText;
+    _lyrics = _lyricsWithRawText(snapshot, appliedRawText);
+    _lyricsRawText = appliedRawText;
     _lyricsController.text = nextText;
     _updatingControllers = false;
     ref

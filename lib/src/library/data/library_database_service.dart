@@ -5,14 +5,39 @@ import 'package:sqlite3/sqlite3.dart';
 class LibraryDatabaseService {
   const LibraryDatabaseService();
 
+  // Increment when changing tables, columns, indexes, or the lyrics FTS schema.
+  static const schemaVersion = 1;
+
   Database openInitializedLibraryDatabase(File databaseFile) {
     databaseFile.parent.createSync(recursive: true);
     final db = sqlite3.open(databaseFile.path);
-    initializeLibrarySchema(db);
-    return db;
+    try {
+      initializeLibrarySchema(db);
+      return db;
+    } catch (_) {
+      db.dispose();
+      rethrow;
+    }
   }
 
   void initializeLibrarySchema(Database db) {
+    final version =
+        db.select('PRAGMA user_version').single['user_version'] as int;
+    if (version == schemaVersion) return;
+    // Background snapshots must not block playback/settings writes.
+    db.execute('PRAGMA journal_mode = WAL');
+    db.execute('BEGIN IMMEDIATE');
+    try {
+      _migrateLibrarySchema(db);
+      db.execute('PRAGMA user_version = $schemaVersion');
+      db.execute('COMMIT');
+    } catch (_) {
+      db.execute('ROLLBACK');
+      rethrow;
+    }
+  }
+
+  void _migrateLibrarySchema(Database db) {
     db.execute('''
       CREATE TABLE IF NOT EXISTS Settings (
         Id INTEGER PRIMARY KEY AUTOINCREMENT,

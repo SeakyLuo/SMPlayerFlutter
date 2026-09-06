@@ -80,16 +80,23 @@ extension _LocalPageScanActions on _LocalPageState {
     try {
       selectedRootPath =
           widget.onPickLibraryRoot == null
-              ? Platform.isMacOS
+              ? (Platform.isMacOS || Platform.isWindows)
                   ? await pickDirectoryFromDesktopShell(
                     title: i18n.t('local.chooseMusicLibraryFolderDialogTitle'),
                     buttonLabel: i18n.t(
                       'local.chooseMusicLibraryFolderDialogButton',
                     ),
                     locale: i18n.locale,
+                    defaultPath:
+                        ref.read(libraryContentDataProvider).value!.rootPath,
                   )
                   : await FilePicker.getDirectoryPath()
               : await widget.onPickLibraryRoot!();
+    } on PlatformException {
+      if (mounted) {
+        _showMessage(i18n.t('library.folderPickerUnavailable'));
+      }
+      return;
     } finally {
       if (mounted) {
         _updateLocalPageState(() {
@@ -98,9 +105,6 @@ extension _LocalPageScanActions on _LocalPageState {
       }
     }
     if (selectedRootPath == null || selectedRootPath.isEmpty) {
-      if (mounted) {
-        _showMessage(i18n.t('library.folderPickerUnavailable'));
-      }
       return;
     }
     await _scanLibraryRoot(selectedRootPath, i18n);

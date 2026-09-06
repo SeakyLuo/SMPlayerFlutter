@@ -485,6 +485,18 @@ class _WorkspaceNavigationAppBar extends StatelessWidget {
                       )
                       : LayoutBuilder(
                         builder: (context, constraints) {
+                          if (title.isEmpty) {
+                            return Align(
+                              alignment: Alignment.centerRight,
+                              child: ConstrainedBox(
+                                constraints: BoxConstraints(
+                                  maxWidth: constraints.maxWidth,
+                                ),
+                                child: effectiveActions,
+                              ),
+                            );
+                          }
+                          final actionsMaxWidth = constraints.maxWidth - 12;
                           return Row(
                             children: [
                               Expanded(
@@ -497,7 +509,7 @@ class _WorkspaceNavigationAppBar extends StatelessWidget {
                               const SizedBox(width: 12),
                               ConstrainedBox(
                                 constraints: BoxConstraints(
-                                  maxWidth: constraints.maxWidth,
+                                  maxWidth: actionsMaxWidth,
                                 ),
                                 child: Align(
                                   alignment: Alignment.centerRight,

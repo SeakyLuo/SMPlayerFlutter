@@ -263,12 +263,14 @@ class InternetLyricsCandidate {
     required this.sourceKey,
     required this.title,
     required this.artist,
+    required this.album,
     required this.lyrics,
   });
 
   final String sourceKey;
   final String title;
   final String artist;
+  final String album;
   final LyricsSnapshot lyrics;
 }
 

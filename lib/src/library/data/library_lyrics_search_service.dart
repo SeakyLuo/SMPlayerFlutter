@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:isolate';
 
 import 'package:sqlite3/sqlite3.dart';
 
@@ -8,6 +9,7 @@ import 'library_models.dart';
 
 const _activeState = 1;
 const _lyricsIndexReadBatchSize = 2;
+const _lyricsIndexWriteBatchSize = 32;
 
 typedef LocalLyricsResolver = Future<LyricsSnapshot> Function(String songPath);
 
@@ -25,20 +27,43 @@ class LibraryLyricsSearchService {
   static final _indexProgressListeners =
       <String, Set<void Function(LocalLyricsIndexProgress)>>{};
 
-  List<LocalLyricsSearchMatch> searchAvailable(
+  Future<List<LocalLyricsSearchMatch>> searchAvailable(
     File databaseFile,
     String query, {
     String folderPath = '',
   }) {
-    _ensureSchema(databaseFile);
+    return _searchInBackground(_database, databaseFile.path, query, folderPath);
+  }
+
+  static Future<List<LocalLyricsSearchMatch>> _searchInBackground(
+    LibraryDatabaseService database,
+    String databasePath,
+    String query,
+    String folderPath,
+  ) {
+    return Isolate.run(
+      () => _searchAvailableSync(
+        database,
+        databasePath,
+        query,
+        folderPath: folderPath,
+      ),
+    );
+  }
+
+  static List<LocalLyricsSearchMatch> _searchAvailableSync(
+    LibraryDatabaseService database,
+    String databasePath,
+    String query, {
+    required String folderPath,
+  }) {
     final normalizedQuery = _normalizeQuery(query);
     if (normalizedQuery.runes.length < 2) {
       return const [];
     }
 
-    final db = sqlite3.open(databaseFile.path);
+    final db = database.openInitializedLibraryDatabase(File(databasePath));
     try {
-      _removeInactiveSongs(db);
       final normalizedFolder = _normalizePath(folderPath);
       final folderPrefix = normalizedFolder.isEmpty ? '' : '$normalizedFolder/';
       final useFullText = normalizedQuery.runes.length >= 3;
@@ -48,12 +73,14 @@ class LibraryLyricsSearchService {
               SELECT SongId AS songId, LinesJson AS linesJson
               FROM LocalLyricsSearch
               WHERE LocalLyricsSearch MATCH ?
+                AND SongId IN (SELECT Id FROM Music WHERE State = 1)
                 AND (? = '' OR instr(lower(replace(Path, char(92), '/')), ?) = 1)
             '''
             : '''
               SELECT SongId AS songId, LinesJson AS linesJson
               FROM LocalLyricsSearch
               WHERE instr(SearchText, ?) > 0
+                AND SongId IN (SELECT Id FROM Music WHERE State = 1)
                 AND (? = '' OR instr(lower(replace(Path, char(92), '/')), ?) = 1)
             ''',
         [
@@ -84,18 +111,15 @@ class LibraryLyricsSearchService {
     File databaseFile, {
     void Function(LocalLyricsIndexProgress progress)? onProgress,
   }) async {
-    _ensureSchema(databaseFile);
     await _ensureMissingSongsIndexed(databaseFile, onProgress: onProgress);
   }
 
   Future<void> refreshAll(File databaseFile) async {
-    _ensureSchema(databaseFile);
     await _waitForIndexBuild(databaseFile.path);
     await _refreshCandidates(databaseFile, _readCandidates(databaseFile));
   }
 
   Future<void> refreshFolder(File databaseFile, String folderPath) async {
-    _ensureSchema(databaseFile);
     await _waitForIndexBuild(databaseFile.path);
     final normalizedFolder = _normalizePath(folderPath);
     final folderPrefix = '$normalizedFolder/';
@@ -113,7 +137,6 @@ class LibraryLyricsSearchService {
     if (songIds.isEmpty) {
       return;
     }
-    _ensureSchema(databaseFile);
     await _waitForIndexBuild(databaseFile.path);
     final placeholders = List.filled(songIds.length, '?').join(', ');
     await _refreshCandidates(
@@ -130,7 +153,6 @@ class LibraryLyricsSearchService {
     if (songPaths.isEmpty) {
       return;
     }
-    _ensureSchema(databaseFile);
     await _waitForIndexBuild(databaseFile.path);
     final placeholders = List.filled(songPaths.length, '?').join(', ');
     await _refreshCandidates(
@@ -228,8 +250,9 @@ class LibraryLyricsSearchService {
     String? where,
     List<Object?> parameters = const [],
   }) {
-    final db = sqlite3.open(databaseFile.path);
+    final db = _database.openInitializedLibraryDatabase(databaseFile);
     try {
+      _removeInactiveSongs(db);
       final rows = db.select(
         '''
         SELECT Id AS songId, Path AS path
@@ -260,7 +283,6 @@ class LibraryLyricsSearchService {
     if (candidates.isEmpty) {
       return;
     }
-    final entries = <_LyricsIndexEntry>[];
     var current = 0;
     onProgress?.call(
       LocalLyricsIndexProgress(current: current, total: candidates.length),
@@ -268,25 +290,66 @@ class LibraryLyricsSearchService {
     for (
       var start = 0;
       start < candidates.length;
-      start += _lyricsIndexReadBatchSize
+      start += _lyricsIndexWriteBatchSize
     ) {
-      final end = (start + _lyricsIndexReadBatchSize).clamp(
+      final end = (start + _lyricsIndexWriteBatchSize).clamp(
         0,
         candidates.length,
       );
-      final batch = candidates.sublist(start, end);
-      entries.addAll(
-        await Future.wait([
-          for (final candidate in batch) _readEntry(candidate),
-        ]),
-      );
-      current += batch.length;
+      final entries = <_LyricsIndexEntry>[];
+      for (
+        var offset = start;
+        offset < end;
+        offset += _lyricsIndexReadBatchSize
+      ) {
+        final readEnd = (offset + _lyricsIndexReadBatchSize).clamp(0, end);
+        entries.addAll(
+          await Future.wait([
+            for (var index = offset; index < readEnd; index++)
+              _readEntry(candidates[index]),
+          ]),
+        );
+      }
+      await _writeIndexBatch(databaseFile.path, entries);
+      current = end;
       onProgress?.call(
         LocalLyricsIndexProgress(current: current, total: candidates.length),
       );
     }
+  }
 
-    final db = sqlite3.open(databaseFile.path);
+  static Future<void> _writeIndexBatch(
+    String databasePath,
+    List<_LyricsIndexEntry> entries,
+  ) async {
+    final rows = await Isolate.run(() => _encodeIndexBatch(entries));
+    _writeIndexBatchSync(databasePath, rows);
+  }
+
+  static List<List<Object?>> _encodeIndexBatch(
+    List<_LyricsIndexEntry> entries,
+  ) {
+    return [
+      for (final entry in entries)
+        [
+          entry.songId,
+          entry.path,
+          entry.snapshot.source.index,
+          entry.snapshot.rawText,
+          jsonEncode([
+            for (final line in entry.snapshot.lines)
+              {'timestampMs': line.timestampMs, 'text': line.text},
+          ]),
+          _searchableText(entry.snapshot),
+        ],
+    ];
+  }
+
+  static void _writeIndexBatchSync(
+    String databasePath,
+    List<List<Object?>> rows,
+  ) {
+    final db = sqlite3.open(databasePath);
     try {
       db.execute('BEGIN');
       try {
@@ -299,19 +362,9 @@ class LibraryLyricsSearchService {
           VALUES (?, ?, ?, ?, ?, ?)
         ''');
         try {
-          for (final entry in entries) {
-            deleteStatement.execute([entry.songId]);
-            insertStatement.execute([
-              entry.songId,
-              entry.path,
-              entry.snapshot.source.index,
-              entry.snapshot.rawText,
-              jsonEncode([
-                for (final line in entry.snapshot.lines)
-                  {'timestampMs': line.timestampMs, 'text': line.text},
-              ]),
-              _searchableText(entry.snapshot),
-            ]);
+          for (final row in rows) {
+            deleteStatement.execute([row[0]]);
+            insertStatement.execute(row);
           }
         } finally {
           insertStatement.dispose();
@@ -349,12 +402,7 @@ class LibraryLyricsSearchService {
     );
   }
 
-  void _ensureSchema(File databaseFile) {
-    final db = _database.openInitializedLibraryDatabase(databaseFile);
-    db.dispose();
-  }
-
-  LocalLyricsSearchMatch _buildMatch({
+  static LocalLyricsSearchMatch _buildMatch({
     required int songId,
     required String linesJson,
     required String normalizedQuery,
@@ -408,11 +456,11 @@ class LibraryLyricsSearchService {
     );
   }
 
-  String _searchableText(LyricsSnapshot snapshot) {
+  static String _searchableText(LyricsSnapshot snapshot) {
     return snapshot.lines.map((line) => _normalizeLine(line.text)).join('\n');
   }
 
-  int _lineRelevance(String text, String normalizedQuery) {
+  static int _lineRelevance(String text, String normalizedQuery) {
     final normalizedLine = _normalizeLine(text);
     if (normalizedLine == normalizedQuery) {
       return 4;
@@ -423,19 +471,19 @@ class LibraryLyricsSearchService {
     return 2;
   }
 
-  String _normalizeQuery(String value) {
+  static String _normalizeQuery(String value) {
     return value.trim().toLowerCase().replaceAll(RegExp(r'\s+'), ' ');
   }
 
-  String _normalizeLine(String value) {
+  static String _normalizeLine(String value) {
     return value.trim().toLowerCase().replaceAll(RegExp(r'[ \t]+'), ' ');
   }
 
-  String _normalizePath(String value) {
+  static String _normalizePath(String value) {
     return value.replaceAll('\\', '/').toLowerCase();
   }
 
-  String _ftsPhrase(String normalizedQuery) {
+  static String _ftsPhrase(String normalizedQuery) {
     return '"${normalizedQuery.replaceAll('"', '""')}"';
   }
 }

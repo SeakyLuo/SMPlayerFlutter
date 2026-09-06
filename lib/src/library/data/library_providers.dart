@@ -392,15 +392,11 @@ LibraryContentData applyLibraryFavoriteOverrides(
       playlistOrder == null) {
     return snapshot;
   }
-  final songs =
-      snapshot.songs
-          .map(
-            (song) => _applyFavoriteOverrideToSong(
-              _applySongOverrideToSong(song, songOverrides),
-              favoriteOverrides,
-            ),
-          )
-          .toList();
+  final songs = applyFavoriteOverridesToSongs(
+    snapshot.songs,
+    favoriteOverrides,
+    songOverrides,
+  );
   final recentSongs =
       snapshot.recentSongs
           .map(

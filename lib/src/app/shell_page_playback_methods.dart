@@ -183,37 +183,33 @@ extension _SmPlayerShellPlaybackMethods on _SmPlayerShellPageState {
       );
       _mediaControlController.setTrackLoading(false);
       final playbackState = _mediaControlController.state;
+      _loadingAudioTrackId = null;
+      _loadingAudioPath = null;
+      _pendingAudioAutoplay = false;
       _syncingAudioPlayer = false;
       await _applyAudioPlaybackState(playbackState);
-      if (loadSerial == _audioLoadSerial) {
-        if (_loadingAudioTrackId == song.id) {
-          _loadingAudioTrackId = null;
-          _loadingAudioPath = null;
-        }
-        _pendingAudioAutoplay = false;
-        _syncingAudioPlayer = true;
-        _mediaControlController.setTrackLoading(false);
-        _syncingAudioPlayer = false;
-      }
+    } on PlayerInterruptedException {
+      return;
     } on Object catch (error, stackTrace) {
+      if (loadSerial != _audioLoadSerial) {
+        return;
+      }
       debugPrint(
         'Simple Melody Player failed to load audio file: ${song.path}\n'
         '$error\n'
         '$stackTrace',
       );
-      if (loadSerial == _audioLoadSerial) {
-        if (isAudioFilePermissionDenied(error) && mounted) {
-          _showAudioFileAccessNotification();
-        }
-        _loadedAudioTrackId = null;
-        _loadedAudioPath = null;
-        _loadingAudioTrackId = null;
-        _loadingAudioPath = null;
-        _pendingAudioAutoplay = false;
-        _syncingAudioPlayer = true;
-        _mediaControlController.setPlaybackLoadFailed();
-        _syncingAudioPlayer = false;
+      if (isAudioFilePermissionDenied(error) && mounted) {
+        _showAudioFileAccessNotification();
       }
+      _loadedAudioTrackId = null;
+      _loadedAudioPath = null;
+      _loadingAudioTrackId = null;
+      _loadingAudioPath = null;
+      _pendingAudioAutoplay = false;
+      _syncingAudioPlayer = true;
+      _mediaControlController.setPlaybackLoadFailed();
+      _syncingAudioPlayer = false;
     }
   }
 
@@ -286,14 +282,53 @@ extension _SmPlayerShellPlaybackMethods on _SmPlayerShellPageState {
   }
 
   void _handleAudioPlaybackError(PlayerException error) {
-    debugPrint('Simple Melody Player audio playback error: $error');
-    if (isAudioFilePermissionDenied(error) && mounted) {
-      _showAudioFileAccessNotification();
+    final state = _mediaControlController.state;
+    final trackId = state.track.id;
+    if (_loadedAudioTrackId != trackId && _loadingAudioTrackId != trackId) {
+      return;
     }
+    if (Platform.isWindows && error.message == 'Error decoding audio.') {
+      return;
+    }
+    debugPrint('Simple Melody Player audio playback error: $error');
     final progressSeconds = _audioPlayer.position.inMilliseconds / 1000;
+    _audioLoadSerial += 1;
+    _loadedAudioTrackId = null;
+    _loadedAudioPath = null;
+    _loadingAudioTrackId = null;
+    _loadingAudioPath = null;
+    _pendingAudioAutoplay = false;
     _pendingAudioSeekSeconds = null;
     _stopPlaybackStallTimer();
-    unawaited(_audioPlayer.pause());
+    unawaited(_recoverFromAudioPlaybackError(error, state, progressSeconds));
+  }
+
+  Future<void> _recoverFromAudioPlaybackError(
+    PlayerException error,
+    MediaControlState failedState,
+    double progressSeconds,
+  ) async {
+    _syncingAudioPlayer = true;
+    try {
+      await _audioPlayer.stop();
+    } finally {
+      _syncingAudioPlayer = false;
+    }
+    if (!mounted) {
+      return;
+    }
+    if (_mediaControlController.state.track.id != failedState.track.id) {
+      _syncAudioPlayerFromController();
+      return;
+    }
+    final permissionDenied = isAudioFilePermissionDenied(error);
+    if (permissionDenied) {
+      _showAudioFileAccessNotification();
+    } else if (failedState.isPlaying &&
+        failedState.mode != PlaybackMode.repeatOne &&
+        _playNextFromCurrentQueue(automatic: true)) {
+      return;
+    }
     _syncingAudioPlayer = true;
     _mediaControlController.setPlaybackRuntimeFailed(progressSeconds);
     _syncingAudioPlayer = false;
@@ -319,7 +354,27 @@ extension _SmPlayerShellPlaybackMethods on _SmPlayerShellPageState {
       return;
     }
 
+    final canFinishCurrentTrack =
+        _loadedAudioTrackId != null &&
+        _loadedAudioTrackId == _mediaControlController.state.track.id &&
+        _loadingAudioTrackId == null;
     if (state.processingState == ProcessingState.completed) {
+      // The Windows adapter resets position to zero when it reports completion.
+      // Events from the previous source can still arrive while loading a track.
+      if (canFinishCurrentTrack) {
+        _finishCurrentAudioTrack();
+      }
+      return;
+    }
+
+    final duration = _audioPlayer.duration;
+    final reachedEnd =
+        canFinishCurrentTrack &&
+        _mediaControlController.state.isPlaying &&
+        duration != null &&
+        duration - _audioPlayer.position <= const Duration(milliseconds: 500) &&
+        !state.playing;
+    if (reachedEnd) {
       _finishCurrentAudioTrack();
       return;
     }
@@ -377,59 +432,75 @@ extension _SmPlayerShellPlaybackMethods on _SmPlayerShellPageState {
 
   Future<void> _finishCurrentAudioTrackAsync() async {
     _stopPlaybackStallTimer();
-    final activeTrackId = _mediaControlController.state.track.id;
-    if (activeTrackId != null) {
-      if (_finishingAudioTrackId == activeTrackId) {
-        return;
-      }
-      _finishingAudioTrackId = activeTrackId;
-      try {
-        await ref.read(libraryRepositoryProvider).markSongPlayed(activeTrackId);
-        if (!mounted) {
-          return;
-        }
-        final song =
-            ref.read(librarySongOverridesProvider)[activeTrackId] ??
-            ref
-                .read(libraryContentDataProvider)
-                .valueOrNull
-                ?.songs
-                .where((song) => song.id == activeTrackId)
-                .firstOrNull;
-        if (song != null) {
-          final playedSong = song.copyWith(playCount: song.playCount + 1);
-          patchLibrarySongOverride(ref, playedSong);
-          ref
-              .read(recentSongsProvider.notifier)
-              .recordPlayed(
-                playedSong,
-                playedAt: DateTime.now().millisecondsSinceEpoch.toString(),
-              );
-        }
-      } finally {
-        if (_finishingAudioTrackId == activeTrackId) {
-          _finishingAudioTrackId = null;
-        }
-      }
-    }
-
-    if (_mediaControlController.state.mode == PlaybackMode.repeatOne) {
-      unawaited(
-        _audioPlayer.seek(Duration.zero).then((_) {
-          return _audioPlayer.play();
-        }),
-      );
-      _syncingAudioPlayer = true;
-      _mediaControlController.syncPlaybackProgress(0);
-      _mediaControlController.setPlaybackActive(true);
-      _syncingAudioPlayer = false;
+    final state = _mediaControlController.state;
+    final activeTrackId = state.track.id;
+    if (activeTrackId != null && _finishingAudioTrackId == activeTrackId) {
       return;
     }
-    final advanced = _playNextFromCurrentQueue(automatic: true);
-    if (!advanced) {
-      _syncingAudioPlayer = true;
-      _mediaControlController.completePlayback();
+    _finishingAudioTrackId = activeTrackId;
+
+    try {
+      if (activeTrackId != null) {
+        unawaited(_recordFinishedAudioTrack(activeTrackId));
+      }
+      if (state.mode == PlaybackMode.repeatOne) {
+        await _restartCompletedAudioTrack(activeTrackId);
+      } else {
+        final advanced = _playNextFromCurrentQueue(automatic: true);
+        if (!advanced) {
+          _syncingAudioPlayer = true;
+          _mediaControlController.completePlayback();
+          _syncingAudioPlayer = false;
+        }
+      }
+    } finally {
+      if (_finishingAudioTrackId == activeTrackId) {
+        _finishingAudioTrackId = null;
+      }
+    }
+  }
+
+  Future<void> _restartCompletedAudioTrack(int? activeTrackId) async {
+    _syncingAudioPlayer = true;
+    try {
+      await _audioPlayer.seek(Duration.zero);
+      final state = _mediaControlController.state;
+      if (!mounted ||
+          state.track.id != activeTrackId ||
+          state.mode != PlaybackMode.repeatOne ||
+          !state.isPlaying) {
+        return;
+      }
+      _mediaControlController.syncPlaybackProgress(0);
+      await _audioPlayer.play();
+    } finally {
       _syncingAudioPlayer = false;
+    }
+    _startPlaybackStallTimer();
+  }
+
+  Future<void> _recordFinishedAudioTrack(int activeTrackId) async {
+    await ref.read(libraryRepositoryProvider).markSongPlayed(activeTrackId);
+    if (!mounted) {
+      return;
+    }
+    final song =
+        ref.read(librarySongOverridesProvider)[activeTrackId] ??
+        ref
+            .read(libraryContentDataProvider)
+            .valueOrNull
+            ?.songs
+            .where((song) => song.id == activeTrackId)
+            .firstOrNull;
+    if (song != null) {
+      final playedSong = song.copyWith(playCount: song.playCount + 1);
+      patchLibrarySongOverride(ref, playedSong);
+      ref
+          .read(recentSongsProvider.notifier)
+          .recordPlayed(
+            playedSong,
+            playedAt: DateTime.now().millisecondsSinceEpoch.toString(),
+          );
     }
   }
 
@@ -450,12 +521,23 @@ extension _SmPlayerShellPlaybackMethods on _SmPlayerShellPageState {
     final snapshot = ref.read(libraryContentDataProvider).valueOrNull;
     final rootPath =
         snapshot?.rootPath ?? _settingsController.snapshot.rootPath;
-    final selectedRootPath = await pickDirectoryFromDesktopShell(
-      title: i18n.t('local.chooseMusicLibraryFolderDialogTitle'),
-      buttonLabel: i18n.t('notification.authorizeFileAccess'),
-      defaultPath: rootPath.isEmpty ? null : rootPath,
-      locale: i18n.locale,
-    );
+    final String? selectedRootPath;
+    try {
+      selectedRootPath = await pickDirectoryFromDesktopShell(
+        title: i18n.t('local.chooseMusicLibraryFolderDialogTitle'),
+        buttonLabel: i18n.t('notification.authorizeFileAccess'),
+        defaultPath: rootPath.isEmpty ? null : rootPath,
+        locale: i18n.locale,
+      );
+    } on PlatformException {
+      if (mounted) {
+        showAppNotification(
+          context: context,
+          message: i18n.t('library.folderPickerUnavailable'),
+        );
+      }
+      return;
+    }
     if (selectedRootPath == null || selectedRootPath.isEmpty) {
       return;
     }

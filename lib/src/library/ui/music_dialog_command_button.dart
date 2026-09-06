@@ -110,6 +110,28 @@ class _MusicDialogCommandButton extends StatelessWidget {
         !showLabel
             ? 0.0
             : (compact ? 12.0 : (commandBar ? (mobile ? 10.0 : 14.0) : 18.0));
+    final labelWidget = Text(
+      label,
+      style: TextStyle(
+        fontSize: commandBar ? 14 : 16,
+        fontWeight: commandBar ? FontWeight.w700 : FontWeight.w600,
+        fontVariations: [FontVariation.weight(commandBar ? 720 : 650)],
+      ),
+    );
+    final normalContent = Row(
+      mainAxisSize: MainAxisSize.min,
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        if (icon case final IconData icon) ...[
+          Icon(icon, size: 20),
+          if (showLabel) const SizedBox(width: 8),
+        ] else if (iconWidget != null) ...[
+          iconWidget!,
+          if (showLabel) const SizedBox(width: 8),
+        ],
+        if (showLabel) labelWidget,
+      ],
+    );
 
     final button = TextButton(
       style: TextButton.styleFrom(
@@ -149,41 +171,34 @@ class _MusicDialogCommandButton extends StatelessWidget {
         }),
         overlayColor: const WidgetStatePropertyAll(Colors.transparent),
       ),
-      onPressed: disabled || loading ? null : onPressed,
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        mainAxisAlignment: MainAxisAlignment.center,
+      onPressed: disabled ? null : onPressed,
+      child: Stack(
+        alignment: Alignment.center,
         children: [
-          if (loading) ...[
-            SizedBox.square(
-              dimension: 20,
-              child: CircularProgressIndicator(
-                strokeWidth: 2,
-                color: foreground,
-              ),
-            ),
-            if (showLabel) const SizedBox(width: 8),
-          ] else if (icon case final IconData icon) ...[
-            Icon(icon, size: 20),
-            if (showLabel) const SizedBox(width: 8),
-          ],
-          if (!loading && iconWidget != null) ...[
-            iconWidget!,
-            if (showLabel) const SizedBox(width: 8),
-          ],
-          if (showLabel)
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: commandBar ? 14 : 16,
-                fontWeight: commandBar ? FontWeight.w700 : FontWeight.w600,
-                fontVariations: [FontVariation.weight(commandBar ? 720 : 650)],
-              ),
+          Opacity(opacity: loading ? 0 : 1, child: normalContent),
+          if (loading)
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                SizedBox.square(
+                  dimension: 20,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: foreground,
+                  ),
+                ),
+                if (showLabel) ...[const SizedBox(width: 8), labelWidget],
+              ],
             ),
         ],
       ),
     );
-    final styledButton = button
+    final interactionLockedButton = AbsorbPointer(
+      absorbing: loading,
+      child: button,
+    );
+    final styledButton = interactionLockedButton
         .withCommandButtonInsetHighlight(
           commandBar && !primary && !disabled && !nightMode
               ? const Color(0x6bffffff)

@@ -13,6 +13,8 @@ import 'package:smplayer_flutter/src/library/data/library_providers.dart';
 import 'package:smplayer_flutter/src/playback/media_control.dart';
 import 'package:smplayer_flutter/src/playback/immersive_mode_theme.dart';
 import 'package:smplayer_flutter/src/playback/immersive_mode_top_button_style.dart';
+import 'package:smplayer_flutter/src/settings/settings_model.dart'
+    show LyricsRequestMode;
 
 String formatImmersiveModeLyricSeekTimeValue(double seconds) {
   final wholeSeconds = seconds.floor();
@@ -102,6 +104,7 @@ class ImmersiveModeLyrics extends ConsumerStatefulWidget {
     required this.i18n,
     required this.onSeekAndPlay,
     required this.refreshRevision,
+    required this.lyricsRequestMode,
     required this.compact,
     required this.midCompact,
     required this.anchorOffset,
@@ -114,6 +117,7 @@ class ImmersiveModeLyrics extends ConsumerStatefulWidget {
   final SmPlayerI18n i18n;
   final ValueChanged<double> onSeekAndPlay;
   final int refreshRevision;
+  final LyricsRequestMode lyricsRequestMode;
   final bool compact;
   final bool midCompact;
   final double? anchorOffset;
@@ -137,6 +141,7 @@ class _ImmersiveModeLyricsState extends ConsumerState<ImmersiveModeLyrics> {
   int? _lastActiveIndex;
   int? _previewIndex;
   Timer? _restoreTimer;
+  var _lyricsLoadRevision = 0;
 
   @override
   void initState() {
@@ -148,7 +153,8 @@ class _ImmersiveModeLyricsState extends ConsumerState<ImmersiveModeLyrics> {
   void didUpdateWidget(covariant ImmersiveModeLyrics oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.song?.id != widget.song?.id ||
-        oldWidget.refreshRevision != widget.refreshRevision) {
+        oldWidget.refreshRevision != widget.refreshRevision ||
+        oldWidget.lyricsRequestMode != widget.lyricsRequestMode) {
       _loadLyrics();
     }
     final lines = _displayLines();
@@ -174,12 +180,34 @@ class _ImmersiveModeLyricsState extends ConsumerState<ImmersiveModeLyrics> {
   }
 
   Future<void> _loadLyrics() async {
+    final loadRevision = ++_lyricsLoadRevision;
     final song = widget.song;
     if (song == null) {
       setState(() {
         _lyricsSongId = null;
         _lyrics = null;
         _loading = false;
+      });
+      return;
+    }
+
+    final repository = ref.read(libraryRepositoryProvider);
+    final cachedLyrics = repository.getCachedSongLyrics(
+      song.id,
+      mode: widget.lyricsRequestMode,
+    );
+    if (cachedLyrics != null) {
+      setState(() {
+        _lyricsSongId = song.id;
+        _lyrics = cachedLyrics;
+        _loading = false;
+        _previewing = false;
+        _dragging = false;
+        _lyricsDragMoved = false;
+        _lyricsDragPendingDeltaY = 0;
+        _lastActiveIndex = null;
+        _previewIndex = null;
+        _scrollActiveAfterBuild = true;
       });
       return;
     }
@@ -195,10 +223,13 @@ class _ImmersiveModeLyricsState extends ConsumerState<ImmersiveModeLyrics> {
       _lastActiveIndex = null;
       _previewIndex = null;
     });
-    final lyrics = await ref
-        .read(libraryRepositoryProvider)
-        .getSongLyrics(song.id);
-    if (!mounted || _lyricsSongId != song.id) {
+    final lyrics = await repository.getSongLyrics(
+      song.id,
+      mode: widget.lyricsRequestMode,
+    );
+    if (!mounted ||
+        _lyricsSongId != song.id ||
+        _lyricsLoadRevision != loadRevision) {
       return;
     }
     setState(() {
@@ -454,6 +485,12 @@ class _ImmersiveModeLyricsState extends ConsumerState<ImmersiveModeLyrics> {
     return widget.midCompact ? 22.72 : 26.56;
   }
 
+  double _lyricLineHeight(bool active) {
+    final fontSize = active ? _activeLyricFontSize() : _lyricFontSize();
+    final textHeight = widget.compact ? (active ? 1.34 : 1.44) : 1.35;
+    return max(_lyricMinHeight(), fontSize * textHeight);
+  }
+
   Color _lyricTextColor(ImmersiveModeThemeColors colors, bool active) {
     final dark = colors.artworkShadowOpacity > 0.3;
     if (active) {
@@ -524,7 +561,10 @@ class _ImmersiveModeLyricsState extends ConsumerState<ImmersiveModeLyrics> {
                         final anchorOffset = _anchorOffset(
                           stageConstraints.maxHeight,
                         );
-                        final lineHalfHeight = _lyricMinHeight() / 2;
+                        final firstLineHalfHeight =
+                            _lyricLineHeight(displayLines.first.active) / 2;
+                        final lastLineHalfHeight =
+                            _lyricLineHeight(displayLines.last.active) / 2;
                         final lyricsScroll = MouseRegion(
                           cursor:
                               _dragging
@@ -587,13 +627,13 @@ class _ImmersiveModeLyricsState extends ConsumerState<ImmersiveModeLyrics> {
                                   controller: _scrollController,
                                   padding: EdgeInsets.fromLTRB(
                                     0,
-                                    max(0, anchorOffset - lineHalfHeight),
+                                    max(0, anchorOffset - firstLineHalfHeight),
                                     widget.compact ? 0 : 20,
                                     max(
                                       widget.compact ? 0 : 32,
                                       stageConstraints.maxHeight -
                                           anchorOffset -
-                                          lineHalfHeight,
+                                          lastLineHalfHeight,
                                     ),
                                   ),
                                   child: Column(
@@ -718,10 +758,10 @@ class _ImmersiveModeLyricsState extends ConsumerState<ImmersiveModeLyrics> {
             ),
             if (previewLine != null && displayLines.length > 1)
               Positioned(
-                top: _anchorOffset(constraints.maxHeight),
+                top: 0,
+                bottom: 0,
                 right: seekButtonRight,
-                child: FractionalTranslation(
-                  translation: const Offset(0, -0.5),
+                child: Center(
                   child: MouseRegion(
                     opaque: true,
                     cursor: SystemMouseCursors.click,

@@ -89,21 +89,46 @@ class _ArtworkFloatingButtonSurfaceState
               BorderSide(color: artworkOverlayBorderColor),
             ),
           ),
-          child: GlassIconButton(
-            size: widget.size,
-            iconSize: widget.iconSize ?? widget.size * 0.46,
+          child: AdaptiveGlass(
+            shape: const LiquidOval(),
             useOwnLayer: true,
             quality: GlassQuality.minimal,
             settings: artworkOverlayGlassSettings,
-            glowColor: artworkOverlayGlowColor,
-            glowRadius: widget.size * artworkOverlayGlowRadiusFactor,
-            onPressed: widget.onPressed,
-            icon: IconTheme(
-              data: IconThemeData(
-                color: widget.onPressed == null ? Colors.white54 : Colors.white,
-                size: widget.iconSize ?? widget.size * 0.46,
+            child: GlassGlow(
+              glowColor: artworkOverlayGlowColor,
+              glowRadius: widget.size * artworkOverlayGlowRadiusFactor,
+              child: SizedBox.square(
+                dimension: widget.size,
+                child: IconButton(
+                  padding: EdgeInsets.zero,
+                  iconSize: widget.iconSize ?? widget.size * 0.46,
+                  style: IconButton.styleFrom(
+                    foregroundColor: Colors.white,
+                    disabledForegroundColor: Colors.white54,
+                    backgroundColor: Colors.transparent,
+                    disabledBackgroundColor: Colors.transparent,
+                    minimumSize: Size.square(widget.size),
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    shape: const CircleBorder(),
+                  ).copyWith(
+                    overlayColor: const WidgetStatePropertyAll(
+                      Colors.transparent,
+                    ),
+                    splashFactory: NoSplash.splashFactory,
+                  ),
+                  onPressed: widget.onPressed,
+                  icon: IconTheme(
+                    data: IconThemeData(
+                      color:
+                          widget.onPressed == null
+                              ? Colors.white54
+                              : Colors.white,
+                      size: widget.iconSize ?? widget.size * 0.46,
+                    ),
+                    child: widget.icon,
+                  ),
+                ),
               ),
-              child: widget.icon,
             ),
           ),
         ),

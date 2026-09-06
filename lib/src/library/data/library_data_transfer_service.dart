@@ -1,12 +1,32 @@
 import 'dart:io';
+import 'dart:isolate';
 
 import 'package:path/path.dart' as p;
 import 'package:sqlite3/sqlite3.dart';
 
 import 'library_repository_paths.dart';
+import 'library_database_service.dart';
 
 const _activeState = 1;
 const _legacyUwpPackageIdentityName = '23778SeakyTheLoner.SMPlayer';
+
+Future<void> _copyDatabase(String sourcePath, String targetPath) {
+  return Isolate.run(() async {
+    final source = sqlite3.open(sourcePath, mode: OpenMode.readOnly);
+    try {
+      final target = sqlite3.open(targetPath);
+      try {
+        // SQLite backup includes committed WAL pages and preserves a consistent
+        // snapshot while the player continues reading the library.
+        await source.backup(target, nPage: -1).drain<void>();
+      } finally {
+        target.dispose();
+      }
+    } finally {
+      source.dispose();
+    }
+  });
+}
 
 class LibraryDataTransferService {
   const LibraryDataTransferService();
@@ -18,7 +38,7 @@ class LibraryDataTransferService {
 
     final target = File(targetPath);
     await target.parent.create(recursive: true);
-    await databaseFile.copy(target.path);
+    await _copyDatabase(databaseFile.path, target.path);
     return true;
   }
 
@@ -38,11 +58,16 @@ class LibraryDataTransferService {
     final currentRootPath =
         hadExistingDatabase ? _readDatabaseRootPath(databaseFile) : '';
     if (hadExistingDatabase) {
-      await databaseFile.copy(backupFile.path);
+      await _copyDatabase(databaseFile.path, backupFile.path);
     }
 
     try {
-      await source.copy(databaseFile.path);
+      await _copyDatabase(source.path, databaseFile.path);
+      await Isolate.run(() {
+        final imported = const LibraryDatabaseService()
+            .openInitializedLibraryDatabase(databaseFile);
+        imported.dispose();
+      });
       final importedRootPath = _readDatabaseRootPath(databaseFile);
       if (currentRootPath.isNotEmpty &&
           importedRootPath.isNotEmpty &&
@@ -58,7 +83,7 @@ class LibraryDataTransferService {
       return true;
     } catch (_) {
       if (hadExistingDatabase) {
-        await backupFile.copy(databaseFile.path);
+        await _copyDatabase(backupFile.path, databaseFile.path);
       } else if (databaseFile.existsSync()) {
         await databaseFile.delete();
       }
