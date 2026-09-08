@@ -13,10 +13,8 @@ Future<String?> showPopupTextDialog({
   ValueChanged<int>? onRemoveSearchHistory,
   VoidCallback? onClearSearchHistory,
 }) {
-  return showDialog<String>(
+  return showScopedPopupDialog<String>(
     context: context,
-    barrierColor: Colors.transparent,
-    barrierDismissible: false,
     builder: (dialogContext) {
       final dialogI18n =
           dialogContext.maybeSmPlayerI18n ??
@@ -106,12 +104,26 @@ class _PopupTextDialogState extends State<_PopupTextDialog> {
     _syncHistoryDropdown();
     return _InputDialogShell(
       ariaLabel: widget.title,
+      onClose: () => Navigator.of(context).pop(),
+      footer: PopupDialogActions(
+        children: [
+          PopupDialogActionButton(
+            label: widget.confirmLabel,
+            primary: true,
+            onPressed: _submit,
+          ),
+          PopupDialogActionButton(
+            label: widget.i18n.t('common.cancel'),
+            onPressed: () {
+              Navigator.of(context).pop();
+            },
+          ),
+        ],
+      ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _InputDialogTitle(widget.title),
-          const SizedBox(height: 18),
           OverlayPortal.overlayChildLayoutBuilder(
             controller: _historyDropdownController,
             overlayChildBuilder: (context, info) {
@@ -157,22 +169,6 @@ class _PopupTextDialogState extends State<_PopupTextDialog> {
                 _focusNode.unfocus();
               },
             ),
-          ),
-          PopupDialogActions(
-            compact: true,
-            children: [
-              PopupDialogActionButton(
-                label: widget.confirmLabel,
-                primary: true,
-                onPressed: _submit,
-              ),
-              PopupDialogActionButton(
-                label: widget.i18n.t('common.cancel'),
-                onPressed: () {
-                  Navigator.of(context).pop();
-                },
-              ),
-            ],
           ),
         ],
       ),

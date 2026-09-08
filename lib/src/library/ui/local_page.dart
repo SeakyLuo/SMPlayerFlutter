@@ -50,6 +50,7 @@ import 'local_page_quick_jump.dart';
 import 'local_page_shell.dart';
 import 'local_title_grid.dart';
 import 'music_dialog.dart';
+import 'local_song_location.dart';
 
 part 'local_page_content.dart';
 part 'local_page_context_menus.dart';
@@ -59,6 +60,7 @@ part 'local_page_file_actions.dart';
 part 'local_page_playback_actions.dart';
 part 'local_page_folder_actions.dart';
 part 'local_page_add_to_actions.dart';
+part 'local_page_song_location.dart';
 
 const localCompactBreakpoint = 720.0;
 
@@ -108,7 +110,15 @@ class _LocalPageState extends ConsumerState<LocalPage> {
   final _dataCache = LibraryPageDataCache();
   final _treeExpandedFolderPaths = <String>{};
   final _scrollController = ScrollController();
-  LocalFolderRefreshProgress? _refreshProgress;
+  final _scanProgressNotifier = ValueNotifier<LocalFolderRefreshProgress?>(
+    null,
+  );
+  LocalFolderRefreshProgress? get _refreshProgress =>
+      _scanProgressNotifier.value;
+  set _refreshProgress(LocalFolderRefreshProgress? value) {
+    _scanProgressNotifier.value = value;
+  }
+
   ({FolderNode folder, LocalFolderRefreshResult result})? _refreshResultDialog;
   String? _localOperationTitle;
   LocalFolderScanCancellation? _scanCancellation;
@@ -118,6 +128,9 @@ class _LocalPageState extends ConsumerState<LocalPage> {
   MusicDialogEntry? _musicDialog;
   var _rootScanRunning = false;
   var _pickingLibraryRoot = false;
+  LocalSongLocation? _handledSongLocation;
+  int? _locatedSongId;
+  Timer? _songLocationTimer;
 
   void _updateLocalPageState(VoidCallback update) {
     setState(update);
@@ -134,6 +147,8 @@ class _LocalPageState extends ConsumerState<LocalPage> {
 
   @override
   void dispose() {
+    _scanProgressNotifier.dispose();
+    _songLocationTimer?.cancel();
     _scrollController.dispose();
     super.dispose();
   }
@@ -150,6 +165,23 @@ class _LocalPageState extends ConsumerState<LocalPage> {
     final snapshotValue = ref.watch(libraryContentDataProvider);
     ref.watch(recentSearchesProvider);
     final songOverrides = ref.watch(librarySongOverridesProvider);
+    final songLocation = ref.watch(localSongLocationProvider);
+    if (songLocation != null &&
+        songLocation != _handledSongLocation &&
+        songLocation.folderPath == widget.currentRelativePath &&
+        widget.searchQuery.isEmpty &&
+        snapshotValue.hasValue) {
+      _handledSongLocation = songLocation;
+      _clearMultiSelectStatus();
+      _songsExpanded = true;
+      _musicDialog = null;
+      _refreshResultDialog = null;
+      _locatedSongId = songLocation.songId;
+      _songLocationTimer?.cancel();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _revealLocatedSong(songLocation);
+      });
+    }
 
     if (i18nValue.isLoading) {
       return const LocalPageScaffold(child: SmPlayerLoadingState());

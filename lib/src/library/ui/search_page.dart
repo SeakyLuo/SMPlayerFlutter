@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:smplayer_flutter/src/app/app_interaction_colors.dart';
+import 'package:smplayer_flutter/src/app/edge_auto_hide_scrollbar.dart';
 import 'package:smplayer_flutter/src/app/undoable_notification.dart';
 import 'package:smplayer_flutter/src/app/shell_colors.dart';
 import 'package:smplayer_flutter/src/app/smplayer_vector_icons.dart';
@@ -49,6 +50,8 @@ part 'search_filter_tabs.dart';
 part 'search_page_shell.dart';
 part 'search_result_cards.dart';
 part 'search_result_sections.dart';
+part 'search_song_hover_actions.dart';
+part 'search_lyrics_excerpt.dart';
 part 'search_theme.dart';
 
 const _searchPageHorizontalInset = 8.0;
@@ -521,13 +524,10 @@ class _SearchPageState extends ConsumerState<SearchPage> {
   }
 
   int _totalCount(SearchResults results) {
-    final metadataSongIds = results.songs.map((song) => song.id).toSet();
     return results.artists.length +
         results.albums.length +
         results.songs.length +
-        results.lyrics
-            .where((result) => !metadataSongIds.contains(result.song.id))
-            .length +
+        results.lyrics.length +
         results.playlists.length +
         results.folders.length;
   }
@@ -541,18 +541,18 @@ class _SearchPageState extends ConsumerState<SearchPage> {
 
   int _selectedItemCount(List<_SearchSectionData> visibleSections) {
     final selectedKeys = _selection.selectedItems;
-    var count = 0;
+    final selectedItems = <String>{};
     for (final section in visibleSections) {
       if (section.type == SearchResultType.songs) {
         for (final song in section.songs) {
           if (selectedKeys.contains(_songSelectionKey(song))) {
-            count += 1;
+            selectedItems.add(_songSelectionKey(song));
           }
         }
       } else if (section.type == SearchResultType.lyrics) {
         for (final result in section.lyrics) {
           if (selectedKeys.contains(_songSelectionKey(result.song))) {
-            count += 1;
+            selectedItems.add(_songSelectionKey(result.song));
           }
         }
       } else {
@@ -560,12 +560,12 @@ class _SearchPageState extends ConsumerState<SearchPage> {
           if (selectedKeys.contains(
             getSearchResultCardKey(section.type, card),
           )) {
-            count += 1;
+            selectedItems.add(getSearchResultCardKey(section.type, card));
           }
         }
       }
     }
-    return count;
+    return selectedItems.length;
   }
 
   List<int> _selectedSongIds(List<_SearchSectionData> visibleSections) {

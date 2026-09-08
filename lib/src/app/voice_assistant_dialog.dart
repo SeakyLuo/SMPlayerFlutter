@@ -2,15 +2,19 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:speech_to_text/speech_recognition_error.dart';
 import 'package:speech_to_text/speech_recognition_result.dart';
 import 'package:speech_to_text/speech_to_text.dart';
 
-bool supportsVoiceAssistant() {
-  return Platform.isWindows || Platform.isMacOS;
-}
+import 'shell_models.dart';
+import 'undoable_notification.dart';
+import 'voice_assistant_help.dart';
+import 'voice_assistant_popover.dart';
+
+bool supportsVoiceAssistant() => Platform.isWindows || Platform.isMacOS;
 
 class VoiceAssistantDialog extends StatefulWidget {
   const VoiceAssistantDialog({
@@ -18,229 +22,186 @@ class VoiceAssistantDialog extends StatefulWidget {
     required this.i18n,
     required this.getHint,
     required this.onExecute,
+    this.miniMode = false,
   });
-
   final SmPlayerI18n i18n;
   final String Function() getHint;
   final String Function(String command) onExecute;
+  final bool miniMode;
 
   @override
   State<VoiceAssistantDialog> createState() => _VoiceAssistantDialogState();
 }
 
-enum _VoiceAssistantCaptureState { idle, capturing, processing }
-
 class _VoiceAssistantDialogState extends State<VoiceAssistantDialog> {
-  late final TextEditingController _controller;
-  late final SpeechToText _speechToText;
-  late final FlutterTts _tts;
+  final _speechToText = SpeechToText();
+  final _tts = FlutterTts();
   Timer? _closeTimer;
   Timer? _restartTimer;
-  String? _result;
-  String _statusText = '';
-  var _state = _VoiceAssistantCaptureState.idle;
+  var _text = '';
+  var _state = VoiceAssistantCaptureState.idle;
   var _session = 0;
+  var _sessionOpen = false;
   var _listening = false;
   var _processing = false;
-  var _showHelpLink = false;
+  var _showHelpLink = true;
+  var _popoverOpen = true;
+  var _helpOpen = false;
 
   @override
   void initState() {
     super.initState();
-    _controller = TextEditingController();
-    _speechToText = SpeechToText();
-    _tts = FlutterTts();
+    _text = widget.getHint();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _openAssistant();
+      if (mounted) unawaited(_openAssistant());
     });
   }
 
   @override
   void dispose() {
+    _cancelSession();
+    super.dispose();
+  }
+
+  void _cancelSession() {
+    if (!_sessionOpen) return;
+    _sessionOpen = false;
     _listening = false;
+    _processing = false;
     _session += 1;
     _closeTimer?.cancel();
     _restartTimer?.cancel();
     unawaited(_speechToText.cancel().catchError(_ignoreVoicePluginError));
     unawaited(_tts.stop().catchError(_ignoreVoicePluginError));
-    _controller.dispose();
-    super.dispose();
+  }
+
+  void _closePopover() {
+    _cancelSession();
+    if (_helpOpen) {
+      setState(() => _popoverOpen = false);
+    } else {
+      Navigator.of(context).pop();
+    }
+  }
+
+  void _closeHelp() {
+    if (_popoverOpen) {
+      setState(() => _helpOpen = false);
+    } else {
+      Navigator.of(context).pop();
+    }
+  }
+
+  void _openHelp() {
+    _cancelSession();
+    setState(() {
+      _popoverOpen = false;
+      _helpOpen = true;
+    });
   }
 
   @override
   Widget build(BuildContext context) {
-    final i18n = widget.i18n;
-    return Dialog(
-      backgroundColor: Colors.transparent,
-      insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 28),
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 520),
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            color: const Color(0xfafbfcff),
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: const Color(0x80b9c3d2)),
-            boxShadow: const [
-              BoxShadow(
-                color: Color(0x47232d3c),
-                blurRadius: 28,
-                offset: Offset(0, 16),
+    final helpWasOpen = _helpOpen;
+    return Focus(
+      autofocus: true,
+      onKeyEvent: (_, event) {
+        if (!helpWasOpen &&
+            event is KeyDownEvent &&
+            event.logicalKey == LogicalKeyboardKey.escape) {
+          _closePopover();
+          return KeyEventResult.handled;
+        }
+        return KeyEventResult.ignored;
+      },
+      child: Material(
+        type: MaterialType.transparency,
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            if (_popoverOpen) ...[
+              Semantics(
+                label: widget.i18n.t('common.close'),
+                button: true,
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: _closePopover,
+                  child: const SizedBox.expand(),
+                ),
               ),
-            ],
-          ),
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(22, 20, 22, 18),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Row(
-                  children: [
-                    const Icon(Icons.mic_rounded, color: Color(0xff0063b1)),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Text(
-                        i18n.t('player.voiceAssistant'),
-                        style: const TextStyle(
-                          color: Color(0xff111827),
-                          fontSize: 18,
-                          fontWeight: FontWeight.w600,
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  final narrow = constraints.maxWidth <= 560;
+                  final compact = narrow || widget.miniMode;
+                  return Stack(
+                    children: [
+                      Positioned(
+                        right: compact ? 10 : 54,
+                        left: compact ? 10 : null,
+                        bottom:
+                            widget.miniMode
+                                ? 48
+                                : SmPlayerShellMetrics.playerHeight - 2,
+                        width:
+                            compact
+                                ? null
+                                : (constraints.maxWidth - 40).clamp(0.0, 560.0),
+                        child: VoiceAssistantPopover(
+                          text: _text,
+                          state: _state,
+                          miniMode: widget.miniMode,
+                          narrow: narrow,
+                          helpLabel: widget.i18n.t('voiceAssistant.getHelp'),
+                          onClose: _closePopover,
+                          onHelp: _showHelpLink ? _openHelp : null,
                         ),
                       ),
-                    ),
-                    IconButton(
-                      tooltip: i18n.t('common.close'),
-                      onPressed: () => Navigator.of(context).pop(),
-                      icon: const Icon(Icons.close_rounded),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 14),
-                _VoiceAssistantStatus(
-                  state: _state,
-                  text:
-                      _statusText.isEmpty
-                          ? i18n.t('voiceAssistant.listening')
-                          : _statusText,
-                  showHelpLink: _showHelpLink,
-                  onOpenHelp: _openHelp,
-                  i18n: i18n,
-                ),
-                const SizedBox(height: 14),
-                TextField(
-                  controller: _controller,
-                  decoration: InputDecoration(
-                    hintText: i18n.t('voiceAssistant.command.play1'),
-                    prefixIcon: const Icon(Icons.keyboard_voice_rounded),
-                    filled: true,
-                    fillColor: const Color(0xe6ffffff),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                      borderSide: const BorderSide(color: Color(0x9ebec8d6)),
-                    ),
-                  ),
-                  onSubmitted: (_) => _execute(),
-                ),
-                if (_result case final result?) ...[
-                  const SizedBox(height: 12),
-                  Text(
-                    result,
-                    style: const TextStyle(
-                      color: Color(0xff344054),
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ],
-                const SizedBox(height: 16),
-                _VoiceCommandHelp(i18n: i18n),
-                const SizedBox(height: 18),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    TextButton(
-                      onPressed: () => Navigator.of(context).pop(),
-                      child: Text(i18n.t('common.cancel')),
-                    ),
-                    const SizedBox(width: 10),
-                    OutlinedButton.icon(
-                      onPressed: _openAssistant,
-                      icon: const Icon(Icons.mic_rounded),
-                      label: Text(i18n.t('voiceAssistant.listening')),
-                    ),
-                    const SizedBox(width: 10),
-                    FilledButton.icon(
-                      onPressed: _execute,
-                      icon: const Icon(Icons.play_arrow_rounded),
-                      label: Text(i18n.t('common.start')),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
+                    ],
+                  );
+                },
+              ),
+            ],
+            if (_helpOpen)
+              VoiceAssistantHelp(i18n: widget.i18n, onClose: _closeHelp),
+          ],
         ),
       ),
     );
   }
 
   Future<void> _openAssistant() async {
-    _session += 1;
-    final session = _session;
+    final session = ++_session;
+    _sessionOpen = true;
     _listening = true;
-    _processing = false;
-    _closeTimer?.cancel();
-    _restartTimer?.cancel();
     try {
       await _tts.stop();
       await _speechToText.cancel();
-    } on Object {
-      if (mounted) {
-        _stopListeningWithMessage(
-          widget.i18n.t('voiceAssistant.recognitionUnavailable'),
-        );
+      if (!_isActiveSession(session)) return;
+      final initialized = await _speechToText.initialize(
+        onStatus: (status) => _handleSpeechStatus(status, session),
+        onError: (error) => _handleSpeechError(error, session),
+      );
+      if (!_isActiveSession(session)) return;
+      if (!initialized) {
+        _stopWithError(widget.i18n.t('voiceAssistant.unavailable'));
+        return;
       }
-      return;
+      // SpeechToText is a singleton; initialize retains its first listeners.
+      _speechToText.statusListener =
+          (status) => _handleSpeechStatus(status, session);
+      _speechToText.errorListener =
+          (error) => _handleSpeechError(error, session);
+      await _startRecognition(session);
+    } on Object {
+      if (_isActiveSession(session)) {
+        _stopWithError(widget.i18n.t('voiceAssistant.recognitionUnavailable'));
+      }
     }
-    if (!mounted) {
-      return;
-    }
-    setState(() {
-      _result = null;
-      _statusText = widget.getHint();
-      _showHelpLink = true;
-      _state = _VoiceAssistantCaptureState.idle;
-    });
-    await _startRecognition(session);
   }
 
   Future<void> _startRecognition(int session) async {
     _restartTimer?.cancel();
-    final bool initialized;
-    try {
-      initialized = await _speechToText.initialize(
-        onStatus: (status) => _handleSpeechStatus(status, session),
-        onError: (error) => _handleSpeechError(error, session),
-      );
-    } on Object {
-      if (_isActiveSession(session)) {
-        _stopListeningWithMessage(
-          widget.i18n.t('voiceAssistant.recognitionUnavailable'),
-        );
-      }
-      return;
-    }
-    if (!_isActiveSession(session)) {
-      return;
-    }
-    if (!initialized) {
-      _stopListeningWithMessage(widget.i18n.t('voiceAssistant.unavailable'));
-      return;
-    }
-
-    _controller.clear();
-    setState(() {
-      _state = _VoiceAssistantCaptureState.idle;
-    });
+    setState(() => _state = VoiceAssistantCaptureState.idle);
     try {
       await _speechToText.listen(
         onResult: (result) => _handleSpeechResult(result, session),
@@ -254,120 +215,104 @@ class _VoiceAssistantDialogState extends State<VoiceAssistantDialog> {
       );
     } on Object {
       if (_isActiveSession(session)) {
-        _stopListeningWithMessage(
-          widget.i18n.t('voiceAssistant.recognitionUnavailable'),
-        );
+        _stopWithError(widget.i18n.t('voiceAssistant.recognitionUnavailable'));
       }
     }
   }
 
   void _handleSpeechStatus(String status, int session) {
-    if (!_isActiveSession(session)) {
-      return;
-    }
+    if (!_isActiveSession(session) || _processing) return;
     if (status == 'listening') {
-      setState(() {
-        _state = _VoiceAssistantCaptureState.capturing;
-      });
-    }
-    if ((status == 'done' || status == 'notListening') &&
-        !_processing &&
-        _controller.text.trim().isEmpty) {
+      setState(() => _state = VoiceAssistantCaptureState.capturing);
+    } else if (status == 'done' || status == 'notListening') {
       _scheduleRecognitionRestart(session);
     }
   }
 
   void _handleSpeechError(SpeechRecognitionError error, int session) {
-    if (!_isActiveSession(session)) {
-      return;
-    }
+    if (!_isActiveSession(session)) return;
     final message = error.errorMsg;
     if (message.contains('no_match') ||
         message.contains('no-speech') ||
         message.contains('speech_timeout')) {
-      _scheduleRecognitionRestart(session);
+      if (!_processing) _scheduleRecognitionRestart(session);
       return;
     }
-    _stopListeningWithMessage(
-      message.contains('permission')
-          ? widget.i18n.t('voiceAssistant.privacyRequired')
-          : widget.i18n.t('voiceAssistant.recognitionUnavailable'),
+    _stopWithError(
+      widget.i18n.t(
+        message.contains('permission')
+            ? 'voiceAssistant.privacyRequired'
+            : message.contains('audio')
+            ? 'voiceAssistant.audioCaptureFailed'
+            : 'voiceAssistant.recognitionUnavailable',
+      ),
     );
   }
 
   void _handleSpeechResult(SpeechRecognitionResult result, int session) {
-    if (!_isActiveSession(session)) {
-      return;
-    }
+    if (!_isActiveSession(session) || _processing) return;
     final transcript = result.recognizedWords.trim();
-    if (transcript.isNotEmpty) {
-      _controller.text = transcript;
-      setState(() {
-        _statusText = transcript;
-        _showHelpLink = false;
-        _state = _VoiceAssistantCaptureState.capturing;
-      });
-    }
-    if (result.finalResult && transcript.isNotEmpty) {
+    if (transcript.isEmpty) return;
+    setState(() {
+      _text = transcript;
+      _showHelpLink = false;
+      _state = VoiceAssistantCaptureState.capturing;
+    });
+    if (result.finalResult) {
       unawaited(_executeRecognizedCommand(transcript, session));
     }
   }
 
   Future<void> _executeRecognizedCommand(String command, int session) async {
     _processing = true;
+    _restartTimer?.cancel();
     try {
       await _speechToText.stop();
+      if (!_isActiveSession(session)) return;
+      setState(() => _state = VoiceAssistantCaptureState.processing);
+      final result = widget.onExecute(command);
+      if (!_isActiveSession(session)) return;
+      if (result == widget.i18n.t('voiceAssistant.notUnderstood')) {
+        await _speak(result, session);
+        if (_isActiveSession(session)) {
+          _processing = false;
+          _scheduleRecognitionRestart(session);
+        }
+        return;
+      }
+      if (result == widget.i18n.t('voiceAssistant.canceled')) {
+        _closePopover();
+        return;
+      }
+      _listening = false;
+      if (result == widget.i18n.t('voiceAssistant.help')) {
+        _openHelp();
+        return;
+      } else if (result != widget.i18n.t('voiceAssistant.executed')) {
+        _showMessage(result);
+        unawaited(_speak(result, session));
+      }
+      _closeTimer = Timer(const Duration(seconds: 5), () {
+        if (mounted && _session == session) _closePopover();
+      });
     } on Object {
-      if (_isActiveSession(session)) {
-        _stopListeningWithMessage(
-          widget.i18n.t('voiceAssistant.recognitionUnavailable'),
-        );
+      if (mounted && _session == session) {
+        _stopWithError(widget.i18n.t('voiceAssistant.recognitionUnavailable'));
       }
-      return;
     }
-    if (!_isActiveSession(session)) {
-      return;
-    }
-    setState(() {
-      _state = _VoiceAssistantCaptureState.processing;
-      _statusText = widget.i18n.t('voiceAssistant.processing');
-    });
-    final result = widget.onExecute(command);
-    if (!_isActiveSession(session)) {
-      return;
-    }
-    setState(() {
-      _result = result;
-      _statusText = result;
-    });
-    if (result == widget.i18n.t('voiceAssistant.notUnderstood')) {
-      await _speak(result);
-      if (_isActiveSession(session)) {
-        _processing = false;
-        _scheduleRecognitionRestart(session);
-      }
-      return;
-    }
-    _listening = false;
-    if (result != widget.i18n.t('voiceAssistant.executed') &&
-        result != widget.i18n.t('voiceAssistant.canceled')) {
-      await _speak(result);
-    }
-    _closeTimer = Timer(const Duration(seconds: 5), () {
-      if (mounted) {
-        Navigator.of(context).pop();
-      }
-    });
   }
 
-  Future<void> _speak(String message) async {
+  Future<void> _speak(String message, int session) async {
     try {
       await _tts.stop();
+      if (!mounted || _session != session) return;
       await _tts.setLanguage(widget.i18n.locale);
+      if (!mounted || _session != session) return;
       await _tts.awaitSpeakCompletion(true);
+      if (!mounted || _session != session) return;
       await _tts.speak(message);
     } on Object {
-      return;
+      // Speech output is optional; recognition can continue without it.
     }
   }
 
@@ -375,166 +320,23 @@ class _VoiceAssistantDialogState extends State<VoiceAssistantDialog> {
 
   void _scheduleRecognitionRestart(int session) {
     _restartTimer?.cancel();
+    setState(() => _state = VoiceAssistantCaptureState.idle);
     _restartTimer = Timer(const Duration(milliseconds: 250), () {
-      if (_isActiveSession(session)) {
+      if (_isActiveSession(session) && !_processing) {
         unawaited(_startRecognition(session));
       }
     });
   }
 
-  void _stopListeningWithMessage(String message) {
-    _listening = false;
-    _processing = false;
-    setState(() {
-      _state = _VoiceAssistantCaptureState.idle;
-      _showHelpLink = false;
-      _statusText = message;
-      _result = message;
-    });
+  void _stopWithError(String message) {
+    _showMessage(message);
+    _closePopover();
   }
 
-  void _openHelp() {
-    setState(() {
-      _result = widget.i18n.t('voiceAssistant.help');
-      _showHelpLink = false;
-    });
+  void _showMessage(String message) {
+    unawaited(showAppNotification(context: context, message: message));
   }
 
-  bool _isActiveSession(int session) {
-    return mounted && _listening && _session == session;
-  }
-
-  void _execute() {
-    _listening = false;
-    _processing = false;
-    _session += 1;
-    _restartTimer?.cancel();
-    _closeTimer?.cancel();
-    unawaited(_speechToText.stop());
-    final result = widget.onExecute(_controller.text);
-    setState(() {
-      _result = result;
-      _statusText = result;
-      _showHelpLink = false;
-      _state = _VoiceAssistantCaptureState.idle;
-    });
-  }
-}
-
-class _VoiceAssistantStatus extends StatelessWidget {
-  const _VoiceAssistantStatus({
-    required this.state,
-    required this.text,
-    required this.showHelpLink,
-    required this.onOpenHelp,
-    required this.i18n,
-  });
-
-  final _VoiceAssistantCaptureState state;
-  final String text;
-  final bool showHelpLink;
-  final VoidCallback onOpenHelp;
-  final SmPlayerI18n i18n;
-
-  @override
-  Widget build(BuildContext context) {
-    final isProcessing = state == _VoiceAssistantCaptureState.processing;
-    final isCapturing = state == _VoiceAssistantCaptureState.capturing;
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: isCapturing ? const Color(0x1f0063b1) : const Color(0x0f0d1826),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(
-          color:
-              isCapturing ? const Color(0x660063b1) : const Color(0x1f536379),
-        ),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-        child: Row(
-          children: [
-            if (isProcessing)
-              const SizedBox.square(
-                dimension: 18,
-                child: CircularProgressIndicator(strokeWidth: 2.2),
-              )
-            else
-              Icon(
-                isCapturing ? Icons.graphic_eq_rounded : Icons.mic_none_rounded,
-                color: const Color(0xff0063b1),
-              ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Text(
-                text,
-                style: const TextStyle(
-                  color: Color(0xff344054),
-                  fontWeight: FontWeight.w700,
-                  height: 1.35,
-                ),
-              ),
-            ),
-            if (showHelpLink)
-              TextButton(
-                onPressed: onOpenHelp,
-                child: Text(i18n.t('voiceAssistant.getHelp')),
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _VoiceCommandHelp extends StatelessWidget {
-  const _VoiceCommandHelp({required this.i18n});
-
-  final SmPlayerI18n i18n;
-
-  @override
-  Widget build(BuildContext context) {
-    final commands = [
-      ('voiceAssistant.command.play', 'voiceAssistant.command.play1'),
-      (
-        'voiceAssistant.command.playControl',
-        'voiceAssistant.command.playControl1',
-      ),
-      ('voiceAssistant.command.search', 'voiceAssistant.command.search1'),
-      ('voiceAssistant.command.volume', 'voiceAssistant.command.volume1'),
-    ];
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: const Color(0x0f0d1826),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: const Color(0x1f536379)),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              i18n.t('voiceAssistant.supportedCommands'),
-              style: const TextStyle(
-                color: Color(0xff111827),
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            const SizedBox(height: 8),
-            for (final command in commands)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 6),
-                child: Text(
-                  '${i18n.t(command.$1)}: ${i18n.t(command.$2)}',
-                  style: const TextStyle(
-                    color: Color(0xff5b697a),
-                    height: 1.35,
-                  ),
-                ),
-              ),
-          ],
-        ),
-      ),
-    );
-  }
+  bool _isActiveSession(int session) =>
+      mounted && _listening && _session == session;
 }

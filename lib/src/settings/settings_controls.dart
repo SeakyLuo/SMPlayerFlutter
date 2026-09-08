@@ -800,48 +800,42 @@ class _ColorSettingRowState extends State<ColorSettingRow> {
     final normalized = widget.value.toUpperCase();
     return _SettingsRowFrame(
       label: widget.label,
-      controlWidth: 112,
+      controlWidth: 102,
       keepInlineWhenNarrow: true,
       child: InkWell(
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(999),
         onTap: _pickColor,
         child: SizedBox(
           height: 34,
-          width: 112,
-          child: Row(
-            children: [
-              DecoratedBox(
-                decoration: BoxDecoration(
-                  color: _parseHexColor(widget.value),
-                  shape: BoxShape.circle,
-                  border: Border.all(color: colors.inputBorder),
-                  boxShadow: [
-                    BoxShadow(
-                      color: colors.colorSwatchInset,
-                      blurStyle: BlurStyle.inner,
-                      blurRadius: 0,
-                      spreadRadius: 2,
-                    ),
-                  ],
+          width: 102,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 6),
+            child: Row(
+              children: [
+                DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: _parseHexColor(widget.value),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const SizedBox.square(dimension: 22),
                 ),
-                child: const SizedBox.square(dimension: 28),
-              ),
-              const SizedBox(width: 10),
-              SizedBox(
-                width: 74,
-                child: Text(
-                  normalized,
-                  maxLines: 1,
-                  overflow: TextOverflow.clip,
-                  softWrap: false,
-                  style: TextStyle(
-                    color: colors.textMuted,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
+                const SizedBox(width: 10),
+                SizedBox(
+                  width: 58,
+                  child: Text(
+                    normalized,
+                    maxLines: 1,
+                    overflow: TextOverflow.clip,
+                    softWrap: false,
+                    style: TextStyle(
+                      color: colors.textMuted,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),

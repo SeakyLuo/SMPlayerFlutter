@@ -105,6 +105,7 @@ Future<void> showMediaControlMoreMenu({
   VoidCallback? onSeeLyrics,
   VoidCallback? onSeeAlbumArt,
   FutureOr<void> Function()? onSeeLocal,
+  VoidCallback? onLocateLocal,
 }) async {
   if (!context.mounted) {
     return;
@@ -146,6 +147,7 @@ Future<void> showMediaControlMoreMenu({
       onSeeLyrics: onSeeLyrics,
       onSeeAlbumArt: onSeeAlbumArt,
       onSeeLocal: onSeeLocal,
+      onLocateLocal: onLocateLocal,
     );
   }
 
@@ -208,6 +210,7 @@ List<MenuFlyoutItem> _buildPlayerMoreMenuItems({
   VoidCallback? onSeeLyrics,
   VoidCallback? onSeeAlbumArt,
   FutureOr<void> Function()? onSeeLocal,
+  VoidCallback? onLocateLocal,
 }) {
   final currentScopeItems = <MenuFlyoutItem>[
     if (onPlayArtist != null)
@@ -381,11 +384,18 @@ List<MenuFlyoutItem> _buildPlayerMoreMenuItems({
             icon: FluentIcons.image_20_regular,
             onPressed: onSeeAlbumArt,
           ),
+        if (onLocateLocal != null)
+          MenuFlyoutItem(
+            key: 'locate-local',
+            text: i18n.t('context.locateInLocal'),
+            icon: FluentIcons.hard_drive_24_regular,
+            onPressed: onLocateLocal,
+          ),
         if (onSeeLocal != null)
           MenuFlyoutItem(
             key: 'see-local-file',
             text: i18n.t('context.seeLocalFile'),
-            icon: FluentIcons.hard_drive_24_regular,
+            icon: FluentIcons.folder_search_20_regular,
             pendingText: i18n.t('context.openingLocal'),
             onPressed: onSeeLocal,
           ),

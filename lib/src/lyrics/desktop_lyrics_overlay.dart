@@ -138,10 +138,16 @@ class _DesktopLyricsOverlayState extends State<DesktopLyricsOverlay> {
                           const SizedBox(width: 8),
                           _DesktopLyricsTextButton(
                             label: '-0.1s',
+                            tooltip: widget.i18n.t(
+                              'settings.desktopLyricsDelay',
+                            ),
                             onPressed: () => widget.onSeekOffset(-100),
                           ),
                           _DesktopLyricsTextButton(
                             label: '+0.1s',
+                            tooltip: widget.i18n.t(
+                              'settings.desktopLyricsAdvance',
+                            ),
                             onPressed: () => widget.onSeekOffset(100),
                           ),
                           _DesktopLyricsIconButton(
@@ -443,34 +449,41 @@ class _DesktopLyricsIconButton extends StatelessWidget {
 class _DesktopLyricsTextButton extends StatelessWidget {
   const _DesktopLyricsTextButton({
     required this.label,
+    required this.tooltip,
     required this.onPressed,
   });
 
   final String label;
+  final String tooltip;
   final VoidCallback onPressed;
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 2),
-      child: TextButton(
-        style: TextButton.styleFrom(
-          foregroundColor: Colors.white,
-          visualDensity: VisualDensity.compact,
-          minimumSize: const Size(46, 34),
-          overlayColor: Colors.transparent,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(5)),
-        ).copyWith(
-          backgroundColor: WidgetStateProperty.resolveWith((states) {
-            if (states.contains(WidgetState.hovered) ||
-                states.contains(WidgetState.focused)) {
-              return const Color(0x85506274);
-            }
-            return Colors.transparent;
-          }),
+    return Tooltip(
+      message: tooltip,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 2),
+        child: TextButton(
+          style: TextButton.styleFrom(
+            foregroundColor: Colors.white,
+            visualDensity: VisualDensity.compact,
+            minimumSize: const Size(46, 34),
+            overlayColor: Colors.transparent,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(5),
+            ),
+          ).copyWith(
+            backgroundColor: WidgetStateProperty.resolveWith((states) {
+              if (states.contains(WidgetState.hovered) ||
+                  states.contains(WidgetState.focused)) {
+                return const Color(0x85506274);
+              }
+              return Colors.transparent;
+            }),
+          ),
+          onPressed: onPressed,
+          child: Text(label),
         ),
-        onPressed: onPressed,
-        child: Text(label),
       ),
     );
   }

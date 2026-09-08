@@ -565,7 +565,6 @@ class _SettingsProgressOverlay extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final i18n = context.smPlayerI18n;
-    final colors = SettingsPageColors.of(context);
     final label = switch (state) {
       DataTransferState.openingImport => i18n.t('settings.openingImportData'),
       DataTransferState.openingExport => i18n.t('settings.openingExportData'),
@@ -575,31 +574,17 @@ class _SettingsProgressOverlay extends StatelessWidget {
       DataTransferState.idle => '',
     };
 
-    return SettingsDialogOverlay(
-      child: Container(
-        width: 260,
-        padding: const EdgeInsets.all(18),
-        decoration: BoxDecoration(
-          color: colors.dialogSurface,
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: colors.cardBorder),
-        ),
-        child: Row(
-          children: [
-            const SizedBox(
-              width: 22,
-              height: 22,
-              child: CircularProgressIndicator(strokeWidth: 3),
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Text(
-                label,
-                style: const TextStyle(fontWeight: FontWeight.w700),
-              ),
-            ),
-          ],
-        ),
+    return PopupDialog(
+      navLabel: label,
+      navChildren: [Expanded(child: PopupDialogTitle(label))],
+      width: 480,
+      fitContent: true,
+      fullScreenOnNarrow: false,
+      canClose: false,
+      onClose: () {},
+      child: const Padding(
+        padding: EdgeInsets.fromLTRB(28, 0, 28, 28),
+        child: LinearProgressIndicator(),
       ),
     );
   }
@@ -613,7 +598,7 @@ class _ConfirmSettingsDialog extends StatelessWidget {
     required this.onConfirm,
     this.confirmText,
     this.busy = false,
-  }) : usePopupDialog = false;
+  });
 
   final String title;
   final String message;
@@ -621,43 +606,10 @@ class _ConfirmSettingsDialog extends StatelessWidget {
   final VoidCallback onConfirm;
   final String? confirmText;
   final bool busy;
-  final bool usePopupDialog;
 
   @override
   Widget build(BuildContext context) {
     final i18n = context.smPlayerI18n;
-    final actionLabel =
-        busy
-            ? i18n.t('settings.smartMultiArtistFixPending')
-            : confirmText ?? i18n.t('common.confirm');
-    if (usePopupDialog) {
-      return PopupDialog(
-        className: 'settings-confirm-dialog ContentDialog',
-        navClassName: 'settings-confirm-nav',
-        overlayClassName: 'settings-confirm-overlay',
-        navLabel: title,
-        ariaLabel: title,
-        width: 480,
-        height: 210,
-        onClose: busy ? () {} : onCancel,
-        navChildren: [Expanded(child: PopupDialogTitle(title))],
-        footer: PopupDialogActions(
-          children: [
-            PopupDialogActionButton(
-              label: actionLabel,
-              primary: true,
-              loading: busy,
-              onPressed: busy ? null : onConfirm,
-            ),
-            PopupDialogActionButton(
-              label: i18n.t('common.cancel'),
-              onPressed: busy ? null : onCancel,
-            ),
-          ],
-        ),
-        child: _SettingsConfirmMessageContent(message: message),
-      );
-    }
     return RemoveDialog(
       title: title,
       message: message,
@@ -667,34 +619,6 @@ class _ConfirmSettingsDialog extends StatelessWidget {
       submitting: busy,
       onCancel: onCancel,
       onConfirm: onConfirm,
-    );
-  }
-}
-
-class _SettingsConfirmMessageContent extends StatelessWidget {
-  const _SettingsConfirmMessageContent({required this.message});
-
-  final String message;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = PopupDialogColors.resolve(context);
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(32, 4, 32, 0),
-      child: Align(
-        alignment: Alignment.topLeft,
-        child: Text(
-          message,
-          textAlign: TextAlign.start,
-          style: TextStyle(
-            color: colors.text,
-            fontSize: 16,
-            height: 1.45,
-            fontWeight: FontWeight.w500,
-            fontVariations: const [FontVariation.weight(540)],
-          ),
-        ),
-      ),
     );
   }
 }

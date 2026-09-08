@@ -36,6 +36,7 @@ extension _SmPlayerShellDesktopMethods on _SmPlayerShellPageState {
       unawaited(_desktopFeatureService.updateTray(trayState));
     }
 
+    _ensureDesktopLyricsLoaded(currentSong, mode: settings.playerLyricsSource);
     final lyricsState = DesktopLyricsDisplayState.fromShell(
       settings: settings,
       currentSong: currentSong,
@@ -47,7 +48,6 @@ extension _SmPlayerShellDesktopMethods on _SmPlayerShellPageState {
       durationSeconds: mediaControlState.durationSeconds,
       i18n: i18n,
     );
-    _ensureDesktopLyricsLoaded(currentSong, mode: settings.playerLyricsSource);
     if (_lastDesktopLyricsSignature != lyricsState.signature &&
         _pendingDesktopLyricsSignature != lyricsState.signature) {
       final signature = lyricsState.signature;
@@ -131,6 +131,7 @@ extension _SmPlayerShellDesktopMethods on _SmPlayerShellPageState {
     if (currentSong?.id != savedSongId) {
       return;
     }
+    _desktopLyricsLoadRevision += 1;
     _desktopLyricsSongId = null;
     _desktopLyricsLoadingSongId = null;
     _desktopLyricsMode = null;
@@ -200,6 +201,7 @@ extension _SmPlayerShellDesktopMethods on _SmPlayerShellPageState {
     required LyricsRequestMode mode,
   }) {
     if (currentSong == null) {
+      _desktopLyricsLoadRevision += 1;
       _desktopLyricsSongId = null;
       _desktopLyricsLoadingSongId = null;
       _desktopLyricsMode = null;
@@ -207,30 +209,36 @@ extension _SmPlayerShellDesktopMethods on _SmPlayerShellPageState {
       return;
     }
 
-    if ((_desktopLyricsSongId == currentSong.id &&
-            _desktopLyricsMode == mode) ||
-        (_desktopLyricsLoadingSongId == currentSong.id &&
-            _desktopLyricsMode == mode)) {
+    final repository = ref.read(libraryRepositoryProvider);
+    // Lyrics can be replaced or invalidated while the same song stays selected.
+    final cachedLyrics = repository.getCachedSongLyrics(
+      currentSong.id,
+      mode: mode,
+    );
+    if (_desktopLyricsMode == mode &&
+        ((_desktopLyricsSongId == currentSong.id &&
+                identical(_desktopLyrics, cachedLyrics)) ||
+            _desktopLyricsLoadingSongId == currentSong.id)) {
       return;
     }
 
     final songId = currentSong.id;
+    final loadRevision = ++_desktopLyricsLoadRevision;
+    _desktopLyricsSongId = null;
+    _desktopLyrics = null;
     _desktopLyricsLoadingSongId = songId;
     _desktopLyricsMode = mode;
     unawaited(
-      ref
-          .read(libraryRepositoryProvider)
-          .getSongLyrics(songId, mode: mode)
-          .then((lyrics) {
-            if (!mounted || _desktopLyricsLoadingSongId != songId) {
-              return;
-            }
-            _desktopLyricsSongId = songId;
-            _desktopLyricsLoadingSongId = null;
-            _desktopLyrics = lyrics;
-            _lastDesktopLyricsSignature = null;
-            setState(() {});
-          }),
+      repository.getSongLyrics(songId, mode: mode).then((lyrics) {
+        if (!mounted || _desktopLyricsLoadRevision != loadRevision) {
+          return;
+        }
+        _desktopLyricsSongId = songId;
+        _desktopLyricsLoadingSongId = null;
+        _desktopLyrics = lyrics;
+        _lastDesktopLyricsSignature = null;
+        setState(() {});
+      }),
     );
   }
 
@@ -656,17 +664,34 @@ extension _SmPlayerShellDesktopMethods on _SmPlayerShellPageState {
     LibraryContentData? snapshot,
     SmPlayerI18n i18n,
   ) async {
-    await showDialog<void>(
-      context: context,
-      builder: (context) {
-        return VoiceAssistantDialog(
-          i18n: i18n,
-          getHint: () => _getVoiceAssistantHint(snapshot, i18n),
-          onExecute: (command) {
-            return _executeVoiceAssistantCommand(command, snapshot, i18n);
-          },
-        );
-      },
+    if (_voiceAssistantOpen) return;
+    final shellContainer = ProviderScope.containerOf(
+      _shellFrameKey.currentContext!,
+      listen: false,
     );
+    _voiceAssistantOpen = true;
+    try {
+      await showGeneralDialog<void>(
+        context: context,
+        barrierColor: Colors.transparent,
+        transitionDuration: Duration.zero,
+        pageBuilder: (context, animation, secondaryAnimation) {
+          // Dialog routes do not inherit the shell's scoped window controls.
+          return UncontrolledProviderScope(
+            container: shellContainer,
+            child: VoiceAssistantDialog(
+              i18n: i18n,
+              miniMode: _isMiniMode,
+              getHint: () => _getVoiceAssistantHint(snapshot, i18n),
+              onExecute: (command) {
+                return _executeVoiceAssistantCommand(command, snapshot, i18n);
+              },
+            ),
+          );
+        },
+      );
+    } finally {
+      _voiceAssistantOpen = false;
+    }
   }
 }

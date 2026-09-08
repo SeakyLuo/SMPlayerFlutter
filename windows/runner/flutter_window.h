@@ -6,6 +6,7 @@
 #include <flutter/method_channel.h>
 #include <flutter/standard_method_codec.h>
 
+#include <map>
 #include <memory>
 #include <shobjidl.h>
 #include <string>
@@ -22,6 +23,11 @@ struct DesktopLyricsButton {
 };
 
 struct WindowsMediaSessionState;
+
+struct DesktopLyricsTooltip {
+  RECT bounds;
+  std::wstring text;
+};
 
 // A window that does nothing but host a Flutter view.
 class FlutterWindow : public Win32Window {
@@ -52,6 +58,9 @@ class FlutterWindow : public Win32Window {
   void HideDesktopLyricsWindow();
   void DestroyDesktopLyricsWindow();
   void PaintDesktopLyricsWindow();
+  void UpdateDesktopLyricsTooltips();
+  void DismissDesktopLyricsTooltip();
+  void DestroyDesktopLyricsTooltips();
   bool UpdateDesktopLyricsPanelVisibility(POINT point);
   bool UpdateDesktopLyricsButtonHover(POINT point);
   void DismissNativeSplash();
@@ -80,6 +89,9 @@ class FlutterWindow : public Win32Window {
   bool native_splash_visible_ = false;
   HWND hot_key_window_ = nullptr;
   HWND desktop_lyrics_window_ = nullptr;
+  HWND desktop_lyrics_tooltip_window_ = nullptr;
+  bool desktop_lyrics_tooltips_active_ = false;
+  std::map<UINT_PTR, DesktopLyricsTooltip> desktop_lyrics_tooltips_;
   std::wstring desktop_lyrics_text_;
   ULONGLONG desktop_lyrics_text_started_at_ = 0;
   ULONGLONG desktop_lyrics_scroll_paused_at_ = 0;
@@ -99,15 +111,17 @@ class FlutterWindow : public Win32Window {
   bool desktop_lyrics_tracking_mouse_leave_ = false;
   std::string desktop_lyrics_hovered_button_command_;
   bool desktop_lyrics_stroke_enabled_ = false;
-  std::wstring desktop_lyrics_label_previous_ = L"Previous";
-  std::wstring desktop_lyrics_label_next_ = L"Next";
-  std::wstring desktop_lyrics_label_play_pause_ = L"Play/Pause";
+  std::wstring desktop_lyrics_label_previous_;
+  std::wstring desktop_lyrics_label_next_;
+  std::wstring desktop_lyrics_label_play_pause_;
   std::wstring desktop_lyrics_offset_label_ = L"0.0s";
-  std::wstring desktop_lyrics_label_reset_offset_ = L"Reset";
-  std::wstring desktop_lyrics_label_lock_ = L"Lock";
-  std::wstring desktop_lyrics_label_unlock_ = L"Unlock";
-  std::wstring desktop_lyrics_label_settings_ = L"Settings";
-  std::wstring desktop_lyrics_label_close_ = L"Close";
+  std::wstring desktop_lyrics_label_reset_offset_;
+  std::wstring desktop_lyrics_label_delay_;
+  std::wstring desktop_lyrics_label_advance_;
+  std::wstring desktop_lyrics_label_lock_;
+  std::wstring desktop_lyrics_label_unlock_;
+  std::wstring desktop_lyrics_label_settings_;
+  std::wstring desktop_lyrics_label_close_;
   RECT desktop_lyrics_card_bounds_ = {};
   RECT desktop_lyrics_lyric_hit_bounds_ = {};
   std::vector<DesktopLyricsButton> desktop_lyrics_buttons_;

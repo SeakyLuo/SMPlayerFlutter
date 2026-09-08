@@ -1061,6 +1061,7 @@ class _MusicLibraryPageState extends ConsumerState<MusicLibraryPage> {
         onSeeAlbumArt: () {
           _openMusicDialog(song, SongDialogMode.albumArt, queueSongIds);
         },
+        onLocateLocal: () => locateSongInLocal(context, song.id),
         onSeeLocal: () {
           unawaited(revealItemInFolder(song.path));
         },

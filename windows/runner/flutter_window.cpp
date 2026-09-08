@@ -912,6 +912,8 @@ void FlutterWindow::UpdateDesktopLyricsWindow(
   }
   desktop_lyrics_offset_label_ = offset_buffer;
   desktop_lyrics_label_previous_ = EncodableString(state, "labelPrevious");
+  desktop_lyrics_label_delay_ = EncodableString(state, "labelDelay");
+  desktop_lyrics_label_advance_ = EncodableString(state, "labelAdvance");
   desktop_lyrics_label_next_ = EncodableString(state, "labelNext");
   desktop_lyrics_label_play_pause_ = EncodableString(state, "labelPlayPause");
   desktop_lyrics_label_reset_offset_ =
@@ -920,30 +922,6 @@ void FlutterWindow::UpdateDesktopLyricsWindow(
   desktop_lyrics_label_unlock_ = EncodableString(state, "labelUnlock");
   desktop_lyrics_label_settings_ = EncodableString(state, "labelSettings");
   desktop_lyrics_label_close_ = EncodableString(state, "labelClose");
-  if (desktop_lyrics_label_previous_.empty()) {
-    desktop_lyrics_label_previous_ = L"Previous";
-  }
-  if (desktop_lyrics_label_next_.empty()) {
-    desktop_lyrics_label_next_ = L"Next";
-  }
-  if (desktop_lyrics_label_play_pause_.empty()) {
-    desktop_lyrics_label_play_pause_ = L"Play/Pause";
-  }
-  if (desktop_lyrics_label_reset_offset_.empty()) {
-    desktop_lyrics_label_reset_offset_ = L"Reset";
-  }
-  if (desktop_lyrics_label_lock_.empty()) {
-    desktop_lyrics_label_lock_ = L"Lock";
-  }
-  if (desktop_lyrics_label_unlock_.empty()) {
-    desktop_lyrics_label_unlock_ = L"Unlock";
-  }
-  if (desktop_lyrics_label_settings_.empty()) {
-    desktop_lyrics_label_settings_ = L"Settings";
-  }
-  if (desktop_lyrics_label_close_.empty()) {
-    desktop_lyrics_label_close_ = L"Close";
-  }
 
   if (!desktop_lyrics_window_) {
     WNDCLASSW window_class = {};
@@ -957,12 +935,13 @@ void FlutterWindow::UpdateDesktopLyricsWindow(
         ResolveDesktopLyricsBounds(GetHandle(), EncodableString(state, "bounds"));
     desktop_lyrics_window_ = ::CreateWindowExW(
         WS_EX_LAYERED | WS_EX_TOOLWINDOW | WS_EX_TOPMOST,
-        kDesktopLyricsWindowClass, L"Desktop Lyrics", WS_POPUP, bounds.left,
+        kDesktopLyricsWindowClass, EncodableString(state, "labelTitle").c_str(), WS_POPUP, bounds.left,
         bounds.top, bounds.right - bounds.left, bounds.bottom - bounds.top,
         nullptr, nullptr, ::GetModuleHandleW(nullptr), this);
     ::SetTimer(desktop_lyrics_window_, 1, 100, nullptr);
   }
 
+  ::SetWindowTextW(desktop_lyrics_window_, EncodableString(state, "labelTitle").c_str());
   ::SetWindowPos(desktop_lyrics_window_, HWND_TOPMOST, 0, 0, 0, 0,
                  SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE |
                      SWP_NOOWNERZORDER);
@@ -978,6 +957,7 @@ void FlutterWindow::UpdateDesktopLyricsWindow(
 void FlutterWindow::HideDesktopLyricsWindow() {
   if (desktop_lyrics_window_) {
     desktop_lyrics_panel_visible_ = false;
+    UpdateDesktopLyricsTooltips();
     desktop_lyrics_tracking_mouse_leave_ = false;
     desktop_lyrics_hovered_button_command_.clear();
     desktop_lyrics_buttons_.clear();
@@ -987,6 +967,7 @@ void FlutterWindow::HideDesktopLyricsWindow() {
 }
 
 void FlutterWindow::DestroyDesktopLyricsWindow() {
+  DestroyDesktopLyricsTooltips();
   if (desktop_lyrics_window_) {
     ::KillTimer(desktop_lyrics_window_, 1);
     ::DestroyWindow(desktop_lyrics_window_);
@@ -1053,29 +1034,14 @@ void FlutterWindow::PaintNativeSplash() {
   const int center_x = (client_rect.right - client_rect.left) / 2;
   const int center_y = (client_rect.bottom - client_rect.top) / 2;
 
-  const int logo_left = center_x - 66;
+  constexpr int logo_size = 132;
+  const int logo_left = center_x - logo_size / 2;
   const int logo_top = center_y - 96;
-  const COLORREF logo_color = dark ? RGB(95, 158, 209) : RGB(39, 80, 189);
-  HPEN logo_pen = ::CreatePen(PS_SOLID, 13, logo_color);
-  HGDIOBJ old_pen = ::SelectObject(hdc, logo_pen);
-  ::MoveToEx(hdc, logo_left + 30, logo_top + 90, nullptr);
-  ::LineTo(hdc, logo_left + 30, logo_top + 36);
-  ::LineTo(hdc, logo_left + 66, logo_top + 59);
-  ::LineTo(hdc, logo_left + 102, logo_top + 33);
-  ::LineTo(hdc, logo_left + 102, logo_top + 85);
-  ::SelectObject(hdc, old_pen);
-  ::DeleteObject(logo_pen);
-
-  HBRUSH logo_brush = ::CreateSolidBrush(logo_color);
-  HGDIOBJ old_brush = ::SelectObject(hdc, logo_brush);
-  HGDIOBJ old_fill_pen = ::SelectObject(hdc, ::GetStockObject(NULL_PEN));
-  ::Ellipse(hdc, logo_left + 12, logo_top + 85, logo_left + 43,
-            logo_top + 108);
-  ::Ellipse(hdc, logo_left + 84, logo_top + 80, logo_left + 115,
-            logo_top + 103);
-  ::SelectObject(hdc, old_fill_pen);
-  ::SelectObject(hdc, old_brush);
-  ::DeleteObject(logo_brush);
+  HICON app_icon = static_cast<HICON>(::LoadImageW(
+      ::GetModuleHandleW(nullptr), MAKEINTRESOURCEW(IDI_APP_ICON), IMAGE_ICON,
+      logo_size, logo_size, LR_DEFAULTCOLOR | LR_SHARED));
+  ::DrawIconEx(hdc, logo_left, logo_top, app_icon, logo_size, logo_size, 0,
+               nullptr, DI_NORMAL);
 
   HFONT title_font = ::CreateFontW(
       22, 0, 0, 0, FW_SEMIBOLD, FALSE, FALSE, FALSE, DEFAULT_CHARSET,
@@ -1341,6 +1307,7 @@ void FlutterWindow::PaintDesktopLyricsWindow() {
     }
     desktop_lyrics_buttons_ = specs;
   }
+  UpdateDesktopLyricsTooltips();
 
   const int font_height = -scaled_metric(desktop_lyrics_font_size_);
   HFONT lyrics_font = ::CreateFontW(
@@ -1573,6 +1540,7 @@ LRESULT CALLBACK FlutterWindow::DesktopLyricsWindowProc(HWND hwnd, UINT message,
       return 0;
     case WM_LBUTTONDOWN:
       {
+        window->DismissDesktopLyricsTooltip();
         const POINT point = {GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam)};
         for (const DesktopLyricsButton& button :
              window->desktop_lyrics_buttons_) {
@@ -1675,6 +1643,12 @@ FlutterWindow::MessageHandler(HWND hwnd, UINT const message,
     CompleteDirectoryPicker(lparam);
     return 0;
   }
+  if (message == WM_SIZE) {
+    Win32Window::MessageHandler(hwnd, message, wparam, lparam);
+    if (native_splash_visible_) {
+      ::InvalidateRect(hwnd, nullptr, FALSE);
+    }
+  }
   if (native_splash_visible_) {
     switch (message) {
       case WM_ERASEBKGND:
@@ -1762,6 +1736,10 @@ FlutterWindow::MessageHandler(HWND hwnd, UINT const message,
     taskbar_buttons_added_ = false;
     taskbar_list_.Reset();
     UpdateTaskbarToolbar(taskbar_media_active_, taskbar_media_playing_);
+    return 0;
+  }
+
+  if (message == WM_SIZE) {
     return 0;
   }
 

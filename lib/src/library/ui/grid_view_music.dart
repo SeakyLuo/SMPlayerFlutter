@@ -1,5 +1,8 @@
 import 'dart:async';
 
+import 'local_song_drag.dart';
+export 'local_song_drag.dart';
+
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
@@ -48,6 +51,7 @@ class LocalGridViewMusic extends StatelessWidget {
     required this.onOpenSongMenu,
     required this.onJumpToSongKey,
     this.scrollController,
+    this.locatedSongId,
   });
 
   final List<LibrarySong> currentSongs;
@@ -76,6 +80,7 @@ class LocalGridViewMusic extends StatelessWidget {
   onOpenSongMenu;
   final ValueChanged<String> onJumpToSongKey;
   final ScrollController? scrollController;
+  final int? locatedSongId;
 
   @override
   Widget build(BuildContext context) {
@@ -101,6 +106,7 @@ class LocalGridViewMusic extends StatelessWidget {
                           effectiveSelectedSongIds,
                         ),
                         feedbackWidth: 420,
+                        located: currentSongs[index].id == locatedSongId,
                         child: CompactLocalSongRow(
                           song: currentSongs[index],
                           selected: selectedSongIds.contains(
@@ -150,6 +156,7 @@ class LocalGridViewMusic extends StatelessWidget {
                     key: GlobalObjectKey(song),
                     payload: _songDragPayload(song, effectiveSelectedSongIds),
                     feedbackWidth: 180,
+                    located: song.id == locatedSongId,
                     child: LocalSongGridItem(
                       song: song,
                       selected: selectedSongIds.contains(song.id),
@@ -216,35 +223,6 @@ class LocalGridViewMusic extends StatelessWidget {
             ? effectiveSelectedSongIds
             : [song.id];
     return LocalItemsDragPayload(songIds: songIds, folderPaths: const []);
-  }
-}
-
-class DraggableLocalSong extends StatelessWidget {
-  const DraggableLocalSong({
-    super.key,
-    required this.payload,
-    required this.feedbackWidth,
-    required this.child,
-  });
-
-  final LocalItemsDragPayload payload;
-  final double feedbackWidth;
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    return Draggable<LocalItemsDragPayload>(
-      data: payload,
-      feedback: Material(
-        color: Colors.transparent,
-        child: Opacity(
-          opacity: 0.85,
-          child: SizedBox(width: feedbackWidth, child: child),
-        ),
-      ),
-      childWhenDragging: Opacity(opacity: 0.55, child: child),
-      child: child,
-    );
   }
 }
 

@@ -14,6 +14,8 @@ class PopupDialog extends StatefulWidget {
     this.afterNav,
     this.footer,
     this.closeOnBackdrop = false,
+    this.canClose = true,
+    this.fitContent = false,
     this.fullScreenOnNarrow = true,
     this.width = 780,
     this.height = 760,
@@ -35,6 +37,8 @@ class PopupDialog extends StatefulWidget {
   final Widget? footer;
   final VoidCallback onClose;
   final bool closeOnBackdrop;
+  final bool canClose;
+  final bool fitContent;
   final bool fullScreenOnNarrow;
   final double width;
   final double height;
@@ -56,7 +60,7 @@ class _PopupDialogState extends State<PopupDialog> {
   void initState() {
     super.initState();
     _closeHandler = () {
-      widget.onClose();
+      if (widget.canClose) widget.onClose();
     };
     _popupDialogCloseHandlers.add(_closeHandler);
     HardwareKeyboard.instance.addHandler(_handleGlobalKeyEvent);
@@ -78,17 +82,20 @@ class _PopupDialogState extends State<PopupDialog> {
     if (_popupDialogCloseHandlers.lastOrNull != _closeHandler) {
       return false;
     }
-    widget.onClose();
+    _closeHandler();
     return true;
   }
 
   @override
   Widget build(BuildContext context) {
-    return OverlayPortal(
-      controller: _overlayController,
-      overlayLocation: OverlayChildLocation.rootOverlay,
-      overlayChildBuilder: _buildOverlay,
-      child: const SizedBox.shrink(),
+    return PopScope(
+      canPop: widget.canClose,
+      child: OverlayPortal(
+        controller: _overlayController,
+        overlayLocation: OverlayChildLocation.rootOverlay,
+        overlayChildBuilder: _buildOverlay,
+        child: const SizedBox.shrink(),
+      ),
     );
   }
 
@@ -112,7 +119,7 @@ class _PopupDialogState extends State<PopupDialog> {
         if (_popupDialogCloseHandlers.lastOrNull != _closeHandler) {
           return KeyEventResult.ignored;
         }
-        widget.onClose();
+        _closeHandler();
         return KeyEventResult.handled;
       },
       child: Material(
@@ -129,7 +136,7 @@ class _PopupDialogState extends State<PopupDialog> {
               children: [
                 GestureDetector(
                   behavior: HitTestBehavior.opaque,
-                  onTap: widget.closeOnBackdrop ? widget.onClose : null,
+                  onTap: widget.closeOnBackdrop ? _closeHandler : null,
                   child: const SizedBox.expand(),
                 ),
                 LayoutBuilder(
@@ -142,10 +149,16 @@ class _PopupDialogState extends State<PopupDialog> {
                             ? constraints.maxWidth
                             : (constraints.maxWidth - widget.horizontalInset)
                                 .clamp(0.0, widget.width);
+                    final keyboardInset =
+                        widget.fitContent
+                            ? MediaQuery.viewInsetsOf(context).bottom
+                            : 0.0;
                     final dialogHeight =
                         mobile
                             ? constraints.maxHeight
-                            : (constraints.maxHeight - widget.verticalInset)
+                            : (constraints.maxHeight -
+                                    widget.verticalInset -
+                                    keyboardInset)
                                 .clamp(0.0, widget.height);
                     final navChildren = _navChildrenForMode(
                       widget.navChildren,
@@ -194,7 +207,7 @@ class _PopupDialogState extends State<PopupDialog> {
                             children: [
                               ...navChildren,
                               if (useTrailingSpacer) const Spacer(),
-                              if (!mobile)
+                              if (!mobile && widget.canClose)
                                 _PopupDialogCloseButton(
                                   label: i18n.t('common.close'),
                                   colors: colors,
@@ -211,9 +224,10 @@ class _PopupDialogState extends State<PopupDialog> {
                       child: SizedBox(
                         key: const ValueKey('popup-dialog-shell'),
                         width: dialogWidth,
-                        height: dialogHeight,
+                        height: widget.fitContent ? null : dialogHeight,
                         child: Container(
                           key: const ValueKey('popup-dialog-surface'),
+                          constraints: BoxConstraints(maxHeight: dialogHeight),
                           decoration: BoxDecoration(
                             color: colors.surface,
                             borderRadius: BorderRadius.circular(
@@ -236,7 +250,22 @@ class _PopupDialogState extends State<PopupDialog> {
                           ),
                           clipBehavior: Clip.antiAlias,
                           child:
-                              mobile
+                              widget.fitContent
+                                  ? Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      navBar,
+                                      if (widget.afterNav != null)
+                                        widget.afterNav!,
+                                      Flexible(
+                                        child: SingleChildScrollView(
+                                          child: widget.child,
+                                        ),
+                                      ),
+                                      if (widget.footer != null) widget.footer!,
+                                    ],
+                                  )
+                                  : mobile
                                   ? Column(
                                     children: [
                                       navBar,
@@ -274,10 +303,13 @@ class _PopupDialogState extends State<PopupDialog> {
                     return Stack(
                       fit: StackFit.expand,
                       children: [
-                        Align(
-                          alignment:
-                              mobile ? Alignment.topCenter : Alignment.center,
-                          child: dialog,
+                        Padding(
+                          padding: EdgeInsets.only(bottom: keyboardInset),
+                          child: Align(
+                            alignment:
+                                mobile ? Alignment.topCenter : Alignment.center,
+                            child: dialog,
+                          ),
                         ),
                         if (!mobile)
                           Positioned(
@@ -310,7 +342,7 @@ class _PopupDialogState extends State<PopupDialog> {
                             child: _PopupDialogMobileTitleBar(
                               title: i18n.t('app.shell'),
                               colors: colors,
-                              onClose: widget.onClose,
+                              onClose: _closeHandler,
                               onWindowDragStart: onWindowDragStart,
                               onWindowDragEnd: onWindowDragEnd,
                             ),

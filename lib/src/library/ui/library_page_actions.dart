@@ -486,10 +486,8 @@ Future<LocalMoveConflictResolution> requestLocalMoveConflictResolution({
   required String sourcePath,
   required String targetPath,
 }) async {
-  final result = await showDialog<LocalMoveConflictResolution>(
+  final result = await showScopedPopupDialog<LocalMoveConflictResolution>(
     context: context,
-    barrierColor: Colors.transparent,
-    barrierDismissible: false,
     builder: (dialogContext) {
       final colors = PopupDialogColors.resolve(dialogContext);
       return PopupDialog(

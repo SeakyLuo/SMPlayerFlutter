@@ -150,7 +150,13 @@ extension _SmPlayerShellPlaybackMethods on _SmPlayerShellPageState {
       return;
     }
 
-    unawaited(_applyAudioPlaybackState(state));
+    _syncingAudioPlayer = true;
+    _mediaControlController.setTrackLoading(
+      _isAudioBackendLoading(_audioPlayer.processingState),
+      buffering: _audioPlayer.processingState == ProcessingState.buffering,
+    );
+    _syncingAudioPlayer = false;
+    unawaited(_applyAudioPlaybackState(_mediaControlController.state));
   }
 
   Future<void> _loadAudioSong(LibrarySong song, MediaControlState state) async {

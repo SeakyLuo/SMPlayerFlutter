@@ -29,13 +29,7 @@ extension _LocalPageContent on _LocalPageState {
                 loading: _pickingLibraryRoot,
               ),
             ),
-            if (_refreshProgress case final progress?)
-              ScanProgressOverlay(
-                title: _localOperationTitle ?? i18n.t('local.updateFolder'),
-                progress: progress,
-                onCancel:
-                    progress.canCancel ? () => _requestCancelScan(i18n) : null,
-              ),
+            if (_refreshProgress != null) _buildScanProgressOverlay(i18n),
           ],
         ),
       );
@@ -375,6 +369,7 @@ extension _LocalPageContent on _LocalPageState {
                                 onOpenSettings: () => context.go('/settings'),
                               )
                               : LocalContentView(
+                                locatedSongId: _locatedSongId,
                                 childFolders: childFolders,
                                 currentSongs: currentSongs,
                                 nodes: nodes,
@@ -671,15 +666,7 @@ extension _LocalPageContent on _LocalPageState {
                     }),
                 onCancel: () => _updateLocalPageState(_clearMultiSelectStatus),
               ),
-              if (_refreshProgress case final progress?)
-                ScanProgressOverlay(
-                  title: _localOperationTitle ?? i18n.t('local.updateFolder'),
-                  progress: progress,
-                  onCancel:
-                      progress.canCancel
-                          ? () => _requestCancelScan(i18n)
-                          : null,
-                ),
+              if (_refreshProgress != null) _buildScanProgressOverlay(i18n),
               if (_refreshResultDialog case final dialog?)
                 FolderUpdateResultDialog(
                   folder: dialog.folder,

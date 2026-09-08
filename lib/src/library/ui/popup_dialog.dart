@@ -16,6 +16,7 @@ import 'package:smplayer_flutter/src/library/data/library_models.dart';
 import 'package:smplayer_flutter/src/library/ui/page_search_history_panel.dart';
 
 part 'popup_dialog_core.dart';
+part 'popup_dialog_route.dart';
 part 'popup_dialog_backdrop.dart';
 part 'popup_dialog_class_names.dart';
 part 'popup_dialog_close_button.dart';

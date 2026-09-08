@@ -68,11 +68,7 @@ class LibraryArtistSplitService {
     List<ArtistSplitResultItem> splits,
   ) {
     for (final split in splits) {
-      final artists =
-          _songPropertiesService
-              .normalizeArtists(split.artists)
-              .take(6)
-              .toList();
+      final artists = _songPropertiesService.normalizeArtists(split.artists);
       db.execute(
         '''
         UPDATE Music

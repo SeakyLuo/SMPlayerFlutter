@@ -42,16 +42,8 @@ final smPlayerI18nProvider = FutureProvider<SmPlayerI18n>((ref) async {
     smPlayerGlobalSettingsSnapshot.preferredLanguage,
     platformLocale,
   );
-  final fallbackMessages = await _loadLocaleMessages(smPlayerFallbackLocale);
-  if (locale == smPlayerFallbackLocale) {
-    return SmPlayerI18n(locale: locale, messages: fallbackMessages);
-  }
-
   final localeMessages = await _loadLocaleMessages(locale);
-  return SmPlayerI18n(
-    locale: locale,
-    messages: {...fallbackMessages, ...localeMessages},
-  );
+  return SmPlayerI18n(locale: locale, messages: localeMessages);
 });
 
 class SmPlayerI18n {

@@ -168,6 +168,9 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage>
   int? _desktopLyricsLoadingSongId;
   LyricsRequestMode? _desktopLyricsMode;
   LyricsSnapshot? _desktopLyrics;
+  var _desktopLyricsLoadRevision = 0;
+  var _voiceAssistantOpen = false;
+  final _shellFrameKey = GlobalKey();
   var _playerLyricsRefreshRevision = 0;
   late final bool _ownsSettingsController;
   late SettingsSnapshot _observedSettingsSnapshot;
@@ -466,6 +469,7 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage>
         ),
       ],
       child: SmPlayerShellFrame(
+        key: _shellFrameKey,
         colors: shellColors,
         isMiniMode: _isMiniMode,
         miniModeHost: _buildMiniModeHost(),
@@ -553,7 +557,7 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage>
                   ref.read(smPlayerI18nProvider).value ?? context.smPlayerI18n;
               unawaited(
                 _createPlaylistFromNavigation(
-                  context: context,
+                  context: _shellFrameKey.currentContext!,
                   ref: ref,
                   i18n: i18n,
                   snapshot: snapshot,
@@ -575,7 +579,7 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage>
                   ref.read(smPlayerI18nProvider).value ?? context.smPlayerI18n;
               unawaited(
                 _renamePlaylistFromNavigation(
-                  context: context,
+                  context: _shellFrameKey.currentContext!,
                   ref: ref,
                   i18n: i18n,
                   snapshot: snapshot,

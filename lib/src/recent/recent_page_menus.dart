@@ -154,6 +154,7 @@ extension _RecentPageMenus on _RecentPageState {
         onSeeAlbumArt: () {
           _openMusicDialog(song, SongDialogMode.albumArt, queueSongIds);
         },
+        onLocateLocal: () => locateSongInLocal(context, song.id),
         onSeeLocal: () {
           unawaited(revealItemInFolder(song.path));
         },

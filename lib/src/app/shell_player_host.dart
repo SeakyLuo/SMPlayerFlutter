@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import '../library/ui/local_song_location.dart';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:smplayer_flutter/src/app/shell_layout_state.dart';
@@ -394,6 +396,14 @@ class ShellPlayerHost extends StatelessWidget {
                               mode: SongDialogMode.albumArt,
                             );
                           },
+                  onLocateLocal:
+                      currentSong == null
+                          ? null
+                          : () => locateSongInLocal(
+                            context,
+                            currentSong.id,
+                            onNavigate: onNavigate,
+                          ),
                   onSeeLocal:
                       currentSong == null
                           ? null

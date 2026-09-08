@@ -673,6 +673,7 @@ Future<void> _showSongContextMenuForArtistsPage(
       onSeeAlbumArt: () {
         state._openMusicDialog(song, SongDialogMode.albumArt, queueSongIds);
       },
+      onLocateLocal: () => locateSongInLocal(state.context, song.id),
       onSeeLocal: () {
         unawaited(revealItemInFolder(song.path));
       },

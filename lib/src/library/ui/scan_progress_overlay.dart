@@ -57,9 +57,9 @@ class _ScanProgressOverlayState extends State<ScanProgressOverlay> {
     final stageValue =
         (progress.current / progress.total).clamp(0, 1).toDouble();
     final value = switch (progress.stage) {
-      LocalFolderRefreshStage.checking => stageValue * 0.90,
-      LocalFolderRefreshStage.reading => 0.90 + stageValue * 0.08,
-      LocalFolderRefreshStage.updating => 0.98 + stageValue * 0.02,
+      LocalFolderRefreshStage.checking => stageValue * 0.80,
+      LocalFolderRefreshStage.reading => 0.80 + stageValue * 0.16,
+      LocalFolderRefreshStage.updating => 0.96 + stageValue * 0.04,
     };
     final percent = (value * 100).round();
     final stageText = switch (progress.stage) {
@@ -199,15 +199,21 @@ class _ScanProgressOverlayState extends State<ScanProgressOverlay> {
                                                 ),
                                               ),
                                               const SizedBox(height: 7),
-                                              Text(
-                                                _progressDescription(i18n),
-                                                maxLines: 1,
-                                                overflow: TextOverflow.ellipsis,
-                                                style: TextStyle(
-                                                  color: colors.textMuted,
-                                                  fontSize: 14,
+                                              for (final description
+                                                  in _progressDescriptions(
+                                                    i18n,
+                                                  ))
+                                                Text(
+                                                  description,
+                                                  maxLines: 1,
+                                                  overflow:
+                                                      TextOverflow.ellipsis,
+                                                  style: TextStyle(
+                                                    color: colors.textMuted,
+                                                    fontSize: 14,
+                                                    height: 1.5,
+                                                  ),
                                                 ),
-                                              ),
                                             ],
                                           ),
                                         ),
@@ -271,7 +277,7 @@ class _ScanProgressOverlayState extends State<ScanProgressOverlay> {
     );
   }
 
-  String _progressDescription(SmPlayerI18n i18n) {
+  List<String> _progressDescriptions(SmPlayerI18n i18n) {
     if (progress.stage == LocalFolderRefreshStage.checking) {
       final folderName =
           progress.currentPath.isEmpty
@@ -283,18 +289,22 @@ class _ScanProgressOverlayState extends State<ScanProgressOverlay> {
           'count': progress.checkedFolderCount,
           'total': progress.folderCount,
         }),
-      ].join(' · ');
+      ];
     }
     if (progress.stage == LocalFolderRefreshStage.updating) {
-      return i18n.t('local.updateFolderProgressProcessedItems', {
-        'count': progress.current,
-        'total': progress.total,
-      });
+      return [
+        i18n.t('local.updateFolderProgressProcessedItems', {
+          'count': progress.current,
+          'total': progress.total,
+        }),
+      ];
     }
-    return i18n.t('local.updateFolderProgressProcessedSongs', {
-      'count': progress.processedSongCount,
-      'total': progress.songCount,
-    });
+    return [
+      i18n.t('local.updateFolderProgressProcessedSongs', {
+        'count': progress.processedSongCount,
+        'total': progress.songCount,
+      }),
+    ];
   }
 }
 
@@ -328,12 +338,14 @@ class _LocalRefreshSpinnerState extends State<_LocalRefreshSpinner>
 
   @override
   Widget build(BuildContext context) {
-    return RotationTransition(
-      turns: _controller,
-      child: Icon(
-        FluentIcons.arrow_sync_24_regular,
-        color: widget.color,
-        size: 30,
+    return RepaintBoundary(
+      child: RotationTransition(
+        turns: _controller,
+        child: Icon(
+          FluentIcons.arrow_sync_24_regular,
+          color: widget.color,
+          size: 30,
+        ),
       ),
     );
   }
@@ -470,46 +482,28 @@ class _LocalRefreshStat extends StatelessWidget {
     return Expanded(
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          textBaseline: TextBaseline.alphabetic,
-          crossAxisAlignment: CrossAxisAlignment.baseline,
-          children: [
-            Flexible(
-              child: Text(
-                label,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
+        child: Text.rich(
+          TextSpan(
+            children: [
+              TextSpan(text: '$label '),
+              TextSpan(
+                text: '$value',
                 style: TextStyle(
-                  color: colors.textMuted,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
+                  color: valueColor,
+                  fontWeight: FontWeight.w800,
                 ),
               ),
-            ),
-            const SizedBox(width: 6),
-            Text(
-              '$value',
-              style: TextStyle(
-                color: valueColor,
-                fontSize: 18,
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-            const SizedBox(width: 6),
-            Flexible(
-              child: Text(
-                unit,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  color: colors.textMuted,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-          ],
+              TextSpan(text: ' $unit'),
+            ],
+          ),
+          textAlign: TextAlign.center,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            color: colors.textMuted,
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+          ),
         ),
       ),
     );

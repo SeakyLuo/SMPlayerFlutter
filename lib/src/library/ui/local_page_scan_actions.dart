@@ -27,18 +27,12 @@ extension _LocalPageScanActions on _LocalPageState {
             folder.path,
             cancellation: cancellation,
             onProgress: _setScanProgress,
+            onLibraryCommitted:
+                () => _reloadCommittedLibrary(previousSnapshot, i18n),
           );
       if (!mounted) {
         return;
       }
-      ref.invalidate(libraryContentDataProvider);
-      final nextSnapshot = await ref.read(libraryContentDataProvider.future);
-      await reconcileNowPlayingQueueWithLibrary(
-        ref: ref,
-        previousSnapshot: previousSnapshot,
-        nextSnapshot: nextSnapshot,
-        i18n: i18n,
-      );
       if (!mounted) {
         return;
       }
@@ -137,21 +131,16 @@ extension _LocalPageScanActions on _LocalPageState {
                     rootPath,
                     cancellation: cancellation,
                     onProgress: _setScanProgress,
+                    onLibraryCommitted:
+                        () => _reloadCommittedLibrary(previousSnapshot, i18n),
                   )
               : await widget.onScanLibrary!(
                 rootPath,
                 cancellation: cancellation,
                 onProgress: _setScanProgress,
               );
-      if (mounted) {
-        ref.invalidate(libraryContentDataProvider);
-        final nextSnapshot = await ref.read(libraryContentDataProvider.future);
-        await reconcileNowPlayingQueueWithLibrary(
-          ref: ref,
-          previousSnapshot: previousSnapshot,
-          nextSnapshot: nextSnapshot,
-          i18n: i18n,
-        );
+      if (widget.onScanLibrary != null) {
+        await _reloadCommittedLibrary(previousSnapshot, i18n);
       }
       if (mounted) {
         _updateLocalPageState(() {
@@ -175,19 +164,50 @@ extension _LocalPageScanActions on _LocalPageState {
     }
   }
 
+  Future<void> _reloadCommittedLibrary(
+    LibraryContentData previousSnapshot,
+    SmPlayerI18n i18n,
+  ) async {
+    if (!mounted) return;
+    ref.invalidate(libraryContentDataProvider);
+    final nextSnapshot = await ref.read(libraryContentDataProvider.future);
+    if (!mounted) return;
+    await reconcileNowPlayingQueueWithLibrary(
+      ref: ref,
+      previousSnapshot: previousSnapshot,
+      nextSnapshot: nextSnapshot,
+      i18n: i18n,
+    );
+  }
+
   void _setScanProgress(LocalFolderRefreshProgress progress) {
     if (!mounted || _scanCancellation == null) {
       return;
     }
     final elapsedMs = _scanProgressClock.elapsedMilliseconds;
     final stageChanged = _refreshProgress?.stage != progress.stage;
-    if (!stageChanged && elapsedMs - _lastScanProgressUpdateMs < 100) {
+    final stageCompleted = progress.current >= progress.total;
+    if (!stageChanged &&
+        !stageCompleted &&
+        elapsedMs - _lastScanProgressUpdateMs < 100) {
       return;
     }
     _lastScanProgressUpdateMs = elapsedMs;
-    _updateLocalPageState(() {
-      _refreshProgress = progress;
-    });
+    _refreshProgress = progress;
+  }
+
+  Widget _buildScanProgressOverlay(SmPlayerI18n i18n) {
+    return ValueListenableBuilder<LocalFolderRefreshProgress?>(
+      valueListenable: _scanProgressNotifier,
+      builder: (context, progress, child) {
+        if (progress == null) return const SizedBox.shrink();
+        return ScanProgressOverlay(
+          title: _localOperationTitle ?? i18n.t('local.updateFolder'),
+          progress: progress,
+          onCancel: progress.canCancel ? () => _requestCancelScan(i18n) : null,
+        );
+      },
+    );
   }
 
   Future<void> _requestCancelScan(SmPlayerI18n i18n) async {

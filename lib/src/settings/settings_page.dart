@@ -26,7 +26,6 @@ import 'package:smplayer_flutter/src/settings/artist_split_review_dialog.dart';
 import 'package:smplayer_flutter/src/settings/lyrics_batch_details_dialog.dart';
 import 'package:smplayer_flutter/src/settings/release_notes_dialog.dart';
 import 'package:smplayer_flutter/src/settings/settings_colors.dart';
-import 'package:smplayer_flutter/src/settings/settings_dialog_shell.dart';
 import 'package:smplayer_flutter/src/platform/desktop_feature_service.dart';
 import 'package:smplayer_flutter/src/remote/ai_agent_remote_controller.dart';
 import 'package:smplayer_flutter/src/settings/settings_controller.dart';
@@ -737,10 +736,6 @@ class _SettingsPageState extends State<SettingsPage> {
       if (!result.hasSuggestions) {
         _showMessage(i18n.t('common.saved'));
       }
-    } catch (_) {
-      if (mounted) {
-        _showMessage(i18n.t('settings.smartMultiArtistFixPending'));
-      }
     } finally {
       if (mounted) {
         setState(() {
@@ -768,10 +763,6 @@ class _SettingsPageState extends State<SettingsPage> {
         _artistSplitAnalysisResult = null;
       });
       _showMessage(i18n.t('common.saved'));
-    } catch (_) {
-      if (mounted) {
-        _showMessage(i18n.t('settings.smartMultiArtistFixPending'));
-      }
     } finally {
       if (mounted) {
         setState(() {

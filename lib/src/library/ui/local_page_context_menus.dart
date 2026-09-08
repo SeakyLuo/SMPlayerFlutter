@@ -402,6 +402,7 @@ extension _LocalPageContextMenus on _LocalPageState {
             () => _openMusicDialog(song, SongDialogMode.lyrics, queueSongIds),
         onSeeAlbumArt:
             () => _openMusicDialog(song, SongDialogMode.albumArt, queueSongIds),
+        onLocateLocal: () => locateSongInLocal(context, song.id),
         onSeeLocal: () => _revealSong(song),
       ),
     );

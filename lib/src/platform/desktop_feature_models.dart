@@ -357,7 +357,7 @@ class DesktopLyricsDisplayState {
     required this.progressSeconds,
     required this.offsetMs,
     required this.bounds,
-    this.labels = DesktopLyricsLabels.defaults,
+    required this.labels,
   });
 
   factory DesktopLyricsDisplayState.fromShell({
@@ -368,13 +368,13 @@ class DesktopLyricsDisplayState {
     required bool isPlaying,
     required double progressSeconds,
     required double durationSeconds,
-    SmPlayerI18n? i18n,
+    required SmPlayerI18n i18n,
   }) {
     final artists =
         currentSong == null
             ? const <String>[]
             : artists_model.getSongArtists(currentSong);
-    final artist = artists.join(i18n?.t('common.artistSeparator') ?? ', ');
+    final artist = artists.join(i18n.t('common.artistSeparator'));
     final fallbackText =
         currentSong == null
             ? ''
@@ -413,10 +413,7 @@ class DesktopLyricsDisplayState {
       progressSeconds: adjustedProgressSeconds,
       offsetMs: offsetMs,
       bounds: settings.desktopLyricsBounds,
-      labels:
-          i18n == null
-              ? DesktopLyricsLabels.defaultsForPlayingState(isPlaying)
-              : DesktopLyricsLabels.fromI18n(i18n, isPlaying),
+      labels: DesktopLyricsLabels.fromI18n(i18n, isPlaying),
     );
   }
 
@@ -480,10 +477,13 @@ class DesktopLyricsDisplayState {
       'progressSeconds': progressSeconds,
       'offsetMs': offsetMs,
       'bounds': bounds,
+      'labelTitle': labels.title,
       'labelPrevious': labels.previous,
       'labelNext': labels.next,
       'labelPlayPause': labels.playPause,
       'labelResetOffset': labels.resetOffset,
+      'labelDelay': labels.delay,
+      'labelAdvance': labels.advance,
       'labelLock': labels.lock,
       'labelUnlock': labels.unlock,
       'labelSettings': labels.settings,
@@ -494,10 +494,13 @@ class DesktopLyricsDisplayState {
 
 class DesktopLyricsLabels {
   const DesktopLyricsLabels({
+    required this.title,
     required this.previous,
     required this.next,
     required this.playPause,
     required this.resetOffset,
+    required this.delay,
+    required this.advance,
     required this.lock,
     required this.unlock,
     required this.settings,
@@ -506,10 +509,13 @@ class DesktopLyricsLabels {
 
   factory DesktopLyricsLabels.fromI18n(SmPlayerI18n i18n, bool isPlaying) {
     return DesktopLyricsLabels(
+      title: i18n.t('settings.desktopLyrics'),
       previous: i18n.t('player.previous'),
       next: i18n.t('player.next'),
       playPause: isPlaying ? i18n.t('player.pause') : i18n.t('player.play'),
       resetOffset: i18n.t('settings.desktopLyricsResetOffset'),
+      delay: i18n.t('settings.desktopLyricsDelay'),
+      advance: i18n.t('settings.desktopLyricsAdvance'),
       lock: i18n.t('settings.desktopLyricsLockAction'),
       unlock: i18n.t('settings.desktopLyricsUnlockAction'),
       settings: i18n.t('common.settings'),
@@ -517,34 +523,13 @@ class DesktopLyricsLabels {
     );
   }
 
-  static const defaults = DesktopLyricsLabels(
-    previous: 'Previous',
-    next: 'Next',
-    playPause: 'Play/Pause',
-    resetOffset: 'Reset',
-    lock: 'Lock',
-    unlock: 'Unlock',
-    settings: 'Settings',
-    close: 'Close',
-  );
-
-  static DesktopLyricsLabels defaultsForPlayingState(bool isPlaying) {
-    return DesktopLyricsLabels(
-      previous: defaults.previous,
-      next: defaults.next,
-      playPause: isPlaying ? 'Pause' : 'Play',
-      resetOffset: defaults.resetOffset,
-      lock: defaults.lock,
-      unlock: defaults.unlock,
-      settings: defaults.settings,
-      close: defaults.close,
-    );
-  }
-
+  final String title;
   final String previous;
   final String next;
   final String playPause;
   final String resetOffset;
+  final String delay;
+  final String advance;
   final String lock;
   final String unlock;
   final String settings;
@@ -552,10 +537,13 @@ class DesktopLyricsLabels {
 
   String get signature {
     return [
+      title,
       previous,
       next,
       playPause,
       resetOffset,
+      delay,
+      advance,
       lock,
       unlock,
       settings,

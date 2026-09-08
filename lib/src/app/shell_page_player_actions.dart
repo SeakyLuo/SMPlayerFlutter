@@ -82,7 +82,7 @@ extension _SmPlayerShellPlayerActions on _SmPlayerShellPageState {
               onOpenVoiceAssistant:
                   supportsVoiceAssistant()
                       ? () {
-                        _showVoiceAssistantDialog(snapshot, i18n);
+                        return _showVoiceAssistantDialog(snapshot, i18n);
                       }
                       : null,
               onWindowDragStart: _startWindowDrag,

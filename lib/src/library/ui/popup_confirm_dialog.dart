@@ -10,10 +10,8 @@ Future<bool> showPopupConfirmDialog({
   Future<void> Function()? onConfirm,
 }) async {
   final confirmed =
-      await showDialog<bool>(
+      await showScopedPopupDialog<bool>(
         context: context,
-        barrierColor: Colors.transparent,
-        barrierDismissible: false,
         builder: (dialogContext) {
           final dialogI18n =
               dialogContext.maybeSmPlayerI18n ??
@@ -36,7 +34,13 @@ Future<bool> showPopupConfirmDialog({
                   submitting = true;
                 });
                 await SchedulerBinding.instance.endOfFrame;
-                await callback();
+                try {
+                  await callback();
+                } finally {
+                  if (dialogContext.mounted) {
+                    setDialogState(() => submitting = false);
+                  }
+                }
                 if (dialogContext.mounted) {
                   Navigator.of(dialogContext).pop(true);
                 }
@@ -44,37 +48,35 @@ Future<bool> showPopupConfirmDialog({
 
               return _InputDialogShell(
                 ariaLabel: title,
+                onClose: () => Navigator.of(dialogContext).pop(false),
+                canClose: !submitting,
+                footer: PopupDialogActions(
+                  children: [
+                    PopupDialogActionButton(
+                      label: confirmLabel,
+                      primary: true,
+                      destructive: destructive,
+                      loading: submitting,
+                      onPressed: submitting ? null : () => unawaited(submit()),
+                    ),
+                    PopupDialogActionButton(
+                      label: dialogI18n.t('common.cancel'),
+                      onPressed:
+                          submitting
+                              ? null
+                              : () {
+                                Navigator.of(dialogContext).pop(false);
+                              },
+                    ),
+                  ],
+                ),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    _InputDialogTitle(title),
-                    const SizedBox(height: 18),
                     PopupDialogMessageContent(
                       message: message,
                       padding: EdgeInsets.zero,
-                    ),
-                    PopupDialogActions(
-                      compact: true,
-                      children: [
-                        PopupDialogActionButton(
-                          label: confirmLabel,
-                          primary: true,
-                          destructive: destructive,
-                          loading: submitting,
-                          onPressed:
-                              submitting ? null : () => unawaited(submit()),
-                        ),
-                        PopupDialogActionButton(
-                          label: dialogI18n.t('common.cancel'),
-                          onPressed:
-                              submitting
-                                  ? null
-                                  : () {
-                                    Navigator.of(dialogContext).pop(false);
-                                  },
-                        ),
-                      ],
                     ),
                   ],
                 ),

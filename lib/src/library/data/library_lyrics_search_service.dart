@@ -116,7 +116,7 @@ class LibraryLyricsSearchService {
 
   Future<void> refreshAll(File databaseFile) async {
     await _waitForIndexBuild(databaseFile.path);
-    await _refreshCandidates(databaseFile, _readCandidates(databaseFile));
+    await _refreshCandidates(databaseFile, await _readCandidates(databaseFile));
   }
 
   Future<void> refreshFolder(File databaseFile, String folderPath) async {
@@ -125,7 +125,7 @@ class LibraryLyricsSearchService {
     final folderPrefix = '$normalizedFolder/';
     await _refreshCandidates(
       databaseFile,
-      _readCandidates(
+      await _readCandidates(
         databaseFile,
         where: "instr(lower(replace(Path, char(92), '/')), ?) = 1",
         parameters: [folderPrefix],
@@ -141,7 +141,7 @@ class LibraryLyricsSearchService {
     final placeholders = List.filled(songIds.length, '?').join(', ');
     await _refreshCandidates(
       databaseFile,
-      _readCandidates(
+      await _readCandidates(
         databaseFile,
         where: 'Id IN ($placeholders)',
         parameters: songIds,
@@ -157,7 +157,7 @@ class LibraryLyricsSearchService {
     final placeholders = List.filled(songPaths.length, '?').join(', ');
     await _refreshCandidates(
       databaseFile,
-      _readCandidates(
+      await _readCandidates(
         databaseFile,
         where: 'Path IN ($placeholders)',
         parameters: songPaths,
@@ -169,14 +169,10 @@ class LibraryLyricsSearchService {
     File databaseFile, {
     void Function(LocalLyricsIndexProgress progress)? onProgress,
   }) async {
-    final candidates = _readCandidates(
+    final candidates = await _readCandidates(
       databaseFile,
       where: '''
-        NOT EXISTS (
-          SELECT 1
-          FROM LocalLyricsSearch
-          WHERE LocalLyricsSearch.SongId = Music.Id
-        )
+        Id NOT IN (SELECT SongId FROM LocalLyricsSearch)
       ''',
     );
     await _refreshCandidates(databaseFile, candidates, onProgress: onProgress);
@@ -245,12 +241,37 @@ class LibraryLyricsSearchService {
     }
   }
 
-  List<_LyricsIndexCandidate> _readCandidates(
+  Future<List<_LyricsIndexCandidate>> _readCandidates(
     File databaseFile, {
     String? where,
     List<Object?> parameters = const [],
   }) {
-    final db = _database.openInitializedLibraryDatabase(databaseFile);
+    return _readCandidatesInBackground(
+      _database,
+      databaseFile.path,
+      where,
+      parameters,
+    );
+  }
+
+  static Future<List<_LyricsIndexCandidate>> _readCandidatesInBackground(
+    LibraryDatabaseService database,
+    String databasePath,
+    String? where,
+    List<Object?> parameters,
+  ) {
+    return Isolate.run(
+      () => _readCandidatesSync(database, databasePath, where, parameters),
+    );
+  }
+
+  static List<_LyricsIndexCandidate> _readCandidatesSync(
+    LibraryDatabaseService database,
+    String databasePath,
+    String? where,
+    List<Object?> parameters,
+  ) {
+    final db = database.openInitializedLibraryDatabase(File(databasePath));
     try {
       _removeInactiveSongs(db);
       final rows = db.select(
@@ -321,9 +342,11 @@ class LibraryLyricsSearchService {
   static Future<void> _writeIndexBatch(
     String databasePath,
     List<_LyricsIndexEntry> entries,
-  ) async {
-    final rows = await Isolate.run(() => _encodeIndexBatch(entries));
-    _writeIndexBatchSync(databasePath, rows);
+  ) {
+    return Isolate.run(() {
+      final rows = _encodeIndexBatch(entries);
+      _writeIndexBatchSync(databasePath, rows);
+    });
   }
 
   static List<List<Object?>> _encodeIndexBatch(
@@ -353,8 +376,10 @@ class LibraryLyricsSearchService {
     try {
       db.execute('BEGIN');
       try {
-        final deleteStatement = db.prepare(
-          'DELETE FROM LocalLyricsSearch WHERE SongId = ?',
+        final placeholders = List.filled(rows.length, '?').join(', ');
+        db.execute(
+          'DELETE FROM LocalLyricsSearch WHERE SongId IN ($placeholders)',
+          [for (final row in rows) row[0]],
         );
         final insertStatement = db.prepare('''
           INSERT INTO LocalLyricsSearch
@@ -363,12 +388,10 @@ class LibraryLyricsSearchService {
         ''');
         try {
           for (final row in rows) {
-            deleteStatement.execute([row[0]]);
             insertStatement.execute(row);
           }
         } finally {
           insertStatement.dispose();
-          deleteStatement.dispose();
         }
         db.execute('COMMIT');
       } on Object {
@@ -388,7 +411,7 @@ class LibraryLyricsSearchService {
     );
   }
 
-  void _removeInactiveSongs(Database db) {
+  static void _removeInactiveSongs(Database db) {
     db.execute(
       '''
       DELETE FROM LocalLyricsSearch
@@ -441,6 +464,18 @@ class LibraryLyricsSearchService {
     );
     final contextStart = (bestLineIndex - 1).clamp(0, latestStart);
     final contextEnd = (contextStart + 3).clamp(0, nonEmptyLines.length);
+    final ranges = <({int start, int end})>[];
+    final matchedIds = matchedLines.map((line) => line.id).toSet();
+    for (var index = 0; index < nonEmptyLines.length; index++) {
+      if (!matchedIds.contains(nonEmptyLines[index].id)) continue;
+      final start = (index - 1).clamp(0, latestStart);
+      final end = (start + 3).clamp(0, nonEmptyLines.length);
+      if (ranges.isNotEmpty && start <= ranges.last.end) {
+        ranges[ranges.length - 1] = (start: ranges.last.start, end: end);
+      } else {
+        ranges.add((start: start, end: end));
+      }
+    }
     return LocalLyricsSearchMatch(
       songId: songId,
       snippet: bestLine.text,
@@ -449,6 +484,13 @@ class LibraryLyricsSearchService {
           line.text,
       ],
       timestampMs: bestLine.timestampMs,
+      matchContexts: [
+        for (final range in ranges)
+          [
+            for (final line in nonEmptyLines.sublist(range.start, range.end))
+              line.text,
+          ],
+      ],
       additionalMatchCount: matchedLines.length - 1,
       relevance:
           _lineRelevance(bestLine.text, normalizedQuery) * 100 +

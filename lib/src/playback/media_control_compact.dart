@@ -61,6 +61,7 @@ class _CompactMediaControlLayout extends StatelessWidget {
     required this.onSeeLyrics,
     required this.onSeeAlbumArt,
     required this.onSeeLocal,
+    this.onLocateLocal,
   });
 
   final Widget? leading;
@@ -122,6 +123,7 @@ class _CompactMediaControlLayout extends StatelessWidget {
   final VoidCallback onSeeLyrics;
   final VoidCallback onSeeAlbumArt;
   final VoidCallback onSeeLocal;
+  final VoidCallback? onLocateLocal;
 
   @override
   Widget build(BuildContext context) {
@@ -298,6 +300,7 @@ class _CompactMediaControlLayout extends StatelessWidget {
                   onSeeMusicInfo: onSeeMusicInfo,
                   onSeeLyrics: onSeeLyrics,
                   onSeeAlbumArt: onSeeAlbumArt,
+                  onLocateLocal: onLocateLocal,
                   onSeeLocal: onSeeLocal,
                 );
               },
@@ -414,6 +417,7 @@ class _CompactMediaControlLayout extends StatelessWidget {
     required VoidCallback onSeeLyrics,
     required VoidCallback onSeeAlbumArt,
     required VoidCallback onSeeLocal,
+    VoidCallback? onLocateLocal,
   }) async {
     await showMediaControlMoreMenu(
       context: context,
@@ -451,6 +455,7 @@ class _CompactMediaControlLayout extends StatelessWidget {
       onSeeMusicInfo: onSeeMusicInfo,
       onSeeLyrics: onSeeLyrics,
       onSeeAlbumArt: onSeeAlbumArt,
+      onLocateLocal: onLocateLocal,
       onSeeLocal: onSeeLocal,
     );
   }

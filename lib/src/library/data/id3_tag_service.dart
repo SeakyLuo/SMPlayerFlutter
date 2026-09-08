@@ -6,6 +6,8 @@ import 'dart:typed_data';
 
 import 'package:path/path.dart' as p;
 
+import 'library_legacy_tag_encoding.dart';
+
 part 'id3_tag_service_vorbis.dart';
 part 'id3_tag_service_containers.dart';
 part 'id3_tag_service_properties.dart';

@@ -297,6 +297,7 @@ class LibraryLocalRefreshService with _LibraryLocalRefreshOperations {
         final appliedSplits = <ArtistSplitResultItem>[];
         final possibleSplits = <ArtistSplitResultItem>[];
         final mergeSuggestions = <ArtistSplitResultItem>[];
+        final updatedPathKeys = {...movedNewPathKeys};
         final batchWriter = LibraryLocalScanBatchWriter(db);
         try {
           for (final entry in scannedPaths.indexed) {
@@ -314,19 +315,23 @@ class LibraryLocalRefreshService with _LibraryLocalRefreshOperations {
             final artists =
                 directSplit == null
                     ? scannedSong.artists
-                    : _songPropertiesService
-                        .normalizeArtists(directSplit.artists)
-                        .take(6)
-                        .toList();
+                    : _songPropertiesService.normalizeArtists(
+                      directSplit.artists,
+                    );
             final parentId =
                 folderIds[localScanPathComparisonKey(p.dirname(filePath))] ?? 0;
-            final songId = batchWriter.write(
+            final writeResult = batchWriter.write(
               filePath: filePath,
               song: scannedSong,
               metadata: metadataByPath[filePath]!,
               parentId: parentId,
               artists: artists,
             );
+            final songId = writeResult.songId;
+            final pathKey = localScanPathComparisonKey(filePath);
+            if (writeResult.changed && !addedPathKeys.contains(pathKey)) {
+              updatedPathKeys.add(pathKey);
+            }
             if (directSplit != null) {
               appliedSplits.add(_withSongId(directSplit, songId));
             }
@@ -353,7 +358,7 @@ class LibraryLocalRefreshService with _LibraryLocalRefreshOperations {
                   processedSongCount: writtenCount,
                   songCount: scannedPaths.length,
                   addedCount: addedPaths.length,
-                  updatedCount: movedFiles.length,
+                  updatedCount: updatedPathKeys.length,
                   missingCount: removedPaths.length,
                 ),
               );
@@ -383,7 +388,7 @@ class LibraryLocalRefreshService with _LibraryLocalRefreshOperations {
             processedSongCount: scannedPaths.length,
             songCount: scannedPaths.length,
             addedCount: addedPaths.length,
-            updatedCount: movedFiles.length,
+            updatedCount: updatedPathKeys.length,
             missingCount: removedPaths.length,
           ),
         );
@@ -661,6 +666,7 @@ class LibraryLocalRefreshService with _LibraryLocalRefreshOperations {
         final appliedSplits = <ArtistSplitResultItem>[];
         final possibleSplits = <ArtistSplitResultItem>[];
         final mergeSuggestions = <ArtistSplitResultItem>[];
+        final updatedPathKeys = {...movedNewPathKeys};
         final batchWriter = LibraryLocalScanBatchWriter(db);
         try {
           for (final entry in scannedPaths.indexed) {
@@ -678,19 +684,23 @@ class LibraryLocalRefreshService with _LibraryLocalRefreshOperations {
             final artists =
                 directSplit == null
                     ? scannedSong.artists
-                    : _songPropertiesService
-                        .normalizeArtists(directSplit.artists)
-                        .take(6)
-                        .toList();
+                    : _songPropertiesService.normalizeArtists(
+                      directSplit.artists,
+                    );
             final parentId =
                 folderIds[localScanPathComparisonKey(p.dirname(filePath))] ?? 0;
-            final songId = batchWriter.write(
+            final writeResult = batchWriter.write(
               filePath: filePath,
               song: scannedSong,
               metadata: metadataByPath[filePath]!,
               parentId: parentId,
               artists: artists,
             );
+            final songId = writeResult.songId;
+            final pathKey = localScanPathComparisonKey(filePath);
+            if (writeResult.changed && !addedPathKeys.contains(pathKey)) {
+              updatedPathKeys.add(pathKey);
+            }
             if (directSplit != null) {
               appliedSplits.add(_withSongId(directSplit, songId));
             }
@@ -717,7 +727,7 @@ class LibraryLocalRefreshService with _LibraryLocalRefreshOperations {
                   processedSongCount: writtenCount,
                   songCount: scannedPaths.length,
                   addedCount: addedPaths.length,
-                  updatedCount: movedFiles.length,
+                  updatedCount: updatedPathKeys.length,
                   missingCount: removedSongs.length,
                 ),
               );
@@ -746,7 +756,7 @@ class LibraryLocalRefreshService with _LibraryLocalRefreshOperations {
             processedSongCount: scannedPaths.length,
             songCount: scannedPaths.length,
             addedCount: addedPaths.length,
-            updatedCount: movedFiles.length,
+            updatedCount: updatedPathKeys.length,
             missingCount: removedSongs.length,
           ),
         );

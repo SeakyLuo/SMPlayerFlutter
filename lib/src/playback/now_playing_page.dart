@@ -977,6 +977,7 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
             );
           });
         },
+        onLocateLocal: () => locateSongInLocal(context, song.id),
         onSeeLocal: () {
           _revealPath(song.path);
         },

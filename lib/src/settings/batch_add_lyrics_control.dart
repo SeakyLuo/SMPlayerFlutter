@@ -23,8 +23,8 @@ class _LyricsBatchOptionsDialog extends StatelessWidget {
       destructive: false,
       onCancel: onCancel,
       onConfirm: onStart,
-      content: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 360),
+      content: SizedBox(
+        width: double.infinity,
         child: ToggleSettingRow(
           label: i18n.t('settings.lyricsBatchOverwriteToggle'),
           checked: overwrite,

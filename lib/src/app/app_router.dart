@@ -276,9 +276,7 @@ GoRouter createSmPlayerRouter({
                               },
                               onSendFeedbackEmail: () {
                                 unawaited(
-                                  _sendFeedbackEmail(
-                                    context.smPlayerI18n.locale,
-                                  ),
+                                  _sendFeedbackEmail(context.smPlayerI18n),
                                 );
                               },
                               onOpenFeedbackInBrowser: () {
@@ -549,18 +547,10 @@ int? _branchRootIndex(String location) {
 const _feedbackIssueUrl = 'https://github.com/SeakyLuo/SMPlayerFlutter/issues';
 const _feedbackEmailAddress = 'luokiss9@qq.com';
 
-const _feedbackEmailSubjects = {
-  'zh-CN': '简音播放器反馈',
-  'zh-Hant': '簡音播放器反饋',
-  'en-US': 'Simple Melody Player Feedback',
-};
-
-Future<void> _sendFeedbackEmail(String locale) async {
-  final subject =
-      _feedbackEmailSubjects[locale] ??
-      (locale.startsWith('zh')
-          ? _feedbackEmailSubjects['zh-CN']!
-          : _feedbackEmailSubjects['en-US']!);
+Future<void> _sendFeedbackEmail(SmPlayerI18n i18n) async {
+  final subject = i18n.t('settings.feedbackEmailSubject', {
+    'appName': i18n.t('app.shell'),
+  });
   await launchUrl(
     Uri(
       scheme: 'mailto',

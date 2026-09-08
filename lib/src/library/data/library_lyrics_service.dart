@@ -7,6 +7,7 @@ import 'package:path/path.dart' as p;
 import 'package:sqlite3/sqlite3.dart';
 
 import 'id3_tag_service.dart';
+import 'library_lyrics_encoding.dart';
 import 'library_models.dart';
 import 'package:smplayer_flutter/src/settings/settings_model.dart' as settings;
 
@@ -112,7 +113,7 @@ class LibraryLyricsService {
       return _id3TagService.readEmbeddedLyrics(filePath);
     }
 
-    return File(filePath).readAsString();
+    return readLocalLyricsText(File(filePath));
   }
 
   Future<LyricsSnapshot> getLocalLyricsForPath(String songPath) {
@@ -267,8 +268,26 @@ class LibraryLyricsService {
         if (isCanceled?.call() == true) {
           break;
         }
+        if (!overwrite) {
+          final latestLocalLyrics = await _getSongLyricsByPath(song.path);
+          if (latestLocalLyrics.rawText.trim().isNotEmpty) {
+            skipped += 1;
+            recordDetail(
+              LyricsBatchDetail(
+                songId: song.id,
+                title: song.title,
+                artist: song.artist,
+                thumbnailPath: song.thumbnailPath,
+                result: LyricsBatchDetailResult.skipped,
+                reason: LyricsBatchSkipReason.alreadyExists,
+                sourceRawLyrics: latestLocalLyrics.rawText,
+              ),
+            );
+            continue;
+          }
+        }
         lastRequestStartedAt = DateTime.now();
-        final internetLyrics =
+        final rawInternetLyrics =
             _internetLyricsResolver == null
                 ? await _searchInternetLyrics(
                   _LyricsSongLookup(
@@ -280,6 +299,10 @@ class LibraryLyricsService {
                   ),
                 )
                 : await _internetLyricsResolver(song);
+        final internetLyrics =
+            _isInvalidInternetLyricsResponse(rawInternetLyrics)
+                ? ''
+                : await _prepareInternetLyrics(rawInternetLyrics);
         if (isCanceled?.call() == true) {
           break;
         }
@@ -909,7 +932,7 @@ class LibraryLyricsService {
   Future<LyricsSnapshot?> _getSidecarLyrics(String songPath) async {
     final lrcFile = File(p.setExtension(songPath, '.lrc'));
     if (await lrcFile.exists()) {
-      final lrcText = await lrcFile.readAsString();
+      final lrcText = await readLocalLyricsText(lrcFile);
       if (lrcText.trim().isNotEmpty) {
         return _createLyricsSnapshot(lrcText, LyricsSource.lrcFile);
       }
@@ -917,7 +940,7 @@ class LibraryLyricsService {
 
     final textFile = File(p.setExtension(songPath, '.txt'));
     if (await textFile.exists()) {
-      final text = await textFile.readAsString();
+      final text = await readLocalLyricsText(textFile);
       if (text.trim().isNotEmpty) {
         return _createLyricsSnapshot(text, LyricsSource.textFile);
       }

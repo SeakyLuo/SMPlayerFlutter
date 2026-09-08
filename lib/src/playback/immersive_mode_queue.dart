@@ -238,6 +238,7 @@ class ImmersiveModePlaylist extends StatefulWidget {
     required this.onMoveSongToFolder,
     required this.onOpenSongDialog,
     required this.onRevealSong,
+    this.onLocateSong,
     required this.fullScreen,
     required this.coverColor,
     required this.multiSelectCommandBar,
@@ -279,6 +280,7 @@ class ImmersiveModePlaylist extends StatefulWidget {
   final Future<void> Function(LibrarySong, String) onMoveSongToFolder;
   final ValueChanged<SongDialogMode> onOpenSongDialog;
   final ValueChanged<String> onRevealSong;
+  final ValueChanged<int>? onLocateSong;
   final bool fullScreen;
   final Color coverColor;
   final Widget multiSelectCommandBar;
@@ -988,6 +990,10 @@ class ImmersiveModePlaylistState extends State<ImmersiveModePlaylist> {
         onSeeAlbumArt: () {
           onOpenSongDialog(SongDialogMode.albumArt);
         },
+        onLocateLocal:
+            widget.onLocateSong == null
+                ? null
+                : () => widget.onLocateSong!(song.id),
         onSeeLocal: () {
           onRevealSong(song.path);
         },

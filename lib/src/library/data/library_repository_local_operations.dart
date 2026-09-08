@@ -207,6 +207,7 @@ mixin _LibraryRepositoryLocalOperations {
 
   Future<LocalFolderRefreshResult> scanAllMusicLibrary(
     String rootPath, {
+    Future<void> Function()? onLibraryCommitted,
     void Function(LocalFolderRefreshProgress progress)? onProgress,
     LocalFolderScanCancellation? cancellation,
   }) async {
@@ -222,12 +223,14 @@ mixin _LibraryRepositoryLocalOperations {
           onProgress: onProgress,
           cancellation: cancellation,
         );
+    await onLibraryCommitted?.call();
     await _lyricsSearchService.refreshFolder(databaseFile, rootPath);
     return result;
   }
 
   Future<LocalFolderRefreshResult> refreshLocalFolder(
     String folderPath, {
+    Future<void> Function()? onLibraryCommitted,
     void Function(LocalFolderRefreshProgress progress)? onProgress,
     LocalFolderScanCancellation? cancellation,
   }) async {
@@ -243,6 +246,7 @@ mixin _LibraryRepositoryLocalOperations {
           onProgress: onProgress,
           cancellation: cancellation,
         );
+    await onLibraryCommitted?.call();
     await _lyricsSearchService.refreshFolder(databaseFile, folderPath);
     return result;
   }

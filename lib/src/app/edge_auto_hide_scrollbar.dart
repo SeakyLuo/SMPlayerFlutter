@@ -9,10 +9,16 @@ class EdgeAutoHideScrollbar extends StatefulWidget {
     super.key,
     required this.builder,
     this.trailingEdgeOffset = 0,
+    this.crossAxisMargin = 0,
+    this.thickness = edgeAutoHideScrollbarThickness,
+    this.hoverThickness = edgeAutoHideScrollbarHoverThickness,
   });
 
   final Widget Function(ScrollController controller) builder;
   final double trailingEdgeOffset;
+  final double crossAxisMargin;
+  final double thickness;
+  final double hoverThickness;
 
   @override
   State<EdgeAutoHideScrollbar> createState() => _EdgeAutoHideScrollbarState();
@@ -131,11 +137,11 @@ class _EdgeAutoHideScrollbarState extends State<EdgeAutoHideScrollbar>
                   return 0;
                 }
                 return states.contains(WidgetState.hovered)
-                    ? edgeAutoHideScrollbarHoverThickness
-                    : edgeAutoHideScrollbarThickness;
+                    ? widget.hoverThickness
+                    : widget.thickness;
               }),
               radius: const Radius.circular(999),
-              crossAxisMargin: 0,
+              crossAxisMargin: widget.crossAxisMargin,
               mainAxisMargin: 0,
             ),
             child: Transform.translate(

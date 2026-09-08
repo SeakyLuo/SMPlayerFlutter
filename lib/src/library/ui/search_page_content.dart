@@ -121,188 +121,214 @@ extension _SearchPageContent on _SearchPageState {
           child: _SearchPageSurface(
             child: Stack(
               children: [
-                CustomScrollView(
-                  slivers: [
-                    if (query.isEmpty)
-                      SliverPadding(
-                        padding: const EdgeInsets.fromLTRB(
-                          _searchPageHorizontalInset,
-                          6,
-                          _searchPageHorizontalInset,
-                          22,
-                        ),
-                        sliver: SliverToBoxAdapter(
-                          child: _SearchEmptyState(
-                            message: i18n.t('search.enterKeyword'),
-                          ),
-                        ),
-                      )
-                    else ...[
-                      if (!showNavigationAppBar)
-                        SliverPersistentHeader(
-                          pinned: true,
-                          delegate: _SearchResultToolbarDelegate(
-                            child: _SearchFilterTabs(
-                              i18n: i18n,
-                              activeFilter: _activeFilter,
-                              results: results,
-                              lyricsIndexing: _lyricsIndexProgress != null,
-                              onChanged: _changeFilter,
-                            ),
-                          ),
-                        ),
-                      SliverPadding(
-                        padding: EdgeInsets.fromLTRB(
-                          _searchPageHorizontalInset,
-                          18,
-                          _searchPageHorizontalInset,
-                          _selection.multiSelect
-                              ? multiSelectCommandBarScrollSpacer
-                              : 22,
-                        ),
-                        sliver: SliverList(
-                          delegate: SliverChildListDelegate([
-                            if (_activeFilter == SearchFilterKey.lyrics &&
-                                _lyricsIndexProgress != null) ...[
-                              _SearchLoadingState(
-                                message: _lyricsIndexProgressMessage(i18n),
+                EdgeAutoHideScrollbar(
+                  crossAxisMargin: 1,
+                  thickness: 6,
+                  hoverThickness: 6,
+                  builder:
+                      (scrollController) => CustomScrollView(
+                        controller: scrollController,
+                        slivers: [
+                          if (query.isEmpty)
+                            SliverPadding(
+                              padding: const EdgeInsets.fromLTRB(
+                                _searchPageHorizontalInset,
+                                6,
+                                _searchPageHorizontalInset,
+                                22,
                               ),
-                              const SizedBox(height: 18),
-                            ],
-                            if (_showSearchStatus(
-                              results,
-                              visibleSections,
-                            )) ...[
-                              _SearchEmptyState(
-                                message: _lyricsSearchStatusMessage(
-                                  i18n,
-                                  query,
+                              sliver: SliverToBoxAdapter(
+                                child: _SearchEmptyState(
+                                  message: i18n.t('search.enterKeyword'),
                                 ),
                               ),
-                              const SizedBox(height: 18),
-                            ],
-                            for (final section in visibleSections) ...[
-                              _SearchResultSection(
-                                section: section,
-                                query: query,
-                                i18n: i18n,
-                                activeFilter: _activeFilter,
-                                showCount: snapshot.showCount,
-                                currentTrackId: mediaState.trackId,
-                                isPlaying: mediaState.isPlaying,
-                                selection: _selection,
-                                playlists: _customPlaylists(snapshot.playlists),
-                                nowPlayingSongIds: snapshot.nowPlaying.songIds,
-                                songsById: {
-                                  for (final song in snapshot.songs)
-                                    song.id: song,
-                                },
-                                folderNodes: folderIndex.nodes,
-                                allPlaylists: snapshot.playlists,
-                                expanded: _isSectionExpanded(section.type),
-                                onToggleExpanded: _toggleExpandedSection,
-                                onSortChanged: (criterion) {
-                                  _updateSort(section.type, criterion);
-                                },
-                                onGetPreferenceLevel:
-                                    _getSearchResultPreferenceLevel,
-                                onSetPreference: _setSearchResultPreference,
-                                onUndoPreference: _undoSearchResultPreference,
-                                onGetSongPreferenceLevel:
-                                    _getSongPreferenceLevel,
-                                onSetSongPreference: _setSongPreference,
-                                onUndoSongPreference: _undoSongPreference,
-                                onSelectionChanged: () {
-                                  _updateSearchPageState(() {});
-                                },
-                                onOpenCard: (card) {
-                                  _openCard(section.type, card, query);
-                                },
-                                onPlaySongs: _playSongIds,
-                                onPlayCard: (card) {
-                                  _playCard(section.type, card);
-                                },
-                                onPlayTrack: (song, index) {
-                                  final queueSongIds =
-                                      section.type == SearchResultType.lyrics
-                                          ? section.lyrics
-                                              .map((item) => item.song.id)
-                                              .toList()
-                                          : section.songs
-                                              .map((item) => item.id)
-                                              .toList();
-                                  _playTrack(song, index, queueSongIds);
-                                },
-                                onPlaySong: (song) {
-                                  insertOrPlayNowPlayingSong(
-                                    ref: ref,
-                                    snapshot: snapshot,
+                            )
+                          else ...[
+                            if (!showNavigationAppBar)
+                              SliverPersistentHeader(
+                                pinned: true,
+                                delegate: _SearchResultToolbarDelegate(
+                                  child: _SearchFilterTabs(
                                     i18n: i18n,
-                                    songId: song.id,
-                                  );
-                                },
-                                onTogglePlayPause:
-                                    ref
-                                        .read(mediaControlControllerProvider)
-                                        .onTogglePlayPause,
-                                onPlayNext: _playNext,
-                                onAddSongsToNowPlaying: (songIds) {
-                                  return addSongsToNowPlayingWithUndo(
-                                    context: context,
-                                    ref: ref,
-                                    i18n: i18n,
-                                    songIds: songIds,
-                                  );
-                                },
-                                onAddSongsToPlaylist: (playlistId, songIds) {
-                                  return addSongsToPlaylistWithUndo(
-                                    context: context,
-                                    ref: ref,
-                                    i18n: i18n,
-                                    playlistId: playlistId,
-                                    songIds: songIds,
-                                    useSingleSongCall: true,
-                                  );
-                                },
-                                onAddCardSongsToPlaylist: (
-                                  playlistId,
-                                  songIds,
-                                ) {
-                                  return addSongsToPlaylistWithUndo(
-                                    context: context,
-                                    ref: ref,
-                                    i18n: i18n,
-                                    playlistId: playlistId,
-                                    songIds: songIds,
-                                  );
-                                },
-                                onToggleSongsFavorite: (songIds, favorite) {
-                                  return setSongsFavoriteWithUndo(
-                                    context: context,
-                                    ref: ref,
-                                    i18n: i18n,
-                                    songIds: songIds,
-                                    favorite: favorite,
-                                  );
-                                },
-                                onCreatePlaylist: _createPlaylist,
-                                onDeleteSong: _deleteSong,
-                                onOpenArtist: _openArtist,
-                                onOpenAlbum: _openAlbum,
-                                onOpenMusicDialog: _openMusicDialog,
-                                onOpenLyricsMatch: _openLyricsMatch,
-                                onPreviewAlbumArt: _showAlbumArtPreview,
-                                onSearchDirectory: _searchDirectory,
-                                onRevealCard: _revealSearchCard,
-                                onRevealSong: _revealSong,
+                                    activeFilter: _activeFilter,
+                                    results: results,
+                                    lyricsIndexing:
+                                        _lyricsIndexProgress != null,
+                                    onChanged: _changeFilter,
+                                  ),
+                                ),
                               ),
-                              const SizedBox(height: 18),
-                            ],
-                          ]),
-                        ),
+                            SliverPadding(
+                              padding: EdgeInsets.fromLTRB(
+                                _searchPageHorizontalInset,
+                                18,
+                                _searchPageHorizontalInset,
+                                _selection.multiSelect
+                                    ? multiSelectCommandBarScrollSpacer
+                                    : 22,
+                              ),
+                              sliver: SliverList(
+                                delegate: SliverChildListDelegate([
+                                  if (_activeFilter == SearchFilterKey.lyrics &&
+                                      _lyricsIndexProgress != null) ...[
+                                    _SearchLoadingState(
+                                      message: _lyricsIndexProgressMessage(
+                                        i18n,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 18),
+                                  ],
+                                  if (_showSearchStatus(
+                                    results,
+                                    visibleSections,
+                                  )) ...[
+                                    _SearchEmptyState(
+                                      message: _lyricsSearchStatusMessage(
+                                        i18n,
+                                        query,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 18),
+                                  ],
+                                  for (final section in visibleSections) ...[
+                                    _SearchResultSection(
+                                      section: section,
+                                      query: query,
+                                      i18n: i18n,
+                                      activeFilter: _activeFilter,
+                                      showCount: snapshot.showCount,
+                                      currentTrackId: mediaState.trackId,
+                                      isPlaying: mediaState.isPlaying,
+                                      selection: _selection,
+                                      playlists: _customPlaylists(
+                                        snapshot.playlists,
+                                      ),
+                                      nowPlayingSongIds:
+                                          snapshot.nowPlaying.songIds,
+                                      songsById: {
+                                        for (final song in snapshot.songs)
+                                          song.id: song,
+                                      },
+                                      folderNodes: folderIndex.nodes,
+                                      allPlaylists: snapshot.playlists,
+                                      expanded: _isSectionExpanded(
+                                        section.type,
+                                      ),
+                                      onToggleExpanded: _toggleExpandedSection,
+                                      onSortChanged: (criterion) {
+                                        _updateSort(section.type, criterion);
+                                      },
+                                      onGetPreferenceLevel:
+                                          _getSearchResultPreferenceLevel,
+                                      onSetPreference:
+                                          _setSearchResultPreference,
+                                      onUndoPreference:
+                                          _undoSearchResultPreference,
+                                      onGetSongPreferenceLevel:
+                                          _getSongPreferenceLevel,
+                                      onSetSongPreference: _setSongPreference,
+                                      onUndoSongPreference: _undoSongPreference,
+                                      onSelectionChanged: () {
+                                        _updateSearchPageState(() {});
+                                      },
+                                      onOpenCard: (card) {
+                                        _openCard(section.type, card, query);
+                                      },
+                                      onPlaySongs: _playSongIds,
+                                      onPlayCard: (card) {
+                                        _playCard(section.type, card);
+                                      },
+                                      onPlayTrack: (song, index) {
+                                        final queueSongIds =
+                                            section.type ==
+                                                    SearchResultType.lyrics
+                                                ? section.lyrics
+                                                    .map((item) => item.song.id)
+                                                    .toList()
+                                                : section.songs
+                                                    .map((item) => item.id)
+                                                    .toList();
+                                        _playTrack(song, index, queueSongIds);
+                                      },
+                                      onPlaySong: (song) {
+                                        insertOrPlayNowPlayingSong(
+                                          ref: ref,
+                                          snapshot: snapshot,
+                                          i18n: i18n,
+                                          songId: song.id,
+                                        );
+                                      },
+                                      onTogglePlayPause:
+                                          ref
+                                              .read(
+                                                mediaControlControllerProvider,
+                                              )
+                                              .onTogglePlayPause,
+                                      onPlayNext: _playNext,
+                                      onAddSongsToNowPlaying: (songIds) {
+                                        return addSongsToNowPlayingWithUndo(
+                                          context: context,
+                                          ref: ref,
+                                          i18n: i18n,
+                                          songIds: songIds,
+                                        );
+                                      },
+                                      onAddSongsToPlaylist: (
+                                        playlistId,
+                                        songIds,
+                                      ) {
+                                        return addSongsToPlaylistWithUndo(
+                                          context: context,
+                                          ref: ref,
+                                          i18n: i18n,
+                                          playlistId: playlistId,
+                                          songIds: songIds,
+                                          useSingleSongCall: true,
+                                        );
+                                      },
+                                      onAddCardSongsToPlaylist: (
+                                        playlistId,
+                                        songIds,
+                                      ) {
+                                        return addSongsToPlaylistWithUndo(
+                                          context: context,
+                                          ref: ref,
+                                          i18n: i18n,
+                                          playlistId: playlistId,
+                                          songIds: songIds,
+                                        );
+                                      },
+                                      onToggleSongsFavorite: (
+                                        songIds,
+                                        favorite,
+                                      ) {
+                                        return setSongsFavoriteWithUndo(
+                                          context: context,
+                                          ref: ref,
+                                          i18n: i18n,
+                                          songIds: songIds,
+                                          favorite: favorite,
+                                        );
+                                      },
+                                      onCreatePlaylist: _createPlaylist,
+                                      onDeleteSong: _deleteSong,
+                                      onOpenArtist: _openArtist,
+                                      onOpenAlbum: _openAlbum,
+                                      onOpenMusicDialog: _openMusicDialog,
+                                      onOpenLyricsMatch: _openLyricsMatch,
+                                      onPreviewAlbumArt: _showAlbumArtPreview,
+                                      onSearchDirectory: _searchDirectory,
+                                      onRevealCard: _revealSearchCard,
+                                      onRevealSong: _revealSong,
+                                    ),
+                                    const SizedBox(height: 18),
+                                  ],
+                                ]),
+                              ),
+                            ),
+                          ],
+                        ],
                       ),
-                    ],
-                  ],
                 ),
                 MultiSelectCommandBar(
                   visible: _selection.multiSelect,
@@ -462,13 +488,6 @@ extension _SearchPageContent on _SearchPageState {
     SearchResults results,
     SearchCriteria criteria,
   ) {
-    final metadataSongIds = results.songs.map((song) => song.id).toSet();
-    final visibleLyrics =
-        _activeFilter == SearchFilterKey.all
-            ? results.lyrics
-                .where((result) => !metadataSongIds.contains(result.song.id))
-                .toList()
-            : results.lyrics;
     final lyricsCriterion =
         _activeFilter == SearchFilterKey.all
             ? SearchSortCriterion.defaultCriterion
@@ -493,7 +512,7 @@ extension _SearchPageContent on _SearchPageState {
       ),
       _SearchSectionData.lyrics(
         criterion: lyricsCriterion,
-        lyrics: sortSearchLyrics(visibleLyrics, lyricsCriterion),
+        lyrics: sortSearchLyrics(results.lyrics, lyricsCriterion),
         previewLimit: _SearchPageState._sectionPreviewLimit,
       ),
       _SearchSectionData.cards(

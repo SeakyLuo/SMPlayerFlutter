@@ -162,6 +162,7 @@ class MediaControl extends StatefulWidget {
     this.onSeeLyrics,
     this.onSeeAlbumArt,
     this.onSeeLocal,
+    this.onLocateLocal,
     this.onArtworkError,
     this.leadingBuilder,
     this.onMoreClick,
@@ -221,6 +222,7 @@ class MediaControl extends StatefulWidget {
   final VoidCallback? onSeeLyrics;
   final VoidCallback? onSeeAlbumArt;
   final VoidCallback? onSeeLocal;
+  final VoidCallback? onLocateLocal;
   final VoidCallback? onArtworkError;
   final MediaControlLeadingBuilder? leadingBuilder;
   final ValueChanged<BuildContext>? onMoreClick;
@@ -299,6 +301,7 @@ class _MediaControlState extends State<MediaControl> {
   VoidCallback? get onSeeLyrics => widget.onSeeLyrics;
   VoidCallback? get onSeeAlbumArt => widget.onSeeAlbumArt;
   VoidCallback? get onSeeLocal => widget.onSeeLocal;
+  VoidCallback? get onLocateLocal => widget.onLocateLocal;
   VoidCallback? get onArtworkError => widget.onArtworkError;
   MediaControlLeadingBuilder? get leadingBuilder => widget.leadingBuilder;
   ValueChanged<BuildContext>? get onMoreClick => widget.onMoreClick;
@@ -442,6 +445,7 @@ class _MediaControlState extends State<MediaControl> {
                         onSeeMusicInfo: onSeeMusicInfo ?? onOpenNowPlaying,
                         onSeeLyrics: onSeeLyrics ?? onOpenNowPlaying,
                         onSeeAlbumArt: onSeeAlbumArt ?? onOpenNowPlaying,
+                        onLocateLocal: onLocateLocal,
                         onSeeLocal: onSeeLocal ?? onOpenNowPlaying,
                       ),
                     ),
@@ -579,6 +583,7 @@ class _MediaControlState extends State<MediaControl> {
       onSeeMusicInfo: onSeeMusicInfo ?? onOpenNowPlaying,
       onSeeLyrics: onSeeLyrics ?? onOpenNowPlaying,
       onSeeAlbumArt: onSeeAlbumArt ?? onOpenNowPlaying,
+      onLocateLocal: onLocateLocal,
       onSeeLocal: onSeeLocal ?? onOpenNowPlaying,
     );
   }

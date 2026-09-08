@@ -194,9 +194,6 @@ extension _LocalPageFileActions on _LocalPageState {
     SmPlayerI18n i18n,
     int itemCount,
   ) {
-    if (i18n.locale.startsWith('zh')) {
-      return '要从磁盘删除选中的 $itemCount 个项目吗？';
-    }
-    return 'Delete $itemCount selected item${itemCount == 1 ? '' : 's'} from disk?';
+    return i18n.t('local.deleteSelectedItemsConfirm', {'count': itemCount});
   }
 }

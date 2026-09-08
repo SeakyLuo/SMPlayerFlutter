@@ -157,6 +157,7 @@ extension _HeaderedPlaylistControlSongMenu on _HeaderedPlaylistControlState {
         onSeeAlbumArt: () {
           _openMusicDialog(song, SongDialogMode.albumArt, queueSongIds);
         },
+        onLocateLocal: () => locateSongInLocal(context, song.id),
         onSeeLocal: () {
           unawaited(_revealPath(song.path));
         },

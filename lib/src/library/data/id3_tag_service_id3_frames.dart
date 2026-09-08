@@ -193,7 +193,7 @@ extension _Id3TagServiceId3Frames on Id3TagService {
             ? _decodeUtf16WithNulls(data, bigEndian: true)
             : encoding == 3
             ? utf8.decode(data, allowMalformed: true)
-            : latin1.decode(data, allowInvalid: true);
+            : decodeLegacyId3Text(data);
     return text
         .split('\u0000')
         .map((value) => value.trim())
@@ -252,6 +252,6 @@ extension _Id3TagServiceId3Frames on Id3TagService {
       return utf8.decode(data, allowMalformed: true);
     }
 
-    return latin1.decode(data, allowInvalid: true);
+    return decodeLegacyId3Text(data);
   }
 }

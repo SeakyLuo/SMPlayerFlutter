@@ -56,7 +56,12 @@ class SmPlayerSplashView extends StatelessWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const _SmPlayerSplashLogo(size: 132),
+              Image.asset(
+                'assets/branding/app-icon.png',
+                width: 132,
+                height: 132,
+                filterQuality: FilterQuality.high,
+              ),
               const SizedBox(height: 26),
               Text(
                 appName,
@@ -84,69 +89,6 @@ class SmPlayerSplashView extends StatelessWidget {
       ),
     );
   }
-}
-
-class _SmPlayerSplashLogo extends StatelessWidget {
-  const _SmPlayerSplashLogo({required this.size});
-
-  final double size;
-
-  @override
-  Widget build(BuildContext context) {
-    return CustomPaint(
-      size: Size.square(size),
-      painter: const _SmPlayerSplashLogoPainter(),
-    );
-  }
-}
-
-class _SmPlayerSplashLogoPainter extends CustomPainter {
-  const _SmPlayerSplashLogoPainter();
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final logoRect = Offset.zero & size;
-    final paint =
-        Paint()
-          ..shader = const LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [Color(0xff86c7e5), Color(0xff2750bd)],
-          ).createShader(logoRect)
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = size.width * 0.095
-          ..strokeCap = StrokeCap.round
-          ..strokeJoin = StrokeJoin.round;
-    final path =
-        Path()
-          ..moveTo(size.width * 0.23, size.height * 0.68)
-          ..lineTo(size.width * 0.23, size.height * 0.27)
-          ..lineTo(size.width * 0.5, size.height * 0.45)
-          ..lineTo(size.width * 0.77, size.height * 0.25)
-          ..lineTo(size.width * 0.77, size.height * 0.64);
-    canvas.drawPath(path, paint);
-
-    paint.style = PaintingStyle.fill;
-    canvas.drawOval(
-      Rect.fromCenter(
-        center: Offset(size.width * 0.19, size.height * 0.72),
-        width: size.width * 0.24,
-        height: size.height * 0.17,
-      ),
-      paint,
-    );
-    canvas.drawOval(
-      Rect.fromCenter(
-        center: Offset(size.width * 0.73, size.height * 0.68),
-        width: size.width * 0.24,
-        height: size.height * 0.17,
-      ),
-      paint,
-    );
-  }
-
-  @override
-  bool shouldRepaint(_SmPlayerSplashLogoPainter oldDelegate) => false;
 }
 
 class SmPlayerSplashAppName {

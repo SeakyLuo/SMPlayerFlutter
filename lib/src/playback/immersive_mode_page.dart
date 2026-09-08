@@ -371,6 +371,18 @@ class _ImmersiveModePageState extends ConsumerState<ImmersiveModePage>
               onMoveSongToFolder: _moveSongToFolder,
               onOpenSongDialog: _openMusicDialog,
               onRevealSong: _revealPath,
+              onLocateSong:
+                  shellActions?.onExitImmersiveMode == null ||
+                          shellActions?.onNavigate == null
+                      ? null
+                      : (songId) => locateSongInLocal(
+                        context,
+                        songId,
+                        onNavigate: (location) {
+                          shellActions!.onExitImmersiveMode!();
+                          shellActions.onNavigate!(location);
+                        },
+                      ),
               fullScreen: fullScreen,
               coverColor: _coverColor,
               multiSelectCommandBar: ImmersiveModeMultiSelectCommandBar(
@@ -870,6 +882,19 @@ class _ImmersiveModePageState extends ConsumerState<ImmersiveModePage>
           currentSong == null
               ? null
               : () => _openMusicDialog(SongDialogMode.albumArt),
+      onLocateLocal:
+          currentSong == null ||
+                  shellActions?.onExitImmersiveMode == null ||
+                  shellActions?.onNavigate == null
+              ? null
+              : () => locateSongInLocal(
+                context,
+                currentSong.id,
+                onNavigate: (location) {
+                  shellActions!.onExitImmersiveMode!();
+                  shellActions.onNavigate!(location);
+                },
+              ),
       onSeeLocal:
           currentSong == null ? null : () => _revealPath(currentSong.path),
     );

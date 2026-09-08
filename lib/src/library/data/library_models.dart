@@ -279,6 +279,7 @@ class LocalLyricsSearchMatch {
     required this.songId,
     required this.snippet,
     required this.contextLines,
+    required this.matchContexts,
     required this.timestampMs,
     required this.additionalMatchCount,
     required this.relevance,
@@ -287,6 +288,7 @@ class LocalLyricsSearchMatch {
   final int songId;
   final String snippet;
   final List<String> contextLines;
+  final List<List<String>> matchContexts;
   final int? timestampMs;
   final int additionalMatchCount;
   final int relevance;

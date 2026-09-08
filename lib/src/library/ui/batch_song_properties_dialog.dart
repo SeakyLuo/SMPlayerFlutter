@@ -21,10 +21,8 @@ Future<bool> showBatchSongPropertiesDialog({
 }) async {
   final i18n = context.smPlayerI18n;
   final container = ProviderScope.containerOf(context, listen: false);
-  final result = await showDialog<_BatchSongPropertiesCommit>(
+  final result = await showScopedPopupDialog<_BatchSongPropertiesCommit>(
     context: context,
-    barrierColor: Colors.transparent,
-    barrierDismissible: false,
     builder: (_) => _BatchSongPropertiesDialog(songIds: songIds),
   );
   if (result == null) {

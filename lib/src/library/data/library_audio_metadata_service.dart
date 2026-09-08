@@ -72,9 +72,10 @@ class LibraryAudioMetadataService {
         }
       }
       cancellation?.throwIfCanceled();
-      final dates = await readFileCreationTimes([
-        for (final index in changed) paths[index],
-      ]);
+      final dates = await readFileCreationTimes(
+        [for (final index in changed) paths[index]],
+        [for (final index in changed) stats[index]],
+      );
       var nextIndex = 0;
       Future<void> worker() async {
         while (nextIndex < changed.length) {

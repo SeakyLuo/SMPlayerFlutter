@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'dart:math';
 
+export 'local_song_location.dart' show locateSongInLocal;
+
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:smplayer_flutter/src/app/input_dialog.dart';
@@ -385,6 +387,7 @@ List<MenuFlyoutItem> buildMusicMenuFlyoutItems({
   required VoidCallback onSeeLyrics,
   required VoidCallback onSeeAlbumArt,
   required FutureOr<void> Function() onSeeLocal,
+  VoidCallback? onLocateLocal,
   String? currentPlaylistName,
   String? excludePlaylistName,
   String? defaultPlaylistName,
@@ -583,10 +586,17 @@ List<MenuFlyoutItem> buildMusicMenuFlyoutItems({
           keepOpen: keepViewActionsOpen,
           onPressed: onSeeAlbumArt,
         ),
+      if (onLocateLocal != null)
+        MenuFlyoutItem(
+          key: 'locate-local',
+          text: i18n.t('context.locateInLocal'),
+          icon: FluentIcons.hard_drive_24_regular,
+          onPressed: onLocateLocal,
+        ),
       MenuFlyoutItem(
         key: 'see-local',
         text: i18n.t('context.seeLocalFile'),
-        icon: FluentIcons.hard_drive_24_regular,
+        icon: FluentIcons.folder_search_20_regular,
         pendingText: i18n.t('context.openingLocal'),
         onPressed: onSeeLocal,
       ),

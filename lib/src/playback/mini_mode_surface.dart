@@ -73,7 +73,7 @@ class MiniModeSurface extends ConsumerStatefulWidget {
   final VoidCallback onToggleRepeatOne;
   final VoidCallback onToggleMute;
   final ValueChanged<int> onVolumeChange;
-  final VoidCallback? onOpenVoiceAssistant;
+  final Future<void> Function()? onOpenVoiceAssistant;
   final VoidCallback? onWindowDragStart;
   final VoidCallback? onWindowDragEnd;
 
@@ -87,6 +87,7 @@ class _MiniModeSurfaceState extends ConsumerState<MiniModeSurface> {
   Timer? _controlsHideTimer;
   var _controlsVisible = false;
   var _volumeOpen = false;
+  var _voiceAssistantOpen = false;
   var _isProgressSeeking = false;
   var _draftProgressSeconds = 0.0;
   LyricsSnapshot? _lyrics;
@@ -126,6 +127,7 @@ class _MiniModeSurfaceState extends ConsumerState<MiniModeSurface> {
 
   void _scheduleControlsHide([PointerEvent? _]) {
     _controlsHideTimer?.cancel();
+    if (_voiceAssistantOpen) return;
     _controlsHideTimer = Timer(const Duration(seconds: 5), () {
       if (!mounted) {
         return;
@@ -498,11 +500,23 @@ class _MiniModeSurfaceState extends ConsumerState<MiniModeSurface> {
                                       tooltip: i18n.t('player.voiceAssistant'),
                                       icon: _MiniModeIconName.voice,
                                       disabled: false,
-                                      onPressed: () {
+                                      active: _voiceAssistantOpen,
+                                      onPressed: () async {
                                         setState(() {
                                           _volumeOpen = false;
+                                          _voiceAssistantOpen = true;
                                         });
-                                        widget.onOpenVoiceAssistant!();
+                                        _showControls();
+                                        try {
+                                          await widget.onOpenVoiceAssistant!();
+                                        } finally {
+                                          if (mounted) {
+                                            setState(
+                                              () => _voiceAssistantOpen = false,
+                                            );
+                                            _scheduleControlsHide();
+                                          }
+                                        }
                                       },
                                       size: 34,
                                       padding: 8,

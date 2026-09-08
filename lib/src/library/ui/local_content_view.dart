@@ -60,6 +60,7 @@ class LocalContentView extends StatelessWidget {
     required this.onJumpToSongKey,
     this.reserveSongQuickJumpSpace = false,
     this.scrollController,
+    this.locatedSongId,
   });
 
   final List<FolderNode> childFolders;
@@ -115,6 +116,7 @@ class LocalContentView extends StatelessWidget {
   onOpenSongMenu;
   final ValueChanged<String> onJumpToSongKey;
   final ScrollController? scrollController;
+  final int? locatedSongId;
 
   @override
   Widget build(BuildContext context) {
@@ -169,6 +171,7 @@ class LocalContentView extends StatelessWidget {
               onMoveLocalItemsToFolder: onMoveLocalItemsToFolder,
             );
     final songContent = LocalGridViewMusic(
+      locatedSongId: locatedSongId,
       currentSongs: currentSongs,
       selectedSongIds: selectedSongIds,
       selectedTrackId: selectedTrackId,

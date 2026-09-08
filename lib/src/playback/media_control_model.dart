@@ -773,7 +773,9 @@ int? nextQueueIndexForPlayback({
     return nextIndex;
   }
 
-  if (mode == PlaybackMode.repeat || mode == PlaybackMode.shuffle) {
+  if (!automatic ||
+      mode == PlaybackMode.repeat ||
+      mode == PlaybackMode.shuffle) {
     return forward ? 0 : queueLength - 1;
   }
 

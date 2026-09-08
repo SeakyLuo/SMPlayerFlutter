@@ -1,7 +1,9 @@
 import 'package:sqlite3/sqlite3.dart';
+import 'package:path/path.dart' as p;
 
 import 'id3_tag_service.dart';
 import 'library_audio_metadata_service.dart';
+import 'library_legacy_tag_encoding.dart';
 
 const _activeState = 1;
 
@@ -67,18 +69,36 @@ Map<String, AudioFileMetadata> readStoredAudioFileMetadata(
 
   return {
     for (final row in songRows)
-      row['path'] as String: AudioFileMetadata(
-        properties: Id3SongTagProperties(
-          title: row['title'] as String,
-          artist: row['artist'] as String,
-          artists: artistsBySongId[row['id'] as int] ?? const [],
-          album: row['album'] as String,
+      if (!_needsLegacyTagReload(
+        row,
+        artistsBySongId[row['id'] as int] ?? const [],
+      ))
+        row['path'] as String: AudioFileMetadata(
+          properties: Id3SongTagProperties(
+            title: row['title'] as String,
+            artist: row['artist'] as String,
+            artists: artistsBySongId[row['id'] as int] ?? const [],
+            album: row['album'] as String,
+          ),
+          duration: row['duration'] as int,
+          thumbnailPath: row['thumbnailPath'] as String,
+          dateAdded: row['dateAdded'] as String,
+          fileSize: row['fileSize'] as int,
+          dateModifiedMs: row['dateModifiedMs'] as int,
         ),
-        duration: row['duration'] as int,
-        thumbnailPath: row['thumbnailPath'] as String,
-        dateAdded: row['dateAdded'] as String,
-        fileSize: row['fileSize'] as int,
-        dateModifiedMs: row['dateModifiedMs'] as int,
-      ),
   };
+}
+
+bool _needsLegacyTagReload(Row row, List<String> artists) {
+  // A matching file timestamp must not preserve metadata decoded by the old reader.
+  final extension = p.extension(row['path'] as String).toLowerCase();
+  if (extension != '.mp3' && extension != '.aiff' && extension != '.aif') {
+    return false;
+  }
+  return [
+    row['title'] as String,
+    row['artist'] as String,
+    row['album'] as String,
+    ...artists,
+  ].any(hasLegacyId3Mojibake);
 }

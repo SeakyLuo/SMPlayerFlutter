@@ -14,7 +14,7 @@ class SearchMatchText extends StatelessWidget {
   final String text;
   final String query;
   final TextStyle style;
-  final int maxLines;
+  final int? maxLines;
   final TextOverflow overflow;
   final Color? highlightColor;
 

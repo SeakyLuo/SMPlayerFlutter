@@ -33,7 +33,9 @@ class LibrarySnapshotService {
       // Share overlapping page loads only; the next load must observe writes.
       return run(
         () => _readContent(path, queuePath),
-      ).whenComplete(() => _loads.remove(key));
+      ).whenComplete(() {
+        _loads.remove(key);
+      });
     });
   }
 

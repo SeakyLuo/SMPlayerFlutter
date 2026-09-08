@@ -17,11 +17,6 @@ class _SearchFilterTabs extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final songIds = results.songs.map((song) => song.id).toSet();
-    final lyricsOnlyCount =
-        results.lyrics
-            .where((result) => !songIds.contains(result.song.id))
-            .length;
     final tabs = <({SearchFilterKey key, String label, int count, int order})>[
       (
         key: SearchFilterKey.all,
@@ -30,7 +25,7 @@ class _SearchFilterTabs extends StatelessWidget {
             results.artists.length +
             results.albums.length +
             results.songs.length +
-            lyricsOnlyCount +
+            results.lyrics.length +
             results.playlists.length +
             results.folders.length,
         order: 0,

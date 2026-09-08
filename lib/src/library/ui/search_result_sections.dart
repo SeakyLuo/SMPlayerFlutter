@@ -289,6 +289,25 @@ class _SearchResultSection extends StatelessWidget {
             selectionMode: selection.multiSelect,
             variant: PlaylistControlItemVariant.headeredPlaylist,
             searchQuery: query,
+            favoriteAsHoverAction: true,
+            keepFavoriteActionInCompact: true,
+            keepAddToActionInCompact: true,
+            favoriteLabel: i18n.t(
+              songs[index].favorite
+                  ? 'context.removeFavorite'
+                  : 'context.addFavorite',
+            ),
+            addToPlaylistLabel: i18n.t('context.addToPlaylist'),
+            onToggleFavoriteClick: () {
+              unawaited(
+                onToggleSongsFavorite([
+                  songs[index].id,
+                ], !songs[index].favorite),
+              );
+            },
+            onAddToPlaylistClick:
+                (buttonContext) =>
+                    _showSongAddToMenu(buttonContext, songs[index]),
             playNextLabel: i18n.t('context.playNext'),
             removeLabel: i18n.t('nowPlaying.remove'),
             onActivateRow: () {
@@ -342,6 +361,25 @@ class _SearchResultSection extends StatelessWidget {
             selectionMode: selection.multiSelect,
             variant: PlaylistControlItemVariant.headeredPlaylist,
             searchQuery: '',
+            favoriteAsHoverAction: true,
+            keepFavoriteActionInCompact: true,
+            keepAddToActionInCompact: true,
+            favoriteLabel: i18n.t(
+              results[index].song.favorite
+                  ? 'context.removeFavorite'
+                  : 'context.addFavorite',
+            ),
+            addToPlaylistLabel: i18n.t('context.addToPlaylist'),
+            onToggleFavoriteClick: () {
+              unawaited(
+                onToggleSongsFavorite([
+                  results[index].song.id,
+                ], !results[index].song.favorite),
+              );
+            },
+            onAddToPlaylistClick:
+                (buttonContext) =>
+                    _showSongAddToMenu(buttonContext, results[index].song),
             showBottomBorder: false,
             playNextLabel: i18n.t('context.playNext'),
             removeLabel: i18n.t('nowPlaying.remove'),
@@ -373,14 +411,10 @@ class _SearchResultSection extends StatelessWidget {
             },
           ),
           _SearchLyricsExcerpt(
-            text: results[index].match.contextLines.join('\n'),
+            key: ValueKey((results[index].song.id, query)),
+            match: results[index].match,
             query: query,
-            trailing:
-                results[index].match.additionalMatchCount == 0
-                    ? null
-                    : i18n.t('search.additionalLyricsMatches', {
-                      'count': results[index].match.additionalMatchCount,
-                    }),
+            i18n: i18n,
             onTap: () {
               if (selection.multiSelect) {
                 selection.toggle(_songSelectionKey(results[index].song));
@@ -652,6 +686,7 @@ class _SearchResultSection extends StatelessWidget {
         onSeeAlbumArt: () {
           onOpenMusicDialog(song, SongDialogMode.albumArt, queueSongIds);
         },
+        onLocateLocal: () => locateSongInLocal(context, song.id),
         onSeeLocal: () => onRevealSong(song),
       ),
     );
@@ -831,85 +866,6 @@ class _SearchSectionActionButton extends StatelessWidget {
       label: label,
       icon: icon,
       onPressed: onPressed,
-    );
-  }
-}
-
-class _SearchLyricsExcerpt extends StatelessWidget {
-  const _SearchLyricsExcerpt({
-    required this.text,
-    required this.query,
-    required this.trailing,
-    required this.onTap,
-  });
-
-  final String text;
-  final String query;
-  final String? trailing;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = SearchPageThemeColors.of(context);
-    final horizontalInset =
-        MediaQuery.sizeOf(context).width <= 720 ? 10.0 : 18.0;
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        border: Border(bottom: BorderSide(color: colors.subtleBorder)),
-      ),
-      child: Padding(
-        padding: EdgeInsets.fromLTRB(horizontalInset, 8, horizontalInset, 14),
-        child: MouseRegion(
-          cursor: SystemMouseCursors.click,
-          child: GestureDetector(
-            behavior: HitTestBehavior.opaque,
-            onTap: onTap,
-            child: SizedBox(
-              width: double.infinity,
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  color: colors.textMuted.withValues(alpha: 0.075),
-                  borderRadius: BorderRadius.circular(7),
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      SearchMatchText(
-                        text: text,
-                        query: query,
-                        maxLines: 3,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: colors.textMuted,
-                          fontSize: 13,
-                          fontWeight: FontWeight.w500,
-                          height: 1.35,
-                        ),
-                      ),
-                      if (trailing case final value?) ...[
-                        const SizedBox(height: 5),
-                        Align(
-                          alignment: Alignment.centerRight,
-                          child: Text(
-                            value,
-                            style: TextStyle(
-                              color: colors.textMuted.withValues(alpha: 0.82),
-                              fontSize: 11,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
     );
   }
 }

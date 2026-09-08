@@ -93,7 +93,7 @@ class LibraryLocalScanBatchWriter {
   final _filesByPath = <String, Row>{};
   final _artistsBySongId = <int, List<(String, int)>>{};
 
-  int write({
+  ({int songId, bool changed}) write({
     required String filePath,
     required LibrarySong song,
     required AudioFileMetadata metadata,
@@ -144,13 +144,18 @@ class LibraryLocalScanBatchWriter {
       }
     }
     final storedFile = _filesByPath[filePath];
-    if (storedFile == null ||
-        storedFile['ParentId'] != parentId ||
-        storedFile['FileId'] != songId ||
-        storedFile['State'] != _activeState) {
+    final fileUnchanged =
+        storedFile != null &&
+        storedFile['ParentId'] == parentId &&
+        storedFile['FileId'] == songId &&
+        storedFile['State'] == _activeState;
+    if (!fileUnchanged) {
       _upsertFile.execute([filePath, parentId, songId, _activeState]);
     }
-    return songId;
+    return (
+      songId: songId,
+      changed: !musicUnchanged || !artistsUnchanged || !fileUnchanged,
+    );
   }
 
   void dispose() {
