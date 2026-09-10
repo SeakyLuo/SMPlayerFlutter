@@ -168,7 +168,6 @@ class _ArtistAlbumSliverSection extends StatelessWidget {
       collapseCompactPrimaryActions: narrowSongRows,
       compactDurationWidth: narrowSongRows ? 20 : 50,
       compactTrailingPadding: songRowTrailingPadding,
-      favoriteAsHoverAction: true,
       keepFavoriteActionInCompact: true,
       keepAddToActionInCompact: true,
       playNextLabel: i18n.t('context.playNext'),

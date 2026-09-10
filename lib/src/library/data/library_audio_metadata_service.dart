@@ -1,6 +1,7 @@
 import 'dart:convert' show ascii;
 import 'dart:io';
 import 'dart:isolate';
+import 'dart:developer' as developer;
 import 'dart:math';
 import 'dart:typed_data';
 
@@ -11,6 +12,7 @@ import 'library_models.dart';
 import 'library_file_creation_time.dart';
 
 part 'library_audio_metadata_reader.dart';
+part 'library_audio_stream_metadata.dart';
 
 const _id3TagService = Id3TagService();
 
@@ -72,7 +74,7 @@ class LibraryAudioMetadataService {
         }
       }
       cancellation?.throwIfCanceled();
-      final dates = await readFileCreationTimes(
+      final dates = await readScanFileCreationTimes(
         [for (final index in changed) paths[index]],
         [for (final index in changed) stats[index]],
       );
@@ -84,13 +86,28 @@ class LibraryAudioMetadataService {
           final index = changed[nextIndex];
           final filePath = paths[index];
           nextIndex += 1;
-          metadataByPath[filePath] = await _readAudioFileMetadata(
-            filePath,
-            fileSize: stats[index].size,
-            dateModifiedMs: stats[index].modified.millisecondsSinceEpoch,
-            dateAdded: dates[dateIndex],
-            cacheSongArtwork: cacheSongArtwork,
-          );
+          try {
+            final dateAdded = dates[dateIndex];
+            if (dateAdded == null) {
+              completedCount += 1;
+              onProgress?.call(filePath, completedCount);
+              continue;
+            }
+            metadataByPath[filePath] = await _readAudioFileMetadata(
+              filePath,
+              fileSize: stats[index].size,
+              dateModifiedMs: stats[index].modified.millisecondsSinceEpoch,
+              dateAdded: dateAdded,
+              cacheSongArtwork: cacheSongArtwork,
+            );
+          } on Object catch (error, stackTrace) {
+            developer.log(
+              'Cannot read audio metadata: $filePath',
+              name: 'library.scan',
+              error: error,
+              stackTrace: stackTrace,
+            );
+          }
           completedCount += 1;
           onProgress?.call(filePath, completedCount);
           cancellation?.throwIfCanceled();

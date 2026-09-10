@@ -481,6 +481,12 @@ extension _LocalPageContent on _LocalPageState {
                                     ], favorite),
                                 onAddSong:
                                     (song, position) => _showAddToMenu(
+                                      onPlayNext:
+                                          !isCompactLayout &&
+                                                  mediaState.trackId != null &&
+                                                  song.id != mediaState.trackId
+                                              ? () => _playNext(song.id)
+                                              : null,
                                       position: position,
                                       songIds: [song.id],
                                       defaultPlaylistName: song.title,

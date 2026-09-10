@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:isolate';
 
 import 'package:sqlite3/sqlite3.dart';
 
@@ -114,7 +115,9 @@ class LibraryHiddenStorageService {
 
   Future<List<HiddenStorageItem>> getHiddenStorageItems(
     File databaseFile,
-  ) async {
+  ) => Isolate.run(() => _getHiddenStorageItems(databaseFile));
+
+  List<HiddenStorageItem> _getHiddenStorageItems(File databaseFile) {
     if (!databaseFile.existsSync()) {
       return const [];
     }
@@ -155,7 +158,9 @@ class LibraryHiddenStorageService {
   Future<void> resumeHiddenStorageItem(
     File databaseFile,
     HiddenStorageItem item,
-  ) async {
+  ) => Isolate.run(() => _resumeHiddenStorageItem(databaseFile, item));
+
+  void _resumeHiddenStorageItem(File databaseFile, HiddenStorageItem item) {
     final db = sqlite3.open(databaseFile.path);
     try {
       db.execute('BEGIN');

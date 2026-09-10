@@ -84,6 +84,16 @@ class Id3TagService {
 
   Id3SongMetadata readSongMetadataBytes(String songPath, Uint8List bytes) {
     final extension = p.extension(songPath).toLowerCase();
+    if (extension == '.aac' &&
+        bytes.length >= 3 &&
+        ascii.decode(bytes.sublist(0, 3), allowInvalid: true) == 'ID3') {
+      final tag = _readId3Tag(bytes);
+      return Id3SongMetadata(
+        properties: _propertiesFromId3Tag(tag),
+        embeddedLyrics: _embeddedLyricsFromId3Tag(tag),
+        picture: _pictureFromId3Tag(tag),
+      );
+    }
     if (extension == '.flac') {
       final metadata = _readFlacMetadata(bytes);
       return Id3SongMetadata(
@@ -228,12 +238,11 @@ class Id3TagService {
     final extension = p.extension(songPath).toLowerCase();
     if (extension == '.m4a' ||
         extension == '.mp4' ||
-        extension == '.aac' ||
         extension == '.alac' ||
         extension == '.wav') {
       return '';
     }
-    if (extension != '.mp3') {
+    if (extension != '.mp3' && extension != '.aac') {
       return (await readSongMetadata(songPath)).embeddedLyrics;
     }
 

@@ -8,6 +8,19 @@ Future<(Id3SongMetadata, int)> _readAudioFileContents(String path) async {
     if (extension == '.mp3') {
       return await _readMp3File(file, length, path);
     }
+    if (extension == '.aac') return await _readAacFile(file, length, path);
+    if (extension == '.ogg' || extension == '.oga' || extension == '.opus') {
+      return await _readOggMetadata(file, length, path);
+    }
+    if (extension == '.ape') {
+      return (
+        _id3TagService.readSongMetadataBytes(
+          path,
+          await _readApeFile(file, length),
+        ),
+        await _readApeDuration(file, length),
+      );
+    }
     if (extension == '.wav' || extension == '.aiff' || extension == '.aif') {
       return await _readChunkedAudioFile(
         file,
@@ -18,10 +31,8 @@ Future<(Id3SongMetadata, int)> _readAudioFileContents(String path) async {
     }
     final bytes = switch (extension) {
       '.flac' => await _readFlacFile(file, length),
-      '.m4a' || '.mp4' || '.aac' || '.alac' => await _readMp4File(file, length),
+      '.m4a' || '.mp4' || '.alac' => await _readMp4File(file, length),
       '.wma' => await _readAsfFile(file, length),
-      '.ape' => await _readApeFile(file, length),
-      '.ogg' || '.oga' || '.opus' => await _readOggFile(file, length),
       _ => Uint8List(0),
     };
     return (
@@ -214,39 +225,4 @@ Future<Uint8List> _readApeFile(RandomAccessFile file, int length) async {
   final size = _readAudioUint32Le(footer, 12);
   if (size < 32 || size > length) return Uint8List(0);
   return _readAudioRange(file, length - size, size);
-}
-
-Future<Uint8List> _readOggFile(RandomAccessFile file, int length) async {
-  final packet = BytesBuilder(copy: false);
-  var completedPackets = 0;
-  var offset = 0;
-  while (offset + 27 <= length) {
-    final header = await _readAudioRange(file, offset, 27);
-    if (ascii.decode(Uint8List.sublistView(header, 0, 4), allowInvalid: true) !=
-        'OggS') {
-      break;
-    }
-    final segmentCount = header[26];
-    if (offset + 27 + segmentCount > length) break;
-    final segments = await _readAudioRange(file, offset + 27, segmentCount);
-    var payloadOffset = offset + 27 + segmentCount;
-    final pageSize = segments.fold<int>(0, (total, size) => total + size);
-    if (payloadOffset + pageSize > length) return Uint8List(0);
-    final payload = await _readAudioRange(file, payloadOffset, pageSize);
-    var segmentOffset = 0;
-    for (final size in segments) {
-      packet.add(
-        Uint8List.sublistView(payload, segmentOffset, segmentOffset + size),
-      );
-      segmentOffset += size;
-      payloadOffset += size;
-      if (size < 255) {
-        final bytes = packet.takeBytes();
-        completedPackets += 1;
-        if (completedPackets == 2) return bytes;
-      }
-    }
-    offset = payloadOffset;
-  }
-  return Uint8List(0);
 }

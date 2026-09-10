@@ -31,6 +31,7 @@ extension _LocalPageAddToActions on _LocalPageState {
   }
 
   Future<void> _showAddToMenu({
+    VoidCallback? onPlayNext,
     required Offset position,
     required List<int> songIds,
     required String defaultPlaylistName,
@@ -43,6 +44,7 @@ extension _LocalPageAddToActions on _LocalPageState {
       i18n: i18n,
       songIds: songIds,
       playlists: playlists,
+      onPlayNext: onPlayNext,
       includeNowPlaying: shouldShowNowPlayingAddToTarget(
         songIds: songIds,
         nowPlayingSongIds: snapshot.nowPlaying.songIds,

@@ -234,6 +234,7 @@ MenuFlyoutItem? buildAddToPlaylistMenuFlyoutItem({
   String? defaultPlaylistName,
   String? currentPlaylistName,
   String? excludePlaylistName,
+  VoidCallback? onPlayNext,
   VoidCallback? onAddToNowPlaying,
   VoidCallback? onToggleFavorite,
   VoidCallback? onRequestCreatePlaylist,
@@ -253,6 +254,17 @@ MenuFlyoutItem? buildAddToPlaylistMenuFlyoutItem({
         return !playlist.songIds.contains(songIds.first);
       }).toList();
   final submenu = <MenuFlyoutItem>[];
+
+  if (songIds.length == 1 && onPlayNext != null) {
+    submenu.add(
+      MenuFlyoutItem(
+        key: '$key-play-next',
+        text: i18n.t('context.playNext'),
+        iconWidget: const SmPlayerPlayNextIcon(size: 18),
+        onPressed: onPlayNext,
+      ),
+    );
+  }
 
   if (includeNowPlaying) {
     submenu.add(

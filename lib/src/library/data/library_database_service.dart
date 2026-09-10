@@ -6,7 +6,7 @@ class LibraryDatabaseService {
   const LibraryDatabaseService();
 
   // Increment when changing tables, columns, indexes, or the lyrics FTS schema.
-  static const schemaVersion = 1;
+  static const schemaVersion = 2;
 
   Database openInitializedLibraryDatabase(File databaseFile) {
     databaseFile.parent.createSync(recursive: true);
@@ -619,6 +619,7 @@ class LibraryDatabaseService {
       'RawText',
       'LinesJson',
       'SearchText',
+      'FileSignature',
     ];
     final currentColumns =
         db
@@ -641,6 +642,7 @@ class LibraryDatabaseService {
         RawText UNINDEXED,
         LinesJson UNINDEXED,
         SearchText,
+        FileSignature UNINDEXED,
         tokenize = 'trigram'
       )
     ''');

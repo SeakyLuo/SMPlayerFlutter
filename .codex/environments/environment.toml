@@ -7,5 +7,5 @@ script = ""
 [[actions]]
 name = "启动 SMPlayer"
 icon = "tool"
-command = "VSLANG=1033 \"/c/Users/luoki/AppData/Local/flutter/bin/flutter.bat\" --no-version-check run -d windows"
+command = "MSYS_NO_PATHCONV=1 cmd.exe /d /c '.codex\\environments\\run-windows.cmd'"
 platform = "win32"

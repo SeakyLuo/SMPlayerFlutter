@@ -305,7 +305,6 @@ extension _HeaderedPlaylistControlLayout on _HeaderedPlaylistControlState {
       favoriteLabel: i18n.t('common.favorite'),
       moreLabel: i18n.t('player.more'),
       showFavoriteAction: widget.type != HeaderedPlaylistType.favorites,
-      favoriteAsHoverAction: true,
       keepFavoriteActionInCompact: true,
       favoriteLoading:
           widget.type == HeaderedPlaylistType.favorites &&

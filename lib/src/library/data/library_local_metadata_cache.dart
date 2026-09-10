@@ -69,10 +69,11 @@ Map<String, AudioFileMetadata> readStoredAudioFileMetadata(
 
   return {
     for (final row in songRows)
-      if (!_needsLegacyTagReload(
-        row,
-        artistsBySongId[row['id'] as int] ?? const [],
-      ))
+      if (!_needsDurationReload(row) &&
+          !_needsLegacyTagReload(
+            row,
+            artistsBySongId[row['id'] as int] ?? const [],
+          ))
         row['path'] as String: AudioFileMetadata(
           properties: Id3SongTagProperties(
             title: row['title'] as String,
@@ -87,6 +88,16 @@ Map<String, AudioFileMetadata> readStoredAudioFileMetadata(
           dateModifiedMs: row['dateModifiedMs'] as int,
         ),
   };
+}
+
+bool _needsDurationReload(Row row) {
+  return row['duration'] == 0 &&
+      const {
+        '.ape',
+        '.ogg',
+        '.opus',
+        '.aac',
+      }.contains(p.extension(row['path'] as String).toLowerCase());
 }
 
 bool _needsLegacyTagReload(Row row, List<String> artists) {

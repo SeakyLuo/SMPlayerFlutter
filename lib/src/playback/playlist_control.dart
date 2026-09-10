@@ -29,7 +29,6 @@ class PlaylistControlEntry {
     this.compactDurationWidth,
     this.compactTrailingPadding,
     this.showFavoriteAction = true,
-    this.favoriteAsHoverAction = false,
     this.keepFavoriteActionInCompact = false,
     this.keepAddToActionInCompact = false,
     this.favoriteLoading = false,
@@ -63,7 +62,6 @@ class PlaylistControlEntry {
   final double? compactDurationWidth;
   final double? compactTrailingPadding;
   final bool showFavoriteAction;
-  final bool favoriteAsHoverAction;
   final bool keepFavoriteActionInCompact;
   final bool keepAddToActionInCompact;
   final bool favoriteLoading;
@@ -179,7 +177,6 @@ class PlaylistControl extends StatelessWidget {
       compactDurationWidth: entry.compactDurationWidth,
       compactTrailingPadding: entry.compactTrailingPadding,
       showFavoriteAction: entry.showFavoriteAction,
-      favoriteAsHoverAction: entry.favoriteAsHoverAction,
       keepFavoriteActionInCompact: entry.keepFavoriteActionInCompact,
       keepAddToActionInCompact: entry.keepAddToActionInCompact,
       favoriteLoading: entry.favoriteLoading,

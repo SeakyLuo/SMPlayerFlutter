@@ -149,6 +149,26 @@ mixin _LibraryLocalRefreshOperations {
     );
   }
 
+  void updateMovedSongFolders(
+    Database db,
+    List<RefreshMovedSong> songs,
+    Map<String, int> folderIds,
+  ) {
+    final statement = db.prepare(
+      'UPDATE File SET ParentId = ? WHERE FileId = ? AND State = 1',
+    );
+    try {
+      for (final song in songs) {
+        statement.execute([
+          folderIds[localScanPathComparisonKey(p.dirname(song.newPath))]!,
+          song.id,
+        ]);
+      }
+    } finally {
+      statement.dispose();
+    }
+  }
+
   void updatePathPrefixInsideTransaction(
     Database db, {
     required String table,

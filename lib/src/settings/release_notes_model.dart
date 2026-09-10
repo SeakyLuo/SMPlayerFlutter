@@ -29,7 +29,7 @@ List<ReleaseNoteEntry> getReleaseNotes(SmPlayerI18n i18n) {
 }
 
 const _releaseNoteDefinitions = [
-  _ReleaseNoteDefinition('3.1.0', [
+  _ReleaseNoteDefinition('4.0.0', [
     'tryLiquidGlass',
     'lyricsSearchSupport',
     'randomPlayMenuScopes',

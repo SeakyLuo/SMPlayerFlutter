@@ -1,5 +1,35 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:developer' as developer;
+
+Future<List<String?>> readScanFileCreationTimes(
+  List<String> paths,
+  List<FileStat> stats,
+) async {
+  try {
+    return await readFileCreationTimes(paths, stats);
+  } on Exception {
+    // A file can disappear during the batch stat. Isolate its failure without
+    // discarding the other files or inventing a replacement creation date.
+    final dates = <String?>[];
+    for (var index = 0; index < paths.length; index++) {
+      try {
+        dates.add(
+          (await readFileCreationTimes([paths[index]], [stats[index]])).single,
+        );
+      } on Exception catch (error, stackTrace) {
+        developer.log(
+          'Cannot read creation time: ${paths[index]}',
+          name: 'library.scan',
+          error: error,
+          stackTrace: stackTrace,
+        );
+        dates.add(null);
+      }
+    }
+    return dates;
+  }
+}
 
 // The caller supplies at most 128 paths, keeping process arguments bounded.
 Future<List<String>> readFileCreationTimes(

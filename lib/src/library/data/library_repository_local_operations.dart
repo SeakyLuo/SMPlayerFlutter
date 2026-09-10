@@ -224,7 +224,7 @@ mixin _LibraryRepositoryLocalOperations {
           cancellation: cancellation,
         );
     await onLibraryCommitted?.call();
-    await _lyricsSearchService.refreshFolder(databaseFile, rootPath);
+    _lyricsSearchService.refreshFolderInBackground(databaseFile, rootPath);
     return result;
   }
 
@@ -247,7 +247,7 @@ mixin _LibraryRepositoryLocalOperations {
           cancellation: cancellation,
         );
     await onLibraryCommitted?.call();
-    await _lyricsSearchService.refreshFolder(databaseFile, folderPath);
+    _lyricsSearchService.refreshFolderInBackground(databaseFile, folderPath);
     return result;
   }
 

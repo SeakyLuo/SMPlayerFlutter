@@ -16,18 +16,23 @@ import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/data/library_providers.dart';
 import 'package:smplayer_flutter/src/library/data/library_repository.dart';
 import 'package:smplayer_flutter/src/platform/desktop_feature_service.dart';
+import 'package:smplayer_flutter/src/platform/app_center_crash_reporter.dart';
 import 'package:smplayer_flutter/src/platform/external_open_model.dart';
 import 'package:smplayer_flutter/src/settings/settings_controller.dart';
 import 'package:smplayer_flutter/src/settings/settings_model.dart';
 import 'package:screen_retriever/screen_retriever.dart' as screen;
 import 'package:window_manager/window_manager.dart';
 
-Future<void> main(List<String> args) async {
-  WidgetsFlutterBinding.ensureInitialized();
-  if (Platform.isWindows) {
-    JustAudioMediaKit.ensureInitialized(windows: true, linux: false);
-  }
-  runApp(SmPlayerBootstrap(args: args));
+void main(List<String> args) {
+  final crashReporter = AppCenterCrashReporter();
+  runZonedGuarded(() async {
+    WidgetsFlutterBinding.ensureInitialized();
+    crashReporter.register();
+    if (Platform.isWindows) {
+      JustAudioMediaKit.ensureInitialized(windows: true, linux: false);
+    }
+    runApp(SmPlayerBootstrap(args: args));
+  }, crashReporter.handleUncaughtError);
 }
 
 class SmPlayerBootstrap extends StatefulWidget {
@@ -57,6 +62,10 @@ class _SmPlayerBootstrapState extends State<SmPlayerBootstrap> {
     final settingsController = SettingsController(settingsSnapshot, repository);
     final settings = settingsController.snapshot;
     final initialLocation = resolveRestoredPage(settings.lastPage);
+    if (Platform.isWindows || Platform.isMacOS || Platform.isLinux) {
+      await _initializeDesktopWindow(settings);
+      await WidgetsBinding.instance.endOfFrame;
+    }
     if (!mounted) {
       settingsController.dispose();
       return;
@@ -67,9 +76,6 @@ class _SmPlayerBootstrapState extends State<SmPlayerBootstrap> {
         settingsController: settingsController,
       );
     });
-    if (Platform.isWindows || Platform.isMacOS || Platform.isLinux) {
-      unawaited(_initializeDesktopWindow(settings));
-    }
   }
 
   @override

@@ -513,7 +513,7 @@ extension _SearchPageContent on _SearchPageState {
       _SearchSectionData.lyrics(
         criterion: lyricsCriterion,
         lyrics: sortSearchLyrics(results.lyrics, lyricsCriterion),
-        previewLimit: _SearchPageState._sectionPreviewLimit,
+        previewLimit: 2,
       ),
       _SearchSectionData.cards(
         type: SearchResultType.playlists,

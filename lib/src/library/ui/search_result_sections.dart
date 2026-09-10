@@ -289,7 +289,7 @@ class _SearchResultSection extends StatelessWidget {
             selectionMode: selection.multiSelect,
             variant: PlaylistControlItemVariant.headeredPlaylist,
             searchQuery: query,
-            favoriteAsHoverAction: true,
+            showCompactPrimaryActions: true,
             keepFavoriteActionInCompact: true,
             keepAddToActionInCompact: true,
             favoriteLabel: i18n.t(
@@ -361,7 +361,7 @@ class _SearchResultSection extends StatelessWidget {
             selectionMode: selection.multiSelect,
             variant: PlaylistControlItemVariant.headeredPlaylist,
             searchQuery: '',
-            favoriteAsHoverAction: true,
+            showCompactPrimaryActions: true,
             keepFavoriteActionInCompact: true,
             keepAddToActionInCompact: true,
             favoriteLabel: i18n.t(

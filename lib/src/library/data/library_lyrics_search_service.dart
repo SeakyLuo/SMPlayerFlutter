@@ -1,6 +1,9 @@
 import 'dart:convert';
 import 'dart:io';
 import 'dart:isolate';
+import 'dart:developer' as developer;
+
+import 'package:path/path.dart' as p;
 
 import 'package:sqlite3/sqlite3.dart';
 
@@ -23,6 +26,7 @@ class LibraryLyricsSearchService {
   final LibraryDatabaseService _database;
   final LocalLyricsResolver _localLyricsResolver;
   static final _indexBuilds = <String, Future<void>>{};
+  static final _indexUpdates = <String, Future<void>>{};
   static final _indexProgress = <String, LocalLyricsIndexProgress>{};
   static final _indexProgressListeners =
       <String, Set<void Function(LocalLyricsIndexProgress)>>{};
@@ -119,7 +123,25 @@ class LibraryLyricsSearchService {
     await _refreshCandidates(databaseFile, await _readCandidates(databaseFile));
   }
 
-  Future<void> refreshFolder(File databaseFile, String folderPath) async {
+  void refreshFolderInBackground(File databaseFile, String folderPath) {
+    refreshFolder(databaseFile, folderPath, onlyChanged: true).catchError((
+      Object error,
+      StackTrace stackTrace,
+    ) {
+      developer.log(
+        'Cannot refresh folder lyrics index: $folderPath',
+        name: 'library.scan',
+        error: error,
+        stackTrace: stackTrace,
+      );
+    });
+  }
+
+  Future<void> refreshFolder(
+    File databaseFile,
+    String folderPath, {
+    bool onlyChanged = false,
+  }) async {
     await _waitForIndexBuild(databaseFile.path);
     final normalizedFolder = _normalizePath(folderPath);
     final folderPrefix = '$normalizedFolder/';
@@ -130,6 +152,7 @@ class LibraryLyricsSearchService {
         where: "instr(lower(replace(Path, char(92), '/')), ?) = 1",
         parameters: [folderPrefix],
       ),
+      onlyChanged: onlyChanged,
     );
   }
 
@@ -284,11 +307,18 @@ class LibraryLyricsSearchService {
       ''',
         [_activeState, ...parameters],
       );
+      final signatures = {
+        for (final row in db.select(
+          'SELECT SongId, FileSignature FROM LocalLyricsSearch',
+        ))
+          row['SongId'] as int: row['FileSignature'] as String,
+      };
       return [
         for (final row in rows)
           _LyricsIndexCandidate(
             songId: row['songId'] as int,
             path: row['path'] as String,
+            signature: signatures[row['songId']],
           ),
       ];
     } finally {
@@ -299,6 +329,36 @@ class LibraryLyricsSearchService {
   Future<void> _refreshCandidates(
     File databaseFile,
     List<_LyricsIndexCandidate> candidates, {
+    bool onlyChanged = false,
+    void Function(LocalLyricsIndexProgress progress)? onProgress,
+  }) {
+    final databasePath = databaseFile.path;
+    final previous = _indexUpdates[databasePath] ?? Future<void>.value();
+    final update = previous.then(
+      (_) => _refreshCandidatesNow(
+        databaseFile,
+        candidates,
+        onlyChanged: onlyChanged,
+        onProgress: onProgress,
+      ),
+    );
+    final settled = update.then<void>(
+      (_) {},
+      onError: (Object error, StackTrace stackTrace) {},
+    );
+    _indexUpdates[databasePath] = settled;
+    settled.then((_) {
+      if (identical(_indexUpdates[databasePath], settled)) {
+        _indexUpdates.remove(databasePath);
+      }
+    });
+    return update;
+  }
+
+  Future<void> _refreshCandidatesNow(
+    File databaseFile,
+    List<_LyricsIndexCandidate> candidates, {
+    bool onlyChanged = false,
     void Function(LocalLyricsIndexProgress progress)? onProgress,
   }) async {
     if (candidates.isEmpty) {
@@ -325,13 +385,15 @@ class LibraryLyricsSearchService {
       ) {
         final readEnd = (offset + _lyricsIndexReadBatchSize).clamp(0, end);
         entries.addAll(
-          await Future.wait([
+          (await Future.wait([
             for (var index = offset; index < readEnd; index++)
-              _readEntry(candidates[index]),
-          ]),
+              _readEntry(candidates[index], onlyChanged: onlyChanged),
+          ])).whereType<_LyricsIndexEntry>(),
         );
       }
-      await _writeIndexBatch(databaseFile.path, entries);
+      if (entries.isNotEmpty) {
+        await _writeIndexBatch(databaseFile.path, entries);
+      }
       current = end;
       onProgress?.call(
         LocalLyricsIndexProgress(current: current, total: candidates.length),
@@ -364,6 +426,7 @@ class LibraryLyricsSearchService {
               {'timestampMs': line.timestampMs, 'text': line.text},
           ]),
           _searchableText(entry.snapshot),
+          entry.signature,
         ],
     ];
   }
@@ -383,8 +446,8 @@ class LibraryLyricsSearchService {
         );
         final insertStatement = db.prepare('''
           INSERT INTO LocalLyricsSearch
-            (SongId, Path, Source, RawText, LinesJson, SearchText)
-          VALUES (?, ?, ?, ?, ?, ?)
+            (SongId, Path, Source, RawText, LinesJson, SearchText, FileSignature)
+          VALUES (?, ?, ?, ?, ?, ?, ?)
         ''');
         try {
           for (final row in rows) {
@@ -403,12 +466,47 @@ class LibraryLyricsSearchService {
     }
   }
 
-  Future<_LyricsIndexEntry> _readEntry(_LyricsIndexCandidate candidate) async {
-    return _LyricsIndexEntry(
-      songId: candidate.songId,
-      path: candidate.path,
-      snapshot: await _localLyricsResolver(candidate.path),
-    );
+  Future<_LyricsIndexEntry?> _readEntry(
+    _LyricsIndexCandidate candidate, {
+    required bool onlyChanged,
+  }) async {
+    try {
+      final signature = await _fileSignature(candidate.path);
+      if (onlyChanged && candidate.signature == signature) return null;
+      final snapshot = await _localLyricsResolver(candidate.path);
+      // A file changed during the read: leave the previous index for a retry.
+      if (signature != await _fileSignature(candidate.path)) return null;
+      return _LyricsIndexEntry(
+        songId: candidate.songId,
+        path: candidate.path,
+        snapshot: snapshot,
+        signature: signature,
+      );
+    } on Object catch (error, stackTrace) {
+      developer.log(
+        'Cannot index lyrics: ${candidate.path}',
+        name: 'library.scan',
+        error: error,
+        stackTrace: stackTrace,
+      );
+      return null;
+    }
+  }
+
+  static Future<String> _fileSignature(String path) async {
+    final stats = await Future.wait([
+      File(path).stat(),
+      File(p.setExtension(path, '.lrc')).stat(),
+      File(p.setExtension(path, '.txt')).stat(),
+    ]);
+    if (stats.first.type != FileSystemEntityType.file) {
+      throw FileSystemException('Audio file is unavailable', path);
+    }
+    return jsonEncode([
+      path,
+      for (final stat in stats)
+        [stat.type.toString(), stat.size, stat.modified.microsecondsSinceEpoch],
+    ]);
   }
 
   static void _removeInactiveSongs(Database db) {
@@ -531,10 +629,15 @@ class LibraryLyricsSearchService {
 }
 
 class _LyricsIndexCandidate {
-  const _LyricsIndexCandidate({required this.songId, required this.path});
+  const _LyricsIndexCandidate({
+    required this.songId,
+    required this.path,
+    this.signature,
+  });
 
   final int songId;
   final String path;
+  final String? signature;
 }
 
 class _LyricsIndexEntry {
@@ -542,9 +645,11 @@ class _LyricsIndexEntry {
     required this.songId,
     required this.path,
     required this.snapshot,
+    required this.signature,
   });
 
   final int songId;
   final String path;
   final LyricsSnapshot snapshot;
+  final String signature;
 }

@@ -408,32 +408,6 @@ extension _SettingsPageSections on _SettingsPageState {
         ],
       ),
       SettingsCard(
-        title: i18n.t('settings.notification'),
-        children: [
-          SelectSettingRow<NotificationSendMode>(
-            label: i18n.t('settings.notificationSend'),
-            value: _snapshot.notificationSend,
-            options:
-                NotificationSendMode.values
-                    .map(
-                      (mode) => SelectSettingOption(
-                        value: mode,
-                        label: _notificationSendLabel(i18n, mode),
-                      ),
-                    )
-                    .toList(),
-            onChange: (value) {
-              _updateSettings(
-                AppSettingsUpdate(
-                  notificationSend: value,
-                  showNotifications: value != NotificationSendMode.never,
-                ),
-              );
-            },
-          ),
-        ],
-      ),
-      SettingsCard(
         title: i18n.t('settings.aiAgent'),
         children: [
           ToggleSettingRow(
@@ -495,6 +469,27 @@ extension _SettingsPageSections on _SettingsPageState {
       SettingsCard(
         title: i18n.t('settings.others'),
         children: [
+          SelectSettingRow<NotificationSendMode>(
+            label: i18n.t('settings.notificationSend'),
+            value: _snapshot.notificationSend,
+            options:
+                NotificationSendMode.values
+                    .map(
+                      (mode) => SelectSettingOption(
+                        value: mode,
+                        label: _notificationSendLabel(i18n, mode),
+                      ),
+                    )
+                    .toList(),
+            onChange: (value) {
+              _updateSettings(
+                AppSettingsUpdate(
+                  notificationSend: value,
+                  showNotifications: value != NotificationSendMode.never,
+                ),
+              );
+            },
+          ),
           ToggleSettingRow(
             label: i18n.t('settings.quitOnClose'),
             checked: _snapshot.quitOnClose,

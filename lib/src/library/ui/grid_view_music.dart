@@ -686,7 +686,6 @@ class CompactLocalSongRow extends StatelessWidget {
       variant: PlaylistControlItemVariant.compact,
       showCompactPrimaryActions: true,
       collapseCompactPrimaryActions: true,
-      favoriteAsHoverAction: true,
       keepFavoriteActionInCompact: true,
       keepAddToActionInCompact: true,
       playNextLabel: i18n.t('context.playNext'),

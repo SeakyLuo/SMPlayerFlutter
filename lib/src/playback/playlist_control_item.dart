@@ -102,7 +102,6 @@ class PlaylistControlItem extends StatefulWidget {
     this.compactDurationWidth,
     this.compactTrailingPadding,
     this.showFavoriteAction = true,
-    this.favoriteAsHoverAction = false,
     this.keepFavoriteActionInCompact = false,
     this.keepAddToActionInCompact = false,
     this.favoriteLoading = false,
@@ -143,7 +142,6 @@ class PlaylistControlItem extends StatefulWidget {
   final double? compactDurationWidth;
   final double? compactTrailingPadding;
   final bool showFavoriteAction;
-  final bool favoriteAsHoverAction;
   final bool keepFavoriteActionInCompact;
   final bool keepAddToActionInCompact;
   final bool favoriteLoading;
@@ -351,6 +349,10 @@ class _PlaylistControlItemState extends State<PlaylistControlItem> {
 
   @override
   Widget build(BuildContext context) {
+    return LayoutBuilder(builder: _buildRow);
+  }
+
+  Widget _buildRow(BuildContext context, BoxConstraints constraints) {
     final i18n = context.smPlayerI18n;
     final hasAlbumColumn = widget.showAlbum;
     final headeredPlaylist =
@@ -358,8 +360,7 @@ class _PlaylistControlItemState extends State<PlaylistControlItem> {
     final compactVariant = widget.variant == PlaylistControlItemVariant.compact;
     final defaultColors = widget.colors == null;
     final colors = widget.colors ?? _PlaylistControlItemColors.resolve(context);
-    final viewportWidth = MediaQuery.sizeOf(context).width;
-    final viewportCompact = viewportWidth <= 720;
+    final narrowRow = constraints.maxWidth <= 720;
     final hoverActionsVisible = _hoverActive;
     final showActionSlot = !widget.selectionMode;
     final multiSelectSelected = widget.selectionMode && widget.selected;
@@ -383,12 +384,12 @@ class _PlaylistControlItemState extends State<PlaylistControlItem> {
         compactVariant
             ? 78.0
             : headeredPlaylist
-            ? (viewportCompact ? 86.0 : 88.0)
+            ? (narrowRow ? 86.0 : 88.0)
             : 82.0;
     final artworkGap =
         compactVariant
             ? 12.0
-            : headeredPlaylist && !viewportCompact
+            : headeredPlaylist && !narrowRow
             ? 22.0
             : 14.0;
     final dropPosition = widget.dropPosition;
@@ -435,8 +436,8 @@ class _PlaylistControlItemState extends State<PlaylistControlItem> {
                   ? [BoxShadow(color: colors.hoverBorder, spreadRadius: 1)]
                   : null,
         ),
-        child: LayoutBuilder(
-          builder: (context, constraints) {
+        child: Builder(
+          builder: (context) {
             _swipeLayoutWidth = constraints.maxWidth;
             final baseRowPadding =
                 compactVariant
@@ -447,7 +448,7 @@ class _PlaylistControlItemState extends State<PlaylistControlItem> {
                       10,
                     )
                     : headeredPlaylist
-                    ? viewportCompact
+                    ? narrowRow
                         ? const EdgeInsets.fromLTRB(10, 10, 12, 10)
                         : const EdgeInsets.symmetric(
                           horizontal: 14,
@@ -561,7 +562,7 @@ class _PlaylistControlItemState extends State<PlaylistControlItem> {
                 onToggleFavoriteClick: widget.onToggleFavoriteClick,
                 showFavoriteAction:
                     widget.showFavoriteAction && !hideFavoriteForCompact,
-                favoriteAsHoverAction: widget.favoriteAsHoverAction,
+                favoriteAsHoverAction: compact,
                 keepFavoriteActionInCompact: widget.keepFavoriteActionInCompact,
                 keepAddToActionInCompact: widget.keepAddToActionInCompact,
                 favoriteLoading: widget.favoriteLoading,
@@ -966,8 +967,8 @@ class _PlaylistControlItemState extends State<PlaylistControlItem> {
                   ),
                   if (dropPosition != null)
                     Positioned(
-                      left: compactVariant || viewportCompact ? 8 : 18,
-                      right: compactVariant || viewportCompact ? 10 : 22,
+                      left: compactVariant || narrowRow ? 8 : 18,
+                      right: compactVariant || narrowRow ? 10 : 22,
                       top:
                           dropPosition == PlaylistControlDropPosition.before
                               ? 0

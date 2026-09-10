@@ -42,71 +42,82 @@ class _SearchLyricsExcerptState extends State<_SearchLyricsExcerpt> {
           ),
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
+            child: Stack(
+              clipBehavior: Clip.none,
               children: [
-                for (var index = 0; index < contexts.length; index++) ...[
-                  if (index > 0) const SizedBox(height: 16),
-                  MouseRegion(
-                    cursor: SystemMouseCursors.click,
-                    child: GestureDetector(
-                      behavior: HitTestBehavior.opaque,
-                      onTap: widget.onTap,
-                      child: SearchMatchText(
-                        text: contexts[index].join('\n'),
-                        query: widget.query,
-                        maxLines: null,
-                        style: TextStyle(
-                          color: colors.textMuted,
-                          fontSize: 13,
-                          fontWeight: FontWeight.w500,
-                          height: 1.35,
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    for (var index = 0; index < contexts.length; index++) ...[
+                      if (index > 0) const SizedBox(height: 16),
+                      MouseRegion(
+                        cursor: SystemMouseCursors.click,
+                        child: GestureDetector(
+                          behavior: HitTestBehavior.opaque,
+                          onTap: widget.onTap,
+                          child: SearchMatchText(
+                            text: contexts[index].join('\n'),
+                            query: widget.query,
+                            maxLines: null,
+                            style: TextStyle(
+                              color: colors.textMuted,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w500,
+                              height: 1.35,
+                            ),
+                          ),
                         ),
                       ),
-                    ),
-                  ),
-                ],
+                    ],
+                  ],
+                ),
                 if (canExpand)
-                  Align(
-                    alignment: Alignment.center,
-                    child: SizedBox(
-                      width: 112,
-                      height: 32,
-                      child: TextButton(
-                        style: TextButton.styleFrom(
-                          foregroundColor: colors.textMuted,
-                          backgroundColor: Colors.transparent,
-                          minimumSize: Size.zero,
-                          padding: const EdgeInsets.symmetric(horizontal: 12),
-                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                          side: BorderSide.none,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
+                  Positioned(
+                    left: 0,
+                    right: 0,
+                    bottom: -4,
+                    child: Align(
+                      alignment: Alignment.bottomCenter,
+                      child: SizedBox(
+                        width: 112,
+                        height: 32,
+                        child: TextButton(
+                          style: TextButton.styleFrom(
+                            foregroundColor: colors.textMuted,
+                            backgroundColor: Colors.transparent,
+                            minimumSize: Size.zero,
+                            padding: const EdgeInsets.symmetric(horizontal: 12),
+                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                            side: BorderSide.none,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            textStyle: const TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
-                          textStyle: const TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                        onPressed: () => setState(() => _expanded = !_expanded),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(
-                              widget.i18n.t(
-                                _expanded
-                                    ? 'song.collapseLyrics'
-                                    : 'song.expandLyrics',
+                          onPressed:
+                              () => setState(() => _expanded = !_expanded),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                widget.i18n.t(
+                                  _expanded
+                                      ? 'song.collapseLyrics'
+                                      : 'song.expandLyrics',
+                                ),
                               ),
-                            ),
-                            const SizedBox(width: 6),
-                            Icon(
-                              _expanded
-                                  ? FluentIcons.chevron_up_24_regular
-                                  : FluentIcons.chevron_down_24_regular,
-                              size: 16,
-                            ),
-                          ],
+                              const SizedBox(width: 6),
+                              Icon(
+                                _expanded
+                                    ? FluentIcons.chevron_up_24_regular
+                                    : FluentIcons.chevron_down_24_regular,
+                                size: 16,
+                              ),
+                            ],
+                          ),
                         ),
                       ),
                     ),
