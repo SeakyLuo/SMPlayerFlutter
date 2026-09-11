@@ -8,7 +8,6 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
-// ignore: unused_import
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:smplayer_flutter/src/app/auto_hide_scrollbar_visibility.dart';
 import 'package:smplayer_flutter/src/app/app_interaction_colors.dart';

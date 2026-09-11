@@ -8,7 +8,6 @@ enum _ElectronIconName {
   play,
   pause,
   save,
-  undo,
   search,
   import,
   edit,
@@ -57,8 +56,6 @@ String _electronIconSvg(_ElectronIconName name) {
       'M5 2a2 2 0 0 0-2 2v12c0 1.1.9 2 2 2h2a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H5ZM4 4a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V4Zm9-2a2 2 0 0 0-2 2v12c0 1.1.9 2 2 2h2a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2h-2Zm-1 2a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1h-2a1 1 0 0 1-1-1V4Z',
     _ElectronIconName.save =>
       'M3 5c0-1.1.9-2 2-2h8.38a2 2 0 0 1 1.41.59l1.62 1.62A2 2 0 0 1 17 6.62V15a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5Zm2-1a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1v-4.5c0-.83.67-1.5 1.5-1.5h7c.83 0 1.5.67 1.5 1.5V16a1 1 0 0 0 1-1V6.62a1 1 0 0 0-.3-.7L14.1 4.28a1 1 0 0 0-.71-.29H13v2.5c0 .83-.67 1.5-1.5 1.5h-4A1.5 1.5 0 0 1 6 6.5V4H5Zm2 0v2.5c0 .28.22.5.5.5h4a.5.5 0 0 0 .5-.5V4H7Zm7 12v-4.5a.5.5 0 0 0-.5-.5h-7a.5.5 0 0 0-.5.5V16h8Z',
-    _ElectronIconName.undo =>
-      'M5 2.5a.5.5 0 0 0-1 0v4.9c0 .33.27.6.6.6h4.9a.5.5 0 0 0 0-1H5.9l3.48-3.02a4 4 0 0 1 5.25 6.04l-8.17 7.1a.5.5 0 0 0 .65.76l8.17-7.1a5 5 0 0 0-6.56-7.55L5 6.46V2.5Z',
     _ElectronIconName.search =>
       'M13.73 14.44a6.5 6.5 0 1 1 .7-.7l3.42 3.4a.5.5 0 0 1-.63.77l-.07-.06-3.42-3.41Zm-.71-.71A5.54 5.54 0 0 0 15 9.5a5.5 5.5 0 1 0-1.98 4.23Z',
     _ElectronIconName.import =>
@@ -79,4 +76,17 @@ String _electronIconSvg(_ElectronIconName name) {
       'M4.5 3A2.5 2.5 0 0 0 2 5.5v9A2.5 2.5 0 0 0 4.5 17h11a2.5 2.5 0 0 0 2.5-2.5v-7A2.5 2.5 0 0 0 15.5 5h-4.09L10.15 3.73A2.5 2.5 0 0 0 8.38 3H4.5ZM3 5.5C3 4.67 3.67 4 4.5 4h3.88c.4 0 .78.16 1.06.44l1.41 1.41c.1.1.22.15.36.15h4.29c.54 0 1.02.3 1.28.73H3V5.5ZM3 7.73h14v6.77c0 .83-.67 1.5-1.5 1.5h-11A1.5 1.5 0 0 1 3 14.5V7.73Z',
   };
   return '<svg viewBox="0 0 20 20" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><path d="$path"/></svg>';
+}
+
+class _MusicDialogResetIcon extends StatelessWidget {
+  const _MusicDialogResetIcon({this.size = 20});
+
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Icon(FluentIcons.arrow_clockwise_20_regular, size: size),
+    );
+  }
 }

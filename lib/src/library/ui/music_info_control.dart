@@ -89,10 +89,7 @@ class MusicInfoControl extends StatelessWidget {
               children: [
                 if (state.dirty)
                   _MusicDialogCommandButton(
-                    iconWidget: const _ElectronIcon(
-                      _ElectronIconName.undo,
-                      size: 20,
-                    ),
+                    iconWidget: const _MusicDialogResetIcon(),
                     label: i18n.t('common.reset'),
                     commandBar: true,
                     disabled: loading || saving,
@@ -235,7 +232,7 @@ class MusicInfoControl extends StatelessWidget {
                               return Row(
                                 children: [
                                   Expanded(
-                                    child: Tooltip(
+                                    child: PopupDialogHoverTooltip(
                                       message: tooltip,
                                       child: _DialogField(
                                         controller: playCountController,
@@ -249,8 +246,7 @@ class MusicInfoControl extends StatelessWidget {
                                       key: const ValueKey(
                                         'MusicDialog.ClearPlayCountButton',
                                       ),
-                                      iconWidget: const _ElectronIcon(
-                                        _ElectronIconName.undo,
+                                      iconWidget: const _MusicDialogResetIcon(
                                         size: 18,
                                       ),
                                       tooltip: i18n.t(

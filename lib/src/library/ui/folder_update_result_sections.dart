@@ -52,7 +52,12 @@ class FolderUpdateResultFileSection extends StatelessWidget {
         items.length > _folderUpdateResultMaxVisibleRows
             ? _folderUpdateResultMaxVisibleRows
             : items.length;
-    const rowHeight = _folderUpdateResultRowHeight;
+    final rowHeight =
+        playable
+            ? PlaylistControlItemMetrics.rowHeight(
+              MediaQuery.sizeOf(context).width,
+            )
+            : _folderUpdateResultRowHeight;
     final desiredContentHeight = visibleRows * rowHeight;
     final desiredListHeight =
         desiredContentHeight + _folderUpdateResultListBorderWidth * 2;

@@ -22,10 +22,13 @@ class _SongDialogScrollableBodyState extends State<_SongDialogScrollableBody> {
 
   @override
   Widget build(BuildContext context) {
+    const trackWidth = 8.0;
+    final resolvedPadding = widget.padding.resolve(Directionality.of(context));
     return _SongDialogScrollbarHost(
       controller: _controller,
-      right: 5,
+      right: (resolvedPadding.right - trackWidth) / 2,
       bottom: 0,
+      trackWidth: trackWidth,
       child: ScrollConfiguration(
         behavior: ScrollConfiguration.of(context).copyWith(scrollbars: false),
         child: SingleChildScrollView(
@@ -44,7 +47,7 @@ class _SongDialogScrollbarHost extends StatefulWidget {
     required this.child,
     required this.right,
     this.bottom = 0,
-    this.trackWidth = 9,
+    this.trackWidth = 8,
     this.normalThumbLeft = 2,
     this.normalThumbRight = 2,
     this.hoverThumbLeft = 1,

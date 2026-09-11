@@ -51,6 +51,14 @@ class MusicLyricsControl extends StatelessWidget {
             return _MusicDialogCommandBar(
               showBusy: false,
               children: [
+                if (state.dirty)
+                  _MusicDialogCommandButton(
+                    iconWidget: const _MusicDialogResetIcon(),
+                    label: i18n.t('common.reset'),
+                    commandBar: true,
+                    disabled: loading || operationRunning || searching,
+                    onPressed: onReset,
+                  ),
                 _MusicDialogCommandButton(
                   iconWidget: const _ElectronIcon(
                     _ElectronIconName.search,
@@ -85,17 +93,6 @@ class MusicLyricsControl extends StatelessWidget {
                   disabled: loading || operationRunning || searching,
                   onPressed: onSave,
                 ),
-                if (state.dirty)
-                  _MusicDialogCommandButton(
-                    iconWidget: const _ElectronIcon(
-                      _ElectronIconName.undo,
-                      size: 20,
-                    ),
-                    label: i18n.t('common.reset'),
-                    commandBar: true,
-                    disabled: loading || operationRunning || searching,
-                    onPressed: onReset,
-                  ),
                 if (state.lyricsCanToggleTimestamps)
                   _LyricsTimestampToggle(
                     value: state.showLyricsTimestamps,

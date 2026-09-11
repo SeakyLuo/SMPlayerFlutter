@@ -17,7 +17,6 @@ extension _MusicDialogStateResetActions on _MusicDialogState {
     ref
         .read(musicDialogPropertiesStateProvider(_dialogSessionKey).notifier)
         .refresh(dirty: false);
-    _showMessage(context.smPlayerI18n.t('song.propertiesReset'));
   }
 
   void _resetLyrics() {
@@ -40,7 +39,6 @@ extension _MusicDialogStateResetActions on _MusicDialogState {
           canToggleTimestamps: _lyricsCanToggleTimestamps,
           refresh: true,
         );
-    _showMessage(context.smPlayerI18n.t('song.lyricsReset'));
   }
 
   void _resetArtwork() {

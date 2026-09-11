@@ -103,7 +103,7 @@ class _MusicDialogCommandButton extends StatelessWidget {
             ? const <BoxShadow>[]
             : colors.buttonShadow;
     final buttonHeight = compact ? 38.0 : 40.0;
-    final buttonMinWidth = commandBar ? 44.0 : 0.0;
+    final buttonMinWidth = commandBar ? (showLabel ? 80.0 : 44.0) : 0.0;
     final mobile =
         MediaQuery.sizeOf(context).width <= popupDialogMobileBreakpoint;
     final horizontalPadding =
@@ -210,13 +210,17 @@ class _MusicDialogCommandButton extends StatelessWidget {
         commandBarDisabled
             ? Opacity(opacity: 0.45, child: styledButton)
             : styledButton;
+    final heightConstrainedButton = SizedBox(
+      height: buttonHeight,
+      child: resolvedButton,
+    );
     final paddedButton =
         commandBar
             ? Padding(
               padding: const EdgeInsets.symmetric(horizontal: 3),
-              child: resolvedButton,
+              child: heightConstrainedButton,
             )
-            : resolvedButton;
+            : heightConstrainedButton;
     if (!showLabel) {
       return PopupDialogHoverTooltip(message: label, child: paddedButton);
     }

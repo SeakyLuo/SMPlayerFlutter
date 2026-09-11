@@ -152,6 +152,8 @@ class NowPlayingQueueView extends StatelessWidget {
               : PlaylistControlItemVariant.standard,
       collapseCompactPrimaryActions: compactQueueLayout,
       showCompactPrimaryActions: compactQueueLayout,
+      keepFavoriteActionInCompact: true,
+      keepAddToActionInCompact: true,
       overlayCompactActions: compactQueueLayout,
       compactDurationWidth:
           compactQueueLayout
@@ -161,7 +163,9 @@ class NowPlayingQueueView extends StatelessWidget {
           compactQueueLayout
               ? PlaylistControlItemMetrics.nowPlayingCompactTrailingInset
               : null,
-      favoriteLabel: i18n.t('common.favorite'),
+      favoriteLabel: i18n.t(
+        song.favorite ? 'context.removeFavorite' : 'context.addFavorite',
+      ),
       addToPlaylistLabel: i18n.t('context.addToPlaylist'),
       removeLabel: i18n.t('nowPlaying.remove'),
       moreLabel: i18n.t('player.more'),

@@ -61,6 +61,10 @@ class _MusicDialogIconButton extends StatelessWidget {
     if (tooltip == null) {
       return button;
     }
-    return PopupDialogHoverTooltip(message: tooltip!, child: button);
+    return PopupDialogHoverTooltip(
+      message: tooltip!,
+      alignToTrailingEdge: true,
+      child: button,
+    );
   }
 }

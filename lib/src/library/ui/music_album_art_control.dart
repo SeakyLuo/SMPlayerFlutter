@@ -177,16 +177,25 @@ class _AlbumArtEditorControlState extends ConsumerState<AlbumArtEditorControl> {
         _MusicDialogCommandBar(
           showBusy: widget.showBusy,
           children: [
-            _MusicDialogCommandButton(
-              iconWidget: const _ElectronIcon(
-                _ElectronIconName.trash,
-                size: 20,
+            if (widget.onResetArtwork != null)
+              _MusicDialogCommandButton(
+                iconWidget: const _MusicDialogResetIcon(),
+                label: i18n.t('common.reset'),
+                commandBar: true,
+                disabled: widget.loading || operationRunning,
+                onPressed: widget.onResetArtwork,
+              )
+            else if (hasArtworkFile)
+              _MusicDialogCommandButton(
+                iconWidget: const _ElectronIcon(
+                  _ElectronIconName.trash,
+                  size: 20,
+                ),
+                label: i18n.t('playlists.delete'),
+                commandBar: true,
+                disabled: widget.loading || operationRunning,
+                onPressed: widget.onRequestDelete,
               ),
-              label: i18n.t('playlists.delete'),
-              commandBar: true,
-              disabled: widget.loading || operationRunning || !hasArtworkFile,
-              onPressed: widget.onRequestDelete,
-            ),
             _ArtworkSourceButton(
               loading: widget.changingArtwork,
               disabled: widget.loading || widget.saving,
@@ -202,17 +211,6 @@ class _AlbumArtEditorControlState extends ConsumerState<AlbumArtEditorControl> {
               disabled: widget.loading || widget.changingArtwork,
               onPressed: widget.onSaveArtwork,
             ),
-            if (widget.onResetArtwork != null)
-              _MusicDialogCommandButton(
-                iconWidget: const _ElectronIcon(
-                  _ElectronIconName.undo,
-                  size: 20,
-                ),
-                label: i18n.t('common.reset'),
-                commandBar: true,
-                disabled: widget.loading || operationRunning,
-                onPressed: widget.onResetArtwork,
-              ),
           ],
         ),
         Expanded(
@@ -253,38 +251,29 @@ class _AlbumArtEditorControlState extends ConsumerState<AlbumArtEditorControl> {
                                           500.0,
                                           MediaQuery.sizeOf(context).width - 92,
                                         ),
-                                        child: Stack(
-                                          fit: StackFit.expand,
-                                          children: [
-                                            Center(
-                                              child: Text(
-                                                i18n.t('song.noAlbumArt'),
-                                                style: TextStyle(
-                                                  color: colors.text,
-                                                  fontSize: 16,
-                                                  fontWeight: FontWeight.w400,
-                                                  height: 1.35,
-                                                ),
-                                              ),
-                                            ),
-                                            if (widget.recommendation != null &&
-                                                widget.onApplyRecommendation !=
-                                                    null)
-                                              Align(
-                                                alignment: const Alignment(
-                                                  0,
-                                                  0.18,
-                                                ),
-                                                child: _AlbumArtRecommendationText(
-                                                  recommendation:
-                                                      widget.recommendation!,
-                                                  onApply:
-                                                      widget
-                                                          .onApplyRecommendation!,
-                                                  showFallbackLabel: false,
-                                                ),
-                                              ),
-                                          ],
+                                        child: Center(
+                                          child:
+                                              widget.recommendation != null &&
+                                                      widget.onApplyRecommendation !=
+                                                          null
+                                                  ? _AlbumArtRecommendationText(
+                                                    recommendation:
+                                                        widget.recommendation!,
+                                                    onApply:
+                                                        widget
+                                                            .onApplyRecommendation!,
+                                                  )
+                                                  : Text(
+                                                    i18n.t('song.noAlbumArt'),
+                                                    textAlign: TextAlign.center,
+                                                    style: TextStyle(
+                                                      color: colors.text,
+                                                      fontSize: 16,
+                                                      fontWeight:
+                                                          FontWeight.w400,
+                                                      height: 1.35,
+                                                    ),
+                                                  ),
                                         ),
                                       ),
                                     ),
