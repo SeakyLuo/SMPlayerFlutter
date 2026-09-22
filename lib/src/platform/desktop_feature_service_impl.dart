@@ -361,15 +361,21 @@ class TrayWindowDesktopFeatureService
     }
 
     if (Platform.isWindows) {
-      await _ignorePlatformErrors(
-        Process.run('powershell', [
-          '-NoProfile',
-          '-ExecutionPolicy',
-          'Bypass',
-          '-Command',
-          windowsToastPowerShellCommand(payload, body),
-        ]),
-      );
+      final result = await Process.run('powershell.exe', [
+        '-NoProfile',
+        '-ExecutionPolicy',
+        'Bypass',
+        '-Command',
+        windowsToastPowerShellCommand(payload, body),
+      ]);
+      if (result.exitCode != 0) {
+        throw ProcessException(
+          'powershell.exe',
+          const [],
+          'Windows notification failed: ${result.stderr}',
+          result.exitCode,
+        );
+      }
       return;
     }
 

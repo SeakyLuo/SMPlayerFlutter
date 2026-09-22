@@ -37,9 +37,14 @@ $xml.DocumentElement.AppendChild($audio) | Out-Null
 '''
           : '';
   return '''
+\$ErrorActionPreference = 'Stop'
+[Windows.UI.Notifications.ToastNotificationManager, Windows.UI.Notifications, ContentType = WindowsRuntime] | Out-Null
+[Windows.UI.Notifications.ToastNotification, Windows.UI.Notifications, ContentType = WindowsRuntime] | Out-Null
+[Windows.Data.Xml.Dom.XmlDocument, Windows.Data.Xml.Dom.XmlDocument, ContentType = WindowsRuntime] | Out-Null
 \$template = [Windows.UI.Notifications.ToastTemplateType]::ToastText02
 \$xml = [Windows.UI.Notifications.ToastNotificationManager]::GetTemplateContent(\$template)
 \$xml.DocumentElement.SetAttribute('launch', $activationUri)
+\$xml.DocumentElement.SetAttribute('activationType', 'protocol')
 \$textNodes = \$xml.GetElementsByTagName('text')
 \$textNodes.Item(0).AppendChild(\$xml.CreateTextNode($title)) | Out-Null
 \$textNodes.Item(1).AppendChild(\$xml.CreateTextNode($message)) | Out-Null
