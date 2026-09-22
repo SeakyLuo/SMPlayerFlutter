@@ -392,7 +392,8 @@ double _estimateMusicDialogCommandBarItemWidth(
           : 20.0;
   final iconGap = iconWidth == 0 ? 0.0 : 8.0;
   final horizontalPadding = mobile ? 20.0 : 28.0;
-  return (horizontalPadding + iconGap + iconWidth + labelPainter.width)
+  return math
+      .max(80.0, horizontalPadding + iconGap + iconWidth + labelPainter.width)
       .ceilToDouble();
 }
 

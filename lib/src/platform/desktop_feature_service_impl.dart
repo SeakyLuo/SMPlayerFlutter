@@ -537,9 +537,18 @@ class TrayWindowDesktopFeatureService
 
   @override
   void onTrayIconMouseDown() {
+    if (Platform.isMacOS) {
+      unawaited(tray.trayManager.popUpContextMenu());
+      return;
+    }
     _emit(
       const DesktopFeatureAction(DesktopFeatureCommand.toggleWindowVisibility),
     );
+  }
+
+  @override
+  void onTrayIconRightMouseDown() {
+    unawaited(tray.trayManager.popUpContextMenu());
   }
 
   @override

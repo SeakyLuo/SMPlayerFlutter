@@ -96,18 +96,23 @@ class _HeaderedPlaylistListHeader extends StatelessWidget {
     );
     return LayoutBuilder(
       builder: (context, constraints) {
-        final narrow = constraints.maxWidth <= 1120;
+        final narrow = PlaylistControlItemMetrics.isCompactRow(
+          constraints.maxWidth,
+        );
         return SizedBox(
           key: const ValueKey('HeaderedPlaylist.ListHeader'),
           height: 42,
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 14),
+            padding:
+                narrow
+                    ? const EdgeInsets.all(10)
+                    : const EdgeInsets.fromLTRB(18, 10, 22, 10),
             child: Row(
               children: [
-                const SizedBox(width: 64),
+                const SizedBox(width: 56),
                 const SizedBox(width: 14),
                 Expanded(
-                  flex: showAlbum && !narrow ? 118 : 100,
+                  flex: showAlbum && !narrow ? 12 : 1,
                   child: Text(
                     i18n.t('headeredPlaylist.songArtist'),
                     maxLines: 1,
@@ -115,12 +120,14 @@ class _HeaderedPlaylistListHeader extends StatelessWidget {
                     style: textStyle,
                   ),
                 ),
-                const SizedBox(width: 14),
-                SizedBox(width: narrow ? 0 : 170),
+                if (!narrow) ...[
+                  const SizedBox(width: 14),
+                  const SizedBox(width: 170),
+                ],
                 if (showAlbum && !narrow) ...[
                   const SizedBox(width: 14),
                   Expanded(
-                    flex: 72,
+                    flex: 7,
                     child: Text(
                       i18n.t('table.album'),
                       maxLines: 1,
@@ -129,10 +136,14 @@ class _HeaderedPlaylistListHeader extends StatelessWidget {
                     ),
                   ),
                 ],
-                const SizedBox(width: 14),
+                SizedBox(width: narrow ? 12 : 18),
                 SizedBox(
                   key: const ValueKey('HeaderedPlaylist.DurationHeaderSlot'),
-                  width: narrow ? 20 : 74,
+                  width:
+                      narrow
+                          ? PlaylistControlItemMetrics
+                              .nowPlayingCompactDurationWidth
+                          : 74,
                   child: OverflowBox(
                     alignment: Alignment.centerRight,
                     minWidth: 0,

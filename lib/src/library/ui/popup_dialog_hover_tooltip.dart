@@ -5,10 +5,12 @@ class PopupDialogHoverTooltip extends StatefulWidget {
     super.key,
     required this.message,
     required this.child,
+    this.alignToTrailingEdge = false,
   });
 
   final String message;
   final Widget child;
+  final bool alignToTrailingEdge;
 
   @override
   State<PopupDialogHoverTooltip> createState() =>
@@ -49,20 +51,29 @@ class _PopupDialogHoverTooltipState extends State<PopupDialogHoverTooltip> {
     if (_overlayEntry != null) {
       return;
     }
+    final textDirection = Directionality.of(context);
+    final targetAnchor =
+        widget.alignToTrailingEdge
+            ? AlignmentDirectional.topEnd.resolve(textDirection)
+            : Alignment.topCenter;
+    final followerAnchor =
+        widget.alignToTrailingEdge
+            ? AlignmentDirectional.bottomEnd.resolve(textDirection)
+            : Alignment.bottomCenter;
     final overlay = Overlay.of(context, rootOverlay: true);
     final entry = OverlayEntry(
       builder:
-          (context) => Positioned.fill(
+          (context) => Positioned(
+            top: 0,
+            left: 0,
             child: IgnorePointer(
               child: CompositedTransformFollower(
                 link: _layerLink,
                 showWhenUnlinked: false,
-                targetAnchor: Alignment.topCenter,
-                followerAnchor: Alignment.bottomCenter,
+                targetAnchor: targetAnchor,
+                followerAnchor: followerAnchor,
                 offset: const Offset(0, -8),
-                child: UnconstrainedBox(
-                  child: _PopupDialogTooltipBubble(message: widget.message),
-                ),
+                child: _PopupDialogTooltipBubble(message: widget.message),
               ),
             ),
           ),

@@ -4,102 +4,70 @@ class _AlbumArtRecommendationText extends StatelessWidget {
   const _AlbumArtRecommendationText({
     required this.recommendation,
     required this.onApply,
-    this.showFallbackLabel = true,
   });
 
   final AlbumArtRecommendation recommendation;
   final ValueChanged<AlbumArtRecommendation> onApply;
-  final bool showFallbackLabel;
 
   @override
   Widget build(BuildContext context) {
     final i18n = context.smPlayerI18n;
     final colors = PopupDialogColors.resolve(context);
-
     return ConstrainedBox(
-      constraints: const BoxConstraints(maxWidth: 500),
-      child: Column(
-        key: const ValueKey('MusicDialog.AlbumArtRecommendation'),
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.center,
-        spacing: 8,
-        children: [
-          if (showFallbackLabel)
-            Text(
-              i18n.t('song.noAlbumArt'),
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                color: colors.text,
-                fontSize: 16,
-                fontWeight: FontWeight.w400,
-                height: 1.35,
-              ),
-            ),
-          SizedBox(
-            width: 500,
-            height: 40,
-            child: LayoutBuilder(
-              builder: (context, constraints) {
-                final prefix = i18n.t('song.albumArtRecommendationPrefix', {
-                  'artist': recommendation.artistName,
-                });
-                final label = i18n.t('song.albumArtRecommendationTitle', {
-                  'title': recommendation.song.title,
-                });
-                final normalStyle = TextStyle(
-                  color: colors.text,
-                  fontSize: 16,
-                  fontWeight: FontWeight.w400,
-                  height: 1.35,
-                );
-                final lineText =
-                    '$prefix$label${i18n.t('song.albumArtRecommendationSuffix')}';
-                return Stack(
-                  clipBehavior: Clip.none,
-                  children: [
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: SizedBox(
-                        width: math.min(220, constraints.maxWidth),
-                        height: 40,
-                        child: Align(
-                          alignment: Alignment.centerLeft,
-                          child: Text(
-                            lineText,
-                            key: const ValueKey(
-                              'MusicDialog.AlbumArtRecommendationLine',
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            softWrap: false,
-                            style: normalStyle,
+      constraints: BoxConstraints(
+        maxWidth: math.min(300, MediaQuery.sizeOf(context).width - 124),
+      ),
+      child: LayoutBuilder(
+        builder:
+            (context, constraints) => Column(
+              key: const ValueKey('MusicDialog.AlbumArtRecommendation'),
+              mainAxisSize: MainAxisSize.min,
+              spacing: 8,
+              children: [
+                Text(
+                  i18n.t('song.noAlbumArt'),
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: colors.text,
+                    fontSize: 16,
+                    height: 1.35,
+                  ),
+                ),
+                Text.rich(
+                  TextSpan(
+                    children: [
+                      TextSpan(
+                        text: i18n.t('song.albumArtRecommendationPrefix', {
+                          'artist': recommendation.artistName,
+                        }),
+                      ),
+                      WidgetSpan(
+                        alignment: PlaceholderAlignment.middle,
+                        child: ConstrainedBox(
+                          constraints: BoxConstraints(
+                            maxWidth: constraints.maxWidth,
+                          ),
+                          child: _AlbumArtRecommendationButton(
+                            recommendation: recommendation,
+                            onApply: onApply,
                           ),
                         ),
                       ),
-                    ),
-                    const Positioned(
-                      left: 196.5390625,
-                      top: 0,
-                      child: SizedBox(
-                        width: 281.4921875,
-                        height: 40,
-                        child: _AlbumArtRecommendationButtonHost(),
+                      TextSpan(
+                        text: i18n.t('song.albumArtRecommendationSuffix'),
                       ),
-                    ),
-                    Positioned(
-                      left: 196.5390625,
-                      top: 0,
-                      child: _AlbumArtRecommendationButton(
-                        recommendation: recommendation,
-                        onApply: onApply,
-                      ),
-                    ),
-                  ],
-                );
-              },
+                    ],
+                  ),
+                  key: const ValueKey('MusicDialog.AlbumArtRecommendationLine'),
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: colors.text,
+                    fontSize: 16,
+                    height: 1.35,
+                  ),
+                ),
+              ],
             ),
-          ),
-        ],
       ),
     );
   }
@@ -110,7 +78,6 @@ class _AlbumArtRecommendationButton extends StatefulWidget {
     required this.recommendation,
     required this.onApply,
   });
-
   final AlbumArtRecommendation recommendation;
   final ValueChanged<AlbumArtRecommendation> onApply;
 
@@ -121,73 +88,103 @@ class _AlbumArtRecommendationButton extends StatefulWidget {
 
 class _AlbumArtRecommendationButtonState
     extends State<_AlbumArtRecommendationButton> {
+  OverlayEntry? _previewEntry;
   var _hovered = false;
   var _focused = false;
 
-  void _setHovered(bool value) {
-    if (_hovered == value) {
-      return;
-    }
+  void _updatePreview({bool? hovered, bool? focused}) {
     setState(() {
-      _hovered = value;
+      if (hovered != null) _hovered = hovered;
+      if (focused != null) _focused = focused;
     });
+    if (_hovered || _focused) {
+      _showPreview();
+    } else {
+      _hidePreview();
+    }
+  }
+
+  void _showPreview() {
+    if (_previewEntry != null) return;
+    final overlay = Overlay.of(context, rootOverlay: true);
+    final entry = OverlayEntry(
+      builder: (context) {
+        return LayoutBuilder(
+          builder: (context, constraints) {
+            final target = this.context.findRenderObject()! as RenderBox;
+            final root = overlay.context.findRenderObject()! as RenderBox;
+            final origin = target.localToGlobal(Offset.zero, ancestor: root);
+            const previewSize = 128.0;
+            const gap = 12.0;
+            final left = (origin.dx + (target.size.width - previewSize) / 2)
+                .clamp(0.0, constraints.maxWidth - previewSize);
+            final above = origin.dy - previewSize - gap;
+            final top = (above >= 0
+                    ? above
+                    : origin.dy + target.size.height + gap)
+                .clamp(0.0, constraints.maxHeight - previewSize);
+            return Stack(
+              children: [
+                Positioned(
+                  left: left,
+                  top: top,
+                  width: previewSize,
+                  height: previewSize,
+                  child: _AlbumArtRecommendationPreview(
+                    recommendation: widget.recommendation,
+                    visible: true,
+                  ),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+    _previewEntry = entry;
+    overlay.insert(entry);
+  }
+
+  void _hidePreview() {
+    _previewEntry?.remove();
+    _previewEntry?.dispose();
+    _previewEntry = null;
+  }
+
+  @override
+  void dispose() {
+    _hidePreview();
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final visible = _hovered || _focused;
-    return MouseRegion(
-      onEnter: (_) => _setHovered(true),
-      onExit: (_) => _setHovered(false),
-      cursor: SystemMouseCursors.click,
-      child: Focus(
-        onFocusChange: (focused) {
-          setState(() {
-            _focused = focused;
-          });
-        },
-        child: SizedBox(
-          key: const ValueKey('MusicDialog.AlbumArtRecommendationButton'),
-          width: 281.4921875,
-          height: 40,
-          child: Stack(
-            clipBehavior: Clip.none,
-            alignment: Alignment.center,
-            children: [
-              Positioned.fill(
-                child: GestureDetector(
-                  key: const ValueKey(
-                    'MusicDialog.AlbumArtRecommendationButtonHitTarget',
-                  ),
-                  behavior: HitTestBehavior.opaque,
-                  onTap: () {
-                    widget.onApply(widget.recommendation);
-                  },
-                ),
-              ),
-              Positioned(
-                left: 192.234375,
-                bottom: 0,
-                child: _AlbumArtRecommendationPreview(
-                  recommendation: widget.recommendation,
-                  visible: visible,
-                ),
-              ),
-            ],
-          ),
+    final colors = PopupDialogColors.resolve(context);
+    final label = context.smPlayerI18n.t('song.albumArtRecommendationTitle', {
+      'title': widget.recommendation.song.title,
+    });
+    return TextButton(
+      key: const ValueKey('MusicDialog.AlbumArtRecommendationButton'),
+      onPressed: () => widget.onApply(widget.recommendation),
+      onHover: (value) => _updatePreview(hovered: value),
+      onFocusChange: (value) => _updatePreview(focused: value),
+      style: TextButton.styleFrom(
+        foregroundColor: colors.accentStrong,
+        padding: const EdgeInsets.symmetric(horizontal: 3),
+        minimumSize: Size.zero,
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        overlayColor: Colors.transparent,
+        textStyle: TextStyle(
+          fontSize: 16,
+          height: 1.35,
+          fontVariations: const [FontVariation.weight(760)],
+          decoration:
+              _hovered || _focused
+                  ? TextDecoration.underline
+                  : TextDecoration.none,
         ),
       ),
-    );
-  }
-}
-
-class _AlbumArtRecommendationButtonHost extends StatelessWidget {
-  const _AlbumArtRecommendationButtonHost();
-
-  @override
-  Widget build(BuildContext context) {
-    return const SizedBox.expand(
-      key: ValueKey('MusicDialog.AlbumArtRecommendationButtonChrome'),
+      child: Text(label, textAlign: TextAlign.center),
     );
   }
 }
@@ -203,8 +200,6 @@ class _AlbumArtRecommendationPreview extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = PopupDialogColors.resolve(context);
-    final nightMode = Theme.of(context).brightness == Brightness.dark;
     return IgnorePointer(
       child: AnimatedOpacity(
         key: const ValueKey('MusicDialog.AlbumArtRecommendationPreview'),
@@ -212,34 +207,13 @@ class _AlbumArtRecommendationPreview extends StatelessWidget {
         opacity: visible ? 1 : 0,
         child: Transform.translate(
           offset: Offset(0, visible ? 0 : 6),
-          child: SizedBox.square(
-            dimension: 128,
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                color: nightMode ? const Color(0xf51c222b) : Colors.white,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: nightMode ? colors.border : const Color(0x337e8b9a),
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color:
-                        nightMode
-                            ? const Color(0x5c000000)
-                            : const Color(0x38332644),
-                    offset: const Offset(0, 18),
-                    blurRadius: 44,
-                  ),
-                ],
-              ),
-              child: Padding(
-                padding: const EdgeInsets.all(8),
-                child: _ArtworkImage(
-                  url: recommendation.artworkUrl,
-                  size: 112,
-                  borderRadius: 8,
-                ),
-              ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: Image.file(
+              File(recommendation.artworkUrl),
+              width: 128,
+              height: 128,
+              fit: BoxFit.cover,
             ),
           ),
         ),

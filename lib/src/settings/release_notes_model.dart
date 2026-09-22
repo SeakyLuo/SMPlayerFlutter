@@ -32,6 +32,7 @@ const _releaseNoteDefinitions = [
   _ReleaseNoteDefinition('4.0.0', [
     'tryLiquidGlass',
     'lyricsSearchSupport',
+    'batchEditSongInfoSupport',
     'randomPlayMenuScopes',
     'aiControlSupport',
   ]),

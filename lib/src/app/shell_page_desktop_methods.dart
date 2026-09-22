@@ -363,7 +363,7 @@ extension _SmPlayerShellDesktopMethods on _SmPlayerShellPageState {
       case DesktopFeatureCommand.resetDesktopLyricsOffset:
         _resetCurrentDesktopLyricsOffset();
       case DesktopFeatureCommand.openSettings:
-        _navigateTo('/settings#desktop-lyrics');
+        _navigateTo('/settings');
       case DesktopFeatureCommand.quit:
         unawaited(_desktopFeatureService.quit());
       case DesktopFeatureCommand.playRecentSong:

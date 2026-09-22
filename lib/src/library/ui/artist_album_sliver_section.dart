@@ -47,7 +47,6 @@ class _ArtistAlbumSliverSection extends StatelessWidget {
   Widget build(BuildContext context) {
     final brightness = Theme.of(context).brightness;
     final compact = MediaQuery.sizeOf(context).width <= 720;
-    final narrowSongRows = MediaQuery.sizeOf(context).width <= 1120;
     final songRowColors = _ArtistsColors.artistSongRowColors(brightness);
     final sectionRadius = compact ? 8.0 : 10.0;
     final horizontalPadding = 18.0;
@@ -115,7 +114,6 @@ class _ArtistAlbumSliverSection extends StatelessWidget {
                     context: context,
                     song: album.songs[index],
                     queueSongIds: queueSongIds,
-                    narrowSongRows: narrowSongRows,
                     songRowTrailingPadding: songRowTrailingPadding,
                     songRowColors: songRowColors,
                   ),
@@ -150,7 +148,6 @@ class _ArtistAlbumSliverSection extends StatelessWidget {
     required BuildContext context,
     required LibrarySong song,
     required List<int> queueSongIds,
-    required bool narrowSongRows,
     required double songRowTrailingPadding,
     required PlaylistControlItemColors? songRowColors,
   }) {
@@ -165,8 +162,6 @@ class _ArtistAlbumSliverSection extends StatelessWidget {
       variant: PlaylistControlItemVariant.compact,
       colors: songRowColors,
       showCompactPrimaryActions: true,
-      collapseCompactPrimaryActions: narrowSongRows,
-      compactDurationWidth: narrowSongRows ? 20 : 50,
       compactTrailingPadding: songRowTrailingPadding,
       keepFavoriteActionInCompact: true,
       keepAddToActionInCompact: true,

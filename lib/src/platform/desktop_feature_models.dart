@@ -228,6 +228,19 @@ List<DesktopTrayMenuEntry> buildDesktopTrayMenuEntries(DesktopTrayState state) {
       label: labels.desktopLyrics,
       action: DesktopFeatureCommand.toggleDesktopLyrics,
     ),
+    if (state.recentSongs.isNotEmpty)
+      DesktopTrayMenuEntry(
+        label: labels.recent,
+        action: null,
+        children: [
+          for (final song in state.recentSongs.take(desktopRecentSongLimit))
+            DesktopTrayMenuEntry(
+              label: song.title,
+              action: DesktopFeatureCommand.playRecentSong,
+              songId: song.id,
+            ),
+        ],
+      ),
     const DesktopTrayMenuEntry.separator(),
     DesktopTrayMenuEntry(
       label: labels.settings,
