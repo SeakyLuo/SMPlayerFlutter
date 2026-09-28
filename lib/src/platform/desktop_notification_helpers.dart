@@ -9,25 +9,31 @@ String desktopNotificationAlbum(LibrarySong song, SmPlayerI18n i18n) {
 }
 
 String desktopNotificationBody(TrackNotificationPayload payload) {
-  final lyricsPreview = payload.lyricsPreview.trim();
-  if (lyricsPreview.isNotEmpty) {
-    return lyricsPreview;
-  }
-  final body = [
+  final metadata = desktopNotificationMetadata(payload);
+  return metadata.isEmpty ? 'Simple Melody Player' : metadata;
+}
+
+String desktopNotificationMetadata(TrackNotificationPayload payload) {
+  return [
     payload.artist,
     payload.album,
   ].where((value) => value.isNotEmpty).join(' - ');
-  return body.isEmpty ? 'Simple Melody Player' : body;
 }
 
-String windowsToastPowerShellCommand(
-  TrackNotificationPayload payload,
-  String body,
-) {
+String windowsToastPowerShellCommand(TrackNotificationPayload payload) {
   final title = _powerShellString(payload.title);
-  final message = _powerShellString(body);
+  final metadata = _powerShellString(desktopNotificationMetadata(payload));
   final appId = _powerShellString(windowsAppUserModelId);
   final activationUri = _powerShellString(windowsToastActivationUri);
+  final artwork =
+      payload.artworkPath.isEmpty
+          ? ''
+          : '''
+\$image = \$xml.CreateElement('image')
+\$image.SetAttribute('placement', 'appLogoOverride')
+\$image.SetAttribute('src', ${_powerShellString(Uri.file(payload.artworkPath, windows: true).toString())})
+\$binding.AppendChild(\$image) | Out-Null
+''';
   final silentAudio =
       payload.silent
           ? r'''
@@ -41,38 +47,21 @@ $xml.DocumentElement.AppendChild($audio) | Out-Null
 [Windows.UI.Notifications.ToastNotificationManager, Windows.UI.Notifications, ContentType = WindowsRuntime] | Out-Null
 [Windows.UI.Notifications.ToastNotification, Windows.UI.Notifications, ContentType = WindowsRuntime] | Out-Null
 [Windows.Data.Xml.Dom.XmlDocument, Windows.Data.Xml.Dom.XmlDocument, ContentType = WindowsRuntime] | Out-Null
-\$template = [Windows.UI.Notifications.ToastTemplateType]::ToastText02
-\$xml = [Windows.UI.Notifications.ToastNotificationManager]::GetTemplateContent(\$template)
+\$xml = [Windows.Data.Xml.Dom.XmlDocument]::new()
+\$xml.LoadXml('<toast><visual><binding template="ToastGeneric"></binding></visual></toast>')
 \$xml.DocumentElement.SetAttribute('launch', $activationUri)
 \$xml.DocumentElement.SetAttribute('activationType', 'protocol')
-\$textNodes = \$xml.GetElementsByTagName('text')
-\$textNodes.Item(0).AppendChild(\$xml.CreateTextNode($title)) | Out-Null
-\$textNodes.Item(1).AppendChild(\$xml.CreateTextNode($message)) | Out-Null
-$silentAudio\$toast = [Windows.UI.Notifications.ToastNotification]::new(\$xml)
+\$binding = \$xml.GetElementsByTagName('binding').Item(0)
+foreach (\$value in @($title, $metadata)) {
+  if (![string]::IsNullOrEmpty(\$value)) {
+    \$text = \$xml.CreateElement('text')
+    \$text.AppendChild(\$xml.CreateTextNode(\$value)) | Out-Null
+    \$binding.AppendChild(\$text) | Out-Null
+  }
+}
+$artwork$silentAudio\$toast = [Windows.UI.Notifications.ToastNotification]::new(\$xml)
 [Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier($appId).Show(\$toast)
 ''';
-}
-
-String desktopNotificationLyricsPreview({
-  required LyricsSnapshot lyrics,
-  required LibrarySong song,
-  required double progressSeconds,
-}) {
-  if (lyrics.lines.isEmpty) {
-    return '';
-  }
-  if (!lyrics.isSynced) {
-    return lyrics.lines.first.text.trim();
-  }
-  final index = currentDesktopLyricIndex(
-    lyrics,
-    progressSeconds,
-    song.lyricsOffsetMs,
-  );
-  if (index < 0 || index >= lyrics.lines.length) {
-    return '';
-  }
-  return lyrics.lines[index].text.trim();
 }
 
 String desktopRecentSongTitle(DesktopRecentSong song) {

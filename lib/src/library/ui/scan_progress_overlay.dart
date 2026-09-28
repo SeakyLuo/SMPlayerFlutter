@@ -15,11 +15,17 @@ class ScanProgressOverlay extends StatefulWidget {
     required this.title,
     required this.progress,
     required this.onCancel,
+    this.onRunInBackground,
+    this.collapsing = false,
+    this.collapseAlignment = Alignment.topRight,
   });
 
   final String title;
   final LocalFolderRefreshProgress progress;
   final VoidCallback? onCancel;
+  final VoidCallback? onRunInBackground;
+  final bool collapsing;
+  final Alignment collapseAlignment;
 
   @override
   State<ScanProgressOverlay> createState() => _ScanProgressOverlayState();
@@ -54,13 +60,7 @@ class _ScanProgressOverlayState extends State<ScanProgressOverlay> {
     final i18n = context.smPlayerI18n;
     final colors = LocalPageColors.of(context);
     final nightMode = Theme.of(context).brightness == Brightness.dark;
-    final stageValue =
-        (progress.current / progress.total).clamp(0, 1).toDouble();
-    final value = switch (progress.stage) {
-      LocalFolderRefreshStage.checking => stageValue * 0.80,
-      LocalFolderRefreshStage.reading => 0.80 + stageValue * 0.16,
-      LocalFolderRefreshStage.updating => 0.96 + stageValue * 0.04,
-    };
+    final value = localFolderRefreshOverallProgress(progress);
     final percent = (value * 100).round();
     final stageText = switch (progress.stage) {
       LocalFolderRefreshStage.checking => i18n.t(
@@ -75,194 +75,255 @@ class _ScanProgressOverlayState extends State<ScanProgressOverlay> {
     };
 
     return Positioned.fill(
-      child: FocusScope(
-        autofocus: true,
-        child: Material(
-          color: Colors.transparent,
-          child: ClipRect(
-            child: BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
-              child: ColoredBox(
-                color:
-                    nightMode
-                        ? const Color(0x7004080d)
-                        : const Color(0x47181e26),
-                child: Semantics(
-                  label: title,
-                  namesRoute: true,
-                  scopesRoute: true,
-                  explicitChildNodes: true,
-                  child: SafeArea(
-                    child: Center(
-                      child: ConstrainedBox(
-                        constraints: const BoxConstraints(maxWidth: 560),
-                        child: Container(
-                          margin: const EdgeInsets.symmetric(horizontal: 16),
-                          padding: const EdgeInsets.fromLTRB(34, 28, 34, 26),
-                          decoration: BoxDecoration(
-                            color:
-                                nightMode
-                                    ? const Color(0xf0161c24)
-                                    : const Color(0xf0ffffff),
-                            borderRadius: BorderRadius.circular(18),
-                            border: Border.all(
+      child: TweenAnimationBuilder<double>(
+        duration: const Duration(milliseconds: 240),
+        curve: Curves.easeInOutCubic,
+        tween: Tween(end: widget.collapsing ? 1 : 0),
+        builder: (context, value, child) {
+          return Opacity(
+            opacity: 1 - value,
+            child: Transform.scale(
+              scale: 1 - value * 0.9,
+              alignment: widget.collapseAlignment,
+              child: child,
+            ),
+          );
+        },
+        child: FocusScope(
+          autofocus: true,
+          child: Material(
+            color: Colors.transparent,
+            child: ClipRect(
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+                child: ColoredBox(
+                  color:
+                      nightMode
+                          ? const Color(0x7004080d)
+                          : const Color(0x47181e26),
+                  child: Semantics(
+                    label: title,
+                    namesRoute: true,
+                    scopesRoute: true,
+                    explicitChildNodes: true,
+                    child: SafeArea(
+                      child: Center(
+                        child: ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 560),
+                          child: Container(
+                            margin: const EdgeInsets.symmetric(horizontal: 16),
+                            padding: const EdgeInsets.fromLTRB(34, 28, 34, 26),
+                            decoration: BoxDecoration(
                               color:
                                   nightMode
-                                      ? const Color(0x24d6e0ec)
-                                      : const Color(0xb3ccd5e0),
-                            ),
-                            boxShadow: [
-                              BoxShadow(
+                                      ? const Color(0xf0161c24)
+                                      : const Color(0xf0ffffff),
+                              borderRadius: BorderRadius.circular(18),
+                              border: Border.all(
                                 color:
                                     nightMode
-                                        ? const Color(0x7a000000)
-                                        : const Color(0x3d1a2738),
-                                blurRadius: 80,
-                                offset: const Offset(0, 26),
+                                        ? const Color(0x24d6e0ec)
+                                        : const Color(0xb3ccd5e0),
                               ),
-                            ],
-                          ),
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              Row(
-                                children: [
-                                  Container(
-                                    width: 56,
-                                    height: 56,
-                                    decoration: BoxDecoration(
-                                      shape: BoxShape.circle,
-                                      color: colors.accentSoft,
-                                    ),
-                                    child: _LocalRefreshSpinner(
-                                      color: colors.accentStrong,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 18),
-                                  Expanded(
-                                    child: Text(
-                                      title,
-                                      style: TextStyle(
-                                        color: colors.textStrong,
-                                        fontSize: 28,
-                                        fontWeight: FontWeight.w700,
-                                        letterSpacing: 0,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 26),
-                              Container(
-                                padding: const EdgeInsets.fromLTRB(
-                                  22,
-                                  20,
-                                  22,
-                                  20,
-                                ),
-                                decoration: BoxDecoration(
+                              boxShadow: [
+                                BoxShadow(
                                   color:
                                       nightMode
-                                          ? const Color(0xb8121820)
-                                          : const Color(0x94ffffff),
-                                  borderRadius: BorderRadius.circular(10),
-                                  border: Border.all(
+                                          ? const Color(0x7a000000)
+                                          : const Color(0x3d1a2738),
+                                  blurRadius: 80,
+                                  offset: const Offset(0, 26),
+                                ),
+                              ],
+                            ),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                Row(
+                                  children: [
+                                    Container(
+                                      width: 56,
+                                      height: 56,
+                                      decoration: BoxDecoration(
+                                        shape: BoxShape.circle,
+                                        color: colors.accentSoft,
+                                      ),
+                                      child: _LocalRefreshSpinner(
+                                        color: colors.accentStrong,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 18),
+                                    Expanded(
+                                      child: Text(
+                                        title,
+                                        style: TextStyle(
+                                          color: colors.textStrong,
+                                          fontSize: 28,
+                                          fontWeight: FontWeight.w700,
+                                          letterSpacing: 0,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 26),
+                                Container(
+                                  padding: const EdgeInsets.fromLTRB(
+                                    22,
+                                    20,
+                                    22,
+                                    20,
+                                  ),
+                                  decoration: BoxDecoration(
                                     color:
                                         nightMode
-                                            ? const Color(0x24d6e0ec)
-                                            : const Color(0xb8ccd5e0),
+                                            ? const Color(0xb8121820)
+                                            : const Color(0x94ffffff),
+                                    borderRadius: BorderRadius.circular(10),
+                                    border: Border.all(
+                                      color:
+                                          nightMode
+                                              ? const Color(0x24d6e0ec)
+                                              : const Color(0xb8ccd5e0),
+                                    ),
                                   ),
-                                ),
-                                child: Column(
-                                  children: [
-                                    Row(
-                                      children: [
-                                        _LocalRefreshPercent(
-                                          value: value,
-                                          percent: percent,
-                                        ),
-                                        const SizedBox(width: 18),
-                                        Expanded(
-                                          child: Column(
-                                            crossAxisAlignment:
-                                                CrossAxisAlignment.start,
-                                            children: [
-                                              Text(
-                                                stageText,
-                                                maxLines: 1,
-                                                overflow: TextOverflow.ellipsis,
-                                                style: TextStyle(
-                                                  color: colors.textStrong,
-                                                  fontSize: 16,
-                                                  fontWeight: FontWeight.w700,
-                                                ),
-                                              ),
-                                              const SizedBox(height: 7),
-                                              for (final description
-                                                  in _progressDescriptions(
-                                                    i18n,
-                                                  ))
+                                  child: Column(
+                                    children: [
+                                      Row(
+                                        children: [
+                                          _LocalRefreshPercent(
+                                            value: value,
+                                            percent: percent,
+                                          ),
+                                          const SizedBox(width: 18),
+                                          Expanded(
+                                            child: Column(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
+                                              children: [
                                                 Text(
-                                                  description,
+                                                  stageText,
                                                   maxLines: 1,
                                                   overflow:
                                                       TextOverflow.ellipsis,
                                                   style: TextStyle(
-                                                    color: colors.textMuted,
-                                                    fontSize: 14,
-                                                    height: 1.5,
+                                                    color: colors.textStrong,
+                                                    fontSize: 16,
+                                                    fontWeight: FontWeight.w700,
                                                   ),
                                                 ),
-                                            ],
+                                                const SizedBox(height: 7),
+                                                for (final description
+                                                    in _progressDescriptions(
+                                                      i18n,
+                                                    ))
+                                                  Text(
+                                                    description,
+                                                    maxLines: 1,
+                                                    overflow:
+                                                        TextOverflow.ellipsis,
+                                                    style: TextStyle(
+                                                      color: colors.textMuted,
+                                                      fontSize: 14,
+                                                      height: 1.5,
+                                                    ),
+                                                  ),
+                                              ],
+                                            ),
                                           ),
-                                        ),
-                                      ],
-                                    ),
-                                    const SizedBox(height: 18),
-                                    _LocalRefreshStats(progress: progress),
-                                  ],
-                                ),
-                              ),
-                              if (onCancel != null) ...[
-                                const SizedBox(height: 28),
-                                Center(
-                                  child: SizedBox(
-                                    height: 48,
-                                    child: OutlinedButton(
-                                      onPressed:
-                                          progress.canCancel ? onCancel : null,
-                                      style: OutlinedButton.styleFrom(
-                                        minimumSize: const Size(160, 48),
-                                        foregroundColor: const Color(
-                                          0xffdc2626,
-                                        ),
-                                        disabledForegroundColor: const Color(
-                                          0x9e5b697a,
-                                        ),
-                                        side: const BorderSide(
-                                          color: Color(0x3ddc2626),
-                                        ),
-                                        shape: RoundedRectangleBorder(
-                                          borderRadius: BorderRadius.circular(
-                                            8,
-                                          ),
-                                        ),
-                                        textStyle: const TextStyle(
-                                          fontSize: 17,
-                                          fontWeight: FontWeight.w700,
-                                        ),
+                                        ],
                                       ),
-                                      child: Text(
-                                        i18n.t(
-                                          'local.updateFolderProgressStop',
-                                        ),
-                                      ),
-                                    ),
+                                      const SizedBox(height: 18),
+                                      _LocalRefreshStats(progress: progress),
+                                    ],
                                   ),
                                 ),
+                                if (onCancel != null ||
+                                    widget.onRunInBackground != null) ...[
+                                  const SizedBox(height: 28),
+                                  Center(
+                                    child: Wrap(
+                                      spacing: 12,
+                                      runSpacing: 10,
+                                      alignment: WrapAlignment.center,
+                                      children: [
+                                        if (widget.onRunInBackground != null)
+                                          SizedBox(
+                                            height: 48,
+                                            child: OutlinedButton(
+                                              onPressed:
+                                                  widget.onRunInBackground,
+                                              style: OutlinedButton.styleFrom(
+                                                minimumSize: const Size(
+                                                  160,
+                                                  48,
+                                                ),
+                                                foregroundColor:
+                                                    colors.accentStrong,
+                                                side: BorderSide(
+                                                  color: colors.accentStrong
+                                                      .withValues(alpha: 0.28),
+                                                ),
+                                                shape: RoundedRectangleBorder(
+                                                  borderRadius:
+                                                      BorderRadius.circular(8),
+                                                ),
+                                                textStyle: const TextStyle(
+                                                  fontSize: 17,
+                                                  fontWeight: FontWeight.w700,
+                                                ),
+                                              ),
+                                              child: Text(
+                                                i18n.t(
+                                                  'local.updateFolderProgressBackground',
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                        if (onCancel != null)
+                                          SizedBox(
+                                            height: 48,
+                                            child: OutlinedButton(
+                                              onPressed:
+                                                  progress.canCancel
+                                                      ? onCancel
+                                                      : null,
+                                              style: OutlinedButton.styleFrom(
+                                                minimumSize: const Size(
+                                                  160,
+                                                  48,
+                                                ),
+                                                foregroundColor: const Color(
+                                                  0xffdc2626,
+                                                ),
+                                                disabledForegroundColor:
+                                                    const Color(0x9e5b697a),
+                                                side: const BorderSide(
+                                                  color: Color(0x3ddc2626),
+                                                ),
+                                                shape: RoundedRectangleBorder(
+                                                  borderRadius:
+                                                      BorderRadius.circular(8),
+                                                ),
+                                                textStyle: const TextStyle(
+                                                  fontSize: 17,
+                                                  fontWeight: FontWeight.w700,
+                                                ),
+                                              ),
+                                              child: Text(
+                                                i18n.t(
+                                                  'local.updateFolderProgressStop',
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
                               ],
-                            ],
+                            ),
                           ),
                         ),
                       ),
@@ -306,6 +367,15 @@ class _ScanProgressOverlayState extends State<ScanProgressOverlay> {
       }),
     ];
   }
+}
+
+double localFolderRefreshOverallProgress(LocalFolderRefreshProgress progress) {
+  final stageValue = (progress.current / progress.total).clamp(0, 1).toDouble();
+  return switch (progress.stage) {
+    LocalFolderRefreshStage.checking => stageValue * 0.80,
+    LocalFolderRefreshStage.reading => 0.80 + stageValue * 0.16,
+    LocalFolderRefreshStage.updating => 0.96 + stageValue * 0.04,
+  };
 }
 
 class _LocalRefreshSpinner extends StatefulWidget {

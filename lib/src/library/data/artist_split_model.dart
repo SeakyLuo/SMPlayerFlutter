@@ -6,8 +6,20 @@ ArtistSplitAnalysisResult analyzeArtistSplits(
   List<LibrarySong>? usageSongs,
   bool existingLibraryScan = true,
   bool includeScannedSongsInUsage = false,
+  void Function(double progress)? onProgress,
 }) {
-  final targetSongs =
+  var lastReportedPercent = -1;
+  void reportProgress(double progress) {
+    final percent = (progress.clamp(0.0, 1.0) * 100).floor();
+    if (percent == lastReportedPercent) {
+      return;
+    }
+    lastReportedPercent = percent;
+    onProgress?.call(percent / 100);
+  }
+
+  reportProgress(0);
+  final splitTargetSongs =
       analysisSongs ??
       (existingLibraryScan
           ? songs
@@ -16,30 +28,47 @@ ArtistSplitAnalysisResult analyzeArtistSplits(
               )
               .toList()
           : songs);
+  final mergeTargetSongs =
+      analysisSongs ??
+      songs
+          .where((song) => song.artist.isNotEmpty || song.artists.isNotEmpty)
+          .toList();
+  reportProgress(0.04);
   final artistSplitPlan = _buildArtistSplitPlan(
-    targetSongs,
+    splitTargetSongs,
     knownArtistSongs: songs,
+    onProgress: (progress) => reportProgress(0.04 + progress * 0.21),
   );
   final artistMergePlan = _buildArtistMergePlan(
-    targetSongs,
+    mergeTargetSongs,
     artistSplitPlan,
     usageSongs: usageSongs ?? songs,
     includeScannedSongs: includeScannedSongsInUsage,
+    onProgress: (progress) => reportProgress(0.25 + progress * 0.67),
   );
+  final splitTargetSongSet = splitTargetSongs.toSet();
   final directSplits = <ArtistSplitResultItem>[];
   final possibleSplits = <ArtistSplitResultItem>[];
   final mergeSuggestions = <ArtistSplitResultItem>[];
 
-  for (final song in targetSongs) {
+  for (final (index, song) in mergeTargetSongs.indexed) {
+    final resultProgress =
+        0.92 + ((index + 1) / mergeTargetSongs.length) * 0.08;
     final mergeArtists = artistMergePlan[song];
     if (mergeArtists != null) {
       mergeSuggestions.add(_toArtistSplitResultItem(song, mergeArtists));
+      reportProgress(resultProgress);
+      continue;
+    }
+    if (!splitTargetSongSet.contains(song)) {
+      reportProgress(resultProgress);
       continue;
     }
 
     final directArtists = artistSplitPlan.autoSplits[song];
     if (directArtists != null) {
       directSplits.add(_toArtistSplitResultItem(song, directArtists));
+      reportProgress(resultProgress);
       continue;
     }
 
@@ -47,7 +76,10 @@ ArtistSplitAnalysisResult analyzeArtistSplits(
     if (possibleArtists != null) {
       possibleSplits.add(_toArtistSplitResultItem(song, possibleArtists));
     }
+    reportProgress(resultProgress);
   }
+
+  reportProgress(1);
 
   return ArtistSplitAnalysisResult(
     directSplits: directSplits,
@@ -68,12 +100,13 @@ final _artistValueSplitPattern = RegExp(r'\s*(?:;|；|、|\|)\s*');
 _ArtistSplitPlan _buildArtistSplitPlan(
   List<LibrarySong> songs, {
   required List<LibrarySong> knownArtistSongs,
+  void Function(double progress)? onProgress,
 }) {
   final knownArtists = _getKnownArtists(knownArtistSongs);
   final autoSplits = <LibrarySong, List<String>>{};
   final candidates = <_ArtistSplitCandidate>[];
 
-  for (final song in songs) {
+  for (final (index, song) in songs.indexed) {
     if (song.artists.length > 1) {
       autoSplits[song] = song.artists;
       for (final artist in song.artists) {
@@ -88,6 +121,7 @@ _ArtistSplitPlan _buildArtistSplitPlan(
     } else if (song.artist.isNotEmpty) {
       knownArtists.add(_normalizeArtistKey(song.artist));
     }
+    onProgress?.call((index + 1) / songs.length);
   }
 
   final recurringPartKeys = _getRecurringCandidatePartKeys(candidates);
@@ -139,6 +173,7 @@ Map<LibrarySong, List<String>> _buildArtistMergePlan(
   _ArtistSplitPlan artistSplitPlan, {
   required List<LibrarySong> usageSongs,
   bool includeScannedSongs = true,
+  void Function(double progress)? onProgress,
 }) {
   final artistUsage = _artistUsage(
     usageSongs,
@@ -147,8 +182,9 @@ Map<LibrarySong, List<String>> _buildArtistMergePlan(
   );
   final expandedCandidatesByArtistKey = <String, List<String>>{};
   final mergeSuggestions = <LibrarySong, List<String>>{};
+  onProgress?.call(0.05);
 
-  for (final song in songs) {
+  for (final (index, song) in songs.indexed) {
     final sourceArtists = _getArtistMergeSourceArtists(song, artistSplitPlan);
     final explodedArtists = _explodeKnownCompositeArtists(
       sourceArtists,
@@ -163,6 +199,7 @@ Map<LibrarySong, List<String>> _buildArtistMergePlan(
     if (_haveArtistNamesChanged(sourceArtists, mergedArtists)) {
       mergeSuggestions[song] = mergedArtists;
     }
+    onProgress?.call(0.05 + ((index + 1) / songs.length) * 0.95);
   }
 
   return mergeSuggestions;

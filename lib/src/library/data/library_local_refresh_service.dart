@@ -312,7 +312,7 @@ class LibraryLocalRefreshService
         );
         final artistAnalysis =
             settings.smartMultiArtistRecognition
-                ? _artistSplitService.analyzeScannedLibrary(
+                ? await _artistSplitService.analyzeScannedLibrary(
                   const <LibrarySong>[],
                   scannedSongs: scannedSongs,
                 )

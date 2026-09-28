@@ -5,9 +5,12 @@ Future<bool> showPopupConfirmDialog({
   required String title,
   required String message,
   required String confirmLabel,
+  String? cancelLabel,
+  bool cancelIsPrimary = false,
   SmPlayerI18n? i18n,
   bool destructive = true,
   Future<void> Function()? onConfirm,
+  VoidCallback? onCancel,
 }) async {
   final confirmed =
       await showScopedPopupDialog<bool>(
@@ -52,22 +55,36 @@ Future<bool> showPopupConfirmDialog({
                 canClose: !submitting,
                 footer: PopupDialogActions(
                   children: [
+                    if (cancelIsPrimary)
+                      PopupDialogActionButton(
+                        label: cancelLabel ?? dialogI18n.t('common.cancel'),
+                        primary: true,
+                        onPressed:
+                            submitting
+                                ? null
+                                : () {
+                                  onCancel?.call();
+                                  Navigator.of(dialogContext).pop(false);
+                                },
+                      ),
                     PopupDialogActionButton(
                       label: confirmLabel,
-                      primary: true,
+                      primary: !cancelIsPrimary,
                       destructive: destructive,
                       loading: submitting,
                       onPressed: submitting ? null : () => unawaited(submit()),
                     ),
-                    PopupDialogActionButton(
-                      label: dialogI18n.t('common.cancel'),
-                      onPressed:
-                          submitting
-                              ? null
-                              : () {
-                                Navigator.of(dialogContext).pop(false);
-                              },
-                    ),
+                    if (!cancelIsPrimary)
+                      PopupDialogActionButton(
+                        label: cancelLabel ?? dialogI18n.t('common.cancel'),
+                        onPressed:
+                            submitting
+                                ? null
+                                : () {
+                                  onCancel?.call();
+                                  Navigator.of(dialogContext).pop(false);
+                                },
+                      ),
                   ],
                 ),
                 child: Column(

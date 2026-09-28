@@ -278,11 +278,12 @@ class _LyricsBatchHeaderCountPill extends StatelessWidget {
     ).status(result, header: true);
     return Container(
       key: ValueKey('lyrics-detail-group-count-${result.name}'),
-      constraints: const BoxConstraints(minWidth: 24, minHeight: 22),
-      padding: const EdgeInsets.symmetric(horizontal: 8),
-      decoration: BoxDecoration(
+      constraints: const BoxConstraints(minWidth: 24),
+      height: 24,
+      padding: const EdgeInsets.symmetric(horizontal: 7),
+      decoration: ShapeDecoration(
         color: statusColors.$1,
-        borderRadius: BorderRadius.circular(999),
+        shape: const StadiumBorder(),
       ),
       alignment: Alignment.center,
       child: Text(
@@ -291,6 +292,7 @@ class _LyricsBatchHeaderCountPill extends StatelessWidget {
           color: statusColors.$2,
           fontSize: 12,
           fontWeight: FontWeight.w700,
+          height: 1,
         ),
       ),
     );

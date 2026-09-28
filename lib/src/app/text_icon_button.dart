@@ -46,6 +46,7 @@ class SmPlayerTextIconButton extends StatefulWidget {
     this.trailingIcon,
     this.trailingIconWidget,
     this.loading = false,
+    this.loadingProgress,
     this.active = false,
     this.activeSurface = true,
     this.activeMatchesHover = false,
@@ -82,6 +83,7 @@ class SmPlayerTextIconButton extends StatefulWidget {
   final IconData? trailingIcon;
   final Widget? trailingIconWidget;
   final bool loading;
+  final double? loadingProgress;
   final bool active;
   final bool activeSurface;
   final bool activeMatchesHover;
@@ -164,10 +166,12 @@ class _SmPlayerTextIconButtonInteractionState
     final activeMatchesHover = config.active && config.activeMatchesHover;
     final usesHoverStyle = hovered || activeMatchesHover;
     final foreground =
-        activeMatchesHover || hovered
+        activeMatchesHover
             ? colors.commandTextHover
             : config.active
             ? colors.accentStrong
+            : hovered
+            ? colors.commandTextHover
             : colors.commandText;
     final surfaceColor =
         activeMatchesHover
@@ -218,6 +222,7 @@ class _SmPlayerTextIconButtonInteractionState
                 SizedBox.square(
                   dimension: 16,
                   child: CircularProgressIndicator(
+                    value: config.loadingProgress,
                     strokeWidth: 2,
                     color: foreground,
                   ),

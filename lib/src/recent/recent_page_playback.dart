@@ -39,15 +39,17 @@ extension _RecentPagePlaybackActions on _RecentPageState {
 
   void _playSong(LibrarySong song, List<int> queueSongIds, [int? queueIndex]) {
     final snapshot = ref.read(recentPageDataProvider).value!;
-    setNowPlayingQueue(ref, queueSongIds);
-    playQueueIndexFromSongs(
-      ref: ref,
-      songs: snapshot.songs,
-      i18n: context.smPlayerI18n,
-      songIds: queueSongIds,
-      queueIndex: queueIndex ?? queueSongIds.indexOf(song.id),
+    unawaited(
+      replaceNowPlayingQueueAndPlayIndexFromSongs(
+        ref: ref,
+        songs: snapshot.songs,
+        persistedSongIds: snapshot.nowPlaying.songIds,
+        i18n: context.smPlayerI18n,
+        songIds: queueSongIds,
+        queueIndex: queueIndex ?? queueSongIds.indexOf(song.id),
+        showQueueUpdatedNotification: false,
+      ),
     );
-    ref.invalidate(recentPageDataProvider);
   }
 
   void _playSongIds(List<int> songIds) {

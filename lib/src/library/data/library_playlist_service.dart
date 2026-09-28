@@ -319,10 +319,7 @@ class LibraryPlaylistService {
     }
   }
 
-  Future<void> reorderPlaylists(
-    File databaseFile,
-    List<int> playlistIds,
-  ) async {
+  void reorderPlaylists(File databaseFile, List<int> playlistIds) {
     if (!databaseFile.existsSync()) {
       return;
     }

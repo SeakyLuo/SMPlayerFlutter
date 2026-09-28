@@ -84,10 +84,10 @@ class _ArtistSplitEditorCellState extends State<_ArtistSplitEditorCell> {
         decoration: InputDecoration(
           contentPadding: const EdgeInsets.fromLTRB(9, 0, 38, 0),
           filled: true,
-          fillColor: Colors.white.withValues(alpha: 0.72),
+          fillColor: colors.fieldSurface,
           enabledBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(7),
-            borderSide: const BorderSide(color: Color(0x3d7e8b9a)),
+            borderSide: BorderSide(color: colors.inputBorder),
           ),
           focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(7),
@@ -114,12 +114,14 @@ class _ArtistSplitEditorRemoveButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = PopupDialogColors.resolve(context);
     return IconButton(
       style: IconButton.styleFrom(
         fixedSize: const Size.square(28),
         padding: EdgeInsets.zero,
-        foregroundColor: PopupDialogColors.resolve(context).textStrong,
+        foregroundColor: colors.textStrong,
         backgroundColor: Colors.transparent,
+        hoverColor: colors.buttonHoverSurface,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
       ),
       icon: const Icon(FluentIcons.dismiss_20_regular, size: 15),
@@ -174,17 +176,18 @@ class _ArtistSplitIconButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = PopupDialogColors.resolve(context);
-    return Tooltip(
+    return PopupDialogHoverTooltip(
       message: tooltip,
       child: IconButton(
         style: IconButton.styleFrom(
           fixedSize: const Size.square(34),
           padding: EdgeInsets.zero,
           foregroundColor: colors.textStrong,
-          backgroundColor: Colors.white.withValues(alpha: 0.72),
+          backgroundColor: colors.buttonSurface,
+          hoverColor: colors.buttonHoverSurface,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(8),
-            side: const BorderSide(color: Color(0x387e8b9a)),
+            side: BorderSide(color: colors.buttonBorder),
           ),
         ),
         icon: Icon(icon, size: 15),
@@ -208,7 +211,7 @@ class _ArtistSplitSmallIconButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = PopupDialogColors.resolve(context);
-    return Tooltip(
+    return PopupDialogHoverTooltip(
       message: tooltip,
       child: IconButton(
         style: IconButton.styleFrom(
@@ -216,11 +219,12 @@ class _ArtistSplitSmallIconButton extends StatelessWidget {
           padding: EdgeInsets.zero,
           foregroundColor: colors.textStrong,
           disabledForegroundColor: colors.textMuted.withValues(alpha: 0.44),
-          backgroundColor: Colors.white.withValues(alpha: 0.72),
-          disabledBackgroundColor: Colors.white.withValues(alpha: 0.44),
+          backgroundColor: colors.buttonSurface,
+          disabledBackgroundColor: colors.fieldDisabledSurface,
+          hoverColor: colors.buttonHoverSurface,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(8),
-            side: const BorderSide(color: Color(0x387e8b9a)),
+            side: BorderSide(color: colors.buttonBorder),
           ),
         ),
         icon: Icon(icon, size: 15),

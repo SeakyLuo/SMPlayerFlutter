@@ -260,7 +260,7 @@ class TrackNotificationPayload {
     required this.title,
     required this.artist,
     required this.album,
-    this.lyricsPreview = '',
+    required this.artworkPath,
     this.silent = false,
   });
 
@@ -268,7 +268,7 @@ class TrackNotificationPayload {
   final String title;
   final String artist;
   final String album;
-  final String lyricsPreview;
+  final String artworkPath;
   final bool silent;
 }
 

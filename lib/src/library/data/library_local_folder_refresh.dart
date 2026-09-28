@@ -255,7 +255,7 @@ mixin _LibraryLocalFolderRefresh on _LibraryLocalRefreshOperations {
         );
         final artistAnalysis =
             settings.smartMultiArtistRecognition
-                ? _artistSplitService.analyzeScannedLibrary(
+                ? await _artistSplitService.analyzeScannedLibrary(
                   _readService.readSongs(db),
                   scannedSongs: scannedSongs,
                 )

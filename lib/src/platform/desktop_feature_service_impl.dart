@@ -366,7 +366,7 @@ class TrayWindowDesktopFeatureService
         '-ExecutionPolicy',
         'Bypass',
         '-Command',
-        windowsToastPowerShellCommand(payload, body),
+        windowsToastPowerShellCommand(payload),
       ]);
       if (result.exitCode != 0) {
         throw ProcessException(
@@ -579,6 +579,7 @@ class TrayWindowDesktopFeatureService
             title: state.labels.trayRunningTitle,
             artist: state.labels.trayRunningBody,
             album: '',
+            artworkPath: '',
             silent: true,
           ),
         ),

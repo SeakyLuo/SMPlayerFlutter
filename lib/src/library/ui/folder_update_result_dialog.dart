@@ -126,7 +126,12 @@ class FolderUpdateResultDialogState extends State<FolderUpdateResultDialog> {
       onClose: widget.onClose,
       navChildren: [Expanded(child: _FolderUpdateResultTitle(title))],
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 0, 16, 20),
+        padding: EdgeInsets.fromLTRB(
+          16,
+          0,
+          16,
+          _activeTab == FolderUpdateResultTab.artists ? 0 : 20,
+        ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [

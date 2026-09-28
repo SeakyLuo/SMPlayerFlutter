@@ -192,7 +192,10 @@ Future<void> replaceNowPlayingQueueAndPlayIndexFromSongs({
     hideAppNotification();
   }
   queueOverrideController.state = nextSongIds;
-  final persistQueue = repository.replaceNowPlaying(nextSongIds);
+  final persistQueue = repository.replaceNowPlaying(
+    nextSongIds,
+    recordHistory: queueChanged,
+  );
   playQueueIndexFromSongs(
     ref: ref,
     songs: songs,
@@ -204,6 +207,9 @@ Future<void> replaceNowPlayingQueueAndPlayIndexFromSongs({
     autoplay: autoplay,
   );
   await persistQueue;
+  if (queueChanged) {
+    ref.invalidate(recentPageDataProvider);
+  }
   if (!showQueueUpdatedNotification ||
       !queueChanged ||
       previousSongIds.isEmpty ||
@@ -217,7 +223,10 @@ Future<void> replaceNowPlayingQueueAndPlayIndexFromSongs({
     message: i18n.t('notification.nowPlayingUpdated'),
     onUndo: () async {
       queueOverrideController.state = previousSongIds;
-      final restoreQueue = repository.replaceNowPlaying(previousSongIds);
+      final restoreQueue = repository.replaceNowPlaying(
+        previousSongIds,
+        recordHistory: true,
+      );
       if (previousMediaState.track.id == null) {
         controller.clearTrack();
       } else {
@@ -230,6 +239,7 @@ Future<void> replaceNowPlayingQueueAndPlayIndexFromSongs({
         );
       }
       await restoreQueue;
+      ref.invalidate(recentPageDataProvider);
     },
   );
 }

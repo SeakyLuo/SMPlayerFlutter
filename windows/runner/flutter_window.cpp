@@ -41,6 +41,8 @@ constexpr int kTaskbarButtonNext = 5103;
 constexpr wchar_t kWindowsAppUserModelId[] = L"com.seaky.simplemelodyplayer";
 constexpr ULONG_PTR kOpenExternalArgumentsCopyDataType = 0x534D504F;
 constexpr wchar_t kDesktopLyricsWindowClass[] = L"SMPlayerDesktopLyricsWindow";
+constexpr int kDesktopLyricsWindowWidth = 760;
+constexpr int kDesktopLyricsWindowHeight = 148;
 constexpr wchar_t kGetPreferredBrightnessRegKey[] =
     L"Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize";
 constexpr wchar_t kGetPreferredBrightnessRegValue[] = L"AppsUseLightTheme";
@@ -216,13 +218,27 @@ bool IsDarkModePreferred() {
   return result == ERROR_SUCCESS && value == 0;
 }
 
+RECT DefaultDesktopLyricsBounds(HWND owner) {
+  MONITORINFO monitor_info = {};
+  monitor_info.cbSize = sizeof(monitor_info);
+  ::GetMonitorInfoW(
+      ::MonitorFromWindow(owner, MONITOR_DEFAULTTOPRIMARY), &monitor_info);
+  const RECT& work_area = monitor_info.rcWork;
+  const int x =
+      work_area.left +
+      ((work_area.right - work_area.left) - kDesktopLyricsWindowWidth) / 2;
+  const int y =
+      work_area.bottom - kDesktopLyricsWindowHeight - 120;
+  return RECT{x, y, x + kDesktopLyricsWindowWidth,
+              y + kDesktopLyricsWindowHeight};
+}
+
+bool DesktopLyricsBoundsAreVisible(const RECT& bounds) {
+  return ::MonitorFromRect(&bounds, MONITOR_DEFAULTTONULL) != nullptr;
+}
+
 RECT ResolveDesktopLyricsBounds(HWND owner, const std::wstring& raw_bounds) {
-  RECT work_area;
-  ::SystemParametersInfoW(SPI_GETWORKAREA, 0, &work_area, 0);
-  int x = work_area.left + ((work_area.right - work_area.left) - 760) / 2;
-  int y = work_area.bottom - 148 - 120;
-  int width = 760;
-  int height = 148;
+  RECT bounds = DefaultDesktopLyricsBounds(owner);
   if (!raw_bounds.empty()) {
     int parsed_x = 0;
     int parsed_y = 0;
@@ -233,11 +249,15 @@ RECT ResolveDesktopLyricsBounds(HWND owner, const std::wstring& raw_bounds) {
                     &parsed_x, &parsed_y, &parsed_width, &parsed_height) == 4 ||
         ::swscanf_s(raw_bounds.c_str(), L"%d,%d,%d,%d", &parsed_x, &parsed_y,
                     &parsed_width, &parsed_height) == 4) {
-      x = parsed_x;
-      y = parsed_y;
+      RECT saved_bounds{parsed_x, parsed_y,
+                        parsed_x + kDesktopLyricsWindowWidth,
+                        parsed_y + kDesktopLyricsWindowHeight};
+      if (DesktopLyricsBoundsAreVisible(saved_bounds)) {
+        bounds = saved_bounds;
+      }
     }
   }
-  return RECT{x, y, x + width, y + height};
+  return bounds;
 }
 
 std::wstring CurrentExecutablePath() {
@@ -948,6 +968,14 @@ void FlutterWindow::UpdateDesktopLyricsWindow(
   ::SetTimer(desktop_lyrics_window_, 1,
              desktop_lyrics_scrolling_ && desktop_lyrics_playing_ ? 33 : 100,
              nullptr);
+  RECT current_bounds;
+  if (::GetWindowRect(desktop_lyrics_window_, &current_bounds) &&
+      !DesktopLyricsBoundsAreVisible(current_bounds)) {
+    const RECT default_bounds = DefaultDesktopLyricsBounds(GetHandle());
+    ::SetWindowPos(desktop_lyrics_window_, nullptr, default_bounds.left,
+                   default_bounds.top, 0, 0,
+                   SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE);
+  }
   if (!::IsWindowVisible(desktop_lyrics_window_)) {
     ::ShowWindow(desktop_lyrics_window_, SW_SHOWNOACTIVATE);
   }

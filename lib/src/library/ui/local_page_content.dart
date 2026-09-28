@@ -314,7 +314,14 @@ extension _LocalPageContent on _LocalPageState {
                               isCompactLayout
                                   ? i18n.t('local.updateFolderShort')
                                   : i18n.t('local.updateFolder'),
-                          onPressed: () => _refreshFolder(currentNode, i18n),
+                          loading: _refreshFolderRunning,
+                          loadingProgress: _refreshButtonProgressNotifier,
+                          canOverflow: !_refreshFolderRunning,
+                          onPressed:
+                              () =>
+                                  _refreshFolderRunning
+                                      ? _showRefreshFolderTask()
+                                      : _refreshFolder(currentNode, i18n),
                         ),
                         CommandBarButton(
                           icon: FluentIcons.arrow_sort_24_regular,
@@ -672,7 +679,9 @@ extension _LocalPageContent on _LocalPageState {
                     }),
                 onCancel: () => _updateLocalPageState(_clearMultiSelectStatus),
               ),
-              if (_refreshProgress != null) _buildScanProgressOverlay(i18n),
+              if (_refreshProgress != null &&
+                  (!_refreshFolderRunning || !_refreshFolderBackgrounded))
+                _buildScanProgressOverlay(i18n),
               if (_refreshResultDialog case final dialog?)
                 FolderUpdateResultDialog(
                   folder: dialog.folder,

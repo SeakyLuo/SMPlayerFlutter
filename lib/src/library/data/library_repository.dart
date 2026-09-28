@@ -354,12 +354,16 @@ class LibraryRepository
     );
   }
 
-  Future<void> replaceNowPlaying(List<int> songIds) async {
+  Future<void> replaceNowPlaying(
+    List<int> songIds, {
+    bool recordHistory = false,
+  }) async {
     final databaseFile = await _resolveDatabaseFile();
     await _playbackHistoryService.replaceNowPlaying(
       databaseFile,
       _resolveNowPlayingFile(),
       songIds,
+      recordHistory: recordHistory,
     );
   }
 
@@ -442,9 +446,19 @@ class LibraryRepository
     await setSongsFavorite([songId], favorite);
   }
 
-  Future<ArtistSplitAnalysisResult> analyzeArtistSplits() async {
+  Future<ArtistSplitAnalysisResult> analyzeArtistSplits({
+    void Function(double progress)? onProgress,
+  }) async {
+    onProgress?.call(0);
     final songs = await getLibrarySongs();
-    return _artistSplitService.analyzeExistingLibrary(songs);
+    onProgress?.call(0.08);
+    return _artistSplitService.analyzeExistingLibrary(
+      songs,
+      onProgress:
+          onProgress == null
+              ? null
+              : (progress) => onProgress(0.08 + progress * 0.92),
+    );
   }
 
   Future<void> applyArtistSplits(List<ArtistSplitResultItem> splits) async {

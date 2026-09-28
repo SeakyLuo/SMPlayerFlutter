@@ -31,9 +31,7 @@ class LibrarySnapshotService {
     final key = (path, queuePath);
     return _loads.putIfAbsent(key, () {
       // Share overlapping page loads only; the next load must observe writes.
-      return run(
-        () => _readContent(path, queuePath),
-      ).whenComplete(() {
+      return run(() => _readContent(path, queuePath)).whenComplete(() {
         _loads.remove(key);
       });
     });
@@ -72,6 +70,7 @@ class LibrarySnapshotService {
           playlists: _history.readRecentPlaylists(db),
           albums: _history.readRecentAlbums(db),
           artists: _history.readRecentArtists(db),
+          nowPlaying: _history.readRecentNowPlaying(db, songs),
           browses: _browse.read(db),
         );
       } finally {
@@ -84,6 +83,7 @@ class LibrarySnapshotService {
       recentPlaylists: recent.playlists,
       recentAlbums: recent.albums,
       recentArtists: recent.artists,
+      recentNowPlaying: recent.nowPlaying,
       recentBrowses: recent.browses,
       recentSearches: content.recentSearches,
       playlists: content.playlists,

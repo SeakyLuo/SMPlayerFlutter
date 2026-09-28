@@ -35,6 +35,7 @@ class PopupDialogActionButton extends StatelessWidget {
     this.primary = false,
     this.destructive = false,
     this.loading = false,
+    this.loadingProgress,
   });
 
   final String label;
@@ -42,6 +43,7 @@ class PopupDialogActionButton extends StatelessWidget {
   final bool primary;
   final bool destructive;
   final bool loading;
+  final double? loadingProgress;
 
   @override
   Widget build(BuildContext context) {
@@ -50,6 +52,7 @@ class PopupDialogActionButton extends StatelessWidget {
       return SmPlayerTextIconButton(
         label: label,
         loading: loading,
+        loadingProgress: loadingProgress,
         disabled: onPressed == null,
         onPressed: onPressed,
         minWidth: 88,
@@ -71,6 +74,7 @@ class PopupDialogActionButton extends StatelessWidget {
       child: SmPlayerTextIconButton(
         label: label,
         loading: loading,
+        loadingProgress: loadingProgress,
         disabled: onPressed == null,
         onPressed: onPressed,
         minWidth: 88,

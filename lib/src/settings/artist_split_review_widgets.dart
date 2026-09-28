@@ -391,32 +391,34 @@ class _ArtistSplitCheck extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = PopupDialogColors.resolve(context);
-    return Padding(
-      padding: const EdgeInsets.only(top: 23),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(5),
-        onTap: disabled ? null : onPressed,
-        child: Container(
-          width: 18,
-          height: 18,
-          decoration: BoxDecoration(
-            color: selected ? colors.accent : Colors.transparent,
-            borderRadius: BorderRadius.circular(5),
-            border: Border.all(
-              color:
-                  selected
-                      ? colors.accent.withValues(alpha: 0.92)
-                      : const Color(0x7a7e8b9a),
+    return SizedBox(
+      height: 64,
+      child: Center(
+        child: InkWell(
+          borderRadius: BorderRadius.circular(5),
+          onTap: disabled ? null : onPressed,
+          child: Container(
+            width: 18,
+            height: 18,
+            decoration: BoxDecoration(
+              color: selected ? colors.accent : Colors.transparent,
+              borderRadius: BorderRadius.circular(5),
+              border: Border.all(
+                color:
+                    selected
+                        ? colors.accent.withValues(alpha: 0.92)
+                        : const Color(0x7a7e8b9a),
+              ),
             ),
+            child:
+                selected
+                    ? const Icon(
+                      FluentIcons.checkmark_16_regular,
+                      size: 13,
+                      color: Colors.white,
+                    )
+                    : null,
           ),
-          child:
-              selected
-                  ? const Icon(
-                    FluentIcons.checkmark_16_regular,
-                    size: 13,
-                    color: Colors.white,
-                  )
-                  : null,
         ),
       ),
     );

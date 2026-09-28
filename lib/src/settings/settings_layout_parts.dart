@@ -598,6 +598,7 @@ class _ConfirmSettingsDialog extends StatelessWidget {
     required this.onConfirm,
     this.confirmText,
     this.busy = false,
+    this.progress,
   });
 
   final String title;
@@ -606,6 +607,7 @@ class _ConfirmSettingsDialog extends StatelessWidget {
   final VoidCallback onConfirm;
   final String? confirmText;
   final bool busy;
+  final double? progress;
 
   @override
   Widget build(BuildContext context) {
@@ -614,9 +616,14 @@ class _ConfirmSettingsDialog extends StatelessWidget {
       title: title,
       message: message,
       confirmText: confirmText,
-      pendingText: i18n.t('settings.smartMultiArtistFixPending'),
+      pendingText:
+          progress == null
+              ? i18n.t('settings.smartMultiArtistFixPending')
+              : '${i18n.t('settings.smartMultiArtistFixPending')} '
+                  '${(progress! * 100).round()}%',
       destructive: false,
       submitting: busy,
+      submittingProgress: progress == 0 ? null : progress,
       onCancel: onCancel,
       onConfirm: onConfirm,
     );

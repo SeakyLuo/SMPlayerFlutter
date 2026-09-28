@@ -94,12 +94,7 @@ extension _SmPlayerShellDesktopMethods on _SmPlayerShellPageState {
       unawaited(_desktopFeatureService.updateMediaSession(mediaSessionState));
     }
 
-    _notifyTrackChanged(
-      currentSong,
-      settings,
-      i18n,
-      mediaControlState.progressSeconds,
-    );
+    _notifyTrackChanged(currentSong, settings, i18n);
   }
 
   void _scheduleDesktopLyricsRetry(String signature, bool visible) {
@@ -246,7 +241,6 @@ extension _SmPlayerShellDesktopMethods on _SmPlayerShellPageState {
     LibrarySong? currentSong,
     SettingsSnapshot settings,
     SmPlayerI18n i18n,
-    double progressSeconds,
   ) {
     if (currentSong == null) {
       return;
@@ -267,46 +261,13 @@ extension _SmPlayerShellDesktopMethods on _SmPlayerShellPageState {
       return;
     }
 
-    unawaited(
-      _showTrackChangedNotification(
-        currentSong: currentSong,
-        settings: settings,
-        i18n: i18n,
-        progressSeconds: progressSeconds,
-      ),
-    );
+    _showTrackChangedNotification(currentSong: currentSong, i18n: i18n);
   }
 
-  Future<void> _showTrackChangedNotification({
+  void _showTrackChangedNotification({
     required LibrarySong currentSong,
-    required SettingsSnapshot settings,
     required SmPlayerI18n i18n,
-    required double progressSeconds,
-  }) async {
-    var lyricsPreview = '';
-    if (settings.showLyricsInNotification) {
-      final cachedLyrics =
-          settings.notificationLyricsSource == settings.playerLyricsSource
-              ? _desktopLyricsForSong(currentSong)
-              : null;
-      final lyrics =
-          cachedLyrics ??
-          await ref
-              .read(libraryRepositoryProvider)
-              .getSongLyrics(
-                currentSong.id,
-                mode: settings.notificationLyricsSource,
-              );
-      if (!mounted || _lastNotifiedSongId != currentSong.id) {
-        return;
-      }
-      lyricsPreview = desktopNotificationLyricsPreview(
-        lyrics: lyrics,
-        song: currentSong,
-        progressSeconds: progressSeconds,
-      );
-    }
-
+  }) {
     unawaited(
       _desktopFeatureService.showTrackNotification(
         TrackNotificationPayload(
@@ -314,7 +275,7 @@ extension _SmPlayerShellDesktopMethods on _SmPlayerShellPageState {
           title: currentSong.title,
           artist: desktopNotificationArtist(currentSong, i18n),
           album: desktopNotificationAlbum(currentSong, i18n),
-          lyricsPreview: lyricsPreview,
+          artworkPath: currentSong.thumbnailPath,
         ),
       ),
     );

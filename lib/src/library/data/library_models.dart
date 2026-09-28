@@ -621,6 +621,18 @@ class NowPlayingSnapshot {
   final List<int> songIds;
 }
 
+class RecentNowPlayingSnapshot {
+  const RecentNowPlayingSnapshot({
+    required this.id,
+    required this.songIds,
+    required this.createdAt,
+  });
+
+  final int id;
+  final List<int> songIds;
+  final String createdAt;
+}
+
 class RecentPageData {
   const RecentPageData({
     required this.songs,
@@ -628,6 +640,7 @@ class RecentPageData {
     required this.recentPlaylists,
     required this.recentAlbums,
     required this.recentArtists,
+    required this.recentNowPlaying,
     required this.recentSearches,
     this.recentBrowses = const [],
     required this.playlists,
@@ -642,6 +655,7 @@ class RecentPageData {
   final List<RecentPlaylistPlayback> recentPlaylists;
   final List<RecentAlbumPlayback> recentAlbums;
   final List<RecentArtistPlayback> recentArtists;
+  final List<RecentNowPlayingSnapshot> recentNowPlaying;
   final List<SearchHistoryEntry> recentSearches;
   final List<RecentBrowseEntry> recentBrowses;
   final List<LibraryPlaylist> playlists;

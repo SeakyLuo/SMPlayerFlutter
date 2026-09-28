@@ -166,7 +166,9 @@ class _PopupDialogState extends State<PopupDialog> {
                       dialogClasses: dialogClasses,
                     );
                     final useTrailingSpacer =
-                        !mobile && !dialogClasses.usesFullWidthNavTitle;
+                        !mobile &&
+                        !dialogClasses.usesFullWidthNavTitle &&
+                        navChildren.every((child) => child is! Flexible);
                     final providerContainer = ProviderScope.containerOf(
                       context,
                     );

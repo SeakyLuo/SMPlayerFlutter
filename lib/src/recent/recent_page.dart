@@ -44,6 +44,8 @@ import 'recent_search_list.dart';
 
 part 'recent_added_page.dart';
 part 'recent_played_page.dart';
+part 'recent_now_playing_page.dart';
+part 'recent_page_navigation.dart';
 part 'recent_browses_page.dart';
 part 'recent_browse_list.dart';
 part 'recent_searches_page.dart';
@@ -64,7 +66,7 @@ part 'recent_theme.dart';
 
 enum RecentTab { added, played, browsed, searches }
 
-enum RecentPlayedFilter { songs, artists, albums, playlists }
+enum RecentPlayedFilter { songs, artists, albums, playlists, nowPlaying }
 
 const _recentMinimalPageHorizontalPadding = 8.0;
 const _recentPlayedFilterRadius = 999.0;
@@ -155,55 +157,6 @@ class _RecentPageState extends ConsumerState<RecentPage>
       animationDuration: const Duration(milliseconds: 200),
       vsync: this,
     );
-  }
-
-  void _syncAppBarPortal({
-    required bool showPortal,
-    required String routePath,
-    required SmPlayerI18n i18n,
-    required String title,
-    required int addedCount,
-    required int playedCount,
-    required int browsedCount,
-    required int searchesCount,
-    required bool showCount,
-  }) {
-    final signature =
-        '$showPortal:$routePath:$title:$_activeTab:$addedCount:$playedCount:$browsedCount:$searchesCount:$showCount';
-    if (_appBarPortalSignature == signature) {
-      return;
-    }
-    _appBarPortalSignature = signature;
-
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) {
-        return;
-      }
-      final notifier = ref.read(workspaceAppBarPortalProvider.notifier);
-      if (!showPortal) {
-        if (notifier.state?.owner == _appBarPortalOwner) {
-          notifier.state = null;
-        }
-        return;
-      }
-      notifier.state = WorkspaceAppBarPortalEntry(
-        owner: _appBarPortalOwner,
-        routePath: routePath,
-        title: title,
-        replacesTitle: true,
-        bottomPadding: 2,
-        content: _RecentAppBarTabs(
-          controller: _tabController,
-          i18n: i18n,
-          addedCount: addedCount,
-          playedCount: playedCount,
-          browsedCount: browsedCount,
-          searchesCount: searchesCount,
-          showCount: showCount,
-          onChanged: _switchTab,
-        ),
-      );
-    });
   }
 
   void _switchTab(RecentTab tab) {
@@ -307,11 +260,16 @@ class _RecentPageState extends ConsumerState<RecentPage>
           recentPlayedCollections.artists,
           i18n,
         );
+        final recentNowPlayingViews = buildRecentNowPlayingViews(
+          snapshot.recentNowPlaying,
+          snapshot.songs,
+        );
         final recentPlayedCount =
             recentSongs.length +
             recentPlayedCollections.playlists.length +
             recentPlayedCollections.albums.length +
-            recentPlayedCollections.artists.length;
+            recentPlayedCollections.artists.length +
+            recentNowPlayingViews.length;
         final recentBrowseViews = buildRecentBrowseViews(
           recentBrowses,
           snapshot.songs,
@@ -458,6 +416,7 @@ class _RecentPageState extends ConsumerState<RecentPage>
                                 playlists: recentPlaylistViews,
                                 albums: recentAlbumViews,
                                 artists: recentArtistViews,
+                                nowPlaying: recentNowPlayingViews,
                                 i18n: i18n,
                                 timelineLabel: _recentPlayedTimelineLabel,
                                 playedCount: recentPlayedCount,
@@ -470,6 +429,10 @@ class _RecentPageState extends ConsumerState<RecentPage>
                                 onFilterChanged: (filter) {
                                   setState(() {
                                     _activePlayedFilter = filter;
+                                    if (filter ==
+                                        RecentPlayedFilter.nowPlaying) {
+                                      _multiSelect = false;
+                                    }
                                     _clearSelection();
                                   });
                                   PageStorage.maybeOf(context)?.writeState(

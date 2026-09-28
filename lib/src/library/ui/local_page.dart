@@ -113,6 +113,7 @@ class _LocalPageState extends ConsumerState<LocalPage> {
   final _scanProgressNotifier = ValueNotifier<LocalFolderRefreshProgress?>(
     null,
   );
+  final _refreshButtonProgressNotifier = ValueNotifier<double?>(null);
   LocalFolderRefreshProgress? get _refreshProgress =>
       _scanProgressNotifier.value;
   set _refreshProgress(LocalFolderRefreshProgress? value) {
@@ -122,7 +123,12 @@ class _LocalPageState extends ConsumerState<LocalPage> {
   ({FolderNode folder, LocalFolderRefreshResult result})? _refreshResultDialog;
   String? _localOperationTitle;
   LocalFolderScanCancellation? _scanCancellation;
+  FolderNode? _refreshingFolder;
+  Completer<void>? _refreshFolderCompletion;
   var _refreshFolderRunning = false;
+  var _refreshFolderBackgrounded = false;
+  var _refreshFolderCollapsing = false;
+  var _refreshOverlayCollapseAlignment = Alignment.topRight;
   final _scanProgressClock = Stopwatch()..start();
   var _lastScanProgressUpdateMs = -100;
   MusicDialogEntry? _musicDialog;
@@ -148,6 +154,7 @@ class _LocalPageState extends ConsumerState<LocalPage> {
   @override
   void dispose() {
     _scanProgressNotifier.dispose();
+    _refreshButtonProgressNotifier.dispose();
     _songLocationTimer?.cancel();
     _scrollController.dispose();
     super.dispose();

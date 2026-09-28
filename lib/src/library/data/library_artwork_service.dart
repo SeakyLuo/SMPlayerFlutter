@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:isolate';
 
 import 'package:crypto/crypto.dart';
 import 'package:path/path.dart' as p;
@@ -304,7 +305,7 @@ class LibraryArtworkService {
               )
               .map((row) => row['thumbnailPath'] as String)
               .toSet();
-      for (final entry in cacheDirectory.listSync()) {
+      await for (final entry in cacheDirectory.list()) {
         if (entry is! File) {
           continue;
         }
@@ -391,7 +392,7 @@ class LibraryArtworkService {
     String extension,
   ) async {
     final cacheDirectory = await _resolveArtworkCacheDirectory();
-    final artworkHash = sha1.convert(data).toString();
+    final artworkHash = await Isolate.run(() => sha1.convert(data).toString());
     final normalizedExtension =
         extension.isEmpty
             ? '.jpg'
@@ -401,7 +402,7 @@ class LibraryArtworkService {
     final target = File(
       p.join(cacheDirectory.path, '$artworkHash$normalizedExtension'),
     );
-    if (!target.existsSync()) {
+    if (!await target.exists()) {
       await target.writeAsBytes(data);
     }
     return target.path;
@@ -412,8 +413,8 @@ class LibraryArtworkService {
     final directory = Directory(
       p.join(databaseFile.parent.path, 'ArtworkCache'),
     );
-    if (!directory.existsSync()) {
-      directory.createSync(recursive: true);
+    if (!await directory.exists()) {
+      await directory.create(recursive: true);
     }
     return directory;
   }

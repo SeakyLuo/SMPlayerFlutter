@@ -1,5 +1,7 @@
 import 'dart:io';
 
+import 'dart:isolate';
+
 import 'package:sqlite3/sqlite3.dart';
 
 import 'artist_split_model.dart' as artist_split_model;
@@ -15,20 +17,52 @@ class LibraryArtistSplitService {
 
   final LibrarySongPropertiesService _songPropertiesService;
 
-  ArtistSplitAnalysisResult analyzeExistingLibrary(List<LibrarySong> songs) {
-    return artist_split_model.analyzeArtistSplits(songs);
+  Future<ArtistSplitAnalysisResult> analyzeExistingLibrary(
+    List<LibrarySong> songs, {
+    void Function(double progress)? onProgress,
+  }) async {
+    if (onProgress == null) {
+      return Isolate.run(
+        () => artist_split_model.analyzeArtistSplits(
+          songs,
+          usageSongs: const [],
+          includeScannedSongsInUsage: true,
+        ),
+      );
+    }
+
+    final progressPort = ReceivePort();
+    final subscription = progressPort.listen((progress) {
+      onProgress(progress as double);
+    });
+    try {
+      final sendPort = progressPort.sendPort;
+      return await Isolate.run(
+        () => artist_split_model.analyzeArtistSplits(
+          songs,
+          usageSongs: const [],
+          includeScannedSongsInUsage: true,
+          onProgress: sendPort.send,
+        ),
+      );
+    } finally {
+      await subscription.cancel();
+      progressPort.close();
+    }
   }
 
-  ArtistSplitAnalysisResult analyzeScannedLibrary(
+  Future<ArtistSplitAnalysisResult> analyzeScannedLibrary(
     List<LibrarySong> existingSongs, {
     required List<LibrarySong> scannedSongs,
   }) {
-    return artist_split_model.analyzeArtistSplits(
-      [...existingSongs, ...scannedSongs],
-      analysisSongs: scannedSongs,
-      usageSongs: existingSongs,
-      existingLibraryScan: false,
-      includeScannedSongsInUsage: true,
+    return Isolate.run(
+      () => artist_split_model.analyzeArtistSplits(
+        [...existingSongs, ...scannedSongs],
+        analysisSongs: scannedSongs,
+        usageSongs: existingSongs,
+        existingLibraryScan: false,
+        includeScannedSongsInUsage: true,
+      ),
     );
   }
 
@@ -48,19 +82,7 @@ class LibraryArtistSplitService {
       return;
     }
 
-    final db = sqlite3.open(databaseFile.path);
-    try {
-      db.execute('BEGIN');
-      try {
-        applySplitsInsideTransaction(db, splits);
-        db.execute('COMMIT');
-      } on Object {
-        db.execute('ROLLBACK');
-        rethrow;
-      }
-    } finally {
-      db.dispose();
-    }
+    await Isolate.run(() => _applyArtistSplits(databaseFile.path, splits));
   }
 
   void applySplitsInsideTransaction(
@@ -80,5 +102,27 @@ class LibraryArtistSplitService {
       );
       _songPropertiesService.syncSongArtists(db, split.songId, artists);
     }
+  }
+}
+
+void _applyArtistSplits(
+  String databasePath,
+  List<ArtistSplitResultItem> splits,
+) {
+  const service = LibraryArtistSplitService(
+    songPropertiesService: LibrarySongPropertiesService(),
+  );
+  final db = sqlite3.open(databasePath);
+  try {
+    db.execute('BEGIN');
+    try {
+      service.applySplitsInsideTransaction(db, splits);
+      db.execute('COMMIT');
+    } on Object {
+      db.execute('ROLLBACK');
+      rethrow;
+    }
+  } finally {
+    db.dispose();
   }
 }

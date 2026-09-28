@@ -148,6 +148,7 @@ extension _RecentPageSelection on _RecentPageState {
         albums.map((item) => 'albums:${item.name}').toList(),
       RecentPlayedFilter.artists =>
         artists.map((item) => 'artists:${item.name}').toList(),
+      RecentPlayedFilter.nowPlaying => const <String>[],
       RecentPlayedFilter.songs => const <String>[],
     };
   }
@@ -187,6 +188,7 @@ extension _RecentPageSelection on _RecentPageState {
   ) {
     if (_activeTab != RecentTab.played ||
         _activePlayedFilter == RecentPlayedFilter.songs ||
+        _activePlayedFilter == RecentPlayedFilter.nowPlaying ||
         _selectedCollectionKeys.length != 1) {
       return getNextPlaylistName(i18n.t('common.songs'), allPlaylists);
     }

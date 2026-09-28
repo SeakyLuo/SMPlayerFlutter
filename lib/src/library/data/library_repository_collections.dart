@@ -42,9 +42,11 @@ mixin _LibraryRepositoryCollections {
 
   Future<void> reorderPlaylists(List<int> playlistIds) async {
     final databaseFile = await _resolveDatabaseFile();
-    await LibraryRepository._playlistService.reorderPlaylists(
-      databaseFile,
-      playlistIds,
+    await LibrarySnapshotService.run(
+      () => LibraryRepository._playlistService.reorderPlaylists(
+        databaseFile,
+        playlistIds,
+      ),
     );
   }
 

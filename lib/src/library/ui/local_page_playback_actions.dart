@@ -138,7 +138,11 @@ extension _LocalPagePlaybackActions on _LocalPageState {
     );
   }
 
-  void _showMessage(String message) {
-    showAppNotification(context: context, message: message);
+  void _showMessage(String message, {bool autoDismiss = true}) {
+    showAppNotification(
+      context: context,
+      message: message,
+      autoDismiss: autoDismiss,
+    );
   }
 }

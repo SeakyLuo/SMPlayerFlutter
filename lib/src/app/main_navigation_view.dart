@@ -145,7 +145,7 @@ class _MainNavigationViewState extends State<MainNavigationView> {
     name: 'NowPlayingItem',
     target: '/now-playing',
     labelKey: 'common.nowPlaying',
-    icon: FluentIcons.music_note_2_24_regular,
+    icon: FluentIcons.headphones_24_regular,
   );
   static const _myFavoritesItem = MainNavigationViewItem(
     name: 'MyFavoritesItem',

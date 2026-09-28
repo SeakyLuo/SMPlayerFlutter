@@ -41,16 +41,22 @@ Future<bool> showSmPlayerConfirmDialog({
   required String title,
   required String message,
   required String confirmText,
+  String? cancelText,
+  bool cancelIsPrimary = false,
   bool destructive = true,
   FutureOr<void> Function()? onConfirm,
+  VoidCallback? onCancel,
 }) {
   return showPopupConfirmDialog(
     context: context,
     title: title,
     message: message,
     confirmLabel: confirmText,
+    cancelLabel: cancelText,
+    cancelIsPrimary: cancelIsPrimary,
     i18n: i18n,
     destructive: destructive,
+    onCancel: onCancel,
     onConfirm:
         onConfirm == null
             ? null

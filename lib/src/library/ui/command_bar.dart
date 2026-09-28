@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:smplayer_flutter/src/app/smplayer_vector_icons.dart';
 import 'package:smplayer_flutter/src/app/text_icon_button.dart';
@@ -485,6 +486,8 @@ class CommandBarButton extends StatefulWidget {
     this.activeMatchesHover = false,
     this.canOverflow = true,
     this.disabled = false,
+    this.loading = false,
+    this.loadingProgress,
     this.overflowSubmenu = const [],
     this.showLabel = true,
     this.minWidth,
@@ -506,6 +509,8 @@ class CommandBarButton extends StatefulWidget {
   final bool activeMatchesHover;
   final bool canOverflow;
   final bool disabled;
+  final bool loading;
+  final ValueListenable<double?>? loadingProgress;
   final List<MenuFlyoutItem> overflowSubmenu;
   final bool showLabel;
   final double? minWidth;
@@ -526,11 +531,33 @@ class _CommandBarButtonState extends State<CommandBarButton> {
   @override
   Widget build(BuildContext context) {
     final style = _CommandBarStyleScope.of(context);
+    final loadingProgress = widget.loadingProgress;
+    if (loadingProgress != null) {
+      return ValueListenableBuilder<double?>(
+        valueListenable: loadingProgress,
+        builder: (context, progress, child) {
+          return _buildButton(style, progress);
+        },
+      );
+    }
+    return _buildButton(style, null);
+  }
+
+  Widget _buildButton(_CommandBarStyleData style, double? progress) {
     return Padding(
       padding: style.buttonMargin,
       child: SmPlayerTextIconButton(
-        icon: widget.icon,
-        iconWidget: widget.iconWidget,
+        icon: widget.loading ? null : widget.icon,
+        iconWidget:
+            widget.loading
+                ? SizedBox.square(
+                  dimension: 16,
+                  child: CircularProgressIndicator(
+                    value: progress,
+                    strokeWidth: 2,
+                  ),
+                )
+                : widget.iconWidget,
         label: widget.label,
         active: widget.active,
         activeSurface: widget.activeSurface,

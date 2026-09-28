@@ -137,7 +137,11 @@ extension _PlaylistsPageDragActions on _PlaylistsPageState {
       }
     }
     if (bestOverlap == null) {
-      return null;
+      return _playlistInsertIndexForEmptyGridArea(
+        nextIds: nextIds,
+        targetSlots: targetSlots,
+        dragCenter: dragRect.center,
+      );
     }
 
     final nextIndex = nextIds.indexOf(bestOverlap.playlistId);
@@ -150,5 +154,36 @@ extension _PlaylistsPageDragActions on _PlaylistsPageState {
             ? dragRect.center.dx > bestOverlap.rect.center.dx
             : dragRect.center.dy > bestOverlap.rect.center.dy;
     return insertAfter ? nextIndex + 1 : nextIndex;
+  }
+
+  int? _playlistInsertIndexForEmptyGridArea({
+    required List<int> nextIds,
+    required List<({int playlistId, Rect rect})> targetSlots,
+    required Offset dragCenter,
+  }) {
+    if (targetSlots.isEmpty) {
+      return null;
+    }
+
+    final targetRowTop = targetSlots
+        .map((slot) => slot.rect.top)
+        .reduce(
+          (closest, rowTop) =>
+              (rowTop - dragCenter.dy).abs() < (closest - dragCenter.dy).abs()
+                  ? rowTop
+                  : closest,
+        );
+    final rowSlots =
+        targetSlots
+            .where((slot) => (slot.rect.top - targetRowTop).abs() < 1)
+            .toList()
+          ..sort((left, right) => left.rect.left.compareTo(right.rect.left));
+
+    for (final slot in rowSlots) {
+      if (dragCenter.dx < slot.rect.center.dx) {
+        return nextIds.indexOf(slot.playlistId);
+      }
+    }
+    return nextIds.indexOf(rowSlots.last.playlistId) + 1;
   }
 }

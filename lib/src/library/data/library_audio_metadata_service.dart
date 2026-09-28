@@ -47,7 +47,7 @@ class LibraryAudioMetadataService {
     LocalFolderScanCancellation? cancellation,
     void Function(String filePath, int completedCount)? onProgress,
   }) async {
-    const concurrency = 6;
+    final concurrency = max(1, min(4, Platform.numberOfProcessors - 1));
     final metadataByPath = <String, AudioFileMetadata>{};
     var completedCount = 0;
     const batchSize = 128;

@@ -131,6 +131,7 @@ Future<AppNotificationClosedReason> showAppNotification({
   required BuildContext context,
   required String message,
   Duration duration = appNotificationDuration,
+  bool autoDismiss = true,
   String? actionLabel,
   FutureOr<void> Function()? onAction,
   List<AppNotificationAction>? actions,
@@ -138,6 +139,7 @@ Future<AppNotificationClosedReason> showAppNotification({
   return _showAppOverlayNotification(
     message: message,
     duration: duration,
+    autoDismiss: autoDismiss,
     actionLabel: actionLabel,
     onAction: onAction,
     actions: actions,
@@ -151,6 +153,7 @@ void hideAppNotification() {
 Future<AppNotificationClosedReason> _showAppOverlayNotification({
   required String message,
   required Duration duration,
+  bool autoDismiss = true,
   String? actionLabel,
   FutureOr<void> Function()? onAction,
   List<AppNotificationAction>? actions,
@@ -167,10 +170,13 @@ Future<AppNotificationClosedReason> _showAppOverlayNotification({
     controller: controller,
     message: message,
     actions: resolvedActions,
+    showDismissButton: !autoDismiss,
   );
 
   _currentNotification = controller;
-  controller.startTimer(duration);
+  if (autoDismiss) {
+    controller.startTimer(duration);
+  }
   return controller.closed;
 }
 
@@ -222,6 +228,7 @@ class _AppNotificationHostState extends State<AppNotificationHost> {
         return _AppNotificationOverlay(
           message: presentation.message,
           actions: presentation.actions,
+          showDismissButton: presentation.showDismissButton,
           bottomAligned: presentation.actions.isNotEmpty,
           runningActionIndex: controller.runningActionIndex,
           onHoverChanged: (hovered) {
@@ -256,11 +263,13 @@ class _AppNotificationPresentation {
     required this.controller,
     required this.message,
     required this.actions,
+    required this.showDismissButton,
   });
 
   final _AppNotificationController controller;
   final String message;
   final List<AppNotificationAction> actions;
+  final bool showDismissButton;
 }
 
 class _AppNotificationController {
@@ -297,11 +306,11 @@ class _AppNotificationController {
       return;
     }
     final timeoutAt = _timeoutAt;
-    if (timeoutAt != null) {
-      final remaining = timeoutAt.difference(DateTime.now());
-      _remainingDuration =
-          remaining > Duration.zero ? remaining : Duration.zero;
+    if (timeoutAt == null) {
+      return;
     }
+    final remaining = timeoutAt.difference(DateTime.now());
+    _remainingDuration = remaining > Duration.zero ? remaining : Duration.zero;
     timer?.cancel();
     timer = null;
     _timeoutAt = null;
@@ -347,6 +356,7 @@ class _AppNotificationOverlay extends StatelessWidget {
     required this.bottomAligned,
     required this.runningActionIndex,
     required this.actions,
+    required this.showDismissButton,
     required this.onHoverChanged,
     required this.onDismiss,
     required this.onAction,
@@ -354,6 +364,7 @@ class _AppNotificationOverlay extends StatelessWidget {
 
   final String message;
   final List<AppNotificationAction> actions;
+  final bool showDismissButton;
   final bool bottomAligned;
   final ValueListenable<int?> runningActionIndex;
   final ValueChanged<bool> onHoverChanged;
@@ -411,7 +422,12 @@ class _AppNotificationOverlay extends StatelessWidget {
             ),
           ),
           child: Padding(
-            padding: EdgeInsets.fromLTRB(22, 15, actions.isEmpty ? 22 : 16, 15),
+            padding: EdgeInsets.fromLTRB(
+              22,
+              15,
+              actions.isEmpty && !showDismissButton ? 22 : 12,
+              15,
+            ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -445,6 +461,20 @@ class _AppNotificationOverlay extends StatelessWidget {
                           },
                         ),
                     ],
+                  ),
+                ],
+                if (showDismissButton) ...[
+                  const SizedBox(width: 8),
+                  SmPlayerTextIconButton(
+                    label: context.smPlayerI18n.t('common.close'),
+                    icon: Icons.close_rounded,
+                    showLabel: false,
+                    minWidth: 32,
+                    height: 32,
+                    iconSize: 18,
+                    borderRadius: 8,
+                    glassEnabled: false,
+                    onPressed: onDismiss,
                   ),
                 ],
               ],

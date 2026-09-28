@@ -12,8 +12,10 @@ const _recentRecordTypeSong = 0;
 const _recentRecordTypePlaylist = 3;
 const _recentRecordTypeAlbum = 4;
 const _recentRecordTypeArtist = 5;
+const _recentRecordTypeNowPlaying = 6;
 const _recentSongLimit = 500;
 const _recentCollectionLimit = 200;
+const _recentNowPlayingLimit = 5;
 
 class LibraryPlaybackHistoryService {
   const LibraryPlaybackHistoryService();
@@ -21,15 +23,19 @@ class LibraryPlaybackHistoryService {
   Future<void> replaceNowPlaying(
     File databaseFile,
     File nowPlayingFile,
-    List<int> songIds,
-  ) async {
+    List<int> songIds, {
+    bool recordHistory = false,
+  }) async {
     if (!databaseFile.existsSync()) {
       return;
     }
 
     final db = sqlite3.open(databaseFile.path);
     try {
-      _writeNowPlayingSongIds(db, nowPlayingFile, songIds);
+      final songPaths = _writeNowPlayingSongIds(db, nowPlayingFile, songIds);
+      if (recordHistory && songPaths.isNotEmpty) {
+        _recordNowPlaying(db, songPaths);
+      }
     } finally {
       db.dispose();
     }
@@ -97,7 +103,8 @@ class LibraryPlaybackHistoryService {
           $_recentRecordTypeSong,
           $_recentRecordTypePlaylist,
           $_recentRecordTypeAlbum,
-          $_recentRecordTypeArtist
+          $_recentRecordTypeArtist,
+          $_recentRecordTypeNowPlaying
         )
       ''',
         [_inactiveState],
@@ -345,6 +352,40 @@ class LibraryPlaybackHistoryService {
     }).toList();
   }
 
+  List<RecentNowPlayingSnapshot> readRecentNowPlaying(
+    Database db,
+    List<LibrarySong> songs,
+  ) {
+    final rows = db.select(
+      '''
+      SELECT Id AS id, ItemId AS itemId, CAST(Time AS TEXT) AS createdAt
+      FROM RecentRecord
+      WHERE Type = $_recentRecordTypeNowPlaying
+        AND State = ?
+      ORDER BY Id DESC
+      LIMIT ?
+    ''',
+      [_activeState, _recentNowPlayingLimit],
+    );
+    final songIdsByPath = {for (final song in songs) song.path: song.id};
+    return rows
+        .map((row) {
+          final paths =
+              (jsonDecode(row['itemId'] as String) as List).cast<String>();
+          return RecentNowPlayingSnapshot(
+            id: row['id'] as int,
+            songIds:
+                paths
+                    .map((path) => songIdsByPath[path])
+                    .whereType<int>()
+                    .toList(),
+            createdAt: row['createdAt'] as String,
+          );
+        })
+        .where((snapshot) => snapshot.songIds.isNotEmpty)
+        .toList();
+  }
+
   NowPlayingSnapshot readNowPlaying(
     Database db,
     File nowPlayingFile,
@@ -467,7 +508,7 @@ class LibraryPlaybackHistoryService {
     }
   }
 
-  void _writeNowPlayingSongIds(
+  List<String> _writeNowPlayingSongIds(
     Database db,
     File nowPlayingFile,
     List<int> songIds,
@@ -476,7 +517,7 @@ class LibraryPlaybackHistoryService {
 
     if (songIds.isEmpty) {
       nowPlayingFile.writeAsStringSync('[]');
-      return;
+      return const [];
     }
 
     final placeholders = List.filled(songIds.length, '?').join(', ');
@@ -499,5 +540,38 @@ class LibraryPlaybackHistoryService {
         }).toList();
 
     nowPlayingFile.writeAsStringSync(jsonEncode(songPaths));
+    return songPaths;
+  }
+
+  void _recordNowPlaying(Database db, List<String> songPaths) {
+    db.execute(
+      '''
+      INSERT INTO RecentRecord (Type, ItemId, Time, State)
+      VALUES (?, ?, ?, ?)
+    ''',
+      [
+        _recentRecordTypeNowPlaying,
+        jsonEncode(songPaths),
+        LibraryTimeCodec.nowUnixMillisecondsString(),
+        _activeState,
+      ],
+    );
+    db.execute(
+      '''
+      UPDATE RecentRecord
+      SET State = ?
+      WHERE Type = $_recentRecordTypeNowPlaying
+        AND State = ?
+        AND Id NOT IN (
+          SELECT Id
+          FROM RecentRecord
+          WHERE Type = $_recentRecordTypeNowPlaying
+            AND State = ?
+          ORDER BY Id DESC
+          LIMIT $_recentNowPlayingLimit
+        )
+    ''',
+      [_inactiveState, _activeState, _activeState],
+    );
   }
 }

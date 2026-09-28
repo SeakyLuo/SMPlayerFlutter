@@ -149,6 +149,7 @@ class _SettingsPageState extends State<SettingsPage> {
   var _showImportDataDialog = false;
   var _showSmartArtistFixDialog = false;
   var _smartArtistFixRunning = false;
+  double? _smartArtistFixProgress;
   var _smartArtistApplyRunning = false;
   ArtistSplitAnalysisResult? _artistSplitAnalysisResult;
   var _dataTransferState = DataTransferState.idle;
@@ -393,6 +394,7 @@ class _SettingsPageState extends State<SettingsPage> {
                 message: i18n.t('settings.smartMultiArtistFixMessage'),
                 confirmText: i18n.t('settings.smartMultiArtistFixConfirm'),
                 busy: _smartArtistFixRunning,
+                progress: _smartArtistFixProgress,
                 onCancel: () {
                   if (_smartArtistFixRunning) {
                     return;
@@ -722,10 +724,20 @@ class _SettingsPageState extends State<SettingsPage> {
   Future<void> _analyzeSmartArtistFix(SmPlayerI18n i18n) async {
     setState(() {
       _smartArtistFixRunning = true;
+      _smartArtistFixProgress = 0;
     });
 
     try {
-      final result = await widget.libraryRepository.analyzeArtistSplits();
+      final result = await widget.libraryRepository.analyzeArtistSplits(
+        onProgress: (progress) {
+          if (!mounted) {
+            return;
+          }
+          setState(() {
+            _smartArtistFixProgress = progress;
+          });
+        },
+      );
       if (!mounted) {
         return;
       }
@@ -740,6 +752,7 @@ class _SettingsPageState extends State<SettingsPage> {
       if (mounted) {
         setState(() {
           _smartArtistFixRunning = false;
+          _smartArtistFixProgress = null;
         });
       }
     }
@@ -845,14 +858,11 @@ class _SettingsPageState extends State<SettingsPage> {
         '${i18n.t('settings.lyricsBatchMissing')} ${result.missing} · '
         '${i18n.t('settings.lyricsBatchFailed')} ${result.failed}'
         '$backupSummary',
-        duration: const Duration(seconds: 5),
+        autoDismiss: false,
       );
     } catch (_) {
       if (mounted) {
-        _showMessage(
-          i18n.t('settings.lyricsBatchFailed'),
-          duration: const Duration(seconds: 5),
-        );
+        _showMessage(i18n.t('settings.lyricsBatchFailed'), autoDismiss: false);
       }
     } finally {
       _lyricsBatchRunning = false;
@@ -939,7 +949,7 @@ class _SettingsPageState extends State<SettingsPage> {
       showAppNotification(
         context: context,
         message: i18n.t('settings.lyricsBatchStopped'),
-        duration: undoableNotificationDuration,
+        autoDismiss: false,
         actionLabel:
             result != null && result.details.isNotEmpty
                 ? i18n.t('common.detail')
@@ -1173,11 +1183,16 @@ class _SettingsPageState extends State<SettingsPage> {
     });
   }
 
-  void _showMessage(String message, {Duration? duration}) {
+  void _showMessage(
+    String message, {
+    Duration? duration,
+    bool autoDismiss = true,
+  }) {
     showAppNotification(
       context: context,
       message: message,
       duration: duration ?? appNotificationDuration,
+      autoDismiss: autoDismiss,
     );
   }
 }

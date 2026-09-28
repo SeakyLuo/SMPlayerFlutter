@@ -33,6 +33,7 @@ const _releaseNoteDefinitions = [
     'tryLiquidGlass',
     'lyricsSearchSupport',
     'batchEditSongInfoSupport',
+    'recentNowPlayingHistory',
     'randomPlayMenuScopes',
     'aiControlSupport',
   ]),

@@ -7,6 +7,7 @@ class _RecentPlayedPanel extends StatelessWidget {
     required this.playlists,
     required this.albums,
     required this.artists,
+    required this.nowPlaying,
     required this.multiSelect,
     required this.selectedSongIds,
     required this.selectedCollectionKeys,
@@ -36,6 +37,7 @@ class _RecentPlayedPanel extends StatelessWidget {
   final List<RecentPlaylistView> playlists;
   final List<RecentAlbumView> albums;
   final List<RecentArtistView> artists;
+  final List<RecentNowPlayingView> nowPlaying;
   final bool multiSelect;
   final Set<int> selectedSongIds;
   final Set<String> selectedCollectionKeys;
@@ -136,6 +138,11 @@ class _RecentPlayedPanel extends StatelessWidget {
         onOpenContextMenu: (position, artist) {
           return onOpenArtistContextMenu(position, artist);
         },
+      ),
+      RecentPlayedFilter.nowPlaying => _RecentNowPlayingGrid(
+        entries: nowPlaying,
+        onPlay: (entry) => onPlaySongs(entry.songIds),
+        onTimelineLabelChange: onTimelineLabelChange,
       ),
     };
   }

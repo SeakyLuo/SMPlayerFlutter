@@ -183,35 +183,41 @@ class _ArtistSplitReviewPanelState extends State<ArtistSplitReviewPanel> {
               ),
             ),
             Padding(
-              padding:
-                  widget.embeddedInFolderUpdateResult
-                      ? EdgeInsets.zero
-                      : mobile
-                      ? const EdgeInsets.fromLTRB(12, 12, 12, 20)
-                      : const EdgeInsets.fromLTRB(28, 9, 28, 12),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  _ArtistSplitFooterButton(
-                    label: i18n.t('local.keepArtistSplits'),
-                    onPressed: applying ? null : widget.onClose,
+              padding: EdgeInsets.symmetric(horizontal: horizontalPadding),
+              child: SizedBox(
+                height:
+                    widget.embeddedInFolderUpdateResult
+                        ? 60
+                        : mobile
+                        ? 72
+                        : 64,
+                child: Align(
+                  alignment: Alignment.centerRight,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      _ArtistSplitFooterButton(
+                        label: i18n.t('local.keepArtistSplits'),
+                        onPressed: applying ? null : widget.onClose,
+                      ),
+                      const SizedBox(width: 10),
+                      _ArtistSplitFooterButton(
+                        label:
+                            applying
+                                ? i18n.t('local.applyingArtistSplits')
+                                : i18n.t('local.applySelectedArtistSplits', {
+                                  'count': selectedSplits.length,
+                                }),
+                        primary: true,
+                        loading: applying,
+                        onPressed:
+                            applying || selectedSplits.isEmpty
+                                ? null
+                                : () => _applySelectedSplits(selectedSplits),
+                      ),
+                    ],
                   ),
-                  const SizedBox(width: 10),
-                  _ArtistSplitFooterButton(
-                    label:
-                        applying
-                            ? i18n.t('local.applyingArtistSplits')
-                            : i18n.t('local.applySelectedArtistSplits', {
-                              'count': selectedSplits.length,
-                            }),
-                    primary: true,
-                    loading: applying,
-                    onPressed:
-                        applying || selectedSplits.isEmpty
-                            ? null
-                            : () => _applySelectedSplits(selectedSplits),
-                  ),
-                ],
+                ),
               ),
             ),
           ],
@@ -315,19 +321,19 @@ class _ArtistSplitFooterButton extends StatelessWidget {
             ? enabled
                 ? colors.accent
                 : const Color(0xc7e6ebf3)
-            : PopupDialogColors.buttonSurface;
+            : colors.buttonSurface;
     final foreground =
         primary
             ? enabled
                 ? Colors.white
                 : const Color(0xb85e6773)
-            : PopupDialogColors.text;
+            : colors.buttonText;
     final border =
         primary
             ? enabled
                 ? colors.accent.withValues(alpha: 0.52)
                 : const Color(0x619ba6b6)
-            : PopupDialogColors.buttonBorder;
+            : colors.buttonBorder;
 
     return TextButton(
       style: TextButton.styleFrom(
@@ -360,7 +366,7 @@ class _ArtistSplitFooterButton extends StatelessWidget {
           if (primary) {
             return Colors.white.withValues(alpha: 0.08);
           }
-          return const Color(0xfaf7fafe);
+          return colors.buttonHoverSurface;
         }),
       ),
       onPressed: onPressed,

@@ -7,6 +7,7 @@ class _RecentPlayedPage extends ConsumerWidget {
     required this.playlists,
     required this.albums,
     required this.artists,
+    required this.nowPlaying,
     required this.i18n,
     required this.timelineLabel,
     required this.playedCount,
@@ -37,6 +38,7 @@ class _RecentPlayedPage extends ConsumerWidget {
   final List<RecentPlaylistView> playlists;
   final List<RecentAlbumView> albums;
   final List<RecentArtistView> artists;
+  final List<RecentNowPlayingView> nowPlaying;
   final SmPlayerI18n i18n;
   final String timelineLabel;
   final int playedCount;
@@ -124,6 +126,7 @@ class _RecentPlayedPage extends ConsumerWidget {
             playlists: playlists,
             albums: albums,
             artists: artists,
+            nowPlaying: nowPlaying,
             multiSelect: multiSelect,
             selectedSongIds: selectedSongIds,
             selectedCollectionKeys: selectedCollectionKeys,
@@ -200,6 +203,7 @@ class _RecentPlayedPage extends ConsumerWidget {
       RecentPlayedFilter.playlists => playlists.isNotEmpty,
       RecentPlayedFilter.albums => albums.isNotEmpty,
       RecentPlayedFilter.artists => artists.isNotEmpty,
+      RecentPlayedFilter.nowPlaying => false,
     };
   }
 
@@ -220,6 +224,7 @@ class _RecentPlayedPage extends ConsumerWidget {
       return;
     }
     await repository.clearRecentPlayed();
+    ref.invalidate(recentPageDataProvider);
     recentSongs.clear();
     await recentCollections.clear();
     if (context.mounted) {

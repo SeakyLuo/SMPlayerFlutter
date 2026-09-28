@@ -320,6 +320,7 @@ class FolderUpdateResultArtistSection extends StatelessWidget {
         directSplits: result.artistSplitsApplied,
         possibleSplits: result.artistSplitSuggestions,
         mergeSuggestions: result.artistMergeSuggestions,
+        appliedDirectSplits: true,
         applying: applying,
         artworkPathBySongId: artworkPathBySongId,
         embeddedInFolderUpdateResult: true,

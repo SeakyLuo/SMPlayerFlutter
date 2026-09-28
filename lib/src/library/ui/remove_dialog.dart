@@ -14,6 +14,7 @@ class RemoveDialog extends StatelessWidget {
     this.content,
     this.destructive = true,
     this.submitting = false,
+    this.submittingProgress,
   });
   final String title;
   final String message;
@@ -24,6 +25,7 @@ class RemoveDialog extends StatelessWidget {
   final Widget? content;
   final bool destructive;
   final bool submitting;
+  final double? submittingProgress;
   @override
   Widget build(BuildContext context) {
     final i18n = context.smPlayerI18n;
@@ -46,6 +48,7 @@ class RemoveDialog extends StatelessWidget {
             primary: true,
             destructive: destructive,
             loading: submitting,
+            loadingProgress: submittingProgress,
             onPressed: submitting ? null : onConfirm,
           ),
           PopupDialogActionButton(

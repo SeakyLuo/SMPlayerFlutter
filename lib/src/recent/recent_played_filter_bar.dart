@@ -56,6 +56,13 @@ class _RecentPlayedFilterBar extends StatelessWidget {
                   label: i18n.t('recent.playlists'),
                   onPressed: () => onChanged(RecentPlayedFilter.playlists),
                 ),
+                _FilterButton(
+                  visualKey: const ValueKey('Recent.FilterButton.nowPlaying'),
+                  active: activeFilter == RecentPlayedFilter.nowPlaying,
+                  icon: const Icon(FluentIcons.headphones_20_regular, size: 18),
+                  label: i18n.t('common.nowPlaying'),
+                  onPressed: () => onChanged(RecentPlayedFilter.nowPlaying),
+                ),
               ],
             ),
           ),

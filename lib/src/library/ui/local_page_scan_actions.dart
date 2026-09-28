@@ -2,13 +2,61 @@ part of 'local_page.dart';
 
 extension _LocalPageScanActions on _LocalPageState {
   Future<void> _refreshFolder(FolderNode folder, SmPlayerI18n i18n) async {
-    if (_refreshProgress != null || _refreshFolderRunning) {
+    if (_refreshFolderRunning) {
+      final activeFolder = _refreshingFolder!;
+      if (activeFolder.path == folder.path) {
+        _showRefreshFolderTask();
+        return;
+      }
+
+      final activeCancellation = _scanCancellation!;
+      final activeCompletion = _refreshFolderCompletion!.future;
+      if (!activeCancellation.isCanceled) {
+        if (!_refreshProgress!.canCancel) {
+          _showRefreshFolderTask();
+          return;
+        }
+        final confirmed = await showSmPlayerConfirmDialog(
+          context: context,
+          i18n: i18n,
+          title: i18n.t('local.updateFolderConflictTitle'),
+          message: i18n.t('local.updateFolderConflictMessage', {
+            'current': activeFolder.name,
+            'next': folder.name,
+          }),
+          confirmText: i18n.t('local.updateFolderConflictConfirm'),
+          cancelText: i18n.t('local.updateFolderConflictViewCurrent'),
+          cancelIsPrimary: true,
+          onCancel: _showRefreshFolderTask,
+        );
+        if (!confirmed) {
+          return;
+        }
+        activeCancellation.cancel();
+      }
+      await activeCompletion;
+      if (!mounted) {
+        return;
+      }
+    }
+    if (_refreshProgress != null) {
       return;
     }
+
+    await _runRefreshFolder(folder, i18n);
+  }
+
+  Future<void> _runRefreshFolder(FolderNode folder, SmPlayerI18n i18n) async {
     final previousSnapshot = ref.read(libraryContentDataProvider).value!;
     final cancellation = LocalFolderScanCancellation();
+    final completion = Completer<void>();
     _updateLocalPageState(() {
+      _refreshingFolder = folder;
+      _refreshFolderCompletion = completion;
       _refreshFolderRunning = true;
+      _refreshButtonProgressNotifier.value = 0;
+      _refreshFolderBackgrounded = false;
+      _refreshFolderCollapsing = false;
       _scanCancellation = cancellation;
       _localOperationTitle = i18n.t('local.updateFolderProgressTitle');
       _refreshProgress = const LocalFolderRefreshProgress(
@@ -33,33 +81,58 @@ extension _LocalPageScanActions on _LocalPageState {
       if (!mounted) {
         return;
       }
-      if (!mounted) {
-        return;
-      }
       _updateLocalPageState(() {
+        final showResultDialog = !_refreshFolderBackgrounded;
         _refreshProgress = null;
         _localOperationTitle = null;
         _scanCancellation = null;
         _refreshResultDialog =
-            hasRefreshResultChanges(result)
+            showResultDialog && hasRefreshResultChanges(result)
                 ? (folder: folder, result: result)
                 : null;
       });
-      _showMessage(getRefreshResultMessage(result, i18n));
+      unawaited(
+        showAppNotification(
+          context: context,
+          message: getRefreshResultMessage(result, i18n),
+          autoDismiss: false,
+          actionLabel:
+              hasRefreshResultChanges(result) ? i18n.t('common.detail') : null,
+          onAction:
+              hasRefreshResultChanges(result)
+                  ? () {
+                    if (mounted) {
+                      _updateLocalPageState(() {
+                        _refreshResultDialog = (folder: folder, result: result);
+                      });
+                    }
+                  }
+                  : null,
+        ),
+      );
     } on LocalFolderScanCanceledException {
       _clearScanOverlay();
     } catch (error) {
       if (mounted) {
         _clearScanOverlay();
         final message = error is StateError ? error.message : error.toString();
-        _showMessage(getRefreshFolderErrorMessage(message, i18n));
+        _showMessage(
+          getRefreshFolderErrorMessage(message, i18n),
+          autoDismiss: false,
+        );
       }
     } finally {
       if (mounted) {
         _updateLocalPageState(() {
           _refreshFolderRunning = false;
+          _refreshButtonProgressNotifier.value = null;
+          _refreshFolderBackgrounded = false;
+          _refreshFolderCollapsing = false;
+          _refreshingFolder = null;
+          _refreshFolderCompletion = null;
         });
       }
+      completion.complete();
     }
   }
 
@@ -193,6 +266,11 @@ extension _LocalPageScanActions on _LocalPageState {
       return;
     }
     _lastScanProgressUpdateMs = elapsedMs;
+    if (_refreshFolderRunning) {
+      _refreshButtonProgressNotifier.value = localFolderRefreshOverallProgress(
+        progress,
+      );
+    }
     _refreshProgress = progress;
   }
 
@@ -204,10 +282,43 @@ extension _LocalPageScanActions on _LocalPageState {
         return ScanProgressOverlay(
           title: _localOperationTitle ?? i18n.t('local.updateFolder'),
           progress: progress,
-          onCancel: progress.canCancel ? () => _requestCancelScan(i18n) : null,
+          onCancel:
+              progress.canCancel && !_scanCancellation!.isCanceled
+                  ? () => _requestCancelScan(i18n)
+                  : null,
+          onRunInBackground:
+              _refreshFolderRunning ? _runRefreshFolderInBackground : null,
+          collapsing: _refreshFolderCollapsing,
+          collapseAlignment: _refreshOverlayCollapseAlignment,
         );
       },
     );
+  }
+
+  void _showRefreshFolderTask() {
+    if (!_refreshFolderBackgrounded && !_refreshFolderCollapsing) {
+      return;
+    }
+    _updateLocalPageState(() {
+      _refreshFolderBackgrounded = false;
+      _refreshFolderCollapsing = false;
+    });
+  }
+
+  void _runRefreshFolderInBackground() {
+    _updateLocalPageState(() {
+      _refreshOverlayCollapseAlignment = const Alignment(0.55, -0.82);
+      _refreshFolderCollapsing = true;
+    });
+    Future<void>.delayed(const Duration(milliseconds: 240), () {
+      if (!mounted || !_refreshFolderRunning) {
+        return;
+      }
+      _updateLocalPageState(() {
+        _refreshFolderBackgrounded = true;
+        _refreshFolderCollapsing = false;
+      });
+    });
   }
 
   Future<void> _requestCancelScan(SmPlayerI18n i18n) async {
@@ -223,11 +334,6 @@ extension _LocalPageScanActions on _LocalPageState {
       confirmText: i18n.t('local.updateFolderProgressStopConfirm'),
     );
     if (confirmed) {
-      _updateLocalPageState(() {
-        _refreshProgress = null;
-        _localOperationTitle = null;
-        _scanCancellation = null;
-      });
       cancellation.cancel();
     }
   }

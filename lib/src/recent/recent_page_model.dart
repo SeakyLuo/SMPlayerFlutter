@@ -16,6 +16,20 @@ class RecentPlaylistView {
   final String playedAt;
 }
 
+class RecentNowPlayingView {
+  const RecentNowPlayingView({
+    required this.id,
+    required this.songs,
+    required this.createdAt,
+  });
+
+  final int id;
+  final List<LibrarySong> songs;
+  final String createdAt;
+
+  List<int> get songIds => songs.map((song) => song.id).toList();
+}
+
 class RecentAlbumView {
   const RecentAlbumView({
     required this.name,
@@ -127,6 +141,27 @@ List<RecentPlaylistView> buildRecentPlaylistViews(
     }
   }
   return views;
+}
+
+List<RecentNowPlayingView> buildRecentNowPlayingViews(
+  List<RecentNowPlayingSnapshot> snapshots,
+  List<LibrarySong> songs,
+) {
+  final songsById = {for (final song in songs) song.id: song};
+  return snapshots
+      .map((snapshot) {
+        return RecentNowPlayingView(
+          id: snapshot.id,
+          songs:
+              snapshot.songIds
+                  .map((songId) => songsById[songId])
+                  .whereType<LibrarySong>()
+                  .toList(),
+          createdAt: snapshot.createdAt,
+        );
+      })
+      .where((view) => view.songs.isNotEmpty)
+      .toList();
 }
 
 List<RecentAlbumView> buildRecentAlbumViews(

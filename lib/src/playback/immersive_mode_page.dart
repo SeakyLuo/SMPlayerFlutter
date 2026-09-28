@@ -173,6 +173,7 @@ class _ImmersiveModePageState extends ConsumerState<ImmersiveModePage>
   final _songInfoKey = GlobalKey();
   final _lyricsKey = GlobalKey();
   var _isPlaylistOpen = false;
+  var _isExiting = false;
   SongDialogMode? _dialogMode;
   int? _artworkLookupSongId;
   int? _resolvedArtworkSongId;
@@ -226,6 +227,9 @@ class _ImmersiveModePageState extends ConsumerState<ImmersiveModePage>
   }
 
   void _exitImmersiveMode(SmPlayerShellActions? shellActions) {
+    setState(() {
+      _isExiting = true;
+    });
     unawaited(_animateExit(shellActions));
   }
 
@@ -554,22 +558,23 @@ class _ImmersiveModePageState extends ConsumerState<ImmersiveModePage>
                       ),
                     ),
                   ),
-                  ImmersiveModeAppBar(
-                    i18n: i18n,
-                    playlistOpen: _isPlaylistOpen,
-                    onClose: () {
-                      _exitImmersiveMode(shellActions);
-                    },
-                    onTogglePlaylist: () {
-                      setState(() {
-                        _dialogMode = null;
-                        if (_isPlaylistOpen) {
-                          _selection.cancel();
-                        }
-                        _isPlaylistOpen = !_isPlaylistOpen;
-                      });
-                    },
-                  ),
+                  if (!_isExiting)
+                    ImmersiveModeAppBar(
+                      i18n: i18n,
+                      playlistOpen: _isPlaylistOpen,
+                      onClose: () {
+                        _exitImmersiveMode(shellActions);
+                      },
+                      onTogglePlaylist: () {
+                        setState(() {
+                          _dialogMode = null;
+                          if (_isPlaylistOpen) {
+                            _selection.cancel();
+                          }
+                          _isPlaylistOpen = !_isPlaylistOpen;
+                        });
+                      },
+                    ),
                   playerBarLayer,
                   queueLayer,
                   if (noticeText != null)
