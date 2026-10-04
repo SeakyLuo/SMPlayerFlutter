@@ -17,6 +17,17 @@ class LibrarySettingsService {
 
   final LibraryDatabaseService _database;
 
+  settings.SettingsSnapshot readSettingsSnapshot(File databaseFile) {
+    final db = sqlite3.open(databaseFile.path, mode: OpenMode.readOnly);
+    try {
+      return settingsSnapshotFromRow(
+        db.select('SELECT * FROM Settings ORDER BY Id DESC LIMIT 1').single,
+      );
+    } finally {
+      db.dispose();
+    }
+  }
+
   Future<settings.SettingsSnapshot?> getSettingsSnapshot(
     File databaseFile, {
     required SettingsDatabaseCleanup cleanupInvalidLastPlaylist,

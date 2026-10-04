@@ -57,6 +57,7 @@ extension _RecentPageSelection on _RecentPageState {
     List<RecentAlbumView> albums,
     List<RecentArtistView> artists,
     List<RecentBrowseView> browses,
+    List<RecentNowPlayingView> nowPlaying,
   ) {
     if (_activeTab == RecentTab.browsed) {
       _selectedBrowseIds
@@ -74,7 +75,9 @@ extension _RecentPageSelection on _RecentPageState {
         _activePlayedFilter != RecentPlayedFilter.songs) {
       _selectedCollectionKeys
         ..clear()
-        ..addAll(_visibleCollectionKeys(playlists, albums, artists));
+        ..addAll(
+          _visibleCollectionKeys(playlists, albums, artists, nowPlaying),
+        );
       return;
     }
     _selectedSongIds
@@ -89,6 +92,7 @@ extension _RecentPageSelection on _RecentPageState {
     List<RecentAlbumView> albums,
     List<RecentArtistView> artists,
     List<RecentBrowseView> browses,
+    List<RecentNowPlayingView> nowPlaying,
   ) {
     if (_activeTab == RecentTab.browsed) {
       final current = _selectedBrowseIds.toSet();
@@ -122,6 +126,7 @@ extension _RecentPageSelection on _RecentPageState {
             playlists,
             albums,
             artists,
+            nowPlaying,
           ).where((key) => !current.contains(key)),
         );
       return;
@@ -140,6 +145,7 @@ extension _RecentPageSelection on _RecentPageState {
     List<RecentPlaylistView> playlists,
     List<RecentAlbumView> albums,
     List<RecentArtistView> artists,
+    List<RecentNowPlayingView> nowPlaying,
   ) {
     return switch (_activePlayedFilter) {
       RecentPlayedFilter.playlists =>
@@ -148,7 +154,8 @@ extension _RecentPageSelection on _RecentPageState {
         albums.map((item) => 'albums:${item.name}').toList(),
       RecentPlayedFilter.artists =>
         artists.map((item) => 'artists:${item.name}').toList(),
-      RecentPlayedFilter.nowPlaying => const <String>[],
+      RecentPlayedFilter.nowPlaying =>
+        nowPlaying.map((item) => 'nowPlaying:${item.id}').toList(),
       RecentPlayedFilter.songs => const <String>[],
     };
   }
@@ -157,6 +164,7 @@ extension _RecentPageSelection on _RecentPageState {
     List<RecentPlaylistView> playlists,
     List<RecentAlbumView> albums,
     List<RecentArtistView> artists,
+    List<RecentNowPlayingView> nowPlaying,
   ) {
     final songIds = <int>[];
     for (final playlist in playlists) {
@@ -174,6 +182,11 @@ extension _RecentPageSelection on _RecentPageState {
     for (final artist in artists) {
       if (_selectedCollectionKeys.contains('artists:${artist.name}')) {
         songIds.addAll(artist.songs.map((song) => song.id));
+      }
+    }
+    for (final entry in nowPlaying) {
+      if (_selectedCollectionKeys.contains('nowPlaying:${entry.id}')) {
+        songIds.addAll(entry.songIds);
       }
     }
     return songIds.toSet().toList();

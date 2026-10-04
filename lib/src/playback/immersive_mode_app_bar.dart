@@ -69,7 +69,7 @@ class ImmersiveModeAppBar extends StatelessWidget {
                 glassSettings: glassSettings,
                 onPressed: onTogglePlaylist,
                 iconWidget: const Icon(
-                  FluentIcons.music_note_2_20_regular,
+                  FluentIcons.headphones_20_regular,
                   key: ValueKey('ImmersiveMode.QueueIcon'),
                 ),
                 child: Text(

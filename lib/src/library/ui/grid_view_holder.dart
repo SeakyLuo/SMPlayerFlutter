@@ -11,7 +11,7 @@ import 'package:smplayer_flutter/src/library/ui/playlist_artwork.dart';
 import 'package:smplayer_flutter/src/library/ui/selected_collection_card_style.dart';
 
 const gridViewHolderWidth = 180.0;
-const gridViewHolderHeight = 232.0;
+const gridViewHolderHeight = 254.0;
 
 class GridViewHolder extends ConsumerStatefulWidget {
   const GridViewHolder({

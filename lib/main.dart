@@ -29,6 +29,7 @@ void main(List<String> args) {
     WidgetsFlutterBinding.ensureInitialized();
     crashReporter.register();
     if (Platform.isWindows) {
+      WidgetsBinding.instance.deferFirstFrame();
       JustAudioMediaKit.ensureInitialized(windows: true, linux: false);
     }
     runApp(SmPlayerBootstrap(args: args));
@@ -50,9 +51,11 @@ class _SmPlayerBootstrapState extends State<SmPlayerBootstrap> {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      unawaited(dismissNativeSplash());
-    });
+    if (!Platform.isWindows) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        unawaited(dismissNativeSplash());
+      });
+    }
     unawaited(_initialize());
   }
 
@@ -61,6 +64,9 @@ class _SmPlayerBootstrapState extends State<SmPlayerBootstrap> {
     final settingsSnapshot = await repository.initializeSettingsSnapshot();
     final settingsController = SettingsController(settingsSnapshot, repository);
     final settings = settingsController.snapshot;
+    if (Platform.isWindows) {
+      await showNativeSplash(nightMode: isAppNightMode(settings));
+    }
     final initialLocation = resolveRestoredPage(settings.lastPage);
     if (Platform.isWindows || Platform.isMacOS || Platform.isLinux) {
       await _initializeDesktopWindow(settings);
@@ -76,6 +82,9 @@ class _SmPlayerBootstrapState extends State<SmPlayerBootstrap> {
         settingsController: settingsController,
       );
     });
+    if (Platform.isWindows) {
+      WidgetsBinding.instance.allowFirstFrame();
+    }
   }
 
   @override
@@ -327,6 +336,7 @@ Future<void> _restoreMainWindowState(SettingsSnapshot settings) async {
     await _mainWindowWorkAreas(),
   );
   await windowManager.setBounds(bounds);
+  await ensureMainWindowVisibleWithPlatformCoordinates();
   if (settings.mainWindowMaximized) {
     await windowManager.maximize();
   }
@@ -334,11 +344,13 @@ Future<void> _restoreMainWindowState(SettingsSnapshot settings) async {
 
 Future<List<Rect>> _mainWindowWorkAreas() async {
   final displays = await screen.screenRetriever.getAllDisplays();
-  if (displays.isNotEmpty) {
-    return displays.map(_workAreaForDisplay).toList();
-  }
   final primary = await screen.screenRetriever.getPrimaryDisplay();
-  return [_workAreaForDisplay(primary)];
+  return [
+    _workAreaForDisplay(primary),
+    ...displays
+        .where((display) => display.id != primary.id)
+        .map(_workAreaForDisplay),
+  ];
 }
 
 Rect _workAreaForDisplay(screen.Display display) {

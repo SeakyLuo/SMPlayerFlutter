@@ -141,6 +141,9 @@ class _RecentPlayedPanel extends StatelessWidget {
       ),
       RecentPlayedFilter.nowPlaying => _RecentNowPlayingGrid(
         entries: nowPlaying,
+        multiSelect: multiSelect,
+        selectedKeys: selectedCollectionKeys,
+        onToggleSelection: onToggleCollectionSelection,
         onPlay: (entry) => onPlaySongs(entry.songIds),
         onTimelineLabelChange: onTimelineLabelChange,
       ),

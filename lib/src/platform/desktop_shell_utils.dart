@@ -41,6 +41,13 @@ Future<String?> pickDirectoryFromDesktopShell({
   );
 }
 
+Future<void> showNativeSplash({required bool nightMode}) async {
+  await _desktopFeatureChannel.invokeMethod<void>(
+    'showNativeSplash',
+    nightMode,
+  );
+}
+
 Future<void> dismissNativeSplash() async {
   if (!kIsWeb && (Platform.isMacOS || Platform.isWindows)) {
     await _desktopFeatureChannel.invokeMethod<void>('dismissNativeSplash');

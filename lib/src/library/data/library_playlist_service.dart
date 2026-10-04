@@ -6,6 +6,10 @@ import 'library_models.dart';
 
 const _activeState = 1;
 const _inactiveState = 0;
+const _playlistTypeUser = 0;
+const _playlistTypeMyFavorites = 1;
+const _playlistTypeNowPlaying = 2;
+const _playlistTypeHistory = 3;
 const _nowPlayingPlaylistName = 'Now Playing';
 
 class LibraryPlaylistService {
@@ -47,22 +51,20 @@ class LibraryPlaylistService {
           FROM Playlist
           WHERE Playlist.Id = Settings.LastPlaylist
             AND Playlist.State = ?
+            AND Playlist.Type <> $_playlistTypeHistory
         )
     ''',
       [_activeState],
     );
   }
 
-  List<LibraryPlaylist> readPlaylists(
-    Database db, {
-    required int myFavoritesId,
-    required int nowPlayingId,
-  }) {
+  List<LibraryPlaylist> readPlaylists(Database db) {
     final playlistRows = db.select(
       '''
       SELECT
         Playlist.Id AS id,
         Playlist.Name AS name,
+        Playlist.Type AS type,
         Playlist.Criterion AS criterion,
         Playlist.Priority AS priority,
         COUNT(Music.Id) AS songCount
@@ -74,18 +76,24 @@ class LibraryPlaylistService {
         ON Music.Id = PlaylistItem.ItemId
        AND Music.State = ?
       WHERE Playlist.State = ?
-      GROUP BY Playlist.Id, Playlist.Name, Playlist.Criterion, Playlist.Priority
+        AND Playlist.Type <> $_playlistTypeHistory
+      GROUP BY
+        Playlist.Id,
+        Playlist.Name,
+        Playlist.Type,
+        Playlist.Criterion,
+        Playlist.Priority
       ORDER BY
         CASE
-          WHEN Playlist.Id = ? THEN 0
-          WHEN Playlist.Id = ? THEN 1
+          WHEN Playlist.Type = $_playlistTypeMyFavorites THEN 0
+          WHEN Playlist.Type = $_playlistTypeNowPlaying THEN 1
           ELSE 2
         END,
         CASE WHEN Playlist.Priority < 0 THEN 2147483647 ELSE Playlist.Priority END,
         LOWER(Playlist.Name),
         Playlist.Id
     ''',
-      [_activeState, _activeState, _activeState, myFavoritesId, nowPlayingId],
+      [_activeState, _activeState, _activeState],
     );
     final itemRows = db.select(
       '''
@@ -99,6 +107,7 @@ class LibraryPlaylistService {
         ON Music.Id = PlaylistItem.ItemId
       WHERE PlaylistItem.State = ?
         AND Playlist.State = ?
+        AND Playlist.Type <> $_playlistTypeHistory
         AND Music.State = ?
       ORDER BY PlaylistItem.Id
     ''',
@@ -123,7 +132,7 @@ class LibraryPlaylistService {
         sortCriterion: _fromStoredPlaylistSortCriterion(
           row['criterion'] as int,
         ),
-        isBuiltIn: id == myFavoritesId || id == nowPlayingId,
+        isBuiltIn: (row['type'] as int) != _playlistTypeUser,
       );
     }).toList();
   }
@@ -144,6 +153,7 @@ class LibraryPlaylistService {
           UPDATE Playlist
           SET Priority = Priority + 1
           WHERE State = ?
+            AND Type = $_playlistTypeUser
             AND Id NOT IN (?, ?)
             AND Name <> ?
         ''',
@@ -156,8 +166,8 @@ class LibraryPlaylistService {
         );
         db.execute(
           '''
-          INSERT INTO Playlist (Name, Criterion, Priority, State)
-          VALUES (?, -1, ?, ?)
+          INSERT INTO Playlist (Name, Criterion, Priority, Type, State)
+          VALUES (?, -1, ?, $_playlistTypeUser, ?)
         ''',
           [nextName, 0, _activeState],
         );
@@ -239,6 +249,7 @@ class LibraryPlaylistService {
           UPDATE Playlist
           SET Priority = Priority + 1
           WHERE State = ?
+            AND Type = $_playlistTypeUser
             AND Id NOT IN (?, ?, ?)
             AND Name <> ?
             AND Priority >= ?
@@ -332,6 +343,7 @@ class LibraryPlaylistService {
         SELECT Playlist.Id AS id
         FROM Playlist
         WHERE Playlist.State = ?
+          AND Playlist.Type = $_playlistTypeUser
           AND Playlist.Id NOT IN (?, ?)
           AND Playlist.Name <> ?
         ORDER BY
@@ -564,6 +576,7 @@ class LibraryPlaylistService {
       FROM Playlist
       WHERE Name = ?
         AND State = ?
+        AND Type <> $_playlistTypeHistory
       LIMIT 1
     ''',
       [nextName, _activeState],

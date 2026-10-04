@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:isolate';
 import 'dart:math';
 
 import 'package:path/path.dart' as p;
@@ -19,6 +20,8 @@ import 'library_song_properties_service.dart';
 
 part 'library_local_refresh_operations.dart';
 part 'library_local_folder_refresh.dart';
+part 'library_local_scan_write_task.dart';
+part 'library_local_import_task.dart';
 
 const _activeState = 1;
 const _inactiveState = 0;
@@ -73,32 +76,9 @@ class LibraryLocalRefreshService
           cacheSongArtwork: cacheSongArtwork,
         );
 
-    final db = sqlite3.open(databaseFile.path);
-    final openedSongIds = <int>[];
-    try {
-      final settings = _readService.readLibrarySettings(db);
-      db.execute('BEGIN');
-      try {
-        for (final filePath in metadataByPath.keys) {
-          openedSongIds.add(
-            upsertExternalAudioFile(
-              db,
-              filePath,
-              metadata: metadataByPath[filePath]!,
-              useFilenameNotMusicName: settings.useFilenameNotMusicName,
-            ),
-          );
-        }
-        db.execute('COMMIT');
-      } on Object {
-        db.execute('ROLLBACK');
-        rethrow;
-      }
-    } finally {
-      db.dispose();
-    }
-
-    return openedSongIds;
+    return Isolate.run(
+      _ImportLocalAudioTask(this, databaseFile.path, metadataByPath).call,
+    );
   }
 
   Future<LocalFolderRefreshResult> scanAllMusicLibrary(
@@ -240,6 +220,7 @@ class LibraryLocalRefreshService
           canCancel: true,
         ),
       );
+      final changedMetadataPaths = <String>[];
       final metadataByPath = await _audioMetadataService
           .readAudioFileMetadataBatch(
             scannedPaths
@@ -253,6 +234,7 @@ class LibraryLocalRefreshService
             cacheSongArtwork: cacheSongArtwork,
             existingMetadataByPath: existingMetadataByPath,
             cancellation: cancellation,
+            onMetadataChanged: changedMetadataPaths.add,
             onProgress: (filePath, completedCount) {
               if (addedPathKeys.contains(
                 localScanPathComparisonKey(filePath),
@@ -277,10 +259,30 @@ class LibraryLocalRefreshService
               );
             },
           );
-      final writePaths = metadataByPath.keys.toList();
       addedPaths.removeWhere((path) => !metadataByPath.containsKey(path));
       final folders = nonEmptyScannedFolders(rootPath, scannedPaths);
-      final writeTotal = max(scannedPaths.length + 1, 1);
+      final hasDatabaseChanges =
+          changedMetadataPaths.isNotEmpty ||
+          movedSongs.isNotEmpty ||
+          removedPaths.isNotEmpty ||
+          settings.rootPath != rootPath;
+      cancellation?.throwIfCanceled();
+      if (!hasDatabaseChanges) {
+        return const LocalFolderRefreshResult(
+          libraryChanged: false,
+          requiresFullReload: false,
+          filesAdded: [],
+          filesUpdated: [],
+          filesRemoved: [],
+          filesMoved: [],
+          artistSplitsApplied: [],
+          artistSplitSuggestions: [],
+          artistMergeSuggestions: [],
+        );
+      }
+
+      final writePaths = changedMetadataPaths;
+      final writeTotal = max(writePaths.length, 1);
       onProgress?.call(
         LocalFolderRefreshProgress(
           stage: LocalFolderRefreshStage.updating,
@@ -295,149 +297,61 @@ class LibraryLocalRefreshService
           missingCount: removedPaths.length,
         ),
       );
-      cancellation?.throwIfCanceled();
 
-      db.execute('BEGIN');
-      try {
-        for (final movedSong in movedSongs) {
-          updateMovedSongPathInsideTransaction(db, movedSong);
-        }
-        markScannedTablesInactive(db, scannedPaths.toSet());
-        final folderIds = upsertScannedFolders(db, rootPath, folders);
-        updateMovedSongFolders(db, movedSongs, folderIds);
-        final scannedSongs = _buildScannedSongs(
-          writePaths,
-          metadataByPath,
-          useFilenameNotMusicName: settings.useFilenameNotMusicName,
+      final autoLyricsEnabled = readAutoLyricsEnabled(db);
+      final writeResult = await _runScanWrite(
+        _LibraryScanWriteTask(
+          service: this,
+          databasePath: databaseFile.path,
+          rootPath: rootPath,
+          settings: settings,
+          scannedPaths: scannedPaths,
+          scannedPathKeys: scannedPathKeys,
+          writePaths: writePaths,
+          metadataByPath: metadataByPath,
+          folders: folders,
+          movedSongs: movedSongs,
+          movedNewPathKeys: movedNewPathKeys,
+          addedPaths: addedPaths,
+          addedPathKeys: addedPathKeys,
+          writeTotal: writeTotal,
+          checkedFolderCount: checkedFolderCount,
+          folderCount: folderProgressMax(),
+          removedPaths: removedPaths,
+          movedFiles: movedFiles,
+          requiresFullReload:
+              addedPaths.isNotEmpty ||
+              removedPaths.isNotEmpty ||
+              movedSongs.isNotEmpty ||
+              settings.rootPath != rootPath,
+        ),
+        onProgress,
+      );
+      if (autoLyricsEnabled && addedPaths.isNotEmpty) {
+        unawaited(
+          autoAddInternetLyricsForPaths(addedPaths.toList()).catchError((_) {}),
         );
-        final artistAnalysis =
-            settings.smartMultiArtistRecognition
-                ? await _artistSplitService.analyzeScannedLibrary(
-                  const <LibrarySong>[],
-                  scannedSongs: scannedSongs,
-                )
-                : _artistSplitService.emptyAnalysis();
-        final directSplitsByTempId = {
-          for (final split in artistAnalysis.directSplits) split.songId: split,
-        };
-        final possibleSplitsByTempId = {
-          for (final split in artistAnalysis.possibleSplits)
-            split.songId: split,
-        };
-        final mergeSuggestionsByTempId = {
-          for (final split in artistAnalysis.mergeSuggestions)
-            split.songId: split,
-        };
-        final appliedSplits = <ArtistSplitResultItem>[];
-        final possibleSplits = <ArtistSplitResultItem>[];
-        final mergeSuggestions = <ArtistSplitResultItem>[];
-        final updatedPathKeys = {...movedNewPathKeys};
-        final batchWriter = LibraryLocalScanBatchWriter(db);
-        try {
-          for (final entry in writePaths.indexed) {
-            if (entry.$1 > 0 && entry.$1 % _scanWriteBatchSize == 0) {
-              await Future<void>.delayed(Duration.zero);
-            }
-            final writtenCount = entry.$1 + 1;
-            final filePath = entry.$2;
-            final scannedSong = scannedSongs[entry.$1];
-            final mergeSuggestion = mergeSuggestionsByTempId[scannedSong.id];
-            final directSplit =
-                mergeSuggestion == null
-                    ? directSplitsByTempId[scannedSong.id]
-                    : null;
-            final artists =
-                directSplit == null
-                    ? scannedSong.artists
-                    : _songPropertiesService.normalizeArtists(
-                      directSplit.artists,
-                    );
-            final parentId =
-                folderIds[localScanPathComparisonKey(p.dirname(filePath))] ?? 0;
-            final writeResult = batchWriter.write(
-              filePath: filePath,
-              song: scannedSong,
-              metadata: metadataByPath[filePath]!,
-              parentId: parentId,
-              artists: artists,
-            );
-            final songId = writeResult.songId;
-            final pathKey = localScanPathComparisonKey(filePath);
-            if (writeResult.changed && !addedPathKeys.contains(pathKey)) {
-              updatedPathKeys.add(pathKey);
-            }
-            if (directSplit != null) {
-              appliedSplits.add(_withSongId(directSplit, songId));
-            }
-            if (mergeSuggestion != null) {
-              mergeSuggestions.add(_withSongId(mergeSuggestion, songId));
-            }
-            final possibleSplit =
-                mergeSuggestion == null
-                    ? possibleSplitsByTempId[scannedSong.id]
-                    : null;
-            if (possibleSplit != null) {
-              possibleSplits.add(_withSongId(possibleSplit, songId));
-            }
-            if (writtenCount % _scanWriteBatchSize == 0 ||
-                writtenCount == writePaths.length) {
-              onProgress?.call(
-                LocalFolderRefreshProgress(
-                  current: writtenCount,
-                  total: writeTotal,
-                  currentPath: filePath,
-                  stage: LocalFolderRefreshStage.updating,
-                  checkedFolderCount: checkedFolderCount,
-                  folderCount: folderProgressMax(),
-                  processedSongCount: writtenCount,
-                  songCount: scannedPaths.length,
-                  addedCount: addedPaths.length,
-                  updatedCount: updatedPathKeys.length,
-                  missingCount: removedPaths.length,
-                ),
-              );
-            }
-          }
-        } finally {
-          batchWriter.dispose();
-        }
-        setRootPath(db, rootPath);
-        final autoLyricsEnabled = readAutoLyricsEnabled(db);
-        final autoLyricsPaths = addedPaths.toList();
-        db.execute('COMMIT');
-        if (autoLyricsEnabled) {
-          unawaited(
-            autoAddInternetLyricsForPaths(autoLyricsPaths).catchError((_) {}),
-          );
-        }
-        await pruneArtworkCache(db);
-        onProgress?.call(
-          LocalFolderRefreshProgress(
-            stage: LocalFolderRefreshStage.updating,
-            current: writeTotal,
-            total: writeTotal,
-            currentPath: '',
-            checkedFolderCount: checkedFolderCount,
-            folderCount: folderProgressMax(),
-            processedSongCount: scannedPaths.length,
-            songCount: scannedPaths.length,
-            addedCount: addedPaths.length,
-            updatedCount: updatedPathKeys.length,
-            missingCount: removedPaths.length,
-          ),
-        );
-        return LocalFolderRefreshResult(
-          filesAdded: addedPaths,
-          filesRemoved: removedPaths,
-          filesMoved: movedFiles.map((file) => file.newPath).toList(),
-          artistSplitsApplied: appliedSplits,
-          artistSplitSuggestions: possibleSplits,
-          artistMergeSuggestions: mergeSuggestions,
-        );
-      } on Object {
-        db.execute('ROLLBACK');
-        rethrow;
       }
+      if (writeResult.result.libraryChanged) {
+        await pruneArtworkCache(db);
+      }
+      onProgress?.call(
+        LocalFolderRefreshProgress(
+          stage: LocalFolderRefreshStage.updating,
+          current: writeTotal,
+          total: writeTotal,
+          currentPath: '',
+          checkedFolderCount: checkedFolderCount,
+          folderCount: folderProgressMax(),
+          processedSongCount: scannedPaths.length,
+          songCount: scannedPaths.length,
+          addedCount: addedPaths.length,
+          updatedCount: writeResult.updatedCount,
+          missingCount: removedPaths.length,
+        ),
+      );
+
+      return writeResult.result;
     } finally {
       db.dispose();
     }

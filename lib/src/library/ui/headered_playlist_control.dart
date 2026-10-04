@@ -72,6 +72,7 @@ class HeaderedPlaylistControl extends ConsumerStatefulWidget {
     required this.artworkUrl,
     required this.onPlayTrack,
     required this.onAddSongToPlaylist,
+    this.playlistId,
     this.headerSongs,
     this.isPlaying = false,
     this.removable = false,
@@ -103,6 +104,7 @@ class HeaderedPlaylistControl extends ConsumerStatefulWidget {
   });
 
   final HeaderedPlaylistType type;
+  final int? playlistId;
   final String title;
   final List<LibrarySong>? headerSongs;
   final List<LibrarySong> songs;

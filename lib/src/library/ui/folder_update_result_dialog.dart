@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
+import 'package:smplayer_flutter/src/app/undoable_notification.dart';
 
 import '../../i18n/app_i18n.dart';
 import '../data/library_models.dart';
@@ -45,13 +46,21 @@ class FolderUpdateResultDialog extends StatefulWidget {
 }
 
 class FolderUpdateResultDialogState extends State<FolderUpdateResultDialog> {
+  late final AppNotificationDetailsSession _notificationSession;
   late FolderUpdateResultTab _activeTab;
   var _artistSplitsApplying = false;
 
   @override
   void initState() {
     super.initState();
+    _notificationSession = AppNotificationDetailsSession();
     _activeTab = _initialTab();
+  }
+
+  @override
+  void dispose() {
+    _notificationSession.close();
+    super.dispose();
   }
 
   FolderUpdateResultTab _initialTab() {
@@ -60,6 +69,9 @@ class FolderUpdateResultDialogState extends State<FolderUpdateResultDialog> {
     }
     if (widget.result.filesAdded.isNotEmpty) {
       return FolderUpdateResultTab.added;
+    }
+    if (widget.result.filesUpdated.isNotEmpty) {
+      return FolderUpdateResultTab.updated;
     }
     if (widget.result.filesRemoved.isNotEmpty) {
       return FolderUpdateResultTab.removed;
@@ -90,6 +102,13 @@ class FolderUpdateResultDialogState extends State<FolderUpdateResultDialog> {
           tab: FolderUpdateResultTab.added,
           label: i18n.t('local.refreshAddedTab'),
           count: widget.result.filesAdded.length,
+          icon: FluentIcons.music_note_2_20_regular,
+        ),
+      if (widget.result.filesUpdated.isNotEmpty)
+        FolderUpdateResultTabItem(
+          tab: FolderUpdateResultTab.updated,
+          label: i18n.t('local.refreshUpdatedTab'),
+          count: widget.result.filesUpdated.length,
           icon: FluentIcons.music_note_2_20_regular,
         ),
       if (widget.result.filesRemoved.isNotEmpty)
@@ -181,6 +200,17 @@ class FolderUpdateResultDialogState extends State<FolderUpdateResultDialog> {
       FolderUpdateResultTab.added => FolderUpdateResultFileSection(
         folderPath: widget.folder.path,
         paths: widget.result.filesAdded,
+        playable: true,
+        songsByPathKey: songsByPathKey,
+        selectedTrackId: widget.selectedTrackId,
+        isPlaying: widget.isPlaying,
+        onPlay: widget.onPlay,
+        onOpenSongMenu: widget.onOpenSongMenu,
+        maxHeight: maxHeight,
+      ),
+      FolderUpdateResultTab.updated => FolderUpdateResultFileSection(
+        folderPath: widget.folder.path,
+        paths: widget.result.filesUpdated,
         playable: true,
         songsByPathKey: songsByPathKey,
         selectedTrackId: widget.selectedTrackId,

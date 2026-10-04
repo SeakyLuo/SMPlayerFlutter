@@ -4,11 +4,15 @@ class _RecentPlayedFilterBar extends StatelessWidget {
   const _RecentPlayedFilterBar({
     required this.i18n,
     required this.activeFilter,
+    required this.counts,
+    required this.showCount,
     required this.onChanged,
   });
 
   final SmPlayerI18n i18n;
   final RecentPlayedFilter activeFilter;
+  final Map<RecentPlayedFilter, int> counts;
+  final bool showCount;
   final ValueChanged<RecentPlayedFilter> onChanged;
 
   @override
@@ -33,13 +37,26 @@ class _RecentPlayedFilterBar extends StatelessWidget {
                     size: 18,
                   ),
                   label: i18n.t('common.songs'),
+                  count: counts[RecentPlayedFilter.songs]!,
+                  showCount: showCount,
                   onPressed: () => onChanged(RecentPlayedFilter.songs),
+                ),
+                _FilterButton(
+                  visualKey: const ValueKey('Recent.FilterButton.nowPlaying'),
+                  active: activeFilter == RecentPlayedFilter.nowPlaying,
+                  icon: const Icon(FluentIcons.headphones_20_regular, size: 18),
+                  label: i18n.t('common.nowPlaying'),
+                  count: counts[RecentPlayedFilter.nowPlaying]!,
+                  showCount: showCount,
+                  onPressed: () => onChanged(RecentPlayedFilter.nowPlaying),
                 ),
                 _FilterButton(
                   visualKey: const ValueKey('Recent.FilterButton.artists'),
                   active: activeFilter == RecentPlayedFilter.artists,
                   icon: const Icon(FluentIcons.people_24_regular, size: 18),
                   label: i18n.t('recent.artists'),
+                  count: counts[RecentPlayedFilter.artists]!,
+                  showCount: showCount,
                   onPressed: () => onChanged(RecentPlayedFilter.artists),
                 ),
                 _FilterButton(
@@ -47,6 +64,8 @@ class _RecentPlayedFilterBar extends StatelessWidget {
                   active: activeFilter == RecentPlayedFilter.albums,
                   icon: const _RecentFilterAlbumIcon(),
                   label: i18n.t('recent.albums'),
+                  count: counts[RecentPlayedFilter.albums]!,
+                  showCount: showCount,
                   onPressed: () => onChanged(RecentPlayedFilter.albums),
                 ),
                 _FilterButton(
@@ -54,14 +73,9 @@ class _RecentPlayedFilterBar extends StatelessWidget {
                   active: activeFilter == RecentPlayedFilter.playlists,
                   icon: const _RecentFilterPlaylistIcon(),
                   label: i18n.t('recent.playlists'),
+                  count: counts[RecentPlayedFilter.playlists]!,
+                  showCount: showCount,
                   onPressed: () => onChanged(RecentPlayedFilter.playlists),
-                ),
-                _FilterButton(
-                  visualKey: const ValueKey('Recent.FilterButton.nowPlaying'),
-                  active: activeFilter == RecentPlayedFilter.nowPlaying,
-                  icon: const Icon(FluentIcons.headphones_20_regular, size: 18),
-                  label: i18n.t('common.nowPlaying'),
-                  onPressed: () => onChanged(RecentPlayedFilter.nowPlaying),
                 ),
               ],
             ),
@@ -78,6 +92,8 @@ class _FilterButton extends StatelessWidget {
     required this.active,
     required this.icon,
     required this.label,
+    required this.count,
+    required this.showCount,
     required this.onPressed,
   });
 
@@ -85,6 +101,8 @@ class _FilterButton extends StatelessWidget {
   final bool active;
   final Widget icon;
   final String label;
+  final int count;
+  final bool showCount;
   final VoidCallback onPressed;
 
   @override
@@ -137,9 +155,18 @@ class _FilterButton extends StatelessWidget {
             glassEnabled: false,
             fontSize: 14,
             fontWeight: FontWeight.w700,
-            child: Text(
-              label,
-              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
+            child: _RecentTabContent(
+              label: label,
+              count: count,
+              showCount: showCount,
+              labelStyle: const TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
+              ),
+              countStyle: const TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ),
         ),

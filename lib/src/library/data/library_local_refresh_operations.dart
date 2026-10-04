@@ -3,7 +3,13 @@ part of 'library_local_refresh_service.dart';
 mixin _LibraryLocalRefreshOperations {
   LibrarySongPropertiesService get _songPropertiesService;
 
-  Future<void> renameFolder(
+  Future<void> renameFolder(File databaseFile, String folderPath, String name) {
+    return Isolate.run(
+      _RenameLocalFolderTask(this, databaseFile.path, folderPath, name).call,
+    );
+  }
+
+  Future<void> _renameFolderInBackground(
     File databaseFile,
     String folderPath,
     String name,
@@ -238,7 +244,6 @@ mixin _LibraryLocalRefreshOperations {
         Album = excluded.Album,
         ThumbnailPath = excluded.ThumbnailPath,
         Duration = excluded.Duration,
-        DateAdded = excluded.DateAdded,
         FileSize = excluded.FileSize,
         DateModifiedMs = excluded.DateModifiedMs,
         State = excluded.State
@@ -313,15 +318,6 @@ mixin _LibraryLocalRefreshOperations {
       lyricsOffsetMs: 0,
       dateAdded: metadata.dateAdded,
       favorite: false,
-    );
-  }
-
-  ArtistSplitResultItem _withSongId(ArtistSplitResultItem item, int songId) {
-    return ArtistSplitResultItem(
-      songId: songId,
-      title: item.title,
-      artist: item.artist,
-      artists: item.artists,
     );
   }
 

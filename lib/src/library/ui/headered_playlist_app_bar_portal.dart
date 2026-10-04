@@ -34,6 +34,7 @@ bool isHeaderedPlaylistRouteLocation(String location) {
   final path = uri.path;
   return path == '/favorites' ||
       path.startsWith('/playlists/') ||
+      path.startsWith('/recent/now-playing/') ||
       path == '/albums' && uri.queryParameters.containsKey('album');
 }
 

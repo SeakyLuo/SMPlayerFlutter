@@ -207,48 +207,73 @@ mixin _LibraryRepositoryLocalOperations {
 
   Future<LocalFolderRefreshResult> scanAllMusicLibrary(
     String rootPath, {
-    Future<void> Function()? onLibraryCommitted,
+    Future<void> Function(LocalFolderRefreshResult result)? onLibraryCommitted,
     void Function(LocalFolderRefreshProgress progress)? onProgress,
     LocalFolderScanCancellation? cancellation,
   }) async {
     final databaseFile = await _resolveDatabaseFile();
-    final result = await LibraryRepository._localRefreshService
-        .scanAllMusicLibrary(
-          databaseFile,
-          rootPath,
-          cacheSongArtwork: _cacheSongArtwork,
-          readAutoLyricsEnabled: _lyricsService.readAutoLyricsEnabled,
-          autoAddInternetLyricsForPaths: _autoAddInternetLyricsForPaths,
-          pruneArtworkCache: _pruneArtworkCache,
-          onProgress: onProgress,
-          cancellation: cancellation,
-        );
-    await onLibraryCommitted?.call();
-    _lyricsSearchService.refreshFolderInBackground(databaseFile, rootPath);
-    return result;
+    final taskCancellation = cancellation ?? LocalFolderScanCancellation();
+    final task = libraryScanTaskCoordinator.begin(taskCancellation);
+    try {
+      final result = await LibraryRepository._localRefreshService
+          .scanAllMusicLibrary(
+            databaseFile,
+            rootPath,
+            cacheSongArtwork: _cacheSongArtwork,
+            readAutoLyricsEnabled: _lyricsService.readAutoLyricsEnabled,
+            autoAddInternetLyricsForPaths: _autoAddInternetLyricsForPaths,
+            pruneArtworkCache: _pruneArtworkCache,
+            onProgress: (progress) {
+              task.updateProgress(progress);
+              onProgress?.call(progress);
+            },
+            cancellation: taskCancellation,
+          );
+      if (result.libraryChanged) {
+        await onLibraryCommitted?.call(result);
+        _lyricsSearchService.refreshFolderInBackground(databaseFile, rootPath);
+      }
+      return result;
+    } finally {
+      task.complete();
+    }
   }
 
   Future<LocalFolderRefreshResult> refreshLocalFolder(
     String folderPath, {
-    Future<void> Function()? onLibraryCommitted,
+    Future<void> Function(LocalFolderRefreshResult result)? onLibraryCommitted,
     void Function(LocalFolderRefreshProgress progress)? onProgress,
     LocalFolderScanCancellation? cancellation,
   }) async {
     final databaseFile = await _resolveDatabaseFile();
-    final result = await LibraryRepository._localRefreshService
-        .refreshLocalFolder(
+    final taskCancellation = cancellation ?? LocalFolderScanCancellation();
+    final task = libraryScanTaskCoordinator.begin(taskCancellation);
+    try {
+      final result = await LibraryRepository._localRefreshService
+          .refreshLocalFolder(
+            databaseFile,
+            folderPath,
+            cacheSongArtwork: _cacheSongArtwork,
+            readAutoLyricsEnabled: _lyricsService.readAutoLyricsEnabled,
+            autoAddInternetLyricsForPaths: _autoAddInternetLyricsForPaths,
+            pruneArtworkCache: _pruneArtworkCache,
+            onProgress: (progress) {
+              task.updateProgress(progress);
+              onProgress?.call(progress);
+            },
+            cancellation: taskCancellation,
+          );
+      if (result.libraryChanged) {
+        await onLibraryCommitted?.call(result);
+        _lyricsSearchService.refreshFolderInBackground(
           databaseFile,
           folderPath,
-          cacheSongArtwork: _cacheSongArtwork,
-          readAutoLyricsEnabled: _lyricsService.readAutoLyricsEnabled,
-          autoAddInternetLyricsForPaths: _autoAddInternetLyricsForPaths,
-          pruneArtworkCache: _pruneArtworkCache,
-          onProgress: onProgress,
-          cancellation: cancellation,
         );
-    await onLibraryCommitted?.call();
-    _lyricsSearchService.refreshFolderInBackground(databaseFile, folderPath);
-    return result;
+      }
+      return result;
+    } finally {
+      task.complete();
+    }
   }
 
   Future<LocalFolderRefreshResult> createLocalFolder(

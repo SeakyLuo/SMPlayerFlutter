@@ -23,6 +23,10 @@ void FlutterWindow::UpdateDesktopLyricsTooltips() {
       return;
     }
     ::SendMessageW(desktop_lyrics_tooltip_window_, TTM_SETMAXTIPWIDTH, 0, 360);
+    ::SendMessageW(desktop_lyrics_tooltip_window_, TTM_SETDELAYTIME,
+                   TTDT_INITIAL, 500);
+    ::SendMessageW(desktop_lyrics_tooltip_window_, TTM_SETDELAYTIME,
+                   TTDT_RESHOW, 100);
   }
 
   const std::map<std::string, std::wstring> labels = {
@@ -73,7 +77,6 @@ void FlutterWindow::UpdateDesktopLyricsTooltips() {
     info.cbSize = sizeof(info);
     info.hwnd = desktop_lyrics_window_;
     info.uId = id;
-    info.uFlags = TTF_SUBCLASS;
     info.rect = stored.bounds;
     info.lpszText = stored.text.data();
     if (added) {
@@ -90,6 +93,22 @@ void FlutterWindow::UpdateDesktopLyricsTooltips() {
     ::SendMessageW(desktop_lyrics_tooltip_window_, TTM_ACTIVATE, TRUE, 0);
     desktop_lyrics_tooltips_active_ = true;
   }
+}
+
+void FlutterWindow::RelayDesktopLyricsTooltip(UINT message, WPARAM wparam,
+                                               LPARAM lparam) {
+  if (!desktop_lyrics_tooltip_window_ || !desktop_lyrics_tooltips_active_) {
+    return;
+  }
+  MSG relay_message = {};
+  relay_message.hwnd = desktop_lyrics_window_;
+  relay_message.message = message;
+  relay_message.wParam = wparam;
+  relay_message.lParam = lparam;
+  relay_message.time = ::GetMessageTime();
+  ::GetCursorPos(&relay_message.pt);
+  ::SendMessageW(desktop_lyrics_tooltip_window_, TTM_RELAYEVENT, 0,
+                 reinterpret_cast<LPARAM>(&relay_message));
 }
 
 void FlutterWindow::DismissDesktopLyricsTooltip() {

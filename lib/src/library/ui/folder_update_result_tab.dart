@@ -1,6 +1,6 @@
 import 'package:flutter/widgets.dart';
 
-enum FolderUpdateResultTab { added, removed, moved, artists }
+enum FolderUpdateResultTab { added, updated, removed, moved, artists }
 
 class FolderUpdateResultTabItem {
   const FolderUpdateResultTabItem({

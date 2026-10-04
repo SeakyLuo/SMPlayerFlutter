@@ -321,9 +321,11 @@ class _CompactMediaControlLayout extends StatelessWidget {
                   utilityControlOuterSlack;
               final transportWidth = narrow ? 160.0 : 192.0;
               final transportOpticalOffset = narrow ? 6.0 : 10.0;
-              final leadingWidth =
-                  (constraints.maxWidth - transportWidth) / 2 +
-                  transportOpticalOffset;
+              final leadingWidth = max(
+                0.0,
+                (constraints.maxWidth - transportWidth) / 2 +
+                    transportOpticalOffset,
+              );
 
               return Stack(
                 fit: StackFit.expand,

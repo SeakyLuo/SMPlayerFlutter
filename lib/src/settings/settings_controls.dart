@@ -947,6 +947,7 @@ class SettingsActionButton extends StatelessWidget {
     this.primary = false,
     this.compact = false,
     this.disabled = false,
+    this.loading = false,
     this.tooltip,
     this.onClick,
   });
@@ -956,6 +957,7 @@ class SettingsActionButton extends StatelessWidget {
   final bool primary;
   final bool compact;
   final bool disabled;
+  final bool loading;
   final String? tooltip;
   final VoidCallback? onClick;
 
@@ -976,6 +978,7 @@ class SettingsActionButton extends StatelessWidget {
           icon: icon,
           label: label,
           disabled: disabled,
+          loading: loading,
           active: false,
           minWidth: compact ? 0 : 0,
           height: 40,

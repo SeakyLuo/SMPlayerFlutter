@@ -326,7 +326,7 @@ extension _SmPlayerShellDesktopMethods on _SmPlayerShellPageState {
       case DesktopFeatureCommand.openSettings:
         _navigateTo('/settings');
       case DesktopFeatureCommand.quit:
-        unawaited(_desktopFeatureService.quit());
+        _requestDesktopQuit();
       case DesktopFeatureCommand.playRecentSong:
         _playRecentSongFromPlatform(action.songId!);
       case DesktopFeatureCommand.openExternalAudioFiles:
@@ -341,6 +341,24 @@ extension _SmPlayerShellDesktopMethods on _SmPlayerShellPageState {
         _mediaControlController.onSeek(action.seekSeconds!);
       case DesktopFeatureCommand.voiceCommand:
         _executeExternalVoiceCommand(action.voiceCommandText!);
+    }
+  }
+
+  void _requestDesktopQuit() {
+    _pendingQuit ??= _quitDesktopAppAfterPendingWork();
+  }
+
+  Future<void> _quitDesktopAppAfterPendingWork() async {
+    try {
+      await libraryScanTaskCoordinator.cancelAndWaitForActiveTasks();
+      await Future.wait([
+        _settingsController.waitForPendingPlaybackSettings(),
+        _settingsController.waitForPendingDisplayModeState(),
+        _settingsController.waitForPendingViewState(),
+      ]);
+      await _desktopFeatureService.quit();
+    } finally {
+      _pendingQuit = null;
     }
   }
 

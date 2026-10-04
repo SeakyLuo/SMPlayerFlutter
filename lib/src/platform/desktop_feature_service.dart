@@ -26,6 +26,7 @@ import 'package:window_manager/window_manager.dart';
 part 'desktop_shell_utils.dart';
 part 'desktop_feature_models.dart';
 part 'desktop_feature_service_impl.dart';
+part 'desktop_window_state_service.dart';
 part 'desktop_notification_helpers.dart';
 
 const desktopRecentSongLimit = 10;
@@ -38,3 +39,13 @@ const _desktopFeatureChannel = MethodChannel(
 );
 const _miniModeWindowSize = Size(360, 360);
 const _defaultWindowMinimumSize = mainWindowMinimumSize;
+
+Future<bool> ensureMainWindowVisibleWithPlatformCoordinates() async {
+  if (!Platform.isWindows) {
+    return false;
+  }
+  return await _desktopFeatureChannel.invokeMethod<bool>(
+        'ensureMainWindowVisible',
+      ) ??
+      false;
+}

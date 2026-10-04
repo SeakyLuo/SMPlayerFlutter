@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
+import 'package:smplayer_flutter/src/app/undoable_notification.dart';
 import 'package:smplayer_flutter/src/app/clipped_rounded_surface.dart';
 import 'package:smplayer_flutter/src/app/smplayer_auto_hide_scrollbar.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
@@ -36,12 +37,20 @@ class LyricsBatchDetailsDialog extends StatefulWidget {
 }
 
 class _LyricsBatchDetailsDialogState extends State<LyricsBatchDetailsDialog> {
+  late final AppNotificationDetailsSession _notificationSession;
   String? _selectedDetailId;
   final _collapsedResults = <LyricsBatchDetailResult>{};
   final _scrollController = ScrollController();
 
   @override
+  void initState() {
+    super.initState();
+    _notificationSession = AppNotificationDetailsSession();
+  }
+
+  @override
   void dispose() {
+    _notificationSession.close();
     _scrollController.dispose();
     super.dispose();
   }

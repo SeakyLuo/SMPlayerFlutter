@@ -42,6 +42,11 @@ class ShellTitlebarHost extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final immersiveModeVisible = immersiveOverlayVisible;
+    final themeControlsLight = Theme.of(context).brightness == Brightness.dark;
+    final controlsLight =
+        immersiveModeVisible || layout.immersiveMinimalTitlebar
+            ? windowControlsLight ?? themeControlsLight
+            : themeControlsLight;
     return Stack(
       children: [
         if (Platform.isMacOS &&
@@ -81,9 +86,7 @@ class ShellTitlebarHost extends StatelessWidget {
             height: SmPlayerShellMetrics.minimalTitlebarHeight,
             child: WindowsAppTitleBar(
               isMaximized: isWindowMaximized,
-              light:
-                  windowControlsLight ??
-                  (Theme.of(context).brightness == Brightness.dark),
+              light: controlsLight,
               showDragRegion: true,
               onWindowDragStart: onWindowDragStart,
               onWindowDragEnd: onWindowDragEnd,
@@ -103,9 +106,7 @@ class ShellTitlebarHost extends StatelessWidget {
             height: SmPlayerShellMetrics.minimalTitlebarHeight,
             child: WindowsAppTitleBar(
               isMaximized: isWindowMaximized,
-              light:
-                  windowControlsLight ??
-                  (Theme.of(context).brightness == Brightness.dark),
+              light: controlsLight,
               showDragRegion: false,
               onWindowDragStart: onWindowDragStart,
               onWindowDragEnd: onWindowDragEnd,

@@ -1,5 +1,8 @@
 #include "flutter_window.h"
+#include "application_data_path.h"
+#include "desktop_lyrics_glass.h"
 #include "directory_picker.h"
+#include "windows_speech_recognition.h"
 
 #include <chrono>
 #include <dwmapi.h>
@@ -216,6 +219,33 @@ bool IsDarkModePreferred() {
       kGetPreferredBrightnessRegValue, RRF_RT_REG_DWORD, nullptr, &value,
       &value_size);
   return result == ERROR_SUCCESS && value == 0;
+}
+
+bool EnsureMainWindowVisible(HWND window) {
+  RECT bounds = {};
+  if (!::GetWindowRect(window, &bounds) ||
+      ::MonitorFromRect(&bounds, MONITOR_DEFAULTTONULL) != nullptr) {
+    return false;
+  }
+
+  POINT primary_point = {0, 0};
+  MONITORINFO monitor_info = {};
+  monitor_info.cbSize = sizeof(monitor_info);
+  ::GetMonitorInfoW(
+      ::MonitorFromPoint(primary_point, MONITOR_DEFAULTTOPRIMARY),
+      &monitor_info);
+  const RECT& work_area = monitor_info.rcWork;
+  const int width = std::min(bounds.right - bounds.left,
+                             work_area.right - work_area.left);
+  const int height = std::min(bounds.bottom - bounds.top,
+                              work_area.bottom - work_area.top);
+  const int x = work_area.left +
+                ((work_area.right - work_area.left) - width) / 2;
+  const int y = work_area.top +
+                ((work_area.bottom - work_area.top) - height) / 2;
+  ::SetWindowPos(window, nullptr, x, y, width, height,
+                 SWP_NOACTIVATE | SWP_NOOWNERZORDER | SWP_NOZORDER);
+  return true;
 }
 
 RECT DefaultDesktopLyricsBounds(HWND owner) {
@@ -440,6 +470,11 @@ bool FlutterWindow::OnCreate() {
     return false;
   }
   RegisterPlugins(flutter_controller_->engine());
+  RegisterWindowsSpeechRecognition(
+      flutter::PluginRegistrarManager::GetInstance()
+          ->GetRegistrar<flutter::PluginRegistrarWindows>(
+              flutter_controller_->engine()->GetRegistrarForPlugin(
+                  "SMPlayerWindowsSpeech")));
   RegisterDesktopFeatureChannel();
   RegisterGlobalMediaHotkeys();
   taskbar_button_created_message_ =
@@ -447,8 +482,6 @@ bool FlutterWindow::OnCreate() {
   SetChildContent(flutter_controller_->view()->GetNativeWindow());
   native_splash_visible_ = true;
   ::ShowWindow(flutter_controller_->view()->GetNativeWindow(), SW_HIDE);
-  this->Show();
-  ::InvalidateRect(GetHandle(), nullptr, TRUE);
 
   flutter_controller_->engine()->SetNextFrameCallback([&]() {
     DismissNativeSplash();
@@ -472,6 +505,10 @@ void FlutterWindow::RegisterDesktopFeatureChannel() {
       [this](const flutter::MethodCall<flutter::EncodableValue>& call,
          std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>>
              result) {
+        if (call.method_name() == "getApplicationDataPath") {
+          GetApplicationDataPath(*result);
+          return;
+        }
         if (call.method_name() == "pickDirectory") {
           PickDirectory(GetHandle(),
                         std::get<flutter::EncodableMap>(*call.arguments()),
@@ -504,6 +541,12 @@ void FlutterWindow::RegisterDesktopFeatureChannel() {
           return;
         }
 
+        if (call.method_name() == "ensureMainWindowVisible") {
+          result->Success(flutter::EncodableValue(
+              EnsureMainWindowVisible(GetHandle())));
+          return;
+        }
+
         if (call.method_name() == "updateMediaSession") {
           const auto* arguments =
               std::get_if<flutter::EncodableMap>(call.arguments());
@@ -513,6 +556,15 @@ void FlutterWindow::RegisterDesktopFeatureChannel() {
             return;
           }
           UpdateMediaSession(*arguments);
+          result->Success();
+          return;
+        }
+
+        if (call.method_name() == "showNativeSplash") {
+          native_splash_night_mode_ = std::get<bool>(*call.arguments());
+          this->Show();
+          ::InvalidateRect(GetHandle(), nullptr, FALSE);
+          ::UpdateWindow(GetHandle());
           result->Success();
           return;
         }
@@ -644,19 +696,19 @@ void FlutterWindow::EnsureTaskbarToolbar() {
   buttons[0].iId = kTaskbarButtonPrevious;
   buttons[0].hIcon = taskbar_previous_icon_;
   buttons[0].dwFlags = THBF_ENABLED;
-  wcscpy_s(buttons[0].szTip, L"Previous");
+  wcscpy_s(buttons[0].szTip, taskbar_previous_label_.c_str());
 
   buttons[1].dwMask = THB_ICON | THB_TOOLTIP | THB_FLAGS;
   buttons[1].iId = kTaskbarButtonPlayPause;
   buttons[1].hIcon = taskbar_play_icon_;
   buttons[1].dwFlags = THBF_ENABLED;
-  wcscpy_s(buttons[1].szTip, L"Play");
+  wcscpy_s(buttons[1].szTip, taskbar_play_label_.c_str());
 
   buttons[2].dwMask = THB_ICON | THB_TOOLTIP | THB_FLAGS;
   buttons[2].iId = kTaskbarButtonNext;
   buttons[2].hIcon = taskbar_next_icon_;
   buttons[2].dwFlags = THBF_ENABLED;
-  wcscpy_s(buttons[2].szTip, L"Next");
+  wcscpy_s(buttons[2].szTip, taskbar_next_label_.c_str());
 
   if (SUCCEEDED(taskbar_list_->ThumbBarAddButtons(GetHandle(), 3, buttons))) {
     taskbar_buttons_added_ = true;
@@ -676,19 +728,21 @@ void FlutterWindow::UpdateTaskbarToolbar(bool active, bool playing) {
   buttons[0].iId = kTaskbarButtonPrevious;
   buttons[0].hIcon = taskbar_previous_icon_;
   buttons[0].dwFlags = THBF_ENABLED;
-  wcscpy_s(buttons[0].szTip, L"Previous");
+  wcscpy_s(buttons[0].szTip, taskbar_previous_label_.c_str());
 
   buttons[1].dwMask = THB_ICON | THB_TOOLTIP | THB_FLAGS;
   buttons[1].iId = kTaskbarButtonPlayPause;
   buttons[1].hIcon = playing ? taskbar_pause_icon_ : taskbar_play_icon_;
   buttons[1].dwFlags = THBF_ENABLED;
-  wcscpy_s(buttons[1].szTip, playing ? L"Pause" : L"Play");
+  wcscpy_s(buttons[1].szTip,
+           playing ? taskbar_pause_label_.c_str()
+                   : taskbar_play_label_.c_str());
 
   buttons[2].dwMask = THB_ICON | THB_TOOLTIP | THB_FLAGS;
   buttons[2].iId = kTaskbarButtonNext;
   buttons[2].hIcon = taskbar_next_icon_;
   buttons[2].dwFlags = THBF_ENABLED;
-  wcscpy_s(buttons[2].szTip, L"Next");
+  wcscpy_s(buttons[2].szTip, taskbar_next_label_.c_str());
 
   taskbar_list_->ThumbBarUpdateButtons(GetHandle(), 3, buttons);
 }
@@ -753,6 +807,10 @@ void FlutterWindow::UpdateMediaSession(const flutter::EncodableMap& state) {
 
   const bool active = EncodableBool(state, "active");
   const bool playing = EncodableBool(state, "playing");
+  taskbar_previous_label_ = EncodableString(state, "previousLabel");
+  taskbar_play_label_ = EncodableString(state, "playLabel");
+  taskbar_pause_label_ = EncodableString(state, "pauseLabel");
+  taskbar_next_label_ = EncodableString(state, "nextLabel");
   UpdateTaskbarToolbar(active, playing);
 
   if (!active) {
@@ -958,8 +1016,12 @@ void FlutterWindow::UpdateDesktopLyricsWindow(
         kDesktopLyricsWindowClass, EncodableString(state, "labelTitle").c_str(), WS_POPUP, bounds.left,
         bounds.top, bounds.right - bounds.left, bounds.bottom - bounds.top,
         nullptr, nullptr, ::GetModuleHandleW(nullptr), this);
+    desktop_lyrics_glass_window_ = CreateDesktopLyricsGlassWindow();
     ::SetTimer(desktop_lyrics_window_, 1, 100, nullptr);
   }
+
+  desktop_lyrics_system_glass_active_ = ApplyDesktopLyricsGlassMaterial(
+      desktop_lyrics_glass_window_, desktop_lyrics_night_mode_);
 
   ::SetWindowTextW(desktop_lyrics_window_, EncodableString(state, "labelTitle").c_str());
   ::SetWindowPos(desktop_lyrics_window_, HWND_TOPMOST, 0, 0, 0, 0,
@@ -989,6 +1051,7 @@ void FlutterWindow::HideDesktopLyricsWindow() {
     desktop_lyrics_tracking_mouse_leave_ = false;
     desktop_lyrics_hovered_button_command_.clear();
     desktop_lyrics_buttons_.clear();
+    HideDesktopLyricsGlassWindow(desktop_lyrics_glass_window_);
     ::ShowWindow(desktop_lyrics_window_, SW_HIDE);
     ::KillTimer(desktop_lyrics_window_, 1);
   }
@@ -1001,6 +1064,11 @@ void FlutterWindow::DestroyDesktopLyricsWindow() {
     ::DestroyWindow(desktop_lyrics_window_);
     desktop_lyrics_window_ = nullptr;
   }
+  if (desktop_lyrics_glass_window_) {
+    ::DestroyWindow(desktop_lyrics_glass_window_);
+    desktop_lyrics_glass_window_ = nullptr;
+  }
+  desktop_lyrics_system_glass_active_ = false;
 }
 
 bool FlutterWindow::UpdateDesktopLyricsPanelVisibility(POINT point) {
@@ -1052,7 +1120,7 @@ void FlutterWindow::PaintNativeSplash() {
   PAINTSTRUCT paint;
   HDC hdc = ::BeginPaint(GetHandle(), &paint);
   RECT client_rect = GetClientArea();
-  const bool dark = IsDarkModePreferred();
+  const bool dark = native_splash_night_mode_;
 
   HBRUSH background_brush =
       ::CreateSolidBrush(dark ? RGB(15, 19, 25) : RGB(247, 249, 252));
@@ -1134,49 +1202,18 @@ void FlutterWindow::PaintDesktopLyricsWindow() {
   auto scaled_metric = [layout_scale](int value) {
     return std::max(1, static_cast<int>(value * layout_scale + 0.5));
   };
-  const BYTE card_background_alpha = static_cast<BYTE>(
-      std::clamp(desktop_lyrics_opacity_, 0, 100) *
-      (desktop_lyrics_night_mode_ ? 0.34 : 0.24) * 255 / 100);
-  const BYTE card_border_alpha =
-      static_cast<BYTE>((desktop_lyrics_night_mode_ ? 0.22 : 0.08) * 255);
-  const BYTE button_background_alpha =
-      static_cast<BYTE>((desktop_lyrics_night_mode_ ? 0.16 : 0.38) * 255);
-  const BYTE button_hover_background_alpha =
-      static_cast<BYTE>((desktop_lyrics_night_mode_ ? 0.72 : 0.96) * 255);
+  const BYTE card_background_alpha = desktop_lyrics_system_glass_active_
+                                         ? desktop_lyrics_night_mode_ ? 32 : 24
+                                         : desktop_lyrics_night_mode_ ? 210 : 220;
+  const BYTE card_border_alpha = desktop_lyrics_system_glass_active_
+                                     ? desktop_lyrics_night_mode_ ? 70 : 105
+                                     : desktop_lyrics_night_mode_ ? 92 : 150;
 
   auto* pixels = static_cast<unsigned char*>(bits);
   std::vector<bool> premultiplied_pixels(width * height, false);
   auto background_alpha = [&](const unsigned char* pixel) {
     if (pixel[0] == 0 && pixel[1] == 0 && pixel[2] == 0) {
       return static_cast<BYTE>(0);
-    }
-    const bool card_background =
-        desktop_lyrics_night_mode_
-            ? (pixel[0] == 18 && pixel[1] == 12 && pixel[2] == 8)
-            : (pixel[0] == 255 && pixel[1] == 250 && pixel[2] == 245);
-    const bool card_border =
-        desktop_lyrics_night_mode_
-            ? (pixel[0] == 255 && pixel[1] == 254 && pixel[2] == 253)
-            : (pixel[0] == 42 && pixel[1] == 23 && pixel[2] == 15);
-    const bool button_background =
-        desktop_lyrics_night_mode_
-            ? (pixel[0] == 16 && pixel[1] == 10 && pixel[2] == 6)
-            : (pixel[0] == 255 && pixel[1] == 255 && pixel[2] == 255);
-    const bool button_hover_background =
-        desktop_lyrics_night_mode_
-            ? (pixel[0] == 64 && pixel[1] == 52 && pixel[2] == 42)
-            : (pixel[0] == 240 && pixel[1] == 230 && pixel[2] == 222);
-    if (card_background) {
-      return card_background_alpha;
-    }
-    if (card_border) {
-      return card_border_alpha;
-    }
-    if (button_hover_background) {
-      return button_hover_background_alpha;
-    }
-    if (button_background) {
-      return button_background_alpha;
     }
     return static_cast<BYTE>(255);
   };
@@ -1191,6 +1228,75 @@ void FlutterWindow::PaintDesktopLyricsWindow() {
     pixel[2] = static_cast<unsigned char>(pixel[2] * alpha / 255);
     pixel[3] = alpha;
     premultiplied_pixels[index] = true;
+  };
+  auto blend_pixel = [&](int x, int y, COLORREF color, BYTE alpha,
+                         double coverage) {
+    if (coverage <= 0.0) {
+      return;
+    }
+    const int index = y * width + x;
+    premultiply_pixel(index);
+    unsigned char* pixel = pixels + index * 4;
+    const int source_alpha = static_cast<int>(alpha * coverage + 0.5);
+    const int inverse_alpha = 255 - source_alpha;
+    pixel[0] = static_cast<unsigned char>(
+        GetBValue(color) * source_alpha / 255 +
+        pixel[0] * inverse_alpha / 255);
+    pixel[1] = static_cast<unsigned char>(
+        GetGValue(color) * source_alpha / 255 +
+        pixel[1] * inverse_alpha / 255);
+    pixel[2] = static_cast<unsigned char>(
+        GetRValue(color) * source_alpha / 255 +
+        pixel[2] * inverse_alpha / 255);
+    pixel[3] = static_cast<unsigned char>(
+        source_alpha + pixel[3] * inverse_alpha / 255);
+  };
+  auto rounded_rect_coverage = [](double x, double y, const RECT& bounds,
+                                  double radius, double inset) {
+    const double left = bounds.left + inset;
+    const double top = bounds.top + inset;
+    const double right = bounds.right - inset;
+    const double bottom = bounds.bottom - inset;
+    const double half_width = (right - left) / 2.0;
+    const double half_height = (bottom - top) / 2.0;
+    const double corner_radius =
+        std::max(0.0, std::min(radius - inset,
+                              std::min(half_width, half_height)));
+    const double center_x = (left + right) / 2.0;
+    const double center_y = (top + bottom) / 2.0;
+    const double distance_x =
+        std::abs(x - center_x) - (half_width - corner_radius);
+    const double distance_y =
+        std::abs(y - center_y) - (half_height - corner_radius);
+    const double outside_distance =
+        std::hypot(std::max(distance_x, 0.0),
+                   std::max(distance_y, 0.0));
+    const double inside_distance =
+        std::min(std::max(distance_x, distance_y), 0.0);
+    const double signed_distance =
+        outside_distance + inside_distance - corner_radius;
+    return std::clamp(0.5 - signed_distance, 0.0, 1.0);
+  };
+  auto draw_rounded_surface = [&](const RECT& bounds, double radius,
+                                  COLORREF fill_color, BYTE fill_alpha,
+                                  COLORREF border_color, BYTE border_alpha) {
+    const int left = std::max(0, static_cast<int>(bounds.left) - 1);
+    const int top = std::max(0, static_cast<int>(bounds.top) - 1);
+    const int right = std::min(width, static_cast<int>(bounds.right) + 1);
+    const int bottom = std::min(height, static_cast<int>(bounds.bottom) + 1);
+    for (int y = top; y < bottom; y += 1) {
+      for (int x = left; x < right; x += 1) {
+        const double sample_x = x + 0.5;
+        const double sample_y = y + 0.5;
+        const double outer_coverage = rounded_rect_coverage(
+            sample_x, sample_y, bounds, radius, 0.0);
+        const double inner_coverage = rounded_rect_coverage(
+            sample_x, sample_y, bounds, radius, 1.0);
+        blend_pixel(x, y, border_color, border_alpha,
+                    outer_coverage - inner_coverage);
+        blend_pixel(x, y, fill_color, fill_alpha, inner_coverage);
+      }
+    }
   };
   auto draw_alpha_text = [&](const std::wstring& text, RECT target,
                              UINT format) {
@@ -1249,20 +1355,42 @@ void FlutterWindow::PaintDesktopLyricsWindow() {
   desktop_lyrics_buttons_.clear();
 
   if (desktop_lyrics_panel_visible_) {
-    HBRUSH card_brush = ::CreateSolidBrush(
-        desktop_lyrics_night_mode_ ? RGB(8, 12, 18) : RGB(245, 250, 255));
-    HPEN card_pen = ::CreatePen(
-        PS_SOLID, 1,
-        desktop_lyrics_night_mode_ ? RGB(253, 254, 255) : RGB(15, 23, 42));
-    HGDIOBJ old_brush = ::SelectObject(hdc, card_brush);
-    HGDIOBJ old_pen = ::SelectObject(hdc, card_pen);
-    const int radius = scaled_metric(16);
-    ::RoundRect(hdc, card.left, card.top, card.right, card.bottom, radius,
-                radius);
-    ::SelectObject(hdc, old_pen);
-    ::SelectObject(hdc, old_brush);
-    ::DeleteObject(card_pen);
-    ::DeleteObject(card_brush);
+    draw_rounded_surface(
+        card, scaled_metric(8),
+        desktop_lyrics_night_mode_ ? RGB(24, 24, 24) : RGB(255, 255, 255),
+        card_background_alpha,
+        RGB(255, 255, 255),
+        card_border_alpha);
+    RECT inner_card = card;
+    ::InflateRect(&inner_card, -scaled_metric(1), -scaled_metric(1));
+    draw_rounded_surface(
+        inner_card, scaled_metric(7),
+        desktop_lyrics_night_mode_ ? RGB(100, 100, 100)
+                                   : RGB(255, 255, 255),
+        desktop_lyrics_system_glass_active_
+            ? desktop_lyrics_night_mode_ ? 6 : 10
+            : desktop_lyrics_night_mode_ ? 18 : 42,
+        RGB(255, 255, 255),
+        desktop_lyrics_system_glass_active_
+            ? desktop_lyrics_night_mode_ ? 36 : 80
+            : desktop_lyrics_night_mode_ ? 42 : 112);
+    for (int y = card.top; y < card.bottom; ++y) {
+      const double progress =
+          static_cast<double>(y - card.top) / (card.bottom - card.top);
+      const BYTE sheen_alpha = static_cast<BYTE>(
+          (desktop_lyrics_night_mode_ ? 12 : 18) *
+          std::pow(1.0 - progress, 3.0));
+      for (int x = card.left; x < card.right; ++x) {
+        const double outer = rounded_rect_coverage(
+            x + 0.5, y + 0.5, card, scaled_metric(8), 0.0);
+        const double inner = rounded_rect_coverage(
+            x + 0.5, y + 0.5, card, scaled_metric(8), 1.0);
+        blend_pixel(x, y, RGB(255, 255, 255), sheen_alpha, inner);
+        blend_pixel(x, y, RGB(255, 255, 255),
+                    static_cast<BYTE>(110 * std::pow(1.0 - progress, 2.0)),
+                    outer - inner);
+      }
+    }
 
     HFONT meta_font = ::CreateFontW(
         -scaled_metric(12), 0, 0, 0, FW_SEMIBOLD, FALSE, FALSE, FALSE,
@@ -1304,16 +1432,16 @@ void FlutterWindow::PaintDesktopLyricsWindow() {
       specs.push_back({RECT{}, "disable", L"\xE711", true});
     }
 
-    const int gap = scaled_metric(3);
-    const int button_height = scaled_metric(26);
+    const int gap = scaled_metric(5);
+    const int button_height = scaled_metric(30);
     std::vector<int> widths;
     widths.reserve(specs.size());
     int total_width = gap * (static_cast<int>(specs.size()) - 1);
     for (const DesktopLyricsButton& spec : specs) {
-      int button_width = 26;
+      int button_width = 30;
       if (spec.command == "offset:-100" ||
           spec.command == "offset:100") {
-        button_width = scaled_metric(42);
+        button_width = scaled_metric(46);
       } else if (spec.command == "reset-offset") {
         button_width = scaled_metric(56);
       } else if (spec.command.empty()) {
@@ -1449,35 +1577,41 @@ void FlutterWindow::PaintDesktopLyricsWindow() {
         DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
         ANTIALIASED_QUALITY, DEFAULT_PITCH | FF_DONTCARE, L"Segoe UI");
     HFONT icon_font = ::CreateFontW(
-        -scaled_metric(16), 0, 0, 0, FW_SEMIBOLD, FALSE, FALSE, FALSE,
+        -scaled_metric(17), 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
         DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
         ANTIALIASED_QUALITY, DEFAULT_PITCH | FF_DONTCARE,
-        L"Segoe MDL2 Assets");
+        L"Segoe Fluent Icons");
     HFONT old_button_font =
         static_cast<HFONT>(::SelectObject(hdc, button_font));
     ::SetBkMode(hdc, TRANSPARENT);
     ::SetTextColor(hdc, desktop_lyrics_night_mode_ ? RGB(244, 248, 255)
                                                    : RGB(42, 48, 58));
-    HBRUSH button_brush = ::CreateSolidBrush(
-        desktop_lyrics_night_mode_ ? RGB(6, 10, 16) : RGB(255, 255, 255));
-    HBRUSH button_hover_brush = ::CreateSolidBrush(
-        desktop_lyrics_night_mode_ ? RGB(42, 52, 64) : RGB(222, 230, 240));
     for (const DesktopLyricsButton& button : desktop_lyrics_buttons_) {
       if (button.command.empty()) {
         continue;
       }
       const bool hovered =
           button.command == desktop_lyrics_hovered_button_command_;
-      ::FillRect(hdc, &button.bounds,
-                 hovered ? button_hover_brush : button_brush);
+      const int button_height = button.bounds.bottom - button.bounds.top;
+      draw_rounded_surface(
+          button.bounds, button_height / 2.0,
+          hovered
+              ? (desktop_lyrics_night_mode_ ? RGB(65, 72, 83)
+                                            : RGB(255, 255, 255))
+              : (desktop_lyrics_night_mode_ ? RGB(38, 44, 54)
+                                            : RGB(245, 248, 252)),
+          hovered ? 245 : 230,
+          hovered
+              ? RGB(255, 255, 255)
+              : (desktop_lyrics_night_mode_ ? RGB(210, 210, 210)
+                                            : RGB(190, 190, 190)),
+          hovered ? 140 : 60);
       ::SelectObject(hdc, button.icon ? icon_font : button_font);
       RECT label_rect = button.bounds;
       draw_alpha_text(button.label, label_rect,
                       DT_CENTER | DT_VCENTER | DT_SINGLELINE |
                           DT_END_ELLIPSIS);
     }
-    ::DeleteObject(button_hover_brush);
-    ::DeleteObject(button_brush);
     ::SelectObject(hdc, old_button_font);
     ::DeleteObject(icon_font);
     ::DeleteObject(button_font);
@@ -1504,6 +1638,15 @@ void FlutterWindow::PaintDesktopLyricsWindow() {
   blend.AlphaFormat = AC_SRC_ALPHA;
   ::UpdateLayeredWindow(desktop_lyrics_window_, screen_dc, &destination, &size,
                         hdc, &source, 0, &blend, ULW_ALPHA);
+  if (desktop_lyrics_panel_visible_ &&
+      !::IsWindowVisible(desktop_lyrics_glass_window_)) {
+    ShowDesktopLyricsGlassWindow(desktop_lyrics_glass_window_,
+                                 desktop_lyrics_window_,
+                                 desktop_lyrics_card_bounds_);
+  } else if (!desktop_lyrics_panel_visible_ &&
+             ::IsWindowVisible(desktop_lyrics_glass_window_)) {
+    HideDesktopLyricsGlassWindow(desktop_lyrics_glass_window_);
+  }
 
   ::SelectObject(hdc, old_bitmap);
   ::DeleteObject(text_mask_clear_brush);
@@ -1528,6 +1671,11 @@ LRESULT CALLBACK FlutterWindow::DesktopLyricsWindowProc(HWND hwnd, UINT message,
       ::GetWindowLongPtrW(hwnd, GWLP_USERDATA));
   if (!window) {
     return ::DefWindowProcW(hwnd, message, wparam, lparam);
+  }
+
+  if (message == WM_MOUSEMOVE || message == WM_LBUTTONDOWN ||
+      message == WM_LBUTTONUP) {
+    window->RelayDesktopLyricsTooltip(message, wparam, lparam);
   }
 
   switch (message) {
@@ -1586,8 +1734,14 @@ LRESULT CALLBACK FlutterWindow::DesktopLyricsWindowProc(HWND hwnd, UINT message,
         }
       }
       return 0;
-    case WM_EXITSIZEMOVE:
     case WM_MOVE:
+      if (window->desktop_lyrics_panel_visible_) {
+        ShowDesktopLyricsGlassWindow(window->desktop_lyrics_glass_window_, hwnd,
+                                     window->desktop_lyrics_card_bounds_);
+      }
+      window->SendDesktopLyricsBounds();
+      return 0;
+    case WM_EXITSIZEMOVE:
       window->SendDesktopLyricsBounds();
       return 0;
     case WM_TIMER:
@@ -1735,6 +1889,7 @@ FlutterWindow::MessageHandler(HWND hwnd, UINT const message,
       if (::IsIconic(hwnd)) {
         ::ShowWindow(hwnd, SW_RESTORE);
       }
+      EnsureMainWindowVisible(hwnd);
       ::SetForegroundWindow(hwnd);
       return 0;
     }
@@ -1756,6 +1911,9 @@ FlutterWindow::MessageHandler(HWND hwnd, UINT const message,
       break;
     case WM_FONTCHANGE:
       flutter_controller_->engine()->ReloadSystemFonts();
+      break;
+    case WM_DISPLAYCHANGE:
+      EnsureMainWindowVisible(hwnd);
       break;
   }
 

@@ -11,6 +11,12 @@ extension _SmPlayerShellAgentMethods on _SmPlayerShellPageState {
     aiAgentRemoteController.attach(
       AiAgentControlBindings(
         databasePath: databasePath,
+        settings: () => _settingsController.snapshot,
+        updateSettings: _settingsController.updateSettings,
+        loadSystemFonts: loadDesktopSystemFonts,
+        syncChanges:
+            (settings, songIds) =>
+                _syncChangesFromAgent(repository, settings, songIds),
         playerState: _agentPlayerState,
         playSong: (songId) => _playAgentQueue([songId], 0),
         playQueue: _playAgentQueue,
@@ -89,6 +95,55 @@ extension _SmPlayerShellAgentMethods on _SmPlayerShellPageState {
       'queueSongIds': queueSongIds,
       'queueIndex': mediaState.selectedQueueIndex,
     };
+  }
+
+  Future<void> _syncChangesFromAgent(
+    LibraryRepository repository,
+    List<String> settings,
+    List<int> songIds,
+  ) async {
+    // Read independent sources together; no per-song database requests.
+    final (storedSettings, songs) =
+        await (
+          settings.isEmpty
+              ? Future<SettingsSnapshot?>.value(null)
+              : repository.readSettingsSnapshot(),
+          songIds.isEmpty
+              ? Future.value(<LibrarySong>[])
+              : repository.getLibrarySongs(songIds: songIds),
+        ).wait;
+    if (songs.length != songIds.toSet().length) {
+      throw const FormatException(
+        'Only existing active songs can be synchronized',
+      );
+    }
+    if (!mounted) return;
+    if (settings.isNotEmpty) {
+      final values = AiAgentSettingsCodec.read(storedSettings!);
+      final update = AiAgentSettingsCodec.decode(
+        {for (final key in settings) key: values[key]},
+        [storedSettings.desktopLyricsFontFamily],
+      );
+      _settingsController.restoreSnapshot(
+        _settingsController.snapshot.apply(update),
+      );
+    }
+    if (songs.isEmpty) return;
+    patchLibrarySongOverrides(ref, songs);
+    final favorites = ref.read(libraryFavoriteOverridesProvider.notifier);
+    favorites.state = {
+      ...favorites.state,
+      for (final song in songs) song.id: song.favorite,
+    };
+    final current =
+        songs
+            .where((song) => song.id == _mediaControlController.state.track.id)
+            .firstOrNull;
+    if (current != null) {
+      _mediaControlController.updateTrackMetadata(
+        mediaControlTrackForSong(current, context.smPlayerI18n),
+      );
+    }
   }
 
   bool _playAgentQueue(List<int> songIds, int startIndex) {
@@ -177,8 +232,6 @@ extension _SmPlayerShellAgentMethods on _SmPlayerShellPageState {
     _mediaControlController.updateTrackMetadata(
       mediaControlTrackForSong(updatedSong, context.smPlayerI18n),
     );
-    ref.invalidate(libraryContentDataProvider);
-    ref.invalidate(recentPageDataProvider);
     return true;
   }
 }

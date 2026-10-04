@@ -9,3 +9,9 @@ name = "启动 SMPlayer"
 icon = "tool"
 command = "MSYS_NO_PATHCONV=1 cmd.exe /d /c '.codex\\environments\\run-windows.cmd'"
 platform = "win32"
+
+[[actions]]
+name = "打包 Windows 商店"
+icon = "tool"
+command = "MSYS_NO_PATHCONV=1 cmd.exe /d /c '.codex\\environments\\package-windows.cmd'"
+platform = "win32"

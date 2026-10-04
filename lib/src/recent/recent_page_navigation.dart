@@ -6,14 +6,12 @@ extension _RecentPageNavigation on _RecentPageState {
     required String routePath,
     required SmPlayerI18n i18n,
     required String title,
-    required int addedCount,
-    required int playedCount,
     required int browsedCount,
     required int searchesCount,
     required bool showCount,
   }) {
     final signature =
-        '$showPortal:$routePath:$title:$_activeTab:$addedCount:$playedCount:$browsedCount:$searchesCount:$showCount';
+        '$showPortal:$routePath:$title:$_activeTab:$browsedCount:$searchesCount:$showCount';
     if (_appBarPortalSignature == signature) {
       return;
     }
@@ -39,8 +37,6 @@ extension _RecentPageNavigation on _RecentPageState {
         content: _RecentAppBarTabs(
           controller: _tabController,
           i18n: i18n,
-          addedCount: addedCount,
-          playedCount: playedCount,
           browsedCount: browsedCount,
           searchesCount: searchesCount,
           showCount: showCount,

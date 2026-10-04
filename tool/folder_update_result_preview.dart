@@ -36,7 +36,10 @@ void main() {
 }
 
 const _fileResult = LocalFolderRefreshResult(
+  libraryChanged: true,
+  requiresFullReload: true,
   filesAdded: ['/Users/me/Music/New Song.mp3'],
+  filesUpdated: [],
   filesRemoved: ['/Users/me/Music/Removed Song.mp3'],
   filesMoved: ['/Users/me/Music/Moved Song.mp3'],
   artistSplitsApplied: [],
@@ -45,7 +48,10 @@ const _fileResult = LocalFolderRefreshResult(
 );
 
 const _artistResult = LocalFolderRefreshResult(
+  libraryChanged: true,
+  requiresFullReload: true,
   filesAdded: [],
+  filesUpdated: [],
   filesRemoved: [],
   filesMoved: [],
   artistSplitsApplied: [

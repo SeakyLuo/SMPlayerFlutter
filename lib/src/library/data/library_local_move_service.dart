@@ -1,7 +1,11 @@
+import 'dart:async';
 import 'dart:io';
+import 'dart:isolate';
 
 import 'package:path/path.dart' as p;
 import 'package:sqlite3/sqlite3.dart';
+
+part 'library_local_move_task.dart';
 
 const _activeState = 1;
 const _inactiveState = 0;
@@ -55,73 +59,37 @@ class LibraryLocalMoveService {
     int songId,
     String folderPath, {
     LocalMoveConflictResolver? resolveConflict,
-  }) async {
-    final db = sqlite3.open(databaseFile.path);
-    try {
-      final songPath = _readActiveSongPath(db, songId);
-      if (_getFileParentPath(songPath) == folderPath) {
-        return const LocalItemsMoveResult(songs: [], folders: []);
-      }
-
-      final targetDirectory = Directory(folderPath);
-      if (targetDirectory.statSync().type != FileSystemEntityType.directory) {
-        throw StateError('Target path is not a folder.');
-      }
-
-      final target = await _resolveLocalFileMoveTarget(
-        sourcePath: songPath,
-        targetFolderPath: folderPath,
-        resolveConflict: resolveConflict,
-      );
-      if (target == null) {
-        return const LocalItemsMoveResult(songs: [], folders: []);
-      }
-
-      await File(songPath).rename(target.path);
-      db.execute('BEGIN');
-      try {
-        final folderId = _readActiveFolderId(db, folderPath) ?? 0;
-        if (target.replacedPath != null) {
-          _markLocalFilePathInactiveInsideTransaction(
-            db,
-            target.replacedPath!,
-            exceptSongId: songId,
-          );
-        }
-        db.execute(
-          '''
-          UPDATE Music
-          SET Path = ?
-          WHERE Id = ?
-            AND State = ?
-        ''',
-          [target.path, songId, _activeState],
-        );
-        db.execute(
-          '''
-          UPDATE File
-          SET Path = ?, ParentId = ?
-          WHERE Path = ?
-        ''',
-          [target.path, folderId, songPath],
-        );
-        db.execute('COMMIT');
-      } on Object {
-        db.execute('ROLLBACK');
-        rethrow;
-      }
-      return LocalItemsMoveResult(
-        songs: [
-          LocalSongMove(id: songId, oldPath: songPath, newPath: target.path),
-        ],
-        folders: const [],
-      );
-    } finally {
-      db.dispose();
-    }
+  }) {
+    return moveLocalItemsToFolder(
+      databaseFile,
+      [songId],
+      [],
+      folderPath,
+      resolveConflict: resolveConflict,
+    );
   }
 
   Future<LocalItemsMoveResult> moveLocalItemsToFolder(
+    File databaseFile,
+    List<int> songIds,
+    List<String> folderPaths,
+    String targetFolderPath, {
+    LocalMoveConflictResolver? resolveConflict,
+  }) {
+    return _runLocalMoveTask(
+      _LocalMoveTask(databaseFile.path, songIds, folderPaths, targetFolderPath),
+      resolveConflict,
+    );
+  }
+
+  Future<void> undoMoveLocalItems(
+    File databaseFile,
+    LocalItemsMoveResult result,
+  ) {
+    return Isolate.run(_UndoLocalMoveTask(databaseFile.path, result).call);
+  }
+
+  Future<LocalItemsMoveResult> _moveLocalItemsToFolderInBackground(
     File databaseFile,
     List<int> songIds,
     List<String> folderPaths,
@@ -219,30 +187,30 @@ class LibraryLocalMoveService {
 
       db.execute('BEGIN');
       try {
+        final folderIds = _readActiveFolderIds(db);
+        final songIdsByPath = {
+          for (final row in db.select(
+            'SELECT Id, Path FROM Music WHERE State = ?',
+            [_activeState],
+          ))
+            row['Path'] as String: row['Id'] as int,
+        };
+        final movedSongIds = movedSongs.map((song) => song.id).toSet();
         for (final movedFile in movedFiles) {
-          final targetFolderId =
-              _readActiveFolderId(db, p.dirname(movedFile.newPath)) ?? 0;
-          final sourceSongRows = db.select(
-            '''
-            SELECT Id AS id
-            FROM Music
-            WHERE Path = ?
-              AND State = ?
-            LIMIT 1
-          ''',
-            [movedFile.oldPath, _activeState],
-          );
-          final sourceSongId =
-              sourceSongRows.isEmpty ? null : sourceSongRows.first['id'] as int;
+          final targetFolderId = folderIds[p.dirname(movedFile.newPath)] ?? 0;
+          final sourceSongId = songIdsByPath[movedFile.oldPath];
           if (movedFile.replacedPath != null) {
             _markLocalFilePathInactiveInsideTransaction(
               db,
               movedFile.replacedPath!,
               exceptSongId: sourceSongId,
             );
+            if (songIdsByPath[movedFile.replacedPath] != sourceSongId) {
+              songIdsByPath.remove(movedFile.replacedPath);
+            }
           }
           if (sourceSongId != null) {
-            if (!movedSongs.any((move) => move.id == sourceSongId)) {
+            if (movedSongIds.add(sourceSongId)) {
               movedSongs.add(
                 LocalSongMove(
                   id: sourceSongId,
@@ -260,6 +228,8 @@ class LibraryLocalMoveService {
             ''',
               [movedFile.newPath, sourceSongId, _activeState],
             );
+            songIdsByPath.remove(movedFile.oldPath);
+            songIdsByPath[movedFile.newPath] = sourceSongId;
           }
           db.execute(
             '''
@@ -290,8 +260,12 @@ class LibraryLocalMoveService {
             oldPath: movedFolder.oldPath,
             newPath: movedFolder.newPath,
           );
-          final parentFolderId =
-              _readActiveFolderId(db, p.dirname(movedFolder.newPath)) ?? 0;
+          _updateFolderIdPaths(
+            folderIds,
+            movedFolder.oldPath,
+            movedFolder.newPath,
+          );
+          final parentFolderId = folderIds[p.dirname(movedFolder.newPath)] ?? 0;
           db.execute(
             '''
             UPDATE Folder
@@ -320,7 +294,7 @@ class LibraryLocalMoveService {
     }
   }
 
-  Future<void> undoMoveLocalItems(
+  Future<void> _undoMoveLocalItemsInBackground(
     File databaseFile,
     LocalItemsMoveResult result,
   ) async {
@@ -356,10 +330,10 @@ class LibraryLocalMoveService {
             [_inactiveState, inactiveFolder],
           );
         }
+        final folderIds = _readActiveFolderIds(db);
         for (final movedSong in result.songs) {
           final parentFolderId =
-              _readActiveFolderId(db, _getFileParentPath(movedSong.oldPath)) ??
-              0;
+              folderIds[_getFileParentPath(movedSong.oldPath)] ?? 0;
           db.execute(
             '''
             UPDATE Music
@@ -397,12 +371,13 @@ class LibraryLocalMoveService {
             oldPath: movedFolder.newPath,
             newPath: movedFolder.oldPath,
           );
+          _updateFolderIdPaths(
+            folderIds,
+            movedFolder.newPath,
+            movedFolder.oldPath,
+          );
           final parentFolderId =
-              _readActiveFolderId(
-                db,
-                _getFileParentPath(movedFolder.oldPath),
-              ) ??
-              0;
+              folderIds[_getFileParentPath(movedFolder.oldPath)] ?? 0;
           db.execute(
             '''
             UPDATE Folder
@@ -422,32 +397,29 @@ class LibraryLocalMoveService {
     }
   }
 
-  String _readActiveSongPath(Database db, int songId) {
-    final rows = db.select(
-      '''
-      SELECT Path AS path
-      FROM Music
-      WHERE Id = ?
-        AND State = ?
-      LIMIT 1
-    ''',
-      [songId, _activeState],
-    );
-    return rows.first['path'] as String;
-  }
+  Map<String, int> _readActiveFolderIds(Database db) => {
+    for (final row in db.select('SELECT Id, Path FROM Folder WHERE State = ?', [
+      _activeState,
+    ]))
+      row['Path'] as String: row['Id'] as int,
+  };
 
-  int? _readActiveFolderId(Database db, String folderPath) {
-    final rows = db.select(
-      '''
-      SELECT Id AS id
-      FROM Folder
-      WHERE Path = ?
-        AND State = ?
-      LIMIT 1
-    ''',
-      [folderPath, _activeState],
-    );
-    return rows.isEmpty ? null : rows.first['id'] as int;
+  void _updateFolderIdPaths(
+    Map<String, int> folderIds,
+    String oldPath,
+    String newPath,
+  ) {
+    final moved = {
+      for (final entry in folderIds.entries)
+        if (entry.key == oldPath ||
+            entry.key.startsWith('$oldPath/') ||
+            entry.key.startsWith('$oldPath\\'))
+          entry.key: entry.value,
+    };
+    for (final entry in moved.entries) {
+      folderIds.remove(entry.key);
+      folderIds[newPath + entry.key.substring(oldPath.length)] = entry.value;
+    }
   }
 
   void _updatePathPrefixInsideTransaction(

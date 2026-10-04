@@ -1,19 +1,25 @@
 import 'dart:async';
 import 'dart:math' as math;
+import 'dart:ui' show ViewFocusEvent, ViewFocusState;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 import 'package:smplayer_flutter/src/app/text_icon_button.dart';
+import 'package:smplayer_flutter/src/app/notification_diagnostics.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/ui/command_bar_colors.dart';
 
 const undoableNotificationDuration = Duration(seconds: 5);
 const appNotificationDuration = Duration(seconds: 2);
+const _extendedNotificationDuration = Duration(seconds: 10);
 const _appNotificationRadius = 8.0;
+const _appNotificationExitDuration = Duration(milliseconds: 180);
 
 _AppNotificationController? _currentNotification;
+bool _notificationWindowActive = false;
+int _notificationDetailsDepth = 0;
 final _notificationPresentation = ValueNotifier<_AppNotificationPresentation?>(
   null,
 );
@@ -21,10 +27,30 @@ final _notificationPresentation = ValueNotifier<_AppNotificationPresentation?>(
 enum AppNotificationClosedReason { hide, action, timeout }
 
 class AppNotificationAction {
-  const AppNotificationAction({required this.label, required this.onPressed});
+  const AppNotificationAction({
+    required this.label,
+    required this.onPressed,
+    this.closeOnPressed = true,
+  });
 
   final String label;
   final FutureOr<void> Function() onPressed;
+  final bool closeOnPressed;
+}
+
+class AppNotificationDetailsSession {
+  AppNotificationDetailsSession() {
+    _notificationDetailsDepth += 1;
+    _currentNotification?.setPaused(_NotificationPause.details, true);
+  }
+
+  void close() {
+    _notificationDetailsDepth -= 1;
+    if (_notificationDetailsDepth == 0) {
+      _currentNotification?.restartTimer();
+      _currentNotification?.setPaused(_NotificationPause.details, false);
+    }
+  }
 }
 
 class AppNotificationThemeColors
@@ -135,6 +161,7 @@ Future<AppNotificationClosedReason> showAppNotification({
   String? actionLabel,
   FutureOr<void> Function()? onAction,
   List<AppNotificationAction>? actions,
+  bool closeOnAction = true,
 }) {
   return _showAppOverlayNotification(
     message: message,
@@ -143,6 +170,7 @@ Future<AppNotificationClosedReason> showAppNotification({
     actionLabel: actionLabel,
     onAction: onAction,
     actions: actions,
+    closeOnAction: closeOnAction,
   );
 }
 
@@ -157,26 +185,32 @@ Future<AppNotificationClosedReason> _showAppOverlayNotification({
   String? actionLabel,
   FutureOr<void> Function()? onAction,
   List<AppNotificationAction>? actions,
+  bool closeOnAction = true,
 }) {
   _currentNotification?.close(AppNotificationClosedReason.hide);
+
+  _notificationPresentation.value?.controller.removePresentation();
 
   final controller = _AppNotificationController();
   final resolvedActions =
       actions ??
       (actionLabel == null || onAction == null
           ? const <AppNotificationAction>[]
-          : [AppNotificationAction(label: actionLabel, onPressed: onAction)]);
+          : [
+            AppNotificationAction(
+              label: actionLabel,
+              onPressed: onAction,
+              closeOnPressed: closeOnAction,
+            ),
+          ]);
   _notificationPresentation.value = _AppNotificationPresentation(
     controller: controller,
     message: message,
     actions: resolvedActions,
-    showDismissButton: !autoDismiss,
   );
 
   _currentNotification = controller;
-  if (autoDismiss) {
-    controller.startTimer(duration);
-  }
+  controller.startTimer(autoDismiss ? duration : _extendedNotificationDuration);
   return controller.closed;
 }
 
@@ -187,7 +221,8 @@ class AppNotificationHost extends StatefulWidget {
   State<AppNotificationHost> createState() => _AppNotificationHostState();
 }
 
-class _AppNotificationHostState extends State<AppNotificationHost> {
+class _AppNotificationHostState extends State<AppNotificationHost>
+    with WidgetsBindingObserver {
   final _overlayController = OverlayPortalController(
     debugLabel: 'AppNotificationHost',
   );
@@ -196,25 +231,55 @@ class _AppNotificationHostState extends State<AppNotificationHost> {
   @override
   void initState() {
     super.initState();
+    NotificationDiagnostics.attach();
+    WidgetsBinding.instance.addObserver(this);
+    _setWindowActive(
+      WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed,
+    );
     _notificationPresentation.addListener(_handlePresentationChanged);
   }
 
   @override
   void dispose() {
+    NotificationDiagnostics.detach();
     _notificationPresentation.removeListener(_handlePresentationChanged);
+    WidgetsBinding.instance.removeObserver(this);
+    _setWindowActive(false);
     super.dispose();
   }
 
+  void _setWindowActive(bool active) {
+    NotificationDiagnostics.record('window.active', {'active': active});
+    _notificationWindowActive = active;
+    _currentNotification?.setPaused(_NotificationPause.window, !active);
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    _setWindowActive(state == AppLifecycleState.resumed);
+  }
+
+  @override
+  void didChangeViewFocus(ViewFocusEvent event) {
+    if (event.viewId != View.of(context).viewId) return;
+    _setWindowActive(
+      event.state == ViewFocusState.focused &&
+          WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed,
+    );
+  }
+
   void _handlePresentationChanged() {
-    if (_showing) {
+    if (_notificationPresentation.value == null) {
       _overlayController.hide();
       _showing = false;
-    }
-    if (_notificationPresentation.value == null) {
       return;
     }
-    _overlayController.show();
-    _showing = true;
+    if (!_showing) {
+      _overlayController.show();
+      _showing = true;
+    } else {
+      setState(() {});
+    }
   }
 
   @override
@@ -225,18 +290,17 @@ class _AppNotificationHostState extends State<AppNotificationHost> {
       overlayChildBuilder: (context) {
         final presentation = _notificationPresentation.value!;
         final controller = presentation.controller;
+        controller.recordFirstFrame();
         return _AppNotificationOverlay(
+          key: ObjectKey(controller),
+          closing: controller.isClosed,
+          onDismissed: controller.removePresentation,
           message: presentation.message,
           actions: presentation.actions,
-          showDismissButton: presentation.showDismissButton,
           bottomAligned: presentation.actions.isNotEmpty,
           runningActionIndex: controller.runningActionIndex,
           onHoverChanged: (hovered) {
-            if (hovered) {
-              controller.pauseTimer();
-            } else {
-              controller.resumeTimer();
-            }
+            controller.setPaused(_NotificationPause.hover, hovered);
           },
           onDismiss: () {
             controller.close(AppNotificationClosedReason.hide);
@@ -248,7 +312,11 @@ class _AppNotificationHostState extends State<AppNotificationHost> {
               await SchedulerBinding.instance.endOfFrame;
               await Future<void>.sync(action.onPressed);
             } finally {
-              controller.close(AppNotificationClosedReason.action);
+              if (action.closeOnPressed) {
+                controller.close(AppNotificationClosedReason.action);
+              } else {
+                controller.finishAction();
+              }
             }
           },
         );
@@ -263,48 +331,88 @@ class _AppNotificationPresentation {
     required this.controller,
     required this.message,
     required this.actions,
-    required this.showDismissButton,
   });
 
   final _AppNotificationController controller;
   final String message;
   final List<AppNotificationAction> actions;
-  final bool showDismissButton;
 }
 
+enum _NotificationPause { window, hover, details, action }
+
 class _AppNotificationController {
+  static int _nextDiagnosticId = 0;
+  final _diagnosticId = ++_nextDiagnosticId;
+  final _diagnosticAge = Stopwatch()..start();
+  bool _firstFrameScheduled = false;
+  bool _firstFrameSubmitted = false;
+
+  void _diagnose(String event, [Map<String, Object?> data = const {}]) {
+    NotificationDiagnostics.record(event, {
+      'toast': _diagnosticId,
+      'ageMs': _diagnosticAge.elapsedMilliseconds,
+      ...data,
+    });
+  }
+
+  void recordFirstFrame() {
+    if (_firstFrameScheduled) return;
+    _firstFrameScheduled = true;
+    _diagnose('toast.build');
+    SchedulerBinding.instance.addPostFrameCallback((_) {
+      _diagnose('toast.firstFrameSubmitted', {'closed': isClosed});
+      _firstFrameSubmitted = true;
+      _startRemainingTimer();
+    });
+  }
+
   final closedCompleter = Completer<AppNotificationClosedReason>();
   final runningActionIndex = ValueNotifier<int?>(null);
   Timer? timer;
   Duration _remainingDuration = Duration.zero;
   DateTime? _timeoutAt;
   bool isClosed = false;
-  bool _timerPaused = false;
+  late Duration _duration;
+  final _pausedReasons = <_NotificationPause>{
+    if (!_notificationWindowActive) _NotificationPause.window,
+    if (_notificationDetailsDepth > 0) _NotificationPause.details,
+  };
 
   Future<AppNotificationClosedReason> get closed => closedCompleter.future;
 
   void startTimer(Duration duration) {
+    _diagnose('toast.created', {'durationMs': duration.inMilliseconds});
+    _duration = duration;
     _remainingDuration = duration;
-    _startRemainingTimer();
   }
 
   void _startRemainingTimer() {
     timer?.cancel();
-    if (isClosed || _remainingDuration <= Duration.zero) {
+    if (isClosed || !_firstFrameSubmitted || _pausedReasons.isNotEmpty) return;
+    if (_remainingDuration <= Duration.zero) {
       close(AppNotificationClosedReason.timeout);
       return;
     }
     _timeoutAt = DateTime.now().add(_remainingDuration);
+    _diagnose('timer.start', {
+      'remainingMs': _remainingDuration.inMilliseconds,
+    });
     timer = Timer(
       _remainingDuration,
       () => close(AppNotificationClosedReason.timeout),
     );
   }
 
-  void pauseTimer() {
-    if (isClosed || _timerPaused || runningActionIndex.value != null) {
+  void setPaused(_NotificationPause reason, bool paused) {
+    _diagnose('timer.pauseChange', {'reason': reason.name, 'paused': paused});
+    if (isClosed) return;
+    if (!paused) {
+      if (_pausedReasons.remove(reason) && _pausedReasons.isEmpty) {
+        _startRemainingTimer();
+      }
       return;
     }
+    if (!_pausedReasons.add(reason) || _pausedReasons.length != 1) return;
     final timeoutAt = _timeoutAt;
     if (timeoutAt == null) {
       return;
@@ -314,20 +422,25 @@ class _AppNotificationController {
     timer?.cancel();
     timer = null;
     _timeoutAt = null;
-    _timerPaused = true;
   }
 
-  void resumeTimer() {
-    if (isClosed || !_timerPaused || runningActionIndex.value != null) {
-      return;
-    }
-    _timerPaused = false;
+  void restartTimer() {
+    _diagnose('timer.restart');
+    if (isClosed) return;
+    _remainingDuration = _duration;
+    _timeoutAt = null;
     _startRemainingTimer();
   }
 
   void setRunning(int actionIndex) {
-    timer?.cancel();
+    setPaused(_NotificationPause.action, true);
     runningActionIndex.value = actionIndex;
+  }
+
+  void finishAction() {
+    if (isClosed) return;
+    runningActionIndex.value = null;
+    setPaused(_NotificationPause.action, false);
   }
 
   void close(AppNotificationClosedReason reason) {
@@ -335,12 +448,28 @@ class _AppNotificationController {
       return;
     }
     isClosed = true;
+    _diagnose('toast.closed', {
+      'reason': reason.name,
+      'built': _firstFrameScheduled,
+      'overdueMs':
+          _timeoutAt == null
+              ? null
+              : DateTime.now().difference(_timeoutAt!).inMilliseconds,
+    });
     timer?.cancel();
     _timeoutAt = null;
     if (_notificationPresentation.value?.controller == this) {
-      _notificationPresentation.value = null;
+      if (_firstFrameSubmitted) {
+        final presentation = _notificationPresentation.value!;
+        _notificationPresentation.value = _AppNotificationPresentation(
+          controller: this,
+          message: presentation.message,
+          actions: presentation.actions,
+        );
+      } else {
+        removePresentation();
+      }
     }
-    runningActionIndex.dispose();
     if (_currentNotification == this) {
       _currentNotification = null;
     }
@@ -348,23 +477,33 @@ class _AppNotificationController {
       closedCompleter.complete(reason);
     }
   }
+
+  void removePresentation() {
+    if (_notificationPresentation.value?.controller == this) {
+      _notificationPresentation.value = null;
+    }
+    runningActionIndex.dispose();
+  }
 }
 
 class _AppNotificationOverlay extends StatelessWidget {
   const _AppNotificationOverlay({
+    super.key,
+    required this.closing,
+    required this.onDismissed,
     required this.message,
     required this.bottomAligned,
     required this.runningActionIndex,
     required this.actions,
-    required this.showDismissButton,
     required this.onHoverChanged,
     required this.onDismiss,
     required this.onAction,
   });
 
   final String message;
+  final bool closing;
+  final VoidCallback onDismissed;
   final List<AppNotificationAction> actions;
-  final bool showDismissButton;
   final bool bottomAligned;
   final ValueListenable<int?> runningActionIndex;
   final ValueChanged<bool> onHoverChanged;
@@ -422,12 +561,7 @@ class _AppNotificationOverlay extends StatelessWidget {
             ),
           ),
           child: Padding(
-            padding: EdgeInsets.fromLTRB(
-              22,
-              15,
-              actions.isEmpty && !showDismissButton ? 22 : 12,
-              15,
-            ),
+            padding: EdgeInsets.fromLTRB(22, 15, actions.isEmpty ? 22 : 12, 15),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -463,20 +597,6 @@ class _AppNotificationOverlay extends StatelessWidget {
                     ],
                   ),
                 ],
-                if (showDismissButton) ...[
-                  const SizedBox(width: 8),
-                  SmPlayerTextIconButton(
-                    label: context.smPlayerI18n.t('common.close'),
-                    icon: Icons.close_rounded,
-                    showLabel: false,
-                    minWidth: 32,
-                    height: 32,
-                    iconSize: 18,
-                    borderRadius: 8,
-                    glassEnabled: false,
-                    onPressed: onDismiss,
-                  ),
-                ],
               ],
             ),
           ),
@@ -492,14 +612,28 @@ class _AppNotificationOverlay extends StatelessWidget {
       child: SafeArea(
         top: !bottomAligned,
         bottom: bottomAligned,
-        child: MouseRegion(
-          onEnter: (_) {
-            onHoverChanged(true);
+        child: AnimatedOpacity(
+          opacity: closing ? 0 : 1,
+          duration:
+              mediaQuery.disableAnimations
+                  ? Duration.zero
+                  : _appNotificationExitDuration,
+          curve: Curves.easeInCubic,
+          onEnd: () {
+            if (closing) onDismissed();
           },
-          onExit: (_) {
-            onHoverChanged(false);
-          },
-          child: GestureDetector(onTap: onDismiss, child: notification),
+          child: IgnorePointer(
+            ignoring: closing,
+            child: MouseRegion(
+              onEnter: (_) {
+                onHoverChanged(true);
+              },
+              onExit: (_) {
+                onHoverChanged(false);
+              },
+              child: GestureDetector(onTap: onDismiss, child: notification),
+            ),
+          ),
         ),
       ),
     );

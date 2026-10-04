@@ -35,7 +35,6 @@ class LibraryLocalScanBatchWriter {
           Album = excluded.Album,
           ThumbnailPath = excluded.ThumbnailPath,
           Duration = excluded.Duration,
-          DateAdded = excluded.DateAdded,
           FileSize = excluded.FileSize,
           DateModifiedMs = excluded.DateModifiedMs,
           State = excluded.State
@@ -64,7 +63,7 @@ class LibraryLocalScanBatchWriter {
       ''') {
     for (final row in db.select('''
       SELECT Id, Path, Name, Artist, Album, ThumbnailPath, Duration,
-        CAST(DateAdded AS TEXT) AS DateAdded, FileSize, DateModifiedMs, State
+        FileSize, DateModifiedMs, State
       FROM Music
     ''')) {
       _musicByPath[row['Path'] as String] = row;
@@ -93,6 +92,27 @@ class LibraryLocalScanBatchWriter {
   final _filesByPath = <String, Row>{};
   final _artistsBySongId = <int, List<(String, int)>>{};
 
+  bool hasSongMetadataChanges({
+    required String filePath,
+    required LibrarySong song,
+    required AudioFileMetadata metadata,
+  }) {
+    final stored = _musicByPath[filePath];
+    if (stored == null) return true;
+    final storedArtists = _artistsBySongId[stored['Id']] ?? const [];
+    return stored['Name'] != song.title ||
+        stored['Artist'] != song.artist ||
+        stored['Album'] != song.album ||
+        stored['ThumbnailPath'] != metadata.thumbnailPath ||
+        stored['Duration'] != metadata.duration ||
+        stored['FileSize'] != metadata.fileSize ||
+        stored['DateModifiedMs'] != metadata.dateModifiedMs ||
+        storedArtists.length != song.artists.length ||
+        !song.artists.indexed.every(
+          (entry) => storedArtists[entry.$1] == (entry.$2, entry.$1),
+        );
+  }
+
   ({int songId, bool changed}) write({
     required String filePath,
     required LibrarySong song,
@@ -109,7 +129,6 @@ class LibraryLocalScanBatchWriter {
         stored['Album'] == song.album &&
         stored['ThumbnailPath'] == metadata.thumbnailPath &&
         stored['Duration'] == metadata.duration &&
-        stored['DateAdded'] == metadata.dateAdded &&
         stored['FileSize'] == metadata.fileSize &&
         stored['DateModifiedMs'] == metadata.dateModifiedMs &&
         stored['State'] == _activeState;

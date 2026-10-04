@@ -38,7 +38,10 @@ class LibraryHiddenStorageService {
     }
   }
 
-  Future<void> hideFolder(File databaseFile, String folderPath) async {
+  Future<void> hideFolder(File databaseFile, String folderPath) =>
+      Isolate.run(() => _hideFolder(databaseFile, folderPath));
+
+  void _hideFolder(File databaseFile, String folderPath) {
     final db = sqlite3.open(databaseFile.path);
     try {
       db.execute('BEGIN');
@@ -88,7 +91,10 @@ class LibraryHiddenStorageService {
     }
   }
 
-  Future<void> unhideFolder(File databaseFile, String folderPath) async {
+  Future<void> unhideFolder(File databaseFile, String folderPath) =>
+      Isolate.run(() => _unhideFolder(databaseFile, folderPath));
+
+  void _unhideFolder(File databaseFile, String folderPath) {
     final db = sqlite3.open(databaseFile.path);
     try {
       db.execute('BEGIN');
@@ -113,9 +119,8 @@ class LibraryHiddenStorageService {
     }
   }
 
-  Future<List<HiddenStorageItem>> getHiddenStorageItems(
-    File databaseFile,
-  ) => Isolate.run(() => _getHiddenStorageItems(databaseFile));
+  Future<List<HiddenStorageItem>> getHiddenStorageItems(File databaseFile) =>
+      Isolate.run(() => _getHiddenStorageItems(databaseFile));
 
   List<HiddenStorageItem> _getHiddenStorageItems(File databaseFile) {
     if (!databaseFile.existsSync()) {

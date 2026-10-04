@@ -46,17 +46,18 @@ class LibrarySnapshotService {
     }
   });
 
-  Future<List<LibrarySong>> readSongs(String path) => run(() {
-    final db = _database.openInitializedLibraryDatabase(File(path));
-    try {
-      db.execute('BEGIN');
-      final songs = _read.readSongs(db);
-      db.execute('COMMIT');
-      return songs;
-    } finally {
-      db.dispose();
-    }
-  });
+  Future<List<LibrarySong>> readSongs(String path, {List<int>? songIds}) =>
+      run(() {
+        final db = _database.openInitializedLibraryDatabase(File(path));
+        try {
+          db.execute('BEGIN');
+          final songs = _read.readSongs(db, songIds: songIds);
+          db.execute('COMMIT');
+          return songs;
+        } finally {
+          db.dispose();
+        }
+      });
 
   Future<RecentPageData> readRecent(String path, String queuePath) async {
     final content = await readContent(path, queuePath);
@@ -70,7 +71,7 @@ class LibrarySnapshotService {
           playlists: _history.readRecentPlaylists(db),
           albums: _history.readRecentAlbums(db),
           artists: _history.readRecentArtists(db),
-          nowPlaying: _history.readRecentNowPlaying(db, songs),
+          nowPlaying: _history.readRecentNowPlaying(db),
           browses: _browse.read(db),
         );
       } finally {
@@ -120,11 +121,7 @@ class LibrarySnapshotService {
       final content = LibraryContentData(
         songs: songs,
         folders: _read.readFolders(db),
-        playlists: _playlists.readPlaylists(
-          db,
-          myFavoritesId: settings.myFavoritesId,
-          nowPlayingId: settings.nowPlayingId,
-        ),
+        playlists: _playlists.readPlaylists(db),
         nowPlaying: _history.readNowPlaying(
           db,
           File(queuePath),

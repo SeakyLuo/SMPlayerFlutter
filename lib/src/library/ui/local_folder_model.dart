@@ -3,7 +3,10 @@ import 'dart:math';
 import '../../i18n/app_i18n.dart';
 import '../data/library_models.dart';
 import 'artists_page_model.dart';
+import 'local_sort_keys.dart';
 import 'song_display_helpers.dart' as song_display;
+
+export 'local_sort_keys.dart';
 
 typedef LocalSortMode = LocalFolderSortCriterion;
 
@@ -176,9 +179,11 @@ String getParentPath(String relativePath) {
 FolderIndex buildFolderIndex(
   List<LibrarySong> songs,
   List<LibraryFolder> folders,
-  String rootPath,
-) {
+  String rootPath, [
+  LocalSortKeys? sortKeys,
+]) {
   final nodes = <String, FolderNode>{};
+  final keys = sortKeys ?? LocalSortKeys();
   final localSongs =
       songs.where((song) => isLocalPathUnderRoot(song.path, rootPath)).toList();
   final localFolders =
@@ -258,10 +263,10 @@ FolderIndex buildFolderIndex(
           ..sort((left, right) => nodes[left]!.id.compareTo(nodes[right]!.id));
     node.thumbnailDirectSongIds = node.directSongIds.toList()..sort();
     node.childPaths.sort(
-      (left, right) => compareLocalText(nodes[left]!.name, nodes[right]!.name),
+      (left, right) => keys.compareText(nodes[left]!.name, nodes[right]!.name),
     );
     node.directSongIds.sort((left, right) {
-      return _compareSongByFolderCriterion(
+      return keys.compareSongs(
         songsById[left]!,
         songsById[right]!,
         node.criterion,
@@ -323,16 +328,22 @@ List<FolderChainItem> buildFolderChain(
   ];
 }
 
-List<FolderNode> sortFolders(List<FolderNode> folders) {
+List<FolderNode> sortFolders(
+  List<FolderNode> folders, [
+  LocalSortKeys? sortKeys,
+]) {
+  final keys = sortKeys ?? LocalSortKeys();
   return folders.toList()
-    ..sort((left, right) => compareLocalText(left.name, right.name));
+    ..sort((left, right) => keys.compareText(left.name, right.name));
 }
 
 List<LibrarySong> sortSongs(
   List<LibrarySong> songs,
   LocalSortMode mode, [
   LocalSortMode? baseMode,
+  LocalSortKeys? sortKeys,
 ]) {
+  final keys = sortKeys ?? LocalSortKeys();
   final effectiveBaseMode = baseMode ?? mode;
   if (mode == LocalSortMode.reverse) {
     return sortSongs(
@@ -340,29 +351,14 @@ List<LibrarySong> sortSongs(
       effectiveBaseMode == LocalSortMode.reverse
           ? LocalSortMode.title
           : effectiveBaseMode,
+      null,
+      keys,
     ).reversed.toList();
   }
 
-  return songs.toList()..sort((left, right) {
-    if (mode == LocalSortMode.artist) {
-      return _firstNonZero([
-        compareLocalText(
-          displayArtistsWithoutI18n(left),
-          displayArtistsWithoutI18n(right),
-        ),
-        compareLocalText(left.title, right.title),
-      ]);
-    }
-
-    if (mode == LocalSortMode.album) {
-      return _firstNonZero([
-        compareLocalText(left.album, right.album),
-        compareLocalText(left.title, right.title),
-      ]);
-    }
-
-    return compareLocalText(left.title, right.title);
-  });
+  final criterion = toLocalFolderSortValue(mode);
+  return songs.toList()
+    ..sort((left, right) => keys.compareSongs(left, right, criterion));
 }
 
 LocalSortMode localSortModeFromCriterion(int criterion) {
@@ -528,41 +524,6 @@ List<int> _getFolderFlattenedThumbnailSongIds(
   ];
 }
 
-int _compareSongByFolderCriterion(
-  LibrarySong left,
-  LibrarySong right,
-  int criterion,
-) {
-  switch (criterion) {
-    case 1:
-      return _firstNonZero([
-        compareLocalText(
-          displayArtistsWithoutI18n(left),
-          displayArtistsWithoutI18n(right),
-        ),
-        compareLocalText(left.title, right.title),
-      ]);
-    case 2:
-      return _firstNonZero([
-        compareLocalText(left.album, right.album),
-        compareLocalText(left.title, right.title),
-      ]);
-    case 3:
-      return left.duration.compareTo(right.duration);
-    case 4:
-      return left.playCount.compareTo(right.playCount);
-    case 5:
-      return left.dateAdded.compareTo(right.dateAdded);
-    case 7:
-      return -_compareSongByFolderCriterion(left, right, 0);
-    case 0:
-    case 6:
-      return compareLocalText(left.title, right.title);
-    default:
-      return left.id.compareTo(right.id);
-  }
-}
-
 FolderChainItem _buildFolderChainItem({
   required String path,
   required String fallbackName,
@@ -589,13 +550,4 @@ FolderChainItem _buildFolderChainItem({
         ),
     ],
   );
-}
-
-int _firstNonZero(List<int> values) {
-  for (final value in values) {
-    if (value != 0) {
-      return value;
-    }
-  }
-  return 0;
 }

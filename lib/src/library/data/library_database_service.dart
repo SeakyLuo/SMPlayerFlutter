@@ -2,11 +2,13 @@ import 'dart:io';
 
 import 'package:sqlite3/sqlite3.dart';
 
+import 'library_recent_now_playing_migration.dart';
+
 class LibraryDatabaseService {
   const LibraryDatabaseService();
 
   // Increment when changing tables, columns, indexes, or the lyrics FTS schema.
-  static const schemaVersion = 2;
+  static const schemaVersion = 5;
 
   Database openInitializedLibraryDatabase(File databaseFile) {
     databaseFile.parent.createSync(recursive: true);
@@ -154,6 +156,8 @@ class LibraryDatabaseService {
         Name TEXT NOT NULL,
         Criterion INTEGER DEFAULT -1,
         Priority INTEGER DEFAULT -1,
+        Type INTEGER DEFAULT 0,
+        SnapshotKey TEXT DEFAULT '',
         State INTEGER DEFAULT 1
       )
     ''');
@@ -263,6 +267,8 @@ class LibraryDatabaseService {
       )
     ''');
     _ensureLibrarySchemaColumns(db);
+    migratePlaylistType(db);
+    migrateRecentNowPlayingSnapshots(db);
     if (!_tableHasRows(db, 'Settings')) {
       db.execute('INSERT INTO Settings DEFAULT VALUES');
     }
@@ -288,6 +294,11 @@ class LibraryDatabaseService {
     db.execute(
       'CREATE INDEX IF NOT EXISTS idx_playlist_name ON Playlist(Name)',
     );
+    db.execute('DROP INDEX IF EXISTS idx_playlist_history_snapshot');
+    db.execute('''
+      CREATE INDEX IF NOT EXISTS idx_playlist_type_snapshot
+        ON Playlist(Type, SnapshotKey, State)
+    ''');
     db.execute('DROP INDEX IF EXISTS idx_search_history_query_nocase');
     db.execute('''
       CREATE INDEX IF NOT EXISTS idx_search_history_query_lookup
@@ -343,6 +354,7 @@ class LibraryDatabaseService {
       SELECT Id
       FROM Playlist
       WHERE Id = ?
+        AND Type = 1
       LIMIT 1
     ''',
       [currentFavoriteId],
@@ -365,6 +377,7 @@ class LibraryDatabaseService {
       FROM Playlist
       WHERE Name = ?
         AND State = 1
+        AND Type IN (0, 1)
       ORDER BY Id
       LIMIT 1
     ''',
@@ -374,6 +387,9 @@ class LibraryDatabaseService {
         namedRows.isNotEmpty
             ? namedRows.first['Id'] as int
             : _insertMyFavoritesPlaylist(db);
+    db.execute('UPDATE Playlist SET Type = 1, State = 1 WHERE Id = ?', [
+      favoritePlaylistId,
+    ]);
     db.execute(
       '''
       UPDATE Settings
@@ -390,8 +406,8 @@ class LibraryDatabaseService {
   int _insertMyFavoritesPlaylist(Database db) {
     db.execute(
       '''
-      INSERT INTO Playlist (Name, Criterion, Priority, State)
-      VALUES (?, -1, 0, 1)
+      INSERT INTO Playlist (Name, Criterion, Priority, Type, State)
+      VALUES (?, -1, 0, 1, 1)
     ''',
       ['My Favorites'],
     );
@@ -535,6 +551,8 @@ class LibraryDatabaseService {
       'Name': "TEXT DEFAULT ''",
       'Criterion': 'INTEGER DEFAULT -1',
       'Priority': 'INTEGER DEFAULT -1',
+      'Type': 'INTEGER DEFAULT 0',
+      'SnapshotKey': "TEXT DEFAULT ''",
       'State': 'INTEGER DEFAULT 1',
     });
     _addColumnsIfMissing(db, 'PlaylistItem', {

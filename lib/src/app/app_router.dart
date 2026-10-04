@@ -160,6 +160,23 @@ GoRouter createSmPlayerRouter({
                       settingsController: settingsController,
                       child: const RecentPage(),
                     ),
+                routes: [
+                  GoRoute(
+                    path: 'now-playing/:recordId',
+                    pageBuilder: (context, state) {
+                      final recordId = int.parse(
+                        state.pathParameters['recordId']!,
+                      );
+                      return _smPlayerDetailBranchPage(
+                        context: context,
+                        state: state,
+                        settingsController: settingsController,
+                        pageKey: ValueKey('RecentNowPlayingDetail.$recordId'),
+                        child: RecentNowPlayingDetailPage(recordId: recordId),
+                      );
+                    },
+                  ),
+                ],
               ),
             ],
           ),
@@ -263,7 +280,9 @@ GoRouter createSmPlayerRouter({
                                       cancellation: cancellation,
                                       onProgress: onProgress,
                                     );
-                                _invalidateLibraryData(ref);
+                                if (result.libraryChanged) {
+                                  _invalidateLibraryData(ref);
+                                }
                                 return result;
                               },
                               onDataImported: () async {
@@ -415,6 +434,9 @@ class _SmPlayerRouteShell extends ConsumerWidget {
     final uri = routeState.uri;
     final path = uri.path;
     final isPlaylistDetailRoute = path.startsWith('/playlists/');
+    final isRecentNowPlayingDetailRoute = path.startsWith(
+      '/recent/now-playing/',
+    );
     final isAlbumDetailRoute =
         path == '/albums' && uri.queryParameters.containsKey('album');
     final isArtistDetailRoute =
@@ -441,6 +463,7 @@ class _SmPlayerRouteShell extends ConsumerWidget {
     final isHiddenFoldersRoute = path == '/hidden-folders';
     final canGoBack =
         isRecentBrowseDetailRoute ||
+        isRecentNowPlayingDetailRoute ||
         isPlaylistDetailRoute ||
         isAlbumDetailRoute ||
         isCompactArtistDetailRoute ||
@@ -454,6 +477,10 @@ class _SmPlayerRouteShell extends ConsumerWidget {
       settingsController: settingsController,
       settingsRepository: repository,
       onNavigate: (target) {
+        if (target == '/recent' && isRecentNowPlayingDetailRoute) {
+          context.go('/recent');
+          return;
+        }
         if (target == '/artists' && path == '/artists') {
           ref.read(artistsListRequestProvider.notifier).state += 1;
           navigationShell.goBranch(1, initialLocation: true);
@@ -486,6 +513,11 @@ class _SmPlayerRouteShell extends ConsumerWidget {
         context.go(target);
       },
       onGoBack: () {
+        if (isRecentNowPlayingDetailRoute) {
+          context.go('/recent');
+          return;
+        }
+
         if (isRecentBrowseDetailRoute) {
           context.go('/recent');
           return;

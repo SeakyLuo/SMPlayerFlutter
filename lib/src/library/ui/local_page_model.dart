@@ -27,6 +27,13 @@ String getRefreshResultMessage(
         'local.refreshAddedMultiple',
         i18n,
       ),
+    if (result.filesUpdated.isNotEmpty)
+      _getRefreshChangeMessage(
+        result.filesUpdated,
+        'local.refreshUpdatedOne',
+        'local.refreshUpdatedMultiple',
+        i18n,
+      ),
     if (result.filesRemoved.isNotEmpty)
       _getRefreshChangeMessage(
         result.filesRemoved,
@@ -137,30 +144,28 @@ List<LocalCompactTreeRow> buildLocalCompactFolderTreeRows({
   required Set<String> expandedFolderPaths,
   required LocalSortMode sortMode,
   required String searchQuery,
+  LocalSortKeys? sortKeys,
 }) {
   final rows = <LocalCompactTreeRow>[];
+  final keys = sortKeys ?? LocalSortKeys();
   var songIndex = 0;
   final normalizedSearchQuery = searchQuery.trim().toLowerCase();
 
   void appendFolder(FolderNode folder, int depth) {
-    final nestedFolders = sortFolders(
-      folder.childPaths
-          .map((childPath) => nodes[childPath]!)
-          .where(
-            (child) =>
-                normalizedSearchQuery.isEmpty ||
-                child.name.toLowerCase().contains(normalizedSearchQuery),
-          )
-          .toList(),
-    );
-    final nestedSongs = sortSongs(
-      folder.directSongIds
-          .map((songId) => songsById[songId]!)
-          .where((song) => matchesSongSearch(song, searchQuery))
-          .toList(),
-      sortMode,
-      localSortModeFromCriterion(folder.criterion),
-    );
+    final nestedFolders =
+        folder.childPaths
+            .map((childPath) => nodes[childPath]!)
+            .where(
+              (child) =>
+                  normalizedSearchQuery.isEmpty ||
+                  child.name.toLowerCase().contains(normalizedSearchQuery),
+            )
+            .toList();
+    final nestedSongs =
+        folder.directSongIds
+            .map((songId) => songsById[songId]!)
+            .where((song) => matchesSongSearch(song, searchQuery))
+            .toList();
     final expanded = expandedFolderPaths.contains(folder.relativePath);
     final expandable = nestedFolders.isNotEmpty || nestedSongs.isNotEmpty;
 
@@ -178,10 +183,15 @@ List<LocalCompactTreeRow> buildLocalCompactFolderTreeRows({
       return;
     }
 
-    for (final childFolder in nestedFolders) {
+    for (final childFolder in sortFolders(nestedFolders, keys)) {
       appendFolder(childFolder, depth + 1);
     }
-    for (final song in nestedSongs) {
+    for (final song in sortSongs(
+      nestedSongs,
+      sortMode,
+      localSortModeFromCriterion(folder.criterion),
+      keys,
+    )) {
       rows.add(
         LocalCompactTreeRow.song(
           key: 'song:${folder.relativePath}:${song.id}',

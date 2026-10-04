@@ -28,6 +28,7 @@ import 'package:smplayer_flutter/src/library/ui/menu_flyout.dart';
 import 'package:smplayer_flutter/src/library/ui/menu_flyout_helpers.dart';
 import 'package:smplayer_flutter/src/library/ui/multi_select_command_bar.dart';
 import 'package:smplayer_flutter/src/library/ui/headered_playlist_model.dart';
+import 'package:smplayer_flutter/src/library/ui/headered_playlist_control.dart';
 import 'package:smplayer_flutter/src/library/ui/library_page_actions.dart';
 import 'package:smplayer_flutter/src/library/ui/music_dialog.dart';
 import 'package:smplayer_flutter/src/library/ui/popup_dialog.dart';
@@ -45,6 +46,7 @@ import 'recent_search_list.dart';
 part 'recent_added_page.dart';
 part 'recent_played_page.dart';
 part 'recent_now_playing_page.dart';
+part 'recent_now_playing_detail_page.dart';
 part 'recent_page_navigation.dart';
 part 'recent_browses_page.dart';
 part 'recent_browse_list.dart';
@@ -71,7 +73,7 @@ enum RecentPlayedFilter { songs, artists, albums, playlists, nowPlaying }
 const _recentMinimalPageHorizontalPadding = 8.0;
 const _recentPlayedFilterRadius = 999.0;
 const _recentCollectionTileWidth = 180.0;
-const _recentCollectionTileHeight = 242.0;
+const _recentCollectionTileHeight = gridViewHolderHeight;
 const _recentCollectionColumnGap = 30.0;
 const _recentCollectionRowGap = 26.0;
 const _recentArtistMinColumnWidth = 260.0;
@@ -92,7 +94,6 @@ class RecentPage extends ConsumerStatefulWidget {
 
 class _RecentPageState extends ConsumerState<RecentPage>
     with SingleTickerProviderStateMixin {
-  static const recentAddedLimit = 500;
   static const _activeTabStorageKey = 'RecentPage.activeTab';
   static const _activePlayedFilterStorageKey = 'RecentPage.activePlayedFilter';
 
@@ -183,7 +184,18 @@ class _RecentPageState extends ConsumerState<RecentPage>
   Widget build(BuildContext context) {
     final i18nValue = ref.watch(smPlayerI18nProvider);
     final snapshotValue = ref.watch(recentPageDataProvider);
-    final recentSongs = ref.watch(recentSongsProvider);
+    final songOverrides = ref.watch(librarySongOverridesProvider);
+    final favoriteOverrides = ref.watch(libraryFavoriteOverridesProvider);
+    final recentSongs =
+        ref.watch(recentSongsProvider).map((song) {
+          final updated =
+              applyFavoriteOverridesToSongs(
+                [song],
+                favoriteOverrides,
+                songOverrides,
+              ).single;
+          return RecentLibrarySong.fromSong(updated, playedAt: song.playedAt);
+        }).toList();
     final recentPlayedCollectionsValue = ref.watch(
       recentPlayedCollectionsProvider,
     );
@@ -222,6 +234,11 @@ class _RecentPageState extends ConsumerState<RecentPage>
             ),
           ),
       data: (snapshot) {
+        final songs = applyFavoriteOverridesToSongs(
+          snapshot.songs,
+          favoriteOverrides,
+          songOverrides,
+        );
         final playlists = applyLibraryPlaylistOverridesToPlaylists(
           snapshot.playlists,
           playlistOverrides,
@@ -239,30 +256,29 @@ class _RecentPageState extends ConsumerState<RecentPage>
               albums: snapshot.recentAlbums,
               artists: snapshot.recentArtists,
             );
-        final recentAddedSongs =
-            snapshot.songs.toList()..sort(
+        final addedSongs =
+            songs.toList()..sort(
               (left, right) =>
                   dateValue(right.dateAdded) - dateValue(left.dateAdded),
             );
-        final addedSongs = recentAddedSongs.take(recentAddedLimit).toList();
         final recentPlaylistViews = buildRecentPlaylistViews(
           playlists,
-          snapshot.songs,
+          songs,
           recentPlayedCollections.playlists,
         );
         final recentAlbumViews = buildRecentAlbumViews(
-          snapshot.songs,
+          songs,
           recentPlayedCollections.albums,
           i18n,
         );
         final recentArtistViews = buildRecentArtistViews(
-          snapshot.songs,
+          songs,
           recentPlayedCollections.artists,
           i18n,
         );
         final recentNowPlayingViews = buildRecentNowPlayingViews(
           snapshot.recentNowPlaying,
-          snapshot.songs,
+          songs,
         );
         final recentPlayedCount =
             recentSongs.length +
@@ -272,7 +288,7 @@ class _RecentPageState extends ConsumerState<RecentPage>
             recentNowPlayingViews.length;
         final recentBrowseViews = buildRecentBrowseViews(
           recentBrowses,
-          snapshot.songs,
+          songs,
           playlists,
           i18n,
         );
@@ -314,6 +330,7 @@ class _RecentPageState extends ConsumerState<RecentPage>
                   recentPlaylistViews,
                   recentAlbumViews,
                   recentArtistViews,
+                  recentNowPlayingViews,
                 )
                 : selectedVisibleSongIds;
         final customPlaylists =
@@ -339,8 +356,6 @@ class _RecentPageState extends ConsumerState<RecentPage>
                 routePath: '/recent',
                 i18n: i18n,
                 title: i18n.t('common.recent'),
-                addedCount: addedSongs.length,
-                playedCount: recentPlayedCount,
                 browsedCount: recentBrowseViews.length,
                 searchesCount: recentSearches.length,
                 showCount: snapshot.showCount,
@@ -358,8 +373,6 @@ class _RecentPageState extends ConsumerState<RecentPage>
                           child: _RecentAppBarTabs(
                             controller: _tabController,
                             i18n: i18n,
-                            addedCount: addedSongs.length,
-                            playedCount: recentPlayedCount,
                             browsedCount: recentBrowseViews.length,
                             searchesCount: recentSearches.length,
                             showCount: snapshot.showCount,
@@ -420,6 +433,7 @@ class _RecentPageState extends ConsumerState<RecentPage>
                                 i18n: i18n,
                                 timelineLabel: _recentPlayedTimelineLabel,
                                 playedCount: recentPlayedCount,
+                                showCount: snapshot.showCount,
                                 customPlaylists: customPlaylists,
                                 multiSelect: _multiSelect,
                                 selectedSongIds: _selectedSongIds,
@@ -429,10 +443,6 @@ class _RecentPageState extends ConsumerState<RecentPage>
                                 onFilterChanged: (filter) {
                                   setState(() {
                                     _activePlayedFilter = filter;
-                                    if (filter ==
-                                        RecentPlayedFilter.nowPlaying) {
-                                      _multiSelect = false;
-                                    }
                                     _clearSelection();
                                   });
                                   PageStorage.maybeOf(context)?.writeState(
@@ -559,7 +569,7 @@ class _RecentPageState extends ConsumerState<RecentPage>
                     includeNowPlayingInAddTo: true,
                     includeFavoritesInAddTo: hasNotFavoriteSongs(
                       selectedOperationSongIds,
-                      {for (final song in snapshot.songs) song.id: song},
+                      {for (final song in songs) song.id: song},
                     ),
                     removeLabel: i18n.t('context.removeFromList'),
                     onPlay: () {
@@ -585,7 +595,7 @@ class _RecentPageState extends ConsumerState<RecentPage>
                     },
                     onToggleFavorite: () {
                       final songsById = {
-                        for (final song in snapshot.songs) song.id: song,
+                        for (final song in songs) song.id: song,
                       };
                       setSongsFavoriteWithUndo(
                         context: context,
@@ -682,6 +692,7 @@ class _RecentPageState extends ConsumerState<RecentPage>
                           recentAlbumViews,
                           recentArtistViews,
                           recentBrowseViews,
+                          recentNowPlayingViews,
                         );
                       });
                     },
@@ -694,6 +705,7 @@ class _RecentPageState extends ConsumerState<RecentPage>
                           recentAlbumViews,
                           recentArtistViews,
                           recentBrowseViews,
+                          recentNowPlayingViews,
                         );
                       });
                     },

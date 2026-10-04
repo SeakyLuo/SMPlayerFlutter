@@ -20,7 +20,9 @@ extension _HeaderedPlaylistControlSongMenu on _HeaderedPlaylistControlState {
     final playlists = _effectivePlaylists(snapshot.playlists);
     final currentSavedPlaylist =
         widget.type == HeaderedPlaylistType.playlist
-            ? playlists.firstWhere((playlist) => playlist.name == widget.title)
+            ? playlists.firstWhere(
+              (playlist) => playlist.id == widget.playlistId,
+            )
             : null;
     final currentPlaylistName =
         widget.type == HeaderedPlaylistType.favorites

@@ -62,11 +62,25 @@ Rect clampMainWindowBounds(
   List<Rect> workAreas, {
   Size minimumSize = mainWindowMinimumSize,
 }) {
-  final workArea = _matchingWorkArea(bounds, workAreas);
+  final isOutsideEveryWorkArea =
+      workAreas.isNotEmpty &&
+      workAreas.every((workArea) => _rectOverlapArea(bounds, workArea) == 0);
+  final workArea =
+      isOutsideEveryWorkArea
+          ? workAreas.first
+          : _matchingWorkArea(bounds, workAreas);
   final width =
       min(max(bounds.width, minimumSize.width), workArea.width).toDouble();
   final height =
       min(max(bounds.height, minimumSize.height), workArea.height).toDouble();
+  if (isOutsideEveryWorkArea) {
+    return Rect.fromLTWH(
+      workArea.left + (workArea.width - width) / 2,
+      workArea.top + (workArea.height - height) / 2,
+      width,
+      height,
+    );
+  }
   return Rect.fromLTWH(
     min(max(bounds.left, workArea.left), workArea.right - width).toDouble(),
     min(max(bounds.top, workArea.top), workArea.bottom - height).toDouble(),

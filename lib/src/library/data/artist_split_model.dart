@@ -7,6 +7,7 @@ ArtistSplitAnalysisResult analyzeArtistSplits(
   bool existingLibraryScan = true,
   bool includeScannedSongsInUsage = false,
   void Function(double progress)? onProgress,
+  Set<int>? songIds,
 }) {
   var lastReportedPercent = -1;
   void reportProgress(double progress) {
@@ -24,14 +25,21 @@ ArtistSplitAnalysisResult analyzeArtistSplits(
       (existingLibraryScan
           ? songs
               .where(
-                (song) => song.artists.length <= 1 && song.artist.isNotEmpty,
+                (song) =>
+                    (songIds == null || songIds.contains(song.id)) &&
+                    song.artists.length <= 1 &&
+                    song.artist.isNotEmpty,
               )
               .toList()
           : songs);
   final mergeTargetSongs =
       analysisSongs ??
       songs
-          .where((song) => song.artist.isNotEmpty || song.artists.isNotEmpty)
+          .where(
+            (song) =>
+                (songIds == null || songIds.contains(song.id)) &&
+                (song.artist.isNotEmpty || song.artists.isNotEmpty),
+          )
           .toList();
   reportProgress(0.04);
   final artistSplitPlan = _buildArtistSplitPlan(
@@ -43,6 +51,7 @@ ArtistSplitAnalysisResult analyzeArtistSplits(
     mergeTargetSongs,
     artistSplitPlan,
     usageSongs: usageSongs ?? songs,
+    usageAnalysisSongs: songIds == null ? mergeTargetSongs : songs,
     includeScannedSongs: includeScannedSongsInUsage,
     onProgress: (progress) => reportProgress(0.25 + progress * 0.67),
   );
@@ -172,12 +181,13 @@ Map<LibrarySong, List<String>> _buildArtistMergePlan(
   List<LibrarySong> songs,
   _ArtistSplitPlan artistSplitPlan, {
   required List<LibrarySong> usageSongs,
+  required List<LibrarySong> usageAnalysisSongs,
   bool includeScannedSongs = true,
   void Function(double progress)? onProgress,
 }) {
   final artistUsage = _artistUsage(
     usageSongs,
-    scannedSongs: songs,
+    scannedSongs: usageAnalysisSongs,
     includeScannedSongs: includeScannedSongs,
   );
   final expandedCandidatesByArtistKey = <String, List<String>>{};

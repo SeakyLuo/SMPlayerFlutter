@@ -8,6 +8,8 @@ import 'package:shelf/shelf_io.dart' as shelf_io;
 import 'package:shelf_router/shelf_router.dart';
 
 import 'ai_agent_api.dart';
+import 'ai_agent_settings_codec.dart';
+import '../settings/settings_model.dart';
 
 enum AiAgentRemoteState { stopped, starting, running, stopping }
 
@@ -24,6 +26,10 @@ class AiAgentControlBindings {
     required this.seek,
     required this.setVolume,
     required this.updateSong,
+    required this.settings,
+    required this.updateSettings,
+    required this.loadSystemFonts,
+    required this.syncChanges,
   });
 
   final String databasePath;
@@ -38,6 +44,11 @@ class AiAgentControlBindings {
   final bool Function(int volume) setVolume;
   final Future<bool> Function(int songId, Map<String, Object?> properties)
   updateSong;
+  final SettingsSnapshot Function() settings;
+  final Future<void> Function(AppSettingsUpdate update) updateSettings;
+  final Future<List<String>> Function() loadSystemFonts;
+  final Future<void> Function(List<String> settings, List<int> songIds)
+  syncChanges;
 }
 
 class AiAgentRemoteController extends ChangeNotifier {
@@ -45,6 +56,7 @@ class AiAgentRemoteController extends ChangeNotifier {
   HttpServer? _server;
   var _state = AiAgentRemoteState.stopped;
   var _port = defaultAiAgentApiPort;
+  Future<List<String>>? _systemFonts;
 
   AiAgentRemoteState get state => _state;
   bool get isRunning => _state == AiAgentRemoteState.running;
@@ -57,6 +69,7 @@ class AiAgentRemoteController extends ChangeNotifier {
 
   void attach(AiAgentControlBindings bindings) {
     _bindings = bindings;
+    _systemFonts = null;
     notifyListeners();
   }
 
@@ -79,6 +92,8 @@ class AiAgentRemoteController extends ChangeNotifier {
     _port = port;
     _setState(AiAgentRemoteState.starting);
     try {
+      _systemFonts ??= bindings.loadSystemFonts();
+      await _systemFonts;
       _server = await _serve(_port);
       _bindings = bindings;
       _setState(AiAgentRemoteState.running);
@@ -122,6 +137,9 @@ class AiAgentRemoteController extends ChangeNotifier {
         Router()
           ..get('/agent', _handleInfo)
           ..get('/player/state', _handlePlayerState)
+          ..get('/settings', _handleSettings)
+          ..post('/settings/update', _handleSettingsUpdate)
+          ..post('/app/sync', _handleAppSync)
           ..post('/song/play', _handleSongPlay)
           ..post('/queue/play', _handleQueuePlay)
           ..post('/player/play', _handlePlay)
@@ -162,9 +180,32 @@ class AiAgentRemoteController extends ChangeNotifier {
     final bindings = _bindings!;
     return _jsonResponse(HttpStatus.ok, {
       'endpoint': endpoint,
+      'guidance':
+          'Read the database for song selection. Use API actions for '
+          'writes so application state, audio tags and native features stay '
+          'in sync. After direct database writes, commit before POST /app/sync '
+          'with the changed setting keys and existing song IDs. '
+          'Sync does not reload pages, write audio tags or run library scans. '
+          'GET /settings returns editable values and allowed options.',
       'endpoints': {
         'info': {'method': 'GET', 'path': '/agent'},
         'playerState': {'method': 'GET', 'path': '/player/state'},
+        'settings': {'method': 'GET', 'path': '/settings'},
+        'settingsUpdate': {
+          'method': 'POST',
+          'path': '/settings/update',
+          'body': {
+            'properties': 'partial object matching GET /settings schema',
+          },
+        },
+        'appSync': {
+          'method': 'POST',
+          'path': '/app/sync',
+          'body': {
+            'settings': 'editable setting key[] (optional)',
+            'songIds': 'existing active song ID[] (optional, maximum 128)',
+          },
+        },
         'songPlay': {
           'method': 'POST',
           'path': '/song/play',
@@ -221,6 +262,115 @@ class AiAgentRemoteController extends ChangeNotifier {
 
   Response _handlePlayerState(Request request) {
     return _jsonResponse(HttpStatus.ok, _bindings!.playerState());
+  }
+
+  Future<List<String>> _settingFonts() async {
+    final fonts = await _systemFonts!;
+    final current = _bindings!.settings().desktopLyricsFontFamily;
+    return [
+      'system',
+      if (current != 'system' && !fonts.contains(current)) current,
+      ...fonts,
+    ];
+  }
+
+  Future<Response> _handleSettings(Request request) async {
+    try {
+      final fonts = await _settingFonts();
+      return _jsonResponse(HttpStatus.ok, {
+        'values': AiAgentSettingsCodec.read(_bindings!.settings()),
+        'schema': AiAgentSettingsCodec.schema(fonts),
+        'notEditable': {
+          'rootPath':
+              'Changing the library directory requires a scan operation',
+          'aiAgentEnabled': 'Manage the API lifecycle from the settings page',
+          'aiAgentPort': 'Manage the API connection from the settings page',
+        },
+      });
+    } on Object {
+      return _jsonResponse(HttpStatus.unprocessableEntity, {
+        'ok': false,
+        'error': 'settings_read_failed',
+      });
+    }
+  }
+
+  Future<Response> _handleSettingsUpdate(Request request) async {
+    final decoded = await _readRequestBody(request);
+    if (decoded is Response) return decoded;
+    final properties = (decoded as Map<String, dynamic>)['properties'];
+    if (properties is! Map<String, dynamic>) {
+      return _invalidRequest('invalid_settings_properties');
+    }
+    final AppSettingsUpdate update;
+    try {
+      update = AiAgentSettingsCodec.decode(properties, await _settingFonts());
+    } on FormatException catch (error) {
+      return _jsonResponse(HttpStatus.badRequest, {
+        'ok': false,
+        'error': 'invalid_settings_properties',
+        'message': error.message,
+      });
+    } on Object {
+      return _jsonResponse(HttpStatus.unprocessableEntity, {
+        'ok': false,
+        'error': 'settings_options_failed',
+      });
+    }
+    try {
+      await _bindings!.updateSettings(update);
+      return _jsonResponse(HttpStatus.ok, {
+        'ok': true,
+        'values': AiAgentSettingsCodec.read(_bindings!.settings()),
+      });
+    } on Object {
+      return _jsonResponse(HttpStatus.unprocessableEntity, {
+        'ok': false,
+        'error': 'settings_update_failed',
+      });
+    }
+  }
+
+  Future<Response> _handleAppSync(Request request) async {
+    final decoded = await _readRequestBody(request);
+    if (decoded is Response) return decoded;
+    final body = decoded as Map<String, dynamic>;
+    final settings =
+        body.containsKey('settings') ? body['settings'] : const <String>[];
+    final songIds =
+        body.containsKey('songIds') ? body['songIds'] : const <int>[];
+    final fields = AiAgentSettingsCodec.read(_bindings!.settings());
+    if (body.keys.any((key) => key != 'settings' && key != 'songIds') ||
+        settings is! List ||
+        settings.any((key) => key is! String || !fields.containsKey(key)) ||
+        songIds is! List ||
+        songIds.length > 128 ||
+        songIds.any((id) => id is! int) ||
+        (settings.isEmpty && songIds.isEmpty)) {
+      return _invalidRequest('invalid_sync_changes');
+    }
+    try {
+      await _bindings!.syncChanges(
+        settings.cast<String>(),
+        songIds.cast<int>(),
+      );
+      return _jsonResponse(HttpStatus.ok, {
+        'ok': true,
+        'settings': settings,
+        'songIds': songIds,
+      });
+    } on FormatException catch (error) {
+      return _jsonResponse(HttpStatus.badRequest, {
+        'ok': false,
+        'error': 'invalid_sync_changes',
+        'message': error.message,
+      });
+    } on Object {
+      return _jsonResponse(HttpStatus.unprocessableEntity, {
+        'ok': false,
+        'error': 'app_sync_failed',
+      });
+    }
   }
 
   Future<Response> _handleSongPlay(Request request) async {

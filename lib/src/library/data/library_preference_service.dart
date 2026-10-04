@@ -159,6 +159,7 @@ class LibraryPreferenceService {
           ON PreferenceItem.Type = 3
          AND Playlist.Id = CAST(PreferenceItem.ItemId AS INTEGER)
          AND Playlist.State = ?
+         AND Playlist.Type <> 3
         LEFT JOIN Folder
           ON PreferenceItem.Type = 4
          AND (
@@ -361,6 +362,7 @@ class LibraryPreferenceService {
             FROM Playlist
             WHERE Playlist.Id = CAST(PreferenceItem.ItemId AS INTEGER)
               AND Playlist.State = ?
+              AND Playlist.Type <> 3
           ''');
         case PreferenceEntityType.folder:
           _clearInvalidPreferenceItemsByExists(db, entityValue, '''

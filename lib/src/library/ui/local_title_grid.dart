@@ -7,7 +7,6 @@ import 'package:flutter/rendering.dart';
 import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 
 import '../../i18n/app_i18n.dart';
-import '../data/library_models.dart';
 import 'local_folder_model.dart';
 import 'local_page_quick_jump.dart';
 import 'menu_flyout.dart';
@@ -17,8 +16,7 @@ const localFolderChainRadius = 8.0;
 class LocalTitleGrid extends StatelessWidget {
   const LocalTitleGrid({
     super.key,
-    required this.songs,
-    required this.folders,
+    required this.nodes,
     required this.i18n,
     required this.rootPath,
     required this.currentRelativePath,
@@ -31,8 +29,7 @@ class LocalTitleGrid extends StatelessWidget {
     this.onAcceptDrop,
   });
 
-  final List<LibrarySong> songs;
-  final List<LibraryFolder> folders;
+  final Map<String, FolderNode> nodes;
   final SmPlayerI18n i18n;
   final String rootPath;
   final String currentRelativePath;
@@ -67,8 +64,7 @@ class LocalTitleGrid extends StatelessWidget {
           ],
           Expanded(
             child: FolderChainListView(
-              songs: songs,
-              folders: folders,
+              nodes: nodes,
               i18n: i18n,
               rootPath: rootPath,
               currentRelativePath: currentRelativePath,
@@ -103,8 +99,7 @@ class LocalTitleGrid extends StatelessWidget {
 class FolderChainListView extends StatefulWidget {
   const FolderChainListView({
     super.key,
-    required this.songs,
-    required this.folders,
+    required this.nodes,
     required this.i18n,
     required this.rootPath,
     required this.currentRelativePath,
@@ -116,8 +111,7 @@ class FolderChainListView extends StatefulWidget {
     this.onAcceptDrop,
   });
 
-  final List<LibrarySong> songs;
-  final List<LibraryFolder> folders;
+  final Map<String, FolderNode> nodes;
   final SmPlayerI18n i18n;
   final String rootPath;
   final String currentRelativePath;
@@ -172,14 +166,9 @@ class _FolderChainListViewState extends State<FolderChainListView> {
 
   @override
   Widget build(BuildContext context) {
-    final folderIndex = buildFolderIndex(
-      widget.songs,
-      widget.folders,
-      widget.rootPath,
-    );
     final folderChain = buildFolderChain(
       widget.currentRelativePath,
-      folderIndex.nodes,
+      widget.nodes,
     );
 
     final colors = LocalPageColors.of(context);

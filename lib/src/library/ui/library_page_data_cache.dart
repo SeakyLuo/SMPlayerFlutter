@@ -13,6 +13,7 @@ class LibraryPageDataCache {
   (List<LibrarySong>, List<LibraryFolder>, String)? _folderKey;
   Set<String> _createdFolders = const {};
   late FolderIndex _folderIndex;
+  LocalSortKeys sortKeys = LocalSortKeys();
 
   LibraryContentData snapshot(
     LibraryContentData source,
@@ -52,10 +53,14 @@ class LibraryPageDataCache {
   }) {
     final key = (snapshot.songs, snapshot.folders, snapshot.rootPath);
     if (_folderKey != key || !setEquals(_createdFolders, created)) {
+      if (_folderKey != null && _folderKey!.$3 != snapshot.rootPath) {
+        sortKeys = LocalSortKeys();
+      }
       final index = buildFolderIndex(
         snapshot.songs,
         snapshot.folders,
         snapshot.rootPath,
+        sortKeys,
       );
       final nodes = index.nodes;
       for (final path in created) {
@@ -76,11 +81,15 @@ class LibraryPageDataCache {
         for (final node in nodes.values) {
           node.childPaths.sort(
             (left, right) =>
-                compareLocalText(nodes[left]!.name, nodes[right]!.name),
+                sortKeys.compareText(nodes[left]!.name, nodes[right]!.name),
           );
         }
       }
       _folderIndex = index;
+      sortKeys.retainLibrary(
+        snapshot.songs,
+        nodes.values.map((node) => node.name),
+      );
       _folderKey = key;
       _createdFolders = Set.of(created);
     }

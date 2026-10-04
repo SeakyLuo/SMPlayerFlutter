@@ -282,6 +282,10 @@ class MediaSessionDisplayState {
     required this.playing,
     required this.durationSeconds,
     required this.progressSeconds,
+    required this.previousLabel,
+    required this.playLabel,
+    required this.pauseLabel,
+    required this.nextLabel,
   });
 
   factory MediaSessionDisplayState.fromShell({
@@ -292,7 +296,7 @@ class MediaSessionDisplayState {
     required double progressSeconds,
   }) {
     if (currentSong == null) {
-      return const MediaSessionDisplayState(
+      return MediaSessionDisplayState(
         active: false,
         title: '',
         artist: '',
@@ -301,6 +305,10 @@ class MediaSessionDisplayState {
         playing: false,
         durationSeconds: 0,
         progressSeconds: 0,
+        previousLabel: i18n.t('player.previous'),
+        playLabel: i18n.t('player.play'),
+        pauseLabel: i18n.t('player.pause'),
+        nextLabel: i18n.t('player.next'),
       );
     }
     return MediaSessionDisplayState(
@@ -312,6 +320,10 @@ class MediaSessionDisplayState {
       playing: isPlaying,
       durationSeconds: durationSeconds,
       progressSeconds: progressSeconds.clamp(0, max(0, durationSeconds)),
+      previousLabel: i18n.t('player.previous'),
+      playLabel: i18n.t('player.play'),
+      pauseLabel: i18n.t('player.pause'),
+      nextLabel: i18n.t('player.next'),
     );
   }
 
@@ -323,6 +335,10 @@ class MediaSessionDisplayState {
   final bool playing;
   final double durationSeconds;
   final double progressSeconds;
+  final String previousLabel;
+  final String playLabel;
+  final String pauseLabel;
+  final String nextLabel;
 
   String get signature {
     return [
@@ -334,6 +350,10 @@ class MediaSessionDisplayState {
       playing,
       durationSeconds.round(),
       progressSeconds.round(),
+      previousLabel,
+      playLabel,
+      pauseLabel,
+      nextLabel,
     ].join('\n');
   }
 
@@ -347,6 +367,10 @@ class MediaSessionDisplayState {
       'playing': playing,
       'durationSeconds': durationSeconds,
       'progressSeconds': progressSeconds,
+      'previousLabel': previousLabel,
+      'playLabel': playLabel,
+      'pauseLabel': pauseLabel,
+      'nextLabel': nextLabel,
     };
   }
 }

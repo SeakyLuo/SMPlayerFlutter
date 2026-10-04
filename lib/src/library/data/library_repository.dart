@@ -26,6 +26,7 @@ import 'library_read_service.dart';
 import 'library_snapshot_service.dart';
 import 'library_repository_paths.dart';
 import 'library_search_history_service.dart';
+import 'library_scan_task_coordinator.dart';
 import 'library_settings_service.dart';
 import 'library_song_properties_service.dart';
 import 'package:smplayer_flutter/src/settings/settings_model.dart' as settings;
@@ -204,7 +205,7 @@ class LibraryRepository
     final databaseFile = await _resolveDatabaseFile();
     return const LibrarySnapshotService().readRecent(
       databaseFile.path,
-      _resolveNowPlayingFile().path,
+      _resolveNowPlayingFile(databaseFile).path,
     );
   }
 
@@ -212,7 +213,7 @@ class LibraryRepository
     final databaseFile = await _resolveDatabaseFile();
     return const LibrarySnapshotService().readNavigation(
       databaseFile.path,
-      _resolveNowPlayingFile().path,
+      _resolveNowPlayingFile(databaseFile).path,
     );
   }
 
@@ -249,16 +250,19 @@ class LibraryRepository
     return const LibrarySnapshotService().readSongCount(databaseFile.path);
   }
 
-  Future<List<LibrarySong>> getLibrarySongs() async {
+  Future<List<LibrarySong>> getLibrarySongs({List<int>? songIds}) async {
     final databaseFile = await _resolveDatabaseFile();
-    return const LibrarySnapshotService().readSongs(databaseFile.path);
+    return const LibrarySnapshotService().readSongs(
+      databaseFile.path,
+      songIds: songIds,
+    );
   }
 
   Future<LibraryContentData> getLibraryContentData() async {
     final databaseFile = await _resolveDatabaseFile();
     return const LibrarySnapshotService().readContent(
       databaseFile.path,
-      _resolveNowPlayingFile().path,
+      _resolveNowPlayingFile(databaseFile).path,
     );
   }
 
@@ -300,6 +304,11 @@ class LibraryRepository
       databaseFile,
       cleanupInvalidLastPlaylist: _playlistService.cleanupInvalidLastPlaylist,
     );
+  }
+
+  Future<settings.SettingsSnapshot> readSettingsSnapshot() async {
+    final databaseFile = await _resolveDatabaseFile();
+    return _settingsService.readSettingsSnapshot(databaseFile);
   }
 
   Future<void> updateSettings(settings.AppSettingsUpdate update) async {
@@ -361,7 +370,7 @@ class LibraryRepository
     final databaseFile = await _resolveDatabaseFile();
     await _playbackHistoryService.replaceNowPlaying(
       databaseFile,
-      _resolveNowPlayingFile(),
+      _resolveNowPlayingFile(databaseFile),
       songIds,
       recordHistory: recordHistory,
     );
@@ -375,7 +384,7 @@ class LibraryRepository
     final databaseFile = await _resolveDatabaseFile();
     await _playbackHistoryService.removeSongFromNowPlaying(
       databaseFile,
-      _resolveNowPlayingFile(),
+      _resolveNowPlayingFile(databaseFile),
       songId,
     );
   }
@@ -746,8 +755,8 @@ class LibraryRepository
     await _artworkService.pruneArtworkCache(db);
   }
 
-  File _resolveNowPlayingFile() {
-    return _paths.resolveNowPlayingFile();
+  File _resolveNowPlayingFile(File databaseFile) {
+    return _paths.resolveNowPlayingFile(databaseFile);
   }
 
   @override
@@ -765,7 +774,8 @@ class LibraryRepository
 
   @override
   Future<File> _resolvePendingSongDeletesFile() async {
-    return _paths.resolvePendingSongDeletesFile();
+    final databaseFile = await _resolveDatabaseFile();
+    return _paths.resolvePendingSongDeletesFile(databaseFile);
   }
 }
 

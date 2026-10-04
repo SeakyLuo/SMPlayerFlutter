@@ -110,33 +110,39 @@ class _HeaderHero extends StatelessWidget {
     final fixedWidthBackdrop =
         !compact && MediaQuery.sizeOf(context).width <= 900;
     final collapsedDesktop = !compact && collapseProgress >= 1.0;
+    final titleContent = _HeaderHeroDragRegion(
+      windowDragCallbacks: windowDragCallbacks,
+      child: ConstrainedBox(
+        constraints: BoxConstraints(maxWidth: compact ? 420 : 860),
+        child: _HeaderHeroTitle(
+          title: title,
+          minimumFontSize: compact ? 20 : 24,
+          maxLines:
+              compact
+                  ? 2
+                  : collapsedDesktop
+                  ? 1
+                  : 3,
+          textAlign: compact ? TextAlign.center : TextAlign.start,
+          style: TextStyle(
+            color: colors.textStrong,
+            fontSize: titleSize,
+            height: compact ? 1.16 : 1.08,
+            fontWeight: FontWeight.w600,
+            fontVariations:
+                compact
+                    ? const [FontVariation.weight(800)]
+                    : const [FontVariation.weight(650)],
+          ),
+        ),
+      ),
+    );
     final titleBlock = Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment:
           compact ? CrossAxisAlignment.center : CrossAxisAlignment.start,
       children: [
-        _HeaderHeroDragRegion(
-          windowDragCallbacks: windowDragCallbacks,
-          child: ConstrainedBox(
-            constraints: BoxConstraints(maxWidth: compact ? 420 : 860),
-            child: Text(
-              title,
-              maxLines: compact ? 2 : 3,
-              textAlign: compact ? TextAlign.center : TextAlign.start,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                color: colors.textStrong,
-                fontSize: titleSize,
-                height: compact ? 1.16 : 1.08,
-                fontWeight: FontWeight.w600,
-                fontVariations:
-                    compact
-                        ? const [FontVariation.weight(800)]
-                        : const [FontVariation.weight(650)],
-              ),
-            ),
-          ),
-        ),
+        if (compact) titleContent else Flexible(child: titleContent),
         if (!collapsedDesktop) ...[
           SizedBox(height: infoMargin),
           ClipRect(
@@ -244,17 +250,13 @@ class _HeaderHero extends StatelessWidget {
                                 ? CrossAxisAlignment.center
                                 : CrossAxisAlignment.start,
                         children: [
-                          titleBlock,
+                          if (compact)
+                            titleBlock
+                          else
+                            Flexible(child: titleBlock),
                           if (compact && !collapsedDesktop)
                             SizedBox(height: commandMargin),
-                          if (collapsedDesktop)
-                            Expanded(
-                              child: Align(
-                                alignment: Alignment.bottomLeft,
-                                child: commandBarContent,
-                              ),
-                            )
-                          else if (compact)
+                          if (compact)
                             Flexible(
                               fit: FlexFit.loose,
                               child: Align(
@@ -282,6 +284,74 @@ class _HeaderHero extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _HeaderHeroTitle extends StatelessWidget {
+  const _HeaderHeroTitle({
+    required this.title,
+    required this.minimumFontSize,
+    required this.maxLines,
+    required this.textAlign,
+    required this.style,
+  });
+
+  final String title;
+  final double minimumFontSize;
+  final int maxLines;
+  final TextAlign textAlign;
+  final TextStyle style;
+
+  @override
+  Widget build(BuildContext context) {
+    final resolvedStyle = DefaultTextStyle.of(context).style.merge(style);
+    final textScaler = MediaQuery.textScalerOf(context);
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final painter = TextPainter(
+          maxLines: maxLines,
+          textAlign: textAlign,
+          textDirection: Directionality.of(context),
+          textScaler: textScaler,
+          locale: Localizations.maybeLocaleOf(context),
+        );
+        bool fits(double fontSize) {
+          painter.text = TextSpan(
+            text: title,
+            style: resolvedStyle.copyWith(fontSize: fontSize),
+          );
+          painter.layout(maxWidth: constraints.maxWidth);
+          return !painter.didExceedMaxLines &&
+              painter.height <= constraints.maxHeight;
+        }
+
+        var fontSize = style.fontSize!;
+        if (!fits(fontSize)) {
+          var lower = minimumFontSize;
+          var upper = fontSize;
+          if (fits(lower)) {
+            for (var step = 0; step < 6; step += 1) {
+              final candidate = (lower + upper) / 2;
+              if (fits(candidate)) {
+                lower = candidate;
+              } else {
+                upper = candidate;
+              }
+            }
+          }
+          fontSize = lower;
+        }
+        painter.dispose();
+        return Text(
+          title,
+          maxLines: maxLines,
+          textAlign: textAlign,
+          textScaler: textScaler,
+          overflow: TextOverflow.ellipsis,
+          style: resolvedStyle.copyWith(fontSize: fontSize),
+        );
+      },
     );
   }
 }

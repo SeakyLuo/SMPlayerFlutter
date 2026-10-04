@@ -538,7 +538,10 @@ class ArtistSplitAnalysisResult {
 
 class LocalFolderRefreshResult {
   const LocalFolderRefreshResult({
+    required this.libraryChanged,
+    required this.requiresFullReload,
     required this.filesAdded,
+    required this.filesUpdated,
     required this.filesRemoved,
     required this.filesMoved,
     required this.artistSplitsApplied,
@@ -546,7 +549,10 @@ class LocalFolderRefreshResult {
     required this.artistMergeSuggestions,
   });
 
+  final bool libraryChanged;
+  final bool requiresFullReload;
   final List<String> filesAdded;
+  final List<String> filesUpdated;
   final List<String> filesRemoved;
   final List<String> filesMoved;
   final List<ArtistSplitResultItem> artistSplitsApplied;
@@ -555,6 +561,7 @@ class LocalFolderRefreshResult {
 
   bool get hasChanges =>
       filesAdded.isNotEmpty ||
+      filesUpdated.isNotEmpty ||
       filesRemoved.isNotEmpty ||
       filesMoved.isNotEmpty ||
       artistSplitsApplied.isNotEmpty ||
@@ -562,7 +569,13 @@ class LocalFolderRefreshResult {
       artistMergeSuggestions.isNotEmpty;
 }
 
-enum LocalFolderRefreshStage { checking, reading, updating }
+enum LocalFolderRefreshStage {
+  checking,
+  reading,
+  updating,
+  finalizing,
+  completed,
+}
 
 class LocalFolderScanCanceledException implements Exception {
   const LocalFolderScanCanceledException();
@@ -612,6 +625,20 @@ class LocalFolderRefreshProgress {
   final int updatedCount;
   final int missingCount;
   final bool canCancel;
+
+  LocalFolderRefreshProgress completed() => LocalFolderRefreshProgress(
+    stage: LocalFolderRefreshStage.completed,
+    current: 1,
+    total: 1,
+    currentPath: '',
+    checkedFolderCount: checkedFolderCount,
+    folderCount: folderCount,
+    processedSongCount: processedSongCount,
+    songCount: songCount,
+    addedCount: addedCount,
+    updatedCount: updatedCount,
+    missingCount: missingCount,
+  );
 }
 
 class NowPlayingSnapshot {
@@ -624,11 +651,13 @@ class NowPlayingSnapshot {
 class RecentNowPlayingSnapshot {
   const RecentNowPlayingSnapshot({
     required this.id,
+    required this.playlistId,
     required this.songIds,
     required this.createdAt,
   });
 
   final int id;
+  final int playlistId;
   final List<int> songIds;
   final String createdAt;
 }

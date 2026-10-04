@@ -290,6 +290,7 @@ class _PlaylistsPageState extends ConsumerState<PlaylistsPage> {
       i18n: i18n,
       child: HeaderedPlaylistControl(
         key: ValueKey('HeaderedPlaylist.Playlist.${selectedPlaylist.id}'),
+        playlistId: selectedPlaylist.id,
         routeLocation: GoRouterState.of(context).uri.toString(),
         type:
             selectedPlaylist.isBuiltIn
@@ -578,7 +579,7 @@ class _PlaylistsPageState extends ConsumerState<PlaylistsPage> {
                                   gridDelegate:
                                       SliverGridDelegateWithFixedCrossAxisCount(
                                         crossAxisCount: columns,
-                                        mainAxisExtent: 250,
+                                        mainAxisExtent: gridViewHolderHeight,
                                         crossAxisSpacing:
                                             _playlistGridCrossAxisSpacing,
                                         mainAxisSpacing: 26,

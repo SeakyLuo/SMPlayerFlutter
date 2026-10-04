@@ -154,7 +154,7 @@ List<MenuFlyoutItem> buildShuffleMenuFlyoutItems({
       MenuFlyoutItem(
         key: 'now-playing',
         text: i18n.t('common.nowPlaying'),
-        icon: FluentIcons.music_note_2_24_regular,
+        icon: FluentIcons.headphones_24_regular,
         onPressed: () => playAllSongs(songs),
       ),
     );
@@ -271,7 +271,7 @@ MenuFlyoutItem? buildAddToPlaylistMenuFlyoutItem({
       MenuFlyoutItem(
         key: '$key-now-playing',
         text: i18n.t('common.nowPlaying'),
-        icon: FluentIcons.music_note_2_20_regular,
+        icon: FluentIcons.headphones_20_regular,
         disabled: songIds.isEmpty,
         onPressed: onAddToNowPlaying,
       ),

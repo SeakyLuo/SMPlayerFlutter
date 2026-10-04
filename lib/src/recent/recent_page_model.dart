@@ -19,11 +19,13 @@ class RecentPlaylistView {
 class RecentNowPlayingView {
   const RecentNowPlayingView({
     required this.id,
+    required this.playlistId,
     required this.songs,
     required this.createdAt,
   });
 
   final int id;
+  final int playlistId;
   final List<LibrarySong> songs;
   final String createdAt;
 
@@ -152,6 +154,7 @@ List<RecentNowPlayingView> buildRecentNowPlayingViews(
       .map((snapshot) {
         return RecentNowPlayingView(
           id: snapshot.id,
+          playlistId: snapshot.playlistId,
           songs:
               snapshot.songIds
                   .map((songId) => songsById[songId])

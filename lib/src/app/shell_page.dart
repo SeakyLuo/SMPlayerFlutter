@@ -33,6 +33,7 @@ import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/data/library_models.dart';
 import 'package:smplayer_flutter/src/library/data/library_providers.dart';
 import 'package:smplayer_flutter/src/library/data/library_repository.dart';
+import 'package:smplayer_flutter/src/library/data/library_scan_task_coordinator.dart';
 import 'package:smplayer_flutter/src/library/ui/headered_playlist_app_bar_portal.dart';
 import 'package:smplayer_flutter/src/library/ui/headered_playlist_model.dart';
 import 'package:smplayer_flutter/src/library/ui/headered_playlist_shell_metrics.dart';
@@ -49,6 +50,7 @@ import 'package:smplayer_flutter/src/playback/mini_mode_surface.dart';
 import 'package:smplayer_flutter/src/playback/playback_queue_actions.dart';
 import 'package:smplayer_flutter/src/playback/quick_play_model.dart';
 import 'package:smplayer_flutter/src/remote/ai_agent_remote_controller.dart';
+import 'package:smplayer_flutter/src/remote/ai_agent_settings_codec.dart';
 import 'package:smplayer_flutter/src/settings/settings_controller.dart';
 import 'package:smplayer_flutter/src/settings/settings_model.dart';
 
@@ -185,6 +187,7 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage>
   var _startupArtistSplitApplying = false;
   int? _lastNotifiedSongId;
   String? _lastPersistedPage;
+  Future<void>? _pendingQuit;
 
   @override
   void initState() {

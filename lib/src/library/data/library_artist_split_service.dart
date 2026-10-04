@@ -6,6 +6,7 @@ import 'package:sqlite3/sqlite3.dart';
 
 import 'artist_split_model.dart' as artist_split_model;
 import 'library_models.dart';
+import 'library_local_scan_service.dart';
 import 'library_song_properties_service.dart';
 
 const _activeState = 1;
@@ -20,14 +21,11 @@ class LibraryArtistSplitService {
   Future<ArtistSplitAnalysisResult> analyzeExistingLibrary(
     List<LibrarySong> songs, {
     void Function(double progress)? onProgress,
+    Set<int>? songIds,
   }) async {
     if (onProgress == null) {
       return Isolate.run(
-        () => artist_split_model.analyzeArtistSplits(
-          songs,
-          usageSongs: const [],
-          includeScannedSongsInUsage: true,
-        ),
+        _AnalyzeExistingLibraryTask(songs: songs, songIds: songIds).call,
       );
     }
 
@@ -36,14 +34,12 @@ class LibraryArtistSplitService {
       onProgress(progress as double);
     });
     try {
-      final sendPort = progressPort.sendPort;
       return await Isolate.run(
-        () => artist_split_model.analyzeArtistSplits(
-          songs,
-          usageSongs: const [],
-          includeScannedSongsInUsage: true,
-          onProgress: sendPort.send,
-        ),
+        _AnalyzeExistingLibraryTask(
+          songs: songs,
+          songIds: songIds,
+          progressPort: progressPort.sendPort,
+        ).call,
       );
     } finally {
       await subscription.cancel();
@@ -56,13 +52,10 @@ class LibraryArtistSplitService {
     required List<LibrarySong> scannedSongs,
   }) {
     return Isolate.run(
-      () => artist_split_model.analyzeArtistSplits(
-        [...existingSongs, ...scannedSongs],
-        analysisSongs: scannedSongs,
-        usageSongs: existingSongs,
-        existingLibraryScan: false,
-        includeScannedSongsInUsage: true,
-      ),
+      _AnalyzeScannedLibraryTask(
+        existingSongs: existingSongs,
+        scannedSongs: scannedSongs,
+      ).call,
     );
   }
 
@@ -82,7 +75,12 @@ class LibraryArtistSplitService {
       return;
     }
 
-    await Isolate.run(() => _applyArtistSplits(databaseFile.path, splits));
+    await Isolate.run(
+      _ApplyArtistSplitsTask(
+        databasePath: databaseFile.path,
+        splits: splits,
+      ).call,
+    );
   }
 
   void applySplitsInsideTransaction(
@@ -102,6 +100,74 @@ class LibraryArtistSplitService {
       );
       _songPropertiesService.syncSongArtists(db, split.songId, artists);
     }
+  }
+}
+
+class _AnalyzeExistingLibraryTask {
+  const _AnalyzeExistingLibraryTask({
+    required this.songs,
+    this.progressPort,
+    this.songIds,
+  });
+
+  final List<LibrarySong> songs;
+  final SendPort? progressPort;
+  final Set<int>? songIds;
+
+  ArtistSplitAnalysisResult call() {
+    return artist_split_model.analyzeArtistSplits(
+      songs,
+      songIds: songIds,
+      usageSongs: const [],
+      includeScannedSongsInUsage: true,
+      onProgress: progressPort?.send,
+    );
+  }
+}
+
+class _AnalyzeScannedLibraryTask {
+  const _AnalyzeScannedLibraryTask({
+    required this.existingSongs,
+    required this.scannedSongs,
+  });
+
+  final List<LibrarySong> existingSongs;
+  final List<LibrarySong> scannedSongs;
+
+  ArtistSplitAnalysisResult call() {
+    final scannedPathKeys = {
+      for (final song in scannedSongs) localScanPathComparisonKey(song.path),
+    };
+    final retainedSongs =
+        existingSongs
+            .where(
+              (song) =>
+                  !scannedPathKeys.contains(
+                    localScanPathComparisonKey(song.path),
+                  ),
+            )
+            .toList();
+    return artist_split_model.analyzeArtistSplits(
+      [...retainedSongs, ...scannedSongs],
+      analysisSongs: scannedSongs,
+      usageSongs: retainedSongs,
+      existingLibraryScan: false,
+      includeScannedSongsInUsage: true,
+    );
+  }
+}
+
+class _ApplyArtistSplitsTask {
+  const _ApplyArtistSplitsTask({
+    required this.databasePath,
+    required this.splits,
+  });
+
+  final String databasePath;
+  final List<ArtistSplitResultItem> splits;
+
+  void call() {
+    _applyArtistSplits(databasePath, splits);
   }
 }
 

@@ -13,6 +13,7 @@ import 'shell_models.dart';
 import 'undoable_notification.dart';
 import 'voice_assistant_help.dart';
 import 'voice_assistant_popover.dart';
+import 'windows_speech_recognition.dart';
 
 bool supportsVoiceAssistant() => Platform.isWindows || Platform.isMacOS;
 
@@ -35,6 +36,7 @@ class VoiceAssistantDialog extends StatefulWidget {
 
 class _VoiceAssistantDialogState extends State<VoiceAssistantDialog> {
   final _speechToText = SpeechToText();
+  final _windowsSpeech = WindowsSpeechRecognition();
   final _tts = FlutterTts();
   Timer? _closeTimer;
   Timer? _restartTimer;
@@ -71,7 +73,7 @@ class _VoiceAssistantDialogState extends State<VoiceAssistantDialog> {
     _session += 1;
     _closeTimer?.cancel();
     _restartTimer?.cancel();
-    unawaited(_speechToText.cancel().catchError(_ignoreVoicePluginError));
+    unawaited(_cancelRecognition().catchError(_ignoreVoicePluginError));
     unawaited(_tts.stop().catchError(_ignoreVoicePluginError));
   }
 
@@ -175,8 +177,12 @@ class _VoiceAssistantDialogState extends State<VoiceAssistantDialog> {
     _listening = true;
     try {
       await _tts.stop();
-      await _speechToText.cancel();
+      await _cancelRecognition();
       if (!_isActiveSession(session)) return;
+      if (Platform.isWindows) {
+        await _startRecognition(session);
+        return;
+      }
       final initialized = await _speechToText.initialize(
         onStatus: (status) => _handleSpeechStatus(status, session),
         onError: (error) => _handleSpeechError(error, session),
@@ -203,6 +209,10 @@ class _VoiceAssistantDialogState extends State<VoiceAssistantDialog> {
     _restartTimer?.cancel();
     setState(() => _state = VoiceAssistantCaptureState.idle);
     try {
+      if (Platform.isWindows) {
+        await _recognizeWindows(session);
+        return;
+      }
       await _speechToText.listen(
         onResult: (result) => _handleSpeechResult(result, session),
         listenOptions: SpeechListenOptions(
@@ -217,6 +227,63 @@ class _VoiceAssistantDialogState extends State<VoiceAssistantDialog> {
       if (_isActiveSession(session)) {
         _stopWithError(widget.i18n.t('voiceAssistant.recognitionUnavailable'));
       }
+    }
+  }
+
+  Future<void> _cancelRecognition() =>
+      Platform.isWindows ? _windowsSpeech.cancel() : _speechToText.cancel();
+
+  Future<void> _recognizeWindows(int session) async {
+    final result = await _windowsSpeech.recognize(
+      widget.i18n.locale,
+      onHypothesis: (text) {
+        if (!_isActiveSession(session) || _processing || text.trim().isEmpty) {
+          return;
+        }
+        setState(() {
+          _text = text.trim();
+          _showHelpLink = false;
+          _state = VoiceAssistantCaptureState.capturing;
+        });
+      },
+      onState: (state) {
+        if (!_isActiveSession(session) || _processing) return;
+        setState(() {
+          _state = switch (state) {
+            'Capturing' ||
+            'SoundStarted' ||
+            'SpeechDetected' => VoiceAssistantCaptureState.capturing,
+            'Processing' => VoiceAssistantCaptureState.processing,
+            _ => VoiceAssistantCaptureState.idle,
+          };
+        });
+      },
+    );
+    if (!_isActiveSession(session)) return;
+    final transcript = result.text.trim();
+    if (transcript.isNotEmpty) {
+      setState(() {
+        _text = transcript;
+        _showHelpLink = false;
+      });
+      await _executeRecognizedCommand(transcript, session);
+      return;
+    }
+    switch (result.error) {
+      case 'no-speech':
+        _scheduleRecognitionRestart(session);
+      case 'canceled':
+        _closePopover();
+      default:
+        _stopWithError(
+          widget.i18n.t(switch (result.error) {
+            'unavailable' ||
+            'unsupported-platform' => 'voiceAssistant.unavailable',
+            'privacy-required' => 'voiceAssistant.privacyRequired',
+            'audio-capture' => 'voiceAssistant.audioCaptureFailed',
+            _ => 'voiceAssistant.recognitionUnavailable',
+          }),
+        );
     }
   }
 
@@ -267,7 +334,7 @@ class _VoiceAssistantDialogState extends State<VoiceAssistantDialog> {
     _processing = true;
     _restartTimer?.cancel();
     try {
-      await _speechToText.stop();
+      if (!Platform.isWindows) await _speechToText.stop();
       if (!_isActiveSession(session)) return;
       setState(() => _state = VoiceAssistantCaptureState.processing);
       final result = widget.onExecute(command);

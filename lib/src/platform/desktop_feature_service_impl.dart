@@ -197,7 +197,7 @@ class MobileExternalOpenFeatureService extends NoopDesktopFeatureService {
 }
 
 class TrayWindowDesktopFeatureService
-    with tray.TrayListener, WindowListener
+    with tray.TrayListener, WindowListener, screen.ScreenListener
     implements DesktopFeatureService {
   TrayWindowDesktopFeatureService({LibraryRepository? settingsRepository})
     : _settingsRepository = settingsRepository ?? const LibraryRepository();
@@ -216,6 +216,7 @@ class TrayWindowDesktopFeatureService
   var _quitting = false;
   var _shownTrayHint = false;
   var _miniModeActive = false;
+  var _windowMinimized = false;
   bool? _windowControlsLight;
 
   @override
@@ -229,6 +230,7 @@ class TrayWindowDesktopFeatureService
     await _ignorePlatformErrors(windowManager.ensureInitialized());
     await _ignorePlatformErrors(windowManager.setPreventClose(true));
     windowManager.addListener(this);
+    screen.screenRetriever.addListener(this);
     tray.trayManager.addListener(this);
     await _ignorePlatformErrors(
       tray.trayManager.setIcon('assets/branding/monotone_no_bg.png'),
@@ -476,6 +478,7 @@ class TrayWindowDesktopFeatureService
   @override
   Future<void> showWindow() async {
     await windowManager.show();
+    await _ensureMainWindowVisible();
     await windowManager.focus();
     _emit(
       const DesktopFeatureAction(
@@ -498,6 +501,7 @@ class TrayWindowDesktopFeatureService
       );
     } else {
       await windowManager.show();
+      await _ensureMainWindowVisible();
       await windowManager.focus();
       _emit(
         const DesktopFeatureAction(
@@ -598,6 +602,23 @@ class TrayWindowDesktopFeatureService
   }
 
   @override
+  void onWindowMinimize() {
+    _windowMinimized = true;
+    _mainWindowStateSaveDebounce?.cancel();
+  }
+
+  @override
+  void onWindowRestore() {
+    _windowMinimized = false;
+    unawaited(_ensureMainWindowVisible());
+  }
+
+  @override
+  void onScreenEvent(String eventName) {
+    unawaited(_ensureMainWindowVisible());
+  }
+
+  @override
   void onWindowMaximize() {
     _emit(
       const DesktopFeatureAction(
@@ -616,7 +637,7 @@ class TrayWindowDesktopFeatureService
         isWindowMaximized: false,
       ),
     );
-    unawaited(_saveMainWindowState(immediate: true));
+    unawaited(_handleWindowUnmaximize());
   }
 
   @override
@@ -644,6 +665,7 @@ class TrayWindowDesktopFeatureService
     _mainWindowStateSaveDebounce?.cancel();
     tray.trayManager.removeListener(this);
     windowManager.removeListener(this);
+    screen.screenRetriever.removeListener(this);
     _desktopFeatureChannel.setMethodCallHandler(null);
   }
 
@@ -741,122 +763,6 @@ class TrayWindowDesktopFeatureService
 
   void _emit(DesktopFeatureAction action) {
     _onAction?.call(action);
-  }
-
-  Future<void> _saveMainWindowState({bool immediate = false}) async {
-    if (_miniModeActive || await windowManager.isFullScreen()) {
-      return;
-    }
-    final maximized = await windowManager.isMaximized();
-    final bounds = await windowManager.getBounds();
-    final snapshot = smPlayerGlobalSettingsSnapshot.copyWith(
-      mainWindowBounds: serializeMainWindowBounds(bounds),
-      mainWindowMaximized: maximized,
-    );
-    setSmPlayerGlobalSettingsSnapshot(snapshot);
-    _mainWindowStateSaveDebounce?.cancel();
-    if (immediate) {
-      await _persistMainWindowState(snapshot);
-      return;
-    }
-    _mainWindowStateSaveDebounce = Timer(
-      _mainWindowStateSaveDelay,
-      () => unawaited(_persistMainWindowState(snapshot)),
-    );
-  }
-
-  Future<void> _persistMainWindowState(SettingsSnapshot snapshot) {
-    _mainWindowStateWriteQueue = _mainWindowStateWriteQueue
-        .catchError((_) {})
-        .then(
-          (_) => _settingsRepository.saveMainWindowState(
-            bounds: snapshot.mainWindowBounds,
-            maximized: snapshot.mainWindowMaximized,
-          ),
-        );
-    return _mainWindowStateWriteQueue;
-  }
-
-  Future<void> _enterMiniMode() async {
-    if (!_miniModeActive) {
-      _wasMaximizedBeforeMiniMode = await windowManager.isMaximized();
-      if (_wasMaximizedBeforeMiniMode) {
-        await windowManager.unmaximize();
-      }
-      _boundsBeforeMiniMode = await windowManager.getBounds();
-    }
-    if (await windowManager.isFullScreen()) {
-      await windowManager.setFullScreen(false);
-    }
-    final bounds = await windowManager.getBounds();
-    final workArea = await _workAreaForWindow(bounds);
-    final miniBounds = miniModeWindowBoundsFor(bounds, workArea);
-    _miniModeActive = true;
-    await windowManager.setMinimumSize(_miniModeWindowSize);
-    await windowManager.setBounds(miniBounds, animate: true);
-    await windowManager.setResizable(true);
-    await windowManager.setMaximizable(false);
-    await windowManager.setAlwaysOnTop(true);
-  }
-
-  Future<void> _exitMiniMode() async {
-    _miniModeActive = false;
-    await windowManager.setAlwaysOnTop(false);
-    await windowManager.setResizable(true);
-    await windowManager.setMaximizable(true);
-    await windowManager.setMinimumSize(_defaultWindowMinimumSize);
-    final bounds = _boundsBeforeMiniMode;
-    if (bounds != null) {
-      await windowManager.setBounds(bounds, animate: true);
-    }
-    if (_wasMaximizedBeforeMiniMode) {
-      await windowManager.maximize();
-    }
-    _boundsBeforeMiniMode = null;
-    _wasMaximizedBeforeMiniMode = false;
-  }
-
-  Future<void> _setWindowFullScreen(bool fullScreen) async {
-    if (fullScreen && _miniModeActive) {
-      await _exitMiniMode();
-    }
-    await windowManager.setFullScreen(fullScreen);
-    _emit(
-      DesktopFeatureAction(
-        DesktopFeatureCommand.windowFullScreenChanged,
-        isWindowFullScreen: fullScreen,
-      ),
-    );
-  }
-
-  Future<Rect> _workAreaForWindow(Rect windowBounds) async {
-    final displays = await screen.screenRetriever.getAllDisplays();
-    if (displays.isEmpty) {
-      final primary = await screen.screenRetriever.getPrimaryDisplay();
-      return _workAreaForDisplay(primary);
-    }
-    var selected = displays.first;
-    var selectedOverlap = -1.0;
-    for (final display in displays) {
-      final overlap = _rectOverlapArea(
-        windowBounds,
-        _workAreaForDisplay(display),
-      );
-      if (overlap > selectedOverlap) {
-        selected = display;
-        selectedOverlap = overlap;
-      }
-    }
-    return _workAreaForDisplay(selected);
-  }
-
-  Future<void> _ignorePlatformErrors<T>(Future<T> action) async {
-    try {
-      await action;
-    } on Object {
-      // Platform plugins are unavailable in widget tests and on unsupported
-      // desktop shells. The feature service remains inert in that case.
-    }
   }
 }
 

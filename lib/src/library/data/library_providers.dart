@@ -349,6 +349,11 @@ void patchLibrarySongOverride(WidgetRef ref, LibrarySong song) {
   notifier.state = {...notifier.state, song.id: song};
 }
 
+void patchLibrarySongOverrides(WidgetRef ref, Iterable<LibrarySong> songs) {
+  final notifier = ref.read(librarySongOverridesProvider.notifier);
+  notifier.state = {...notifier.state, for (final song in songs) song.id: song};
+}
+
 void patchLibraryPlaylistOverride(WidgetRef ref, LibraryPlaylist playlist) {
   final overrideNotifier = ref.read(libraryPlaylistOverridesProvider.notifier);
   final deletedNotifier = ref.read(libraryDeletedPlaylistIdsProvider.notifier);

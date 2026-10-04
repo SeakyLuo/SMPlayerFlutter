@@ -62,7 +62,11 @@ class LibraryReadService {
     );
   }
 
-  List<LibrarySong> readSongs(Database db) {
+  List<LibrarySong> readSongs(Database db, {List<int>? songIds}) {
+    final idFilter =
+        songIds == null
+            ? ''
+            : ' AND Music.Id IN (${List.filled(songIds.length, '?').join(',')})';
     final rows = db.select(
       '''
       SELECT
@@ -78,9 +82,10 @@ class LibraryReadService {
         CAST(Music.DateAdded AS TEXT) AS dateAdded
       FROM Music
       WHERE Music.State = ?
+      $idFilter
       ORDER BY Music.Name COLLATE NOCASE, Music.Artist COLLATE NOCASE, Music.Id
     ''',
-      [_activeState],
+      [_activeState, ...?songIds],
     );
     final favorites =
         db
@@ -90,8 +95,9 @@ class LibraryReadService {
       WHERE State = ? AND PlaylistId = (
         SELECT MyFavorites FROM Settings ORDER BY Id LIMIT 1
       )
+      ${songIds == null ? '' : 'AND ItemId IN (${List.filled(songIds.length, '?').join(',')})'}
     ''',
-              [_activeState],
+              [_activeState, ...?songIds],
             )
             .map((row) => row['ItemId'] as int)
             .toSet();
@@ -99,10 +105,10 @@ class LibraryReadService {
       '''
       SELECT MusicId, Name FROM MusicArtist
       WHERE State = ? AND Name IS NOT NULL
-        AND MusicId IN (SELECT Id FROM Music WHERE State = ?)
+        AND MusicId IN (SELECT Id FROM Music WHERE State = ? $idFilter)
       ORDER BY MusicId, Priority, Id
     ''',
-      [_activeState, _activeState],
+      [_activeState, _activeState, ...?songIds],
     );
     final artistsBySong = <int, Set<String>>{};
     for (final row in artistRows) {

@@ -146,17 +146,16 @@ extension _SettingsPageSections on _SettingsPageState {
                   },
                   child: Text(i18n.t('common.cancel')),
                 ),
-              if (!_lyricsBatchCanceled)
-                if (_lyricsBatchResult case final result?)
-                  if (result.details.isNotEmpty)
-                    SettingsActionButton(
-                      onClick: () {
-                        setState(() {
-                          _showLyricsBatchDetails = true;
-                        });
-                      },
-                      child: Text(i18n.t('common.detail')),
-                    ),
+              if (_lyricsBatchResult case final result?)
+                if (result.details.isNotEmpty)
+                  SettingsActionButton(
+                    onClick: () {
+                      setState(() {
+                        _showLyricsBatchDetails = true;
+                      });
+                    },
+                    child: Text(i18n.t('common.detail')),
+                  ),
             ],
           ),
           if (_showLyricsBatchOptions)
@@ -180,7 +179,9 @@ extension _SettingsPageSections on _SettingsPageState {
             _LyricsBatchProgressPanel(
               progress: progress,
               message:
-                  _lyricsBatchPaused
+                  _lyricsBatchCanceled
+                      ? i18n.t('settings.lyricsBatchStopped')
+                      : _lyricsBatchPaused
                       ? i18n.t('settings.lyricsBatchPaused')
                       : _lyricsBatchRunning
                       ? i18n.t('settings.lyricsBatchRequesting')
@@ -450,6 +451,16 @@ extension _SettingsPageSections on _SettingsPageState {
                   unawaited(_copyAiAgentPrompt(i18n));
                 },
                 child: Text(i18n.t('settings.aiAgentCopyPrompt')),
+              ),
+              SettingsActionButton(
+                icon: FluentIcons.arrow_upload_20_regular,
+                tooltip: i18n.t('settings.aiAgentExportSkillTooltip'),
+                loading: _exportingAiSkill,
+                disabled: _updatingAiAgent || _editingAiAgentPort,
+                onClick: () {
+                  unawaited(_exportAiSkill(i18n));
+                },
+                child: Text(i18n.t('settings.aiAgentExportSkill')),
               ),
               SettingsActionButton(
                 icon: FluentIcons.copy_20_regular,

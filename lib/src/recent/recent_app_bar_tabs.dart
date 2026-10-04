@@ -4,8 +4,6 @@ class _RecentAppBarTabs extends StatelessWidget {
   const _RecentAppBarTabs({
     required this.controller,
     required this.i18n,
-    required this.addedCount,
-    required this.playedCount,
     required this.browsedCount,
     required this.searchesCount,
     required this.showCount,
@@ -14,8 +12,6 @@ class _RecentAppBarTabs extends StatelessWidget {
 
   final TabController controller;
   final SmPlayerI18n i18n;
-  final int addedCount;
-  final int playedCount;
   final int browsedCount;
   final int searchesCount;
   final bool showCount;
@@ -63,15 +59,15 @@ class _RecentAppBarTabs extends StatelessWidget {
                 key: const ValueKey('RecentPage.AppBarTab.added'),
                 compact: hideCount,
                 label: i18n.t('recent.added'),
-                count: addedCount,
-                showCount: showCount && !hideCount,
+                count: 0,
+                showCount: false,
               ),
               _RecentAppBarTab(
                 key: const ValueKey('RecentPage.AppBarTab.played'),
                 compact: hideCount,
                 label: i18n.t('recent.played'),
-                count: playedCount,
-                showCount: showCount && !hideCount,
+                count: 0,
+                showCount: false,
               ),
               _RecentAppBarTab(
                 key: const ValueKey('RecentPage.AppBarTab.browsed'),

@@ -11,6 +11,7 @@ class _RecentPlayedPage extends ConsumerWidget {
     required this.i18n,
     required this.timelineLabel,
     required this.playedCount,
+    required this.showCount,
     required this.customPlaylists,
     required this.multiSelect,
     required this.selectedSongIds,
@@ -42,6 +43,7 @@ class _RecentPlayedPage extends ConsumerWidget {
   final SmPlayerI18n i18n;
   final String timelineLabel;
   final int playedCount;
+  final bool showCount;
   final List<MultiSelectCommandBarPlaylist> customPlaylists;
   final bool multiSelect;
   final Set<int> selectedSongIds;
@@ -93,6 +95,14 @@ class _RecentPlayedPage extends ConsumerWidget {
         _RecentPlayedFilterBar(
           i18n: i18n,
           activeFilter: filter,
+          showCount: showCount,
+          counts: {
+            RecentPlayedFilter.songs: songs.length,
+            RecentPlayedFilter.artists: artists.length,
+            RecentPlayedFilter.albums: albums.length,
+            RecentPlayedFilter.playlists: playlists.length,
+            RecentPlayedFilter.nowPlaying: nowPlaying.length,
+          },
           onChanged: onFilterChanged,
         ),
         CommandBar(
@@ -203,7 +213,7 @@ class _RecentPlayedPage extends ConsumerWidget {
       RecentPlayedFilter.playlists => playlists.isNotEmpty,
       RecentPlayedFilter.albums => albums.isNotEmpty,
       RecentPlayedFilter.artists => artists.isNotEmpty,
-      RecentPlayedFilter.nowPlaying => false,
+      RecentPlayedFilter.nowPlaying => nowPlaying.isNotEmpty,
     };
   }
 

@@ -76,8 +76,15 @@ extension _LocalPageScanActions on _LocalPageState {
             cancellation: cancellation,
             onProgress: _setScanProgress,
             onLibraryCommitted:
-                () => _reloadCommittedLibrary(previousSnapshot, i18n),
+                (result) =>
+                    _reloadCommittedLibrary(previousSnapshot, result, i18n),
           );
+      if (mounted && !_refreshFolderBackgrounded) {
+        await finishLocalFolderRefreshProgress(
+          progress: _refreshProgress!,
+          onProgress: _setScanProgress,
+        );
+      }
       if (!mounted) {
         return;
       }
@@ -96,6 +103,7 @@ extension _LocalPageScanActions on _LocalPageState {
           context: context,
           message: getRefreshResultMessage(result, i18n),
           autoDismiss: false,
+          closeOnAction: false,
           actionLabel:
               hasRefreshResultChanges(result) ? i18n.t('common.detail') : null,
           onAction:
@@ -205,15 +213,25 @@ extension _LocalPageScanActions on _LocalPageState {
                     cancellation: cancellation,
                     onProgress: _setScanProgress,
                     onLibraryCommitted:
-                        () => _reloadCommittedLibrary(previousSnapshot, i18n),
+                        (result) => _reloadCommittedLibrary(
+                          previousSnapshot,
+                          result,
+                          i18n,
+                        ),
                   )
               : await widget.onScanLibrary!(
                 rootPath,
                 cancellation: cancellation,
                 onProgress: _setScanProgress,
               );
-      if (widget.onScanLibrary != null) {
-        await _reloadCommittedLibrary(previousSnapshot, i18n);
+      if (widget.onScanLibrary != null && result.libraryChanged) {
+        await _reloadCommittedLibrary(previousSnapshot, result, i18n);
+      }
+      if (mounted) {
+        await finishLocalFolderRefreshProgress(
+          progress: _refreshProgress!,
+          onProgress: _setScanProgress,
+        );
       }
       if (mounted) {
         _updateLocalPageState(() {
@@ -239,17 +257,62 @@ extension _LocalPageScanActions on _LocalPageState {
 
   Future<void> _reloadCommittedLibrary(
     LibraryContentData previousSnapshot,
+    LocalFolderRefreshResult result,
     SmPlayerI18n i18n,
   ) async {
+    if (!result.libraryChanged) return;
     if (!mounted) return;
-    ref.invalidate(libraryContentDataProvider);
-    final nextSnapshot = await ref.read(libraryContentDataProvider.future);
+    final progress = _refreshProgress!;
+    _setScanProgress(
+      LocalFolderRefreshProgress(
+        stage: LocalFolderRefreshStage.finalizing,
+        current: 0,
+        total: 1,
+        currentPath: '',
+        addedCount: progress.addedCount,
+        updatedCount: progress.updatedCount,
+        missingCount: progress.missingCount,
+      ),
+    );
+    final onlySongMetadataChanged =
+        result.filesUpdated.isNotEmpty && !result.requiresFullReload;
+    final LibraryContentData nextSnapshot;
+    if (onlySongMetadataChanged) {
+      nextSnapshot =
+          await ref.read(libraryRepositoryProvider).getLibraryContentData();
+      final updatedPathKeys =
+          result.filesUpdated
+              .map((path) => normalizePath(path).toLowerCase())
+              .toSet();
+      patchLibrarySongOverrides(
+        ref,
+        nextSnapshot.songs.where(
+          (song) =>
+              updatedPathKeys.contains(normalizePath(song.path).toLowerCase()),
+        ),
+      );
+    } else {
+      ref.invalidate(libraryContentDataProvider);
+      nextSnapshot = await ref.read(libraryContentDataProvider.future);
+    }
     if (!mounted) return;
     await reconcileNowPlayingQueueWithLibrary(
       ref: ref,
       previousSnapshot: previousSnapshot,
       nextSnapshot: nextSnapshot,
       i18n: i18n,
+    );
+    if (!mounted) return;
+    _setScanProgress(
+      LocalFolderRefreshProgress(
+        stage: LocalFolderRefreshStage.finalizing,
+        current: 1,
+        total: 1,
+        currentPath: '',
+        addedCount: progress.addedCount,
+        updatedCount: progress.updatedCount,
+        missingCount: progress.missingCount,
+      ),
     );
   }
 
@@ -365,7 +428,10 @@ extension _LocalPageScanActions on _LocalPageState {
       _refreshResultDialog = (
         folder: current.folder,
         result: LocalFolderRefreshResult(
+          libraryChanged: current.result.libraryChanged,
+          requiresFullReload: current.result.requiresFullReload,
           filesAdded: current.result.filesAdded,
+          filesUpdated: current.result.filesUpdated,
           filesRemoved: current.result.filesRemoved,
           filesMoved: current.result.filesMoved,
           artistSplitsApplied: [
@@ -394,7 +460,10 @@ extension _LocalPageScanActions on _LocalPageState {
       _refreshResultDialog = (
         folder: current.folder,
         result: LocalFolderRefreshResult(
+          libraryChanged: current.result.libraryChanged,
+          requiresFullReload: current.result.requiresFullReload,
           filesAdded: current.result.filesAdded,
+          filesUpdated: current.result.filesUpdated,
           filesRemoved: current.result.filesRemoved,
           filesMoved: current.result.filesMoved,
           artistSplitsApplied: current.result.artistSplitsApplied,

@@ -14,6 +14,7 @@ dependencies:
   flutter_riverpod: 2.6.1
   go_router: ^17.0.0
   http: ^1.6.0
+  archive: ^4.3.0
   shelf: ^1.4.2
   shelf_router: ^1.1.4
   path: ^1.9.1
@@ -27,7 +28,12 @@ dependencies:
   mobile_scanner: ^7.2.0
   just_audio: ^0.10.5
   just_audio_media_kit: ^2.1.0
-  media_kit_libs_windows_audio: ^1.0.9
+  # ARM64 support is upstream but not yet published to pub.dev.
+  media_kit_libs_windows_audio:
+    git:
+      url: https://github.com/media-kit/media-kit.git
+      ref: 46c084850e25cd8b629fcf5054c01496ddd5e9ab
+      path: libs/windows/media_kit_libs_windows_audio
   audio_service: ^0.18.18
   connectivity_plus: ^7.1.1
   device_info_plus: ^12.4.0

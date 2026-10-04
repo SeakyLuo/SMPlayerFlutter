@@ -13,6 +13,7 @@ import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/data/library_models.dart';
 import 'package:smplayer_flutter/src/library/data/library_providers.dart';
 import 'package:smplayer_flutter/src/library/ui/headered_playlist_app_bar_portal.dart';
+import 'package:smplayer_flutter/src/library/ui/library_page_data_cache.dart';
 import 'package:smplayer_flutter/src/library/ui/local_title_grid.dart';
 
 part 'shell_workspace_app_bar_title.dart';
@@ -55,6 +56,7 @@ class SmPlayerWorkspace extends ConsumerStatefulWidget {
 }
 
 class _SmPlayerWorkspaceState extends ConsumerState<SmPlayerWorkspace> {
+  final _localDataCache = LibraryPageDataCache();
   final _workspaceAppBarPortals =
       <_WorkspaceAppBarPortalKey, WorkspaceAppBarPortalEntry>{};
 
@@ -94,8 +96,7 @@ class _SmPlayerWorkspaceState extends ConsumerState<SmPlayerWorkspace> {
                 snapshot != null &&
                 snapshot.rootPath.isNotEmpty
             ? LocalTitleGrid(
-              songs: snapshot.songs,
-              folders: snapshot.folders,
+              nodes: _localDataCache.folders(snapshot).nodes,
               i18n: i18n,
               rootPath: snapshot.rootPath,
               currentRelativePath: currentUri.queryParameters['path'] ?? '',

@@ -1,5 +1,7 @@
 import 'dart:io';
+import 'dart:isolate';
 
+import 'package:flutter/services.dart';
 import 'package:path/path.dart' as p;
 
 const smPlayerDatabaseName = 'SMPlayerSettings.db';
@@ -21,6 +23,7 @@ class LibraryRepositoryPaths {
   final Future<File> Function()? _databaseFileResolver;
   final File Function()? _nowPlayingFileResolver;
   final Future<File> Function()? _pendingDeleteFileResolver;
+  static Future<File>? _windowsDatabaseFile;
 
   Future<File> resolveDatabaseFile({
     required WindowsUwpDatabaseResolver windowsUwpDatabaseResolver,
@@ -31,10 +34,9 @@ class LibraryRepositoryPaths {
     }
 
     if (Platform.isWindows) {
-      final uwpDatabase = windowsUwpDatabaseResolver();
-      if (uwpDatabase != null) {
-        return uwpDatabase;
-      }
+      return _windowsDatabaseFile ??= _resolveWindowsDatabaseFile(
+        windowsUwpDatabaseResolver,
+      );
     }
 
     final databaseFile = File(
@@ -44,22 +46,41 @@ class LibraryRepositoryPaths {
     return databaseFile;
   }
 
-  File resolveNowPlayingFile() {
+  static Future<File> _resolveWindowsDatabaseFile(
+    WindowsUwpDatabaseResolver windowsUwpDatabaseResolver,
+  ) async {
+    final packageDataPath = await const MethodChannel(
+      'smplayer_flutter/desktop_features',
+    ).invokeMethod<String>('getApplicationDataPath');
+    final File databaseFile;
+    if (packageDataPath != null) {
+      databaseFile = File(p.join(packageDataPath, smPlayerDatabaseName));
+    } else {
+      // Unpackaged development builds retain the existing legacy-library
+      // selection. Store builds always use their own package's LocalState.
+      final uwpDatabase = await Isolate.run(windowsUwpDatabaseResolver);
+      databaseFile =
+          uwpDatabase ??
+          File(p.join(defaultSmPlayerUserDataPath(), smPlayerDatabaseName));
+    }
+    await databaseFile.parent.create(recursive: true);
+    return databaseFile;
+  }
+
+  File resolveNowPlayingFile(File databaseFile) {
     final resolver = _nowPlayingFileResolver;
     if (resolver != null) {
       return resolver();
     }
-    return File(p.join(defaultSmPlayerUserDataPath(), nowPlayingJsonName));
+    return File(p.join(databaseFile.parent.path, nowPlayingJsonName));
   }
 
-  Future<File> resolvePendingSongDeletesFile() async {
+  Future<File> resolvePendingSongDeletesFile(File databaseFile) async {
     final resolver = _pendingDeleteFileResolver;
     if (resolver != null) {
       return resolver();
     }
-    return File(
-      p.join(defaultSmPlayerUserDataPath(), pendingSongDeletesJsonName),
-    );
+    return File(p.join(databaseFile.parent.path, pendingSongDeletesJsonName));
   }
 }
 

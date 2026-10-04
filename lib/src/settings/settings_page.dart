@@ -28,6 +28,7 @@ import 'package:smplayer_flutter/src/settings/release_notes_dialog.dart';
 import 'package:smplayer_flutter/src/settings/settings_colors.dart';
 import 'package:smplayer_flutter/src/platform/desktop_feature_service.dart';
 import 'package:smplayer_flutter/src/remote/ai_agent_remote_controller.dart';
+import 'package:smplayer_flutter/src/remote/ai_agent_skill_export.dart';
 import 'package:smplayer_flutter/src/settings/settings_controller.dart';
 import 'package:smplayer_flutter/src/settings/settings_formatters.dart';
 import 'package:smplayer_flutter/src/settings/settings_model.dart';
@@ -40,6 +41,7 @@ part 'settings_layout_parts.dart';
 part 'preference_page_parts.dart';
 
 part 'settings_page_sections.dart';
+part 'settings_ai_skill_export.dart';
 
 typedef SettingsScanLibraryCallback =
     FutureOr<LocalFolderRefreshResult?> Function(
@@ -162,6 +164,7 @@ class _SettingsPageState extends State<SettingsPage> {
   String? _appVersion;
   var _updatingAiAgent = false;
   var _editingAiAgentPort = false;
+  var _exportingAiSkill = false;
 
   SettingsSnapshot get _snapshot => _settingsController.snapshot;
   bool get _isDataTransferBusy => _dataTransferState != DataTransferState.idle;
@@ -432,7 +435,6 @@ class _SettingsPageState extends State<SettingsPage> {
                 result: _lyricsBatchResult!,
                 onClear:
                     _lyricsBatchRunning ||
-                            _lyricsBatchCanceled ||
                             (_lyricsBatchResult!.saved == 0 &&
                                 _lyricsBatchResult!.overwritten == 0)
                         ? null
@@ -584,6 +586,12 @@ class _SettingsPageState extends State<SettingsPage> {
         result = await widget.onScanLibrary!(
           rootPath,
           cancellation: cancellation,
+          onProgress: _setScanProgress,
+        );
+      }
+      if (mounted) {
+        await finishLocalFolderRefreshProgress(
+          progress: _scanProgress!,
           onProgress: _setScanProgress,
         );
       }
@@ -830,11 +838,9 @@ class _SettingsPageState extends State<SettingsPage> {
       if (_lyricsBatchCancelRequested) {
         _lyricsBatchResult = result;
         _sharedLyricsBatchState.liveDetails.clear();
-        _lyricsBatchProgress = null;
         if (mounted) {
           setState(() {
             _lyricsBatchResult = result;
-            _lyricsBatchProgress = null;
           });
         }
         return;
@@ -845,19 +851,12 @@ class _SettingsPageState extends State<SettingsPage> {
       setState(() {
         _lyricsBatchResult = result;
       });
-      final message = i18n.t('settings.lyricsBatchDone');
-      final backupSummary =
-          _lyricsBatchOverwrite
-              ? '，${i18n.t('settings.lyricsBatchBackedUp')} '
-                  '${result.backedUp}（${formatSettingsBytes(result.backupBytes)}）'
-              : '';
       _showMessage(
-        '$message: ${i18n.t('settings.lyricsBatchSaved')} ${result.saved} · '
-        '${i18n.t('settings.lyricsBatchOverwritten')} ${result.overwritten} · '
-        '${i18n.t('settings.lyricsBatchSkipped')} ${result.skipped} · '
-        '${i18n.t('settings.lyricsBatchMissing')} ${result.missing} · '
-        '${i18n.t('settings.lyricsBatchFailed')} ${result.failed}'
-        '$backupSummary',
+        _lyricsBatchResultSummary(
+          i18n,
+          i18n.t('settings.lyricsBatchDone'),
+          result,
+        ),
         autoDismiss: false,
       );
     } catch (_) {
@@ -942,14 +941,21 @@ class _SettingsPageState extends State<SettingsPage> {
       _lyricsBatchCancelRequested = true;
       _lyricsBatchPaused = false;
       _lyricsBatchCanceled = true;
-      _lyricsBatchProgress = null;
     });
     final result = _lyricsBatchResult;
     unawaited(
       showAppNotification(
         context: context,
-        message: i18n.t('settings.lyricsBatchStopped'),
+        message:
+            result == null
+                ? i18n.t('settings.lyricsBatchStopped')
+                : _lyricsBatchResultSummary(
+                  i18n,
+                  i18n.t('settings.lyricsBatchStopped'),
+                  result,
+                ),
         autoDismiss: false,
+        closeOnAction: false,
         actionLabel:
             result != null && result.details.isNotEmpty
                 ? i18n.t('common.detail')
@@ -966,6 +972,24 @@ class _SettingsPageState extends State<SettingsPage> {
                 : null,
       ),
     );
+  }
+
+  String _lyricsBatchResultSummary(
+    SmPlayerI18n i18n,
+    String status,
+    LyricsBatchResult result,
+  ) {
+    final backupSummary =
+        _lyricsBatchOverwrite
+            ? '，${i18n.t('settings.lyricsBatchBackedUp')} '
+                '${result.backedUp}（${formatSettingsBytes(result.backupBytes)}）'
+            : '';
+    return '$status: ${i18n.t('settings.lyricsBatchSaved')} ${result.saved} · '
+        '${i18n.t('settings.lyricsBatchOverwritten')} ${result.overwritten} · '
+        '${i18n.t('settings.lyricsBatchSkipped')} ${result.skipped} · '
+        '${i18n.t('settings.lyricsBatchMissing')} ${result.missing} · '
+        '${i18n.t('settings.lyricsBatchFailed')} ${result.failed}'
+        '$backupSummary';
   }
 
   void _updateSettings(AppSettingsUpdate update) {
@@ -1143,7 +1167,10 @@ class _SettingsPageState extends State<SettingsPage> {
       _scanResultDialog = (
         folder: current.folder,
         result: LocalFolderRefreshResult(
+          libraryChanged: current.result.libraryChanged,
+          requiresFullReload: current.result.requiresFullReload,
           filesAdded: current.result.filesAdded,
+          filesUpdated: current.result.filesUpdated,
           filesRemoved: current.result.filesRemoved,
           filesMoved: current.result.filesMoved,
           artistSplitsApplied:
@@ -1172,7 +1199,10 @@ class _SettingsPageState extends State<SettingsPage> {
       _scanResultDialog = (
         folder: current.folder,
         result: LocalFolderRefreshResult(
+          libraryChanged: current.result.libraryChanged,
+          requiresFullReload: current.result.requiresFullReload,
           filesAdded: current.result.filesAdded,
+          filesUpdated: current.result.filesUpdated,
           filesRemoved: current.result.filesRemoved,
           filesMoved: current.result.filesMoved,
           artistSplitsApplied: const [],

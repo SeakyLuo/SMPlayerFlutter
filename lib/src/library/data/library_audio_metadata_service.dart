@@ -46,6 +46,7 @@ class LibraryAudioMetadataService {
     Map<String, AudioFileMetadata> existingMetadataByPath = const {},
     LocalFolderScanCancellation? cancellation,
     void Function(String filePath, int completedCount)? onProgress,
+    void Function(String filePath)? onMetadataChanged,
   }) async {
     final concurrency = max(1, min(4, Platform.numberOfProcessors - 1));
     final metadataByPath = <String, AudioFileMetadata>{};
@@ -100,6 +101,7 @@ class LibraryAudioMetadataService {
               dateAdded: dateAdded,
               cacheSongArtwork: cacheSongArtwork,
             );
+            onMetadataChanged?.call(filePath);
           } on Object catch (error, stackTrace) {
             developer.log(
               'Cannot read audio metadata: $filePath',

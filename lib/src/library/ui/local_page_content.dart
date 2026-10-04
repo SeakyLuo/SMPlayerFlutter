@@ -70,6 +70,7 @@ extension _LocalPageContent on _LocalPageState {
           .toList(),
       _sortMode,
       currentSortMode,
+      _dataCache.sortKeys,
     );
     final normalizedSearchQuery = widget.searchQuery.trim().toLowerCase();
     final childFolders = sortFolders(
@@ -81,6 +82,7 @@ extension _LocalPageContent on _LocalPageState {
                 folder.name.toLowerCase().contains(normalizedSearchQuery),
           )
           .toList(),
+      _dataCache.sortKeys,
     );
     final localCompactFolderTreeRows = buildLocalCompactFolderTreeRows(
       childFolders: childFolders,
@@ -89,6 +91,7 @@ extension _LocalPageContent on _LocalPageState {
       expandedFolderPaths: _treeExpandedFolderPaths,
       sortMode: _sortMode,
       searchQuery: widget.searchQuery,
+      sortKeys: _dataCache.sortKeys,
     );
     final localCompactFolderTreeFolderPaths =
         localCompactFolderTreeRows
@@ -210,8 +213,7 @@ extension _LocalPageContent on _LocalPageState {
                         right: trailingAlignmentInset,
                       ),
                       child: LocalTitleGrid(
-                        songs: snapshot.songs,
-                        folders: snapshot.folders,
+                        nodes: nodes,
                         i18n: i18n,
                         rootPath: snapshot.rootPath,
                         currentRelativePath: widget.currentRelativePath,

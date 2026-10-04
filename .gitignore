@@ -12,6 +12,14 @@
 .swiftpm/
 migrate_working_dir/
 /%SystemDrive%/
+/.codex*/
+!/.codex/
+/.codex/*
+!/.codex/environments/
+/.codex/environments/*
+!/.codex/environments/environment.toml
+!/.codex/environments/run-windows.cmd
+!/.codex/environments/package-windows.cmd
 
 # IntelliJ related
 *.iml

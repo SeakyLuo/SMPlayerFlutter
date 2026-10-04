@@ -74,16 +74,19 @@ class GridArtworkCardContent extends StatelessWidget {
             const SizedBox(height: 12),
             SizedBox(
               width: 160,
-              child: SearchMatchText(
-                text: title,
-                query: searchQuery,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  color: textStrongColor,
-                  fontSize: 15,
-                  fontWeight: FontWeight.w600,
-                  height: 1.35,
+              child: Tooltip(
+                message: title,
+                child: SearchMatchText(
+                  text: title,
+                  query: searchQuery,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: textStrongColor,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                    height: 1.35,
+                  ),
                 ),
               ),
             ),

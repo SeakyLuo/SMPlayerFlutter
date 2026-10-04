@@ -233,7 +233,7 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
                   MenuFlyoutItem(
                     key: 'now-playing-appbar-locate-current',
                     text: i18n.t('nowPlaying.locateCurrent'),
-                    icon: FluentIcons.music_note_2_20_regular,
+                    icon: FluentIcons.headphones_20_regular,
                     disabled: currentSong == null,
                     onPressed: () {
                       _locateCurrent(
@@ -434,7 +434,7 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
                         ),
                         if (queueSongs.isNotEmpty) ...[
                           CommandBarButton(
-                            icon: FluentIcons.music_note_2_20_regular,
+                            icon: FluentIcons.headphones_20_regular,
                             label: i18n.t('nowPlaying.locateCurrent'),
                             disabled: currentSong == null,
                             onPressed: () {
