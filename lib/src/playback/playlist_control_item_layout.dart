@@ -101,6 +101,8 @@ extension _PlaylistControlItemLayout on _PlaylistControlItemState {
             final overlayActionsWidth =
                 _queueActionSize * overlayActionCount +
                 _queueActionGap * (overlayActionCount - 1);
+            const overlayFadeWidth = 28.0;
+            final overlayWidth = overlayFadeWidth + overlayActionsWidth;
             final artwork = _QueueArtwork(
               song: widget.song,
               current: widget.current,
@@ -254,12 +256,12 @@ extension _PlaylistControlItemLayout on _PlaylistControlItemState {
                   bottom: baseRowPadding.bottom,
                   child: TweenAnimationBuilder<double>(
                     tween: Tween<double>(
-                      end: hoverActionsVisible ? overlayActionsWidth : 0,
+                      end: hoverActionsVisible ? overlayWidth : 0,
                     ),
                     duration: const Duration(milliseconds: 120),
                     curve: Curves.easeOut,
                     child: SizedBox(
-                      width: overlayActionsWidth,
+                      width: overlayWidth,
                       child: DecoratedBox(
                         decoration: BoxDecoration(
                           gradient: LinearGradient(
@@ -268,7 +270,7 @@ extension _PlaylistControlItemLayout on _PlaylistControlItemState {
                               overlayMaskColor,
                               overlayMaskColor,
                             ],
-                            stops: [0, 28 / overlayActionsWidth, 1],
+                            stops: [0, overlayFadeWidth / overlayWidth, 1],
                           ),
                         ),
                         child: Align(
@@ -285,8 +287,8 @@ extension _PlaylistControlItemLayout on _PlaylistControlItemState {
                             child: ClipRect(
                               child: OverflowBox(
                                 alignment: Alignment.centerRight,
-                                minWidth: overlayActionsWidth,
-                                maxWidth: overlayActionsWidth,
+                                minWidth: overlayWidth,
+                                maxWidth: overlayWidth,
                                 child: child,
                               ),
                             ),
