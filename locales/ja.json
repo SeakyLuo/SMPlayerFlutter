@@ -1,4 +1,5 @@
 {
+  "voiceAssistant.starting": "起動中…",
   "app.shell": "Simple Melody Player",
   "app.chooseFolderFirst": "まず音楽フォルダーを選択してスキャンしてください。",
   "app.chooseSong": "音楽ライブラリから曲を選択して再生を開始します。",

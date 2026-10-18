@@ -1,4 +1,5 @@
 {
+  "voiceAssistant.starting": "Bezig met starten…",
   "app.shell": "Simple Melody Player",
   "app.chooseFolderFirst": "Selecteer de muziekmap en scan deze eerst.",
   "app.chooseSong": "Kies een nummer uit de muziekbibliotheek om het afspelen te starten.",

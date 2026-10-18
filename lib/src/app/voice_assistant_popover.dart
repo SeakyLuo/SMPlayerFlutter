@@ -3,7 +3,9 @@ import 'dart:ui';
 
 import 'package:flutter/material.dart';
 
-enum VoiceAssistantCaptureState { idle, capturing, processing }
+import 'voice_assistant_startup_pulse.dart';
+
+enum VoiceAssistantCaptureState { starting, idle, capturing, processing }
 
 class VoiceAssistantPopover extends StatelessWidget {
   const VoiceAssistantPopover({
@@ -105,6 +107,14 @@ class VoiceAssistantPopover extends StatelessWidget {
                             crossAxisAlignment: WrapCrossAlignment.center,
                             spacing: 6,
                             children: [
+                              if (state == VoiceAssistantCaptureState.starting)
+                                SizedBox(
+                                  width: narrow ? 96 : 120,
+                                  height: 24,
+                                  child: VoiceAssistantStartupPulse(
+                                    accent: accent,
+                                  ),
+                                ),
                               if (state ==
                                   VoiceAssistantCaptureState.processing)
                                 SizedBox.square(

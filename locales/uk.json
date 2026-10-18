@@ -1,4 +1,5 @@
 {
+  "voiceAssistant.starting": "Запуск…",
   "app.shell": "Simple Melody Player",
   "app.chooseFolderFirst": "Виберіть папку з музикою та спершу відскануйте її.",
   "app.chooseSong": "Виберіть пісню з музичної бібліотеки, щоб почати відтворення.",

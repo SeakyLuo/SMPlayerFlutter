@@ -15,7 +15,7 @@
 
 namespace {
 using namespace winrt::Windows::Media::SpeechRecognition;
-using winrt::Windows::Foundation::IAsyncOperation;
+using winrt::Windows::Foundation::IAsyncInfo;
 using winrt::Windows::Globalization::Language;
 using Value = flutter::EncodableValue;
 using Map = flutter::EncodableMap;
@@ -31,10 +31,9 @@ struct SpeechSession {
   HWND window;
   UINT message;
   std::atomic<bool> canceled{false};
-  std::atomic<bool> timed_out{false};
   std::mutex mutex;
   std::deque<SpeechEvent> events;
-  IAsyncOperation<SpeechRecognitionResult> operation{nullptr};
+  IAsyncInfo operation{nullptr};
 
   void Emit(SpeechEvent event) {
     {
@@ -45,18 +44,55 @@ struct SpeechSession {
   }
 
   void Cancel() {
-    canceled = true;
-    IAsyncOperation<SpeechRecognitionResult> pending{nullptr};
+    if (canceled.exchange(true)) return;
+    IAsyncInfo pending{nullptr};
     {
       std::lock_guard<std::mutex> lock(mutex);
       pending = operation;
     }
-    if (pending) pending.Cancel();
+    if (pending) {
+      // Cancellation can cross a process boundary; never block the window thread.
+      std::thread([pending = std::move(pending)]() mutable {
+        bool apartment_initialized = false;
+        try {
+          winrt::init_apartment(winrt::apartment_type::multi_threaded);
+          apartment_initialized = true;
+          pending.Cancel();
+        } catch (const winrt::hresult_error& error) {
+          ::OutputDebugStringW(error.message().c_str());
+        }
+        pending = nullptr;
+        if (apartment_initialized) winrt::uninit_apartment();
+      }).detach();
+    }
+  }
+
+  void Track(const IAsyncInfo& pending) {
+    {
+      std::lock_guard<std::mutex> lock(mutex);
+      operation = pending;
+    }
+    // Covers cancellation between starting an operation and publishing it.
+    if (canceled) pending.Cancel();
   }
 };
 
 Language ResolveLanguage(const std::string& requested) {
-  const Language language(winrt::to_hstring(requested));
+  // Match Electron's UI-locale to speech-locale mapping before OS lookup.
+  const std::pair<const char*, const char*> locales[] = {
+      {"zh-Hant", "zh-TW"}, {"fr", "fr-FR"}, {"ru", "ru-RU"},
+      {"ja", "ja-JP"}, {"de", "de-DE"}, {"es", "es-ES"},
+      {"it", "it-IT"}, {"nl", "nl-NL"}, {"cs", "cs-CZ"},
+      {"uk", "uk-UA"}, {"sv", "sv-SE"}, {"id", "id-ID"},
+  };
+  auto speech_locale = requested;
+  for (const auto& locale : locales) {
+    if (requested == locale.first) {
+      speech_locale = locale.second;
+      break;
+    }
+  }
+  const Language language(winrt::to_hstring(speech_locale));
   const auto supported = SpeechRecognizer::SupportedTopicLanguages();
   for (const auto& item : supported) {
     if (item.LanguageTag() == language.LanguageTag()) return item;
@@ -64,7 +100,14 @@ Language ResolveLanguage(const std::string& requested) {
   const auto tag = winrt::to_string(language.LanguageTag());
   const auto primary = tag.substr(0, tag.find('-'));
   for (const auto& item : supported) {
-    if (winrt::to_string(item.LanguageTag()).rfind(primary, 0) == 0) return item;
+    const auto item_tag = winrt::to_string(item.LanguageTag());
+    if (item_tag.substr(0, item_tag.find('-')) == primary &&
+        (primary != "zh" || item.Script() == language.Script())) {
+      return item;
+    }
+  }
+  if (primary == "zh") {
+    throw winrt::hresult_error(HRESULT_FROM_WIN32(ERROR_NOT_SUPPORTED));
   }
   return SpeechRecognizer::SystemSpeechLanguage();
 }
@@ -72,12 +115,14 @@ Language ResolveLanguage(const std::string& requested) {
 void Recognize(const std::shared_ptr<SpeechSession>& session,
                const std::string& language) {
   SpeechRecognizer recognizer{nullptr};
+  bool apartment_initialized = false;
   SpeechEvent completed{"result", "", ""};
 #ifdef _DEBUG
   const auto started = std::chrono::steady_clock::now();
 #endif
   try {
     winrt::init_apartment(winrt::apartment_type::multi_threaded);
+    apartment_initialized = true;
     recognizer = SpeechRecognizer(ResolveLanguage(language));
 #ifdef _DEBUG
     std::cerr << "WinRT speech language: "
@@ -107,18 +152,16 @@ void Recognize(const std::shared_ptr<SpeechSession>& session,
       }
       session->Emit({"state", state, ""});
     });
-    const auto compiled = recognizer.CompileConstraintsAsync().get();
+    const auto compilation = recognizer.CompileConstraintsAsync();
+    session->Track(compilation);
+    const auto compiled = compilation.get();
     if (compiled.Status() != SpeechRecognitionResultStatus::Success) {
       completed.error = "unavailable";
     } else if (!session->canceled) {
-      session->Emit({"state", "Capturing", ""});
+      session->Emit({"state", "Ready", ""});
       // Match Electron's recognition entry point and disabled read-back.
       const auto operation = recognizer.RecognizeWithUIAsync();
-      {
-        std::lock_guard<std::mutex> lock(session->mutex);
-        session->operation = operation;
-      }
-      if (session->canceled) operation.Cancel();
+      session->Track(operation);
       const auto result = operation.get();
 #ifdef _DEBUG
       std::cerr << "WinRT speech result status: "
@@ -157,20 +200,30 @@ void Recognize(const std::shared_ptr<SpeechSession>& session,
     if (error.code() == HRESULT_FROM_WIN32(ERROR_CANCELLED)) {
       completed.error = "canceled";
     } else {
-      completed.error = error.code() == E_ACCESSDENIED ? "privacy-required" : "failed";
+      completed.error = error.code() == E_ACCESSDENIED ? "privacy-required" :
+          error.code() == HRESULT_FROM_WIN32(ERROR_NOT_SUPPORTED) ? "unavailable" : "failed";
     }
   }
   if (session->canceled) {
     completed.text.clear();
-    completed.error = session->timed_out ? "no-speech" : "canceled";
+    completed.error = "canceled";
   }
-  if (recognizer) recognizer.Close();
+  try {
+    if (recognizer) recognizer.Close();
+  } catch (const winrt::hresult_error& error) {
+    ::OutputDebugStringW(error.message().c_str());
+    if (completed.error.empty()) {
+      completed.text.clear();
+      completed.error = "failed";
+    }
+  }
   {
     std::lock_guard<std::mutex> lock(session->mutex);
     session->operation = nullptr;
   }
+  recognizer = nullptr;
   session->Emit(std::move(completed));
-  winrt::uninit_apartment();
+  if (apartment_initialized) winrt::uninit_apartment();
 }
 
 class WindowsSpeechPlugin : public flutter::Plugin {
@@ -191,8 +244,8 @@ class WindowsSpeechPlugin : public flutter::Plugin {
           if (message == WM_TIMER && wparam == timer_) {
             ::KillTimer(window_, timer_);
             if (session_) {
-              session_->timed_out = true;
               session_->Cancel();
+              CompleteReply({"result", "", "timeout"});
             }
             return 0;
           }
@@ -217,8 +270,10 @@ class WindowsSpeechPlugin : public flutter::Plugin {
           reply->Success();
           return;
         }
-        cancel_replies_.push_back(std::move(reply));
         session_->Cancel();
+        ::KillTimer(window_, timer_);
+        CompleteReply({"result", "", "canceled"});
+        reply->Success();
       } else {
         reply->NotImplemented();
       }
@@ -232,6 +287,16 @@ class WindowsSpeechPlugin : public flutter::Plugin {
   }
 
  private:
+  void CompleteReply(const SpeechEvent& event) {
+    // The watchdog/cancel path may already have replied before WinRT finishes.
+    if (!reply_) return;
+    reply_->Success(Value(Map{
+        {Value("text"), Value(event.text)},
+        {Value("error"), event.error.empty() ? Value() : Value(event.error)},
+    }));
+    reply_.reset();
+  }
+
   void DrainEvents() {
     if (!session_) return;
     std::deque<SpeechEvent> events;
@@ -242,14 +307,11 @@ class WindowsSpeechPlugin : public flutter::Plugin {
     for (const auto& event : events) {
       if (event.type == "result") {
         ::KillTimer(window_, timer_);
-        reply_->Success(Value(Map{
-            {Value("text"), Value(event.text)},
-            {Value("error"), event.error.empty() ? Value() : Value(event.error)},
-        }));
-        reply_.reset();
+        CompleteReply(event);
+        // Keep the native session reserved until cleanup actually finishes.
+        // A retry during cancellation fails promptly instead of opening a
+        // second recognizer against a microphone still owned by the old one.
         session_.reset();
-        for (auto& reply : cancel_replies_) reply->Success();
-        cancel_replies_.clear();
         return;
       } else if (!session_->canceled) {
         channel_.InvokeMethod(event.type, std::make_unique<Value>(event.text));
@@ -265,7 +327,6 @@ class WindowsSpeechPlugin : public flutter::Plugin {
   flutter::MethodChannel<Value> channel_;
   std::shared_ptr<SpeechSession> session_;
   Reply reply_;
-  std::vector<Reply> cancel_replies_;
 };
 }  // namespace
 

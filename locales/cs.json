@@ -1,4 +1,5 @@
 {
+  "voiceAssistant.starting": "Spouštění…",
   "app.shell": "Simple Melody Player",
   "app.chooseFolderFirst": "Vyberte prosím složku s hudbou a nejprve ji naskenujte.",
   "app.chooseSong": "Chcete-li spustit přehrávání, vyberte skladbu z hudební knihovny.",

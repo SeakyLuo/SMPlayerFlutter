@@ -1,4 +1,5 @@
 {
+  "voiceAssistant.starting": "正在啟動…",
   "app.shell": "簡音播放器",
   "app.chooseFolderFirst": "請先選擇音樂資料夾並掃描。",
   "app.chooseSong": "從音樂庫選擇一首歌曲開始播放。",

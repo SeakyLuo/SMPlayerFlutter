@@ -10,7 +10,6 @@ import 'package:speech_to_text/speech_recognition_result.dart';
 import 'package:speech_to_text/speech_to_text.dart';
 
 import 'shell_models.dart';
-import 'undoable_notification.dart';
 import 'voice_assistant_help.dart';
 import 'voice_assistant_popover.dart';
 import 'windows_speech_recognition.dart';
@@ -41,19 +40,19 @@ class _VoiceAssistantDialogState extends State<VoiceAssistantDialog> {
   Timer? _closeTimer;
   Timer? _restartTimer;
   var _text = '';
-  var _state = VoiceAssistantCaptureState.idle;
+  var _state = VoiceAssistantCaptureState.starting;
   var _session = 0;
   var _sessionOpen = false;
   var _listening = false;
   var _processing = false;
-  var _showHelpLink = true;
+  var _showHelpLink = false;
   var _popoverOpen = true;
   var _helpOpen = false;
 
   @override
   void initState() {
     super.initState();
-    _text = widget.getHint();
+    _text = widget.i18n.t('voiceAssistant.starting');
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) unawaited(_openAssistant());
     });
@@ -207,7 +206,11 @@ class _VoiceAssistantDialogState extends State<VoiceAssistantDialog> {
 
   Future<void> _startRecognition(int session) async {
     _restartTimer?.cancel();
-    setState(() => _state = VoiceAssistantCaptureState.idle);
+    setState(() {
+      _state = VoiceAssistantCaptureState.starting;
+      _text = widget.i18n.t('voiceAssistant.starting');
+      _showHelpLink = false;
+    });
     try {
       if (Platform.isWindows) {
         await _recognizeWindows(session);
@@ -248,13 +251,25 @@ class _VoiceAssistantDialogState extends State<VoiceAssistantDialog> {
       },
       onState: (state) {
         if (!_isActiveSession(session) || _processing) return;
+        if (state == 'Ready') {
+          _recognitionReady();
+          return;
+        }
+        if (state == 'Capturing' ||
+            state == 'SoundStarted' ||
+            state == 'SpeechDetected') {
+          _recognitionReady();
+        }
         setState(() {
           _state = switch (state) {
             'Capturing' ||
             'SoundStarted' ||
             'SpeechDetected' => VoiceAssistantCaptureState.capturing,
             'Processing' => VoiceAssistantCaptureState.processing,
-            _ => VoiceAssistantCaptureState.idle,
+            _ =>
+              _state == VoiceAssistantCaptureState.starting
+                  ? VoiceAssistantCaptureState.starting
+                  : VoiceAssistantCaptureState.idle,
           };
         });
       },
@@ -290,10 +305,19 @@ class _VoiceAssistantDialogState extends State<VoiceAssistantDialog> {
   void _handleSpeechStatus(String status, int session) {
     if (!_isActiveSession(session) || _processing) return;
     if (status == 'listening') {
-      setState(() => _state = VoiceAssistantCaptureState.capturing);
+      _recognitionReady();
     } else if (status == 'done' || status == 'notListening') {
       _scheduleRecognitionRestart(session);
     }
+  }
+
+  void _recognitionReady() {
+    if (_state != VoiceAssistantCaptureState.starting) return;
+    setState(() {
+      _text = widget.getHint();
+      _showHelpLink = true;
+      _state = VoiceAssistantCaptureState.idle;
+    });
   }
 
   void _handleSpeechError(SpeechRecognitionError error, int session) {
@@ -340,6 +364,7 @@ class _VoiceAssistantDialogState extends State<VoiceAssistantDialog> {
       final result = widget.onExecute(command);
       if (!_isActiveSession(session)) return;
       if (result == widget.i18n.t('voiceAssistant.notUnderstood')) {
+        _showMessage(result);
         await _speak(result, session);
         if (_isActiveSession(session)) {
           _processing = false;
@@ -355,9 +380,11 @@ class _VoiceAssistantDialogState extends State<VoiceAssistantDialog> {
       if (result == widget.i18n.t('voiceAssistant.help')) {
         _openHelp();
         return;
-      } else if (result != widget.i18n.t('voiceAssistant.executed')) {
-        _showMessage(result);
+      }
+      _showMessage(result);
+      if (result != widget.i18n.t('voiceAssistant.executed')) {
         unawaited(_speak(result, session));
+        return;
       }
       _closeTimer = Timer(const Duration(seconds: 5), () {
         if (mounted && _session == session) _closePopover();
@@ -396,12 +423,16 @@ class _VoiceAssistantDialogState extends State<VoiceAssistantDialog> {
   }
 
   void _stopWithError(String message) {
+    _cancelSession();
     _showMessage(message);
-    _closePopover();
   }
 
   void _showMessage(String message) {
-    unawaited(showAppNotification(context: context, message: message));
+    setState(() {
+      _text = message;
+      _state = VoiceAssistantCaptureState.idle;
+      _showHelpLink = true;
+    });
   }
 
   bool _isActiveSession(int session) =>

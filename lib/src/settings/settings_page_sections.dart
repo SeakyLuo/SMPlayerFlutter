@@ -453,7 +453,7 @@ extension _SettingsPageSections on _SettingsPageState {
                 child: Text(i18n.t('settings.aiAgentCopyPrompt')),
               ),
               SettingsActionButton(
-                icon: FluentIcons.arrow_upload_20_regular,
+                icon: FluentIcons.share_ios_20_regular,
                 tooltip: i18n.t('settings.aiAgentExportSkillTooltip'),
                 loading: _exportingAiSkill,
                 disabled: _updatingAiAgent || _editingAiAgentPort,
