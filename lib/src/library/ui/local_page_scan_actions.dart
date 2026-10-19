@@ -296,6 +296,9 @@ extension _LocalPageScanActions on _LocalPageState {
       nextSnapshot = await ref.read(libraryContentDataProvider.future);
     }
     if (!mounted) return;
+    ref.invalidate(recentPageDataProvider);
+    ref.invalidate(shellNavigationDataProvider);
+    ref.invalidate(librarySongCountProvider);
     await reconcileNowPlayingQueueWithLibrary(
       ref: ref,
       previousSnapshot: previousSnapshot,
