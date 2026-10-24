@@ -741,6 +741,19 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage>
     if (event is! KeyDownEvent) {
       return false;
     }
+    if (Platform.isMacOS &&
+        const [
+          LogicalKeyboardKey.f7,
+          LogicalKeyboardKey.f8,
+          LogicalKeyboardKey.f9,
+          LogicalKeyboardKey.mediaPlay,
+          LogicalKeyboardKey.mediaPause,
+          LogicalKeyboardKey.mediaPlayPause,
+          LogicalKeyboardKey.mediaTrackNext,
+          LogicalKeyboardKey.mediaTrackPrevious,
+        ].contains(event.logicalKey)) {
+      return true;
+    }
     if (_isWindowFullScreen && event.logicalKey == LogicalKeyboardKey.escape) {
       _exitDesktopWindowFullScreen();
       return true;

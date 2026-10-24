@@ -8,13 +8,8 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate, UNUserNotificationCenterDel
   private static let mainWindowFrameAutosaveName = "SMPlayerMainWindowFrame"
   private static let mainWindowMinimumSize = NSSize(width: 506, height: 698)
   private static let functionPlaybackHotKeySignature: OSType = 0x534D504C
-  private static let systemDefinedCGEventTypeRawValue: UInt32 = 14
 
   private var desktopFeatureChannel: FlutterMethodChannel?
-  private var globalMediaEventMonitor: Any?
-  private var localMediaEventMonitor: Any?
-  private var mediaKeyEventTap: CFMachPort?
-  private var mediaKeyEventTapRunLoopSource: CFRunLoopSource?
   private var functionPlaybackHotKeyHandler: EventHandlerRef?
   private var functionPlaybackHotKeyRefs: [EventHotKeyRef] = []
   private var externalOpenObserver: NSObjectProtocol?
@@ -44,7 +39,7 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate, UNUserNotificationCenterDel
     UNUserNotificationCenter.current().delegate = self
     SmPlayerExternalFileAccessStore.shared.restoreAccess()
     restoreSecurityScopedDirectoryAccess()
-    installMediaKeyMonitor()
+    installMediaSessionCommandCenter()
     installFunctionPlaybackHotKeys()
     installExternalOpenObserver()
 
@@ -66,18 +61,6 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate, UNUserNotificationCenterDel
   }
 
   deinit {
-    if let globalMediaEventMonitor = globalMediaEventMonitor {
-      NSEvent.removeMonitor(globalMediaEventMonitor)
-    }
-    if let localMediaEventMonitor = localMediaEventMonitor {
-      NSEvent.removeMonitor(localMediaEventMonitor)
-    }
-    if let mediaKeyEventTapRunLoopSource = mediaKeyEventTapRunLoopSource {
-      CFRunLoopRemoveSource(CFRunLoopGetMain(), mediaKeyEventTapRunLoopSource, .commonModes)
-    }
-    if let mediaKeyEventTap = mediaKeyEventTap {
-      CFMachPortInvalidate(mediaKeyEventTap)
-    }
     for hotKeyRef in functionPlaybackHotKeyRefs {
       UnregisterEventHotKey(hotKeyRef)
     }
@@ -114,59 +97,6 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate, UNUserNotificationCenterDel
       "openExternalArguments",
       arguments: arguments)
   }
-
-  private func installMediaKeyMonitor() {
-    installMediaKeyEventTap()
-    globalMediaEventMonitor = NSEvent.addGlobalMonitorForEvents(matching: .systemDefined) {
-      [weak self] event in
-      _ = self?.handleSystemDefinedEvent(event)
-    }
-    localMediaEventMonitor = NSEvent.addLocalMonitorForEvents(matching: .systemDefined) {
-      [weak self] event in
-      return self?.handleSystemDefinedEvent(event) == true ? nil : event
-    }
-  }
-
-  private func installMediaKeyEventTap() {
-    let eventMask = CGEventMask(1) << Self.systemDefinedCGEventTypeRawValue
-    guard let eventTap = CGEvent.tapCreate(
-      tap: .cgSessionEventTap,
-      place: .headInsertEventTap,
-      options: .defaultTap,
-      eventsOfInterest: eventMask,
-      callback: { _, type, event, userInfo in
-        guard let userInfo else {
-          return Unmanaged.passUnretained(event)
-        }
-        let window = Unmanaged<MainFlutterWindow>
-          .fromOpaque(userInfo)
-          .takeUnretainedValue()
-        if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
-          if let mediaKeyEventTap = window.mediaKeyEventTap {
-            CGEvent.tapEnable(tap: mediaKeyEventTap, enable: true)
-          }
-          return Unmanaged.passUnretained(event)
-        }
-        if type.rawValue != MainFlutterWindow.systemDefinedCGEventTypeRawValue {
-          return Unmanaged.passUnretained(event)
-        }
-        if window.handleSystemDefinedCGEvent(event) {
-          return nil
-        }
-        return Unmanaged.passUnretained(event)
-      },
-      userInfo: Unmanaged.passUnretained(self).toOpaque())
-    else {
-      return
-    }
-    mediaKeyEventTap = eventTap
-    mediaKeyEventTapRunLoopSource = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, eventTap, 0)
-    if let mediaKeyEventTapRunLoopSource = mediaKeyEventTapRunLoopSource {
-      CFRunLoopAddSource(CFRunLoopGetMain(), mediaKeyEventTapRunLoopSource, .commonModes)
-    }
-    CGEvent.tapEnable(tap: eventTap, enable: true)
-  }
-
   private func installFunctionPlaybackHotKeys() {
     var eventSpec = EventTypeSpec(
       eventClass: OSType(kEventClassKeyboard),
@@ -228,42 +158,6 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate, UNUserNotificationCenterDel
       functionPlaybackHotKeyRefs.append(hotKeyRef)
     }
   }
-
-  private func handleSystemDefinedEvent(_ event: NSEvent) -> Bool {
-    if event.subtype.rawValue != 8 {
-      return false
-    }
-    let keyCode = (event.data1 & 0xffff0000) >> 16
-    let keyState = (event.data1 & 0x0000ff00) >> 8
-    if keyState != 0x0a {
-      return false
-    }
-
-    switch keyCode {
-    case 16:
-      sendDesktopCommand("play-pause")
-      return true
-    case 17:
-      sendDesktopCommand("next")
-      return true
-    case 18:
-      sendDesktopCommand("previous")
-      return true
-    case 20:
-      sendDesktopCommand("stop")
-      return true
-    default:
-      return false
-    }
-  }
-
-  private func handleSystemDefinedCGEvent(_ event: CGEvent) -> Bool {
-    guard let nsEvent = NSEvent(cgEvent: event) else {
-      return false
-    }
-    return handleSystemDefinedEvent(nsEvent)
-  }
-
   private func sendDesktopCommand(_ command: String) {
     desktopFeatureChannel?.invokeMethod("desktopCommand", arguments: command)
   }
