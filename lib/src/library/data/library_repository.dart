@@ -180,6 +180,8 @@ class LibraryRepository
       try {
         final shouldCheck = _hasLegacyStartupArtistSplitCandidates(db);
         _database.initializeLibrarySchema(db);
+        _playlistService.cleanupInvalidPlaylistItems(db);
+        _playbackHistoryService.cleanupInvalidRecentPlayed(db);
         _playlistService.cleanupInvalidLastPlaylist(db);
         final rows = db.select(
           'SELECT * FROM Settings ORDER BY Id DESC LIMIT 1',

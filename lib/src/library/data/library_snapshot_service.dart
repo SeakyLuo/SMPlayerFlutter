@@ -65,7 +65,6 @@ class LibrarySnapshotService {
     final recent = await run(() {
       final db = _database.openInitializedLibraryDatabase(File(path));
       try {
-        _history.cleanupInvalidRecentPlayed(db);
         return (
           songs: _history.readRecentSongs(db, songs),
           playlists: _history.readRecentPlaylists(db),
@@ -114,7 +113,6 @@ class LibrarySnapshotService {
   static LibraryContentData _readContent(String path, String queuePath) {
     final db = _database.openInitializedLibraryDatabase(File(path));
     try {
-      _playlists.cleanupInvalidPlaylistItems(db);
       db.execute('BEGIN');
       final settings = _read.readLibrarySettings(db);
       final songs = _read.readSongs(db);

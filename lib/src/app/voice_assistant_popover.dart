@@ -36,6 +36,19 @@ class VoiceAssistantPopover extends StatelessWidget {
     final radius = BorderRadius.circular(miniMode ? 14 : 18);
     final textColor = dark ? const Color(0xfff6f8fb) : const Color(0xff1f252b);
     final fontSize = narrow ? 13.0 : 14.0;
+    final textStyle = TextStyle(
+      color: textColor,
+      fontSize: fontSize,
+      fontWeight: FontWeight.w400,
+      height: 1.35,
+    );
+    final labelPainter = TextPainter(
+      text: TextSpan(text: text, style: textStyle),
+      textDirection: Directionality.of(context),
+      textScaler: MediaQuery.textScalerOf(context),
+    )..layout();
+    final quietWidth = labelPainter.width + 24;
+    labelPainter.dispose();
     return Semantics(
       liveRegion: true,
       child: DecoratedBox(
@@ -81,6 +94,13 @@ class VoiceAssistantPopover extends StatelessWidget {
               child: Stack(
                 alignment: Alignment.center,
                 children: [
+                  if (state == VoiceAssistantCaptureState.starting)
+                    Positioned.fill(
+                      child: VoiceAssistantStartupPulse(
+                        accent: accent,
+                        quietWidth: quietWidth,
+                      ),
+                    ),
                   if (capturing)
                     Positioned.fill(
                       child: IgnorePointer(
@@ -107,14 +127,6 @@ class VoiceAssistantPopover extends StatelessWidget {
                             crossAxisAlignment: WrapCrossAlignment.center,
                             spacing: 6,
                             children: [
-                              if (state == VoiceAssistantCaptureState.starting)
-                                SizedBox(
-                                  width: narrow ? 96 : 120,
-                                  height: 24,
-                                  child: VoiceAssistantStartupPulse(
-                                    accent: accent,
-                                  ),
-                                ),
                               if (state ==
                                   VoiceAssistantCaptureState.processing)
                                 SizedBox.square(
@@ -131,12 +143,7 @@ class VoiceAssistantPopover extends StatelessWidget {
                               Text(
                                 text,
                                 textAlign: TextAlign.center,
-                                style: TextStyle(
-                                  color: textColor,
-                                  fontSize: fontSize,
-                                  fontWeight: FontWeight.w400,
-                                  height: 1.35,
-                                ),
+                                style: textStyle,
                               ),
                               if (onHelp != null)
                                 TextButton(

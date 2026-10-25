@@ -37,7 +37,6 @@ class _VoiceAssistantDialogState extends State<VoiceAssistantDialog> {
   final _speechToText = SpeechToText();
   final _windowsSpeech = WindowsSpeechRecognition();
   final _tts = FlutterTts();
-  Timer? _closeTimer;
   Timer? _restartTimer;
   var _text = '';
   var _state = VoiceAssistantCaptureState.starting;
@@ -70,7 +69,6 @@ class _VoiceAssistantDialogState extends State<VoiceAssistantDialog> {
     _listening = false;
     _processing = false;
     _session += 1;
-    _closeTimer?.cancel();
     _restartTimer?.cancel();
     unawaited(_cancelRecognition().catchError(_ignoreVoicePluginError));
     unawaited(_tts.stop().catchError(_ignoreVoicePluginError));
@@ -381,14 +379,12 @@ class _VoiceAssistantDialogState extends State<VoiceAssistantDialog> {
         _openHelp();
         return;
       }
-      _showMessage(result);
-      if (result != widget.i18n.t('voiceAssistant.executed')) {
-        unawaited(_speak(result, session));
+      if (result == widget.i18n.t('voiceAssistant.executed')) {
+        _closePopover();
         return;
       }
-      _closeTimer = Timer(const Duration(seconds: 5), () {
-        if (mounted && _session == session) _closePopover();
-      });
+      _showMessage(result);
+      unawaited(_speak(result, session));
     } on Object {
       if (mounted && _session == session) {
         _stopWithError(widget.i18n.t('voiceAssistant.recognitionUnavailable'));
