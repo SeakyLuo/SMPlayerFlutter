@@ -271,7 +271,6 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage>
       }
       _rememberRoute(currentLocation);
       _persistCurrentPage(currentLocation);
-      unawaited(_desktopFeatureService.setWindowFullScreen(false));
     }
   }
 

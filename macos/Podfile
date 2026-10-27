@@ -39,6 +39,12 @@ post_install do |installer|
   installer.pods_project.targets.each do |target|
     flutter_additional_macos_build_settings(target)
     target.build_configurations.each do |config|
+      # Codeless bundles in Resources are sealed by the containing framework.
+      # A separate development signature survives App Store export unchanged.
+      if target.isa == 'PBXNativeTarget' && target.product_type == 'com.apple.product-type.bundle'
+        config.build_settings['CODE_SIGNING_ALLOWED'] = 'NO'
+        config.build_settings['CODE_SIGNING_REQUIRED'] = 'NO'
+      end
       config.build_settings['MACOSX_DEPLOYMENT_TARGET'] = '12.0'
       config.build_settings['INFOPLIST_KEY_NSMicrophoneUsageDescription'] = 'Simple Melody Player uses the microphone for voice assistant commands.'
       config.build_settings['INFOPLIST_KEY_NSSpeechRecognitionUsageDescription'] = 'Simple Melody Player uses speech recognition to run voice assistant commands.'

@@ -3,9 +3,7 @@
 A local music player that manages local music files.
 
 # Privacy Policy
-This app will not collect any personal information. It only reads and manages music files on your computer.
-
-This app also requires connection to the Internet to search lyrics upon users' request.
+See the [Privacy Policy](privacy.md) for details about local music data, online lyrics, speech recognition, diagnostic reports, and the optional local AI interface.
 
 # License
 This project is source-available for learning, personal use, and non-commercial forks.

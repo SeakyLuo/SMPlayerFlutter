@@ -1,6 +1,6 @@
 part of 'recent_page.dart';
 
-class _RecentSongGrid extends StatelessWidget {
+class _RecentSongGrid extends ConsumerWidget {
   const _RecentSongGrid({
     required this.songs,
     required this.queueSongIds,
@@ -54,7 +54,7 @@ class _RecentSongGrid extends StatelessWidget {
   onOpenMoreMenu;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     if (songs.isEmpty) {
       return _RecentEmptyState(
         title: context.smPlayerI18n.t('recent.empty'),
@@ -143,6 +143,12 @@ class _RecentSongGrid extends StatelessWidget {
                                         queueSongIds.indexOf(song.id),
                                       );
                                     },
+                                    onTogglePlayPause:
+                                        ref
+                                            .read(
+                                              mediaControlControllerProvider,
+                                            )
+                                            .onTogglePlayPause,
                                     onToggleSelection: () {
                                       onToggleSelection(song.id);
                                     },

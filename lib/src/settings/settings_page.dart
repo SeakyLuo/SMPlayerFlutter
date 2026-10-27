@@ -95,6 +95,7 @@ class SettingsPage extends StatefulWidget {
     this.onRevealSystemLogs,
     this.onSendFeedbackEmail,
     this.onOpenFeedbackInBrowser,
+    this.onOpenPrivacyPolicy,
     this.onLoadSystemFonts,
     this.onPickColor,
     this.appVersion,
@@ -122,6 +123,7 @@ class SettingsPage extends StatefulWidget {
   final VoidCallback? onRevealSystemLogs;
   final VoidCallback? onSendFeedbackEmail;
   final VoidCallback? onOpenFeedbackInBrowser;
+  final VoidCallback? onOpenPrivacyPolicy;
   final FutureOr<List<String>> Function()? onLoadSystemFonts;
   final SettingsPickColorCallback? onPickColor;
   final String? appVersion;

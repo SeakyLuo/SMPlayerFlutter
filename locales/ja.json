@@ -715,6 +715,7 @@
   "settings.playerLyricsSource": "プレーヤーの歌詞ソース",
   "settings.quitOnClose": "ウィンドウを閉じたとき、バックグラウンドで実行せずにアプリを終了する",
   "settings.reauthorize": "再認証",
+  "settings.privacyPolicy": "プライバシーポリシー",
   "settings.releaseNotes": "リリースノート",
   "settings.releaseNotesArtists": "音楽はアーティストやアルバムごとにグループ化できます。",
   "settings.releaseNotesIntro": "バージョン履歴",

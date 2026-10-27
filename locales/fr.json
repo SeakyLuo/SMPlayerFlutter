@@ -715,6 +715,7 @@
   "settings.playerLyricsSource": "Source des paroles du lecteur",
   "settings.quitOnClose": "Quitter l’application à la fermeture de la fenêtre au lieu de la laisser fonctionner en arrière-plan",
   "settings.reauthorize": "Réautoriser",
+  "settings.privacyPolicy": "Politique de confidentialité",
   "settings.releaseNotes": "Notes de version",
   "settings.releaseNotesArtists": "La musique peut être regroupée par artiste et album.",
   "settings.releaseNotesIntro": "Historique des versions",

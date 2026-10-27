@@ -715,6 +715,7 @@
   "settings.playerLyricsSource": "Källa för låttexter i spelaren",
   "settings.quitOnClose": "Avsluta appen när fönstret stängs i stället för att låta den köras i bakgrunden",
   "settings.reauthorize": "Auktorisera på nytt",
+  "settings.privacyPolicy": "Integritetspolicy",
   "settings.releaseNotes": "Versionsinformation",
   "settings.releaseNotesArtists": "Musik kan grupperas efter artist och album.",
   "settings.releaseNotesIntro": "Versionshistorik",

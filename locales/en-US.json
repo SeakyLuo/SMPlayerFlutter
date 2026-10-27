@@ -723,6 +723,7 @@
   "settings.playerLyricsSource": "Player lyrics source",
   "settings.quitOnClose": "Exit the app when closing the window instead of running in the background",
   "settings.reauthorize": "Reauthorize",
+  "settings.privacyPolicy": "Privacy Policy",
   "settings.releaseNotes": "Release Notes",
   "settings.releaseNotesArtists": "Music can be grouped by artist and album.",
   "settings.releaseNotesIntro": "History Updates",

@@ -715,6 +715,7 @@
   "settings.playerLyricsSource": "Fuente de letras del reproductor",
   "settings.quitOnClose": "Salir de la aplicación al cerrar la ventana en lugar de mantenerla en segundo plano",
   "settings.reauthorize": "Reautorizar",
+  "settings.privacyPolicy": "Política de privacidad",
   "settings.releaseNotes": "Notas de la versión",
   "settings.releaseNotesArtists": "La música se puede agrupar por artista y álbum.",
   "settings.releaseNotesIntro": "Historial de versiones",

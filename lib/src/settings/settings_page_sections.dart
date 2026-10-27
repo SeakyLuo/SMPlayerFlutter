@@ -562,6 +562,10 @@ extension _SettingsPageSections on _SettingsPageState {
                 },
               ),
               SettingsActionButton(
+                onClick: widget.onOpenPrivacyPolicy,
+                child: Text(i18n.t('settings.privacyPolicy')),
+              ),
+              SettingsActionButton(
                 onClick: () {
                   widget.onRevealSystemLogs?.call();
                 },

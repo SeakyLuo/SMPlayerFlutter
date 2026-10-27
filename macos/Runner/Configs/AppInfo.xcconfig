@@ -10,5 +10,8 @@ PRODUCT_NAME = Simple Melody Player
 // The application's bundle identifier
 PRODUCT_BUNDLE_IDENTIFIER = com.seaky.smplayerFlutter
 
+DEVELOPMENT_TEAM = 7LB7J48HY7
+CODE_SIGN_IDENTITY = Apple Development
+
 // The copyright displayed in application information
 PRODUCT_COPYRIGHT = Copyright © 2026 com.seaky. All rights reserved.

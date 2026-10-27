@@ -715,6 +715,7 @@
   "settings.playerLyricsSource": "Quelle für Liedtexte im Player",
   "settings.quitOnClose": "App beim Schließen des Fensters beenden, statt sie im Hintergrund weiterlaufen zu lassen",
   "settings.reauthorize": "Erneut autorisieren",
+  "settings.privacyPolicy": "Datenschutzerklärung",
   "settings.releaseNotes": "Versionshinweise",
   "settings.releaseNotesArtists": "Musik kann nach Künstler und Album gruppiert werden.",
   "settings.releaseNotesIntro": "Versionsverlauf",

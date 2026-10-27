@@ -60,6 +60,7 @@ part 'recent_played_filter_bar.dart';
 part 'recent_played_panel.dart';
 part 'recent_song_grid.dart';
 part 'grid_view_music_item_control.dart';
+part 'recent_song_artwork.dart';
 part 'recent_collection_grids.dart';
 part 'recent_page_shell.dart';
 part 'recent_keep_alive_page.dart';

@@ -715,6 +715,7 @@
   "settings.playerLyricsSource": "Источник текстов песен плеера",
   "settings.quitOnClose": "При закрытии окна выходить из приложения, а не оставлять его работать в фоне",
   "settings.reauthorize": "Повторно авторизовать",
+  "settings.privacyPolicy": "Политика конфиденциальности",
   "settings.releaseNotes": "Примечания к выпуску",
   "settings.releaseNotesArtists": "Музыку можно сгруппировать по исполнителю и альбому.",
   "settings.releaseNotesIntro": "История версий",

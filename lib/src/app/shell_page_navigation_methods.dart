@@ -24,7 +24,6 @@ extension _SmPlayerShellNavigationMethods on _SmPlayerShellPageState {
     _persistCurrentPage(restoredTarget);
     _closeNavigationOverlay();
     widget.onNavigate?.call(restoredTarget);
-    unawaited(_desktopFeatureService.setWindowFullScreen(false));
   }
 
   String? _currentNavigationRootTarget(String target) {

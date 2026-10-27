@@ -303,6 +303,16 @@ GoRouter createSmPlayerRouter({
                                   launchUrl(Uri.parse(_feedbackIssueUrl)),
                                 );
                               },
+                              onOpenPrivacyPolicy: () {
+                                unawaited(
+                                  launchUrl(
+                                    Uri.parse(
+                                      'https://github.com/SeakyLuo/SMPlayerFlutter/blob/main/privacy.md',
+                                    ),
+                                    mode: LaunchMode.externalApplication,
+                                  ),
+                                );
+                              },
                               onRevealSystemLogs: () {
                                 unawaited(_revealSystemLogs());
                               },
