@@ -1,4 +1,6 @@
 import 'dart:async';
+import 'dart:io';
+import '../library/data/library_queue_backup.dart';
 import 'dart:math' as math;
 
 import 'package:file_picker/file_picker.dart';
@@ -42,6 +44,7 @@ part 'preference_page_parts.dart';
 
 part 'settings_page_sections.dart';
 part 'settings_ai_skill_export.dart';
+part 'settings_data_transfer_actions.dart';
 
 typedef SettingsScanLibraryCallback =
     FutureOr<LocalFolderRefreshResult?> Function(
@@ -90,6 +93,7 @@ class SettingsPage extends StatefulWidget {
     this.onRequestSmartArtistFix,
     this.onArtistDataChanged,
     this.onImportData,
+    this.onPrepareDataImport,
     this.onDataImported,
     this.onExportData,
     this.onRevealSystemLogs,
@@ -118,6 +122,7 @@ class SettingsPage extends StatefulWidget {
   final VoidCallback? onRequestSmartArtistFix;
   final FutureOr<void> Function()? onArtistDataChanged;
   final FutureOr<bool> Function()? onImportData;
+  final FutureOr<void> Function()? onPrepareDataImport;
   final FutureOr<void> Function()? onDataImported;
   final FutureOr<bool> Function()? onExportData;
   final VoidCallback? onRevealSystemLogs;
@@ -151,6 +156,10 @@ class _SettingsPageState extends State<SettingsPage> {
   var _showReleaseNotes = false;
   var _showFeedbackOptions = false;
   var _showImportDataDialog = false;
+  var _restoreImportedQueue = true;
+  var _importedWithoutQueue = false;
+
+  void _updateDataTransferState(VoidCallback update) => setState(update);
   var _showSmartArtistFixDialog = false;
   var _smartArtistFixRunning = false;
   double? _smartArtistFixProgress;
@@ -384,6 +393,23 @@ class _SettingsPageState extends State<SettingsPage> {
               _ConfirmSettingsDialog(
                 title: i18n.t('settings.importData'),
                 message: i18n.t('settings.importDataConfirm'),
+                content: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(i18n.t('settings.importDataConfirm')),
+                    const SizedBox(height: 16),
+                    CheckboxListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: Text(i18n.t('settings.importRestoreQueue')),
+                      subtitle: Text(i18n.t('settings.importQueueHelp')),
+                      value: _restoreImportedQueue,
+                      onChanged:
+                          (value) =>
+                              setState(() => _restoreImportedQueue = value!),
+                    ),
+                  ],
+                ),
                 onCancel: () {
                   setState(() {
                     _showImportDataDialog = false;
@@ -639,77 +665,6 @@ class _SettingsPageState extends State<SettingsPage> {
     );
     if (confirmed) {
       cancellation.cancel();
-    }
-  }
-
-  Future<void> _exportData() async {
-    final i18n = context.smPlayerI18n;
-    setState(() {
-      _dataTransferState = DataTransferState.openingExport;
-    });
-
-    try {
-      final exported =
-          widget.onExportData == null
-              ? await _exportDataWithPicker(i18n)
-              : await _exportDataWithCallback();
-      if (exported && mounted) {
-        _showMessage(i18n.t('settings.dataExported'));
-      }
-    } catch (_) {
-      if (mounted) {
-        _showMessage(i18n.t('settings.dataExportFailed'));
-      }
-    } finally {
-      if (mounted) {
-        setState(() {
-          _dataTransferState = DataTransferState.idle;
-        });
-      }
-    }
-  }
-
-  Future<bool> _exportDataWithCallback() async {
-    setState(() {
-      _dataTransferState = DataTransferState.exporting;
-    });
-    return widget.onExportData!();
-  }
-
-  Future<void> _importData() async {
-    final i18n = context.smPlayerI18n;
-    setState(() {
-      _showImportDataDialog = false;
-      _dataTransferState = DataTransferState.openingImport;
-    });
-
-    try {
-      final imported =
-          widget.onImportData == null
-              ? await _importDataWithPicker(i18n)
-              : await widget.onImportData!();
-      if (!mounted) {
-        return;
-      }
-      if (imported) {
-        setState(() {
-          _dataTransferState = DataTransferState.reloading;
-        });
-        _showMessage(i18n.t('settings.dataImported'));
-        await _settingsController.refresh();
-        await widget.onDataImported?.call();
-        await Future<void>.delayed(const Duration(milliseconds: 300));
-      }
-    } catch (_) {
-      if (mounted) {
-        _showMessage(i18n.t('settings.dataImportFailed'));
-      }
-    } finally {
-      if (mounted) {
-        setState(() {
-          _dataTransferState = DataTransferState.idle;
-        });
-      }
     }
   }
 
@@ -1092,41 +1047,6 @@ class _SettingsPageState extends State<SettingsPage> {
     if (mounted) {
       _showMessage(i18n.t('common.copied'));
     }
-  }
-
-  Future<bool> _exportDataWithPicker(SmPlayerI18n i18n) async {
-    final targetPath = await FilePicker.saveFile(
-      dialogTitle: i18n.t('settings.exportData'),
-      fileName: 'SMPlayerSettings.db',
-      type: FileType.custom,
-      allowedExtensions: const ['db'],
-    );
-    if (targetPath == null) {
-      return false;
-    }
-    if (mounted) {
-      setState(() {
-        _dataTransferState = DataTransferState.exporting;
-      });
-    }
-    return widget.libraryRepository.exportDataTo(targetPath);
-  }
-
-  Future<bool> _importDataWithPicker(SmPlayerI18n i18n) async {
-    final result = await FilePicker.pickFiles(
-      dialogTitle: i18n.t('settings.importData'),
-      type: FileType.custom,
-      allowedExtensions: const ['db'],
-      allowMultiple: false,
-    );
-    if (result == null) {
-      return false;
-    }
-    final sourcePath = result.files.single.path;
-    if (sourcePath == null) {
-      return false;
-    }
-    return widget.libraryRepository.importDataFrom(sourcePath);
   }
 
   void _onSettingsChanged() {

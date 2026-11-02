@@ -66,6 +66,7 @@ export 'library_lyrics_service.dart'
 part 'library_repository_platform.dart';
 part 'library_repository_local_operations.dart';
 part 'library_repository_collections.dart';
+part 'library_repository_data_transfer.dart';
 
 typedef _LyricsCacheKey =
     ({
@@ -284,20 +285,6 @@ class LibraryRepository
     } finally {
       db.dispose();
     }
-  }
-
-  Future<bool> exportDataTo(String targetPath) async {
-    final databaseFile = await _resolveDatabaseFile();
-    return _dataTransferService.exportDataTo(databaseFile, targetPath);
-  }
-
-  Future<bool> importDataFrom(String sourcePath) async {
-    final databaseFile = await _resolveDatabaseFile();
-    return _dataTransferService.importDataFrom(
-      databaseFile,
-      sourcePath,
-      rescanLibrary: scanAllMusicLibrary,
-    );
   }
 
   Future<settings.SettingsSnapshot?> getSettingsSnapshot() async {

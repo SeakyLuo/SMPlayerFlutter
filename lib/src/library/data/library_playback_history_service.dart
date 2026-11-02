@@ -433,7 +433,7 @@ class LibraryPlaybackHistoryService {
   ) {
     final paths = _readNowPlayingPaths(nowPlayingFile);
     final songIds =
-        paths.isEmpty
+        !nowPlayingFile.existsSync()
             ? _readPlaylistSongIds(db, fallbackPlaylistId)
             : _readNowPlayingSongIdsFromPaths(db, paths);
 

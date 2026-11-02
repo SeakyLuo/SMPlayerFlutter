@@ -1,4 +1,8 @@
 {
+  "notification.operationDone": "Operazione completata.",
+  "settings.importRestoreQueue": "Ripristina anche la coda di riproduzione",
+  "settings.importQueueHelp": "Ripristina la coda e la posizione salvate nel backup, mantenendo la riproduzione in pausa. Deseleziona per conservare la coda attuale e associare i brani in base al percorso del file.",
+  "settings.importLegacyQueue": "Questo backup non contiene una coda di riproduzione. La coda attuale è stata mantenuta e i brani sono stati associati in base al percorso del file.",
   "voiceAssistant.starting": "Avvio…",
   "app.shell": "Simple Melody Player",
   "app.chooseFolderFirst": "Seleziona prima la cartella della musica e scansionala.",

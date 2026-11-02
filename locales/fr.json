@@ -1,4 +1,8 @@
 {
+  "notification.operationDone": "Opération terminée.",
+  "settings.importRestoreQueue": "Restaurer également la file de lecture",
+  "settings.importQueueHelp": "Restaure la file et la position de lecture sauvegardées, en laissant la lecture en pause. Décochez cette option pour conserver la file actuelle et retrouver les morceaux à partir du chemin de leur fichier.",
+  "settings.importLegacyQueue": "Cette sauvegarde ne contient pas de file de lecture. La file actuelle a été conservée et les morceaux ont été retrouvés à partir du chemin de leur fichier.",
   "voiceAssistant.starting": "Démarrage…",
   "app.shell": "Simple Melody Player",
   "app.chooseFolderFirst": "Veuillez sélectionner le dossier de musique et le scanner d'abord.",

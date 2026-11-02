@@ -1,4 +1,8 @@
 {
+  "notification.operationDone": "Bewerking voltooid.",
+  "settings.importRestoreQueue": "Ook de afspeelwachtrij herstellen",
+  "settings.importQueueHelp": "Herstelt de opgeslagen wachtrij en afspeelpositie en laat het afspelen gepauzeerd. Vink dit uit om de huidige wachtrij te behouden en nummers op basis van hun bestandspad te koppelen.",
+  "settings.importLegacyQueue": "Deze back-up bevat geen afspeelwachtrij. De huidige wachtrij is behouden en de nummers zijn op basis van hun bestandspad gekoppeld.",
   "voiceAssistant.starting": "Bezig met starten…",
   "app.shell": "Simple Melody Player",
   "app.chooseFolderFirst": "Selecteer de muziekmap en scan deze eerst.",

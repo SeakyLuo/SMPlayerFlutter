@@ -1,4 +1,8 @@
 {
+  "notification.operationDone": "Vorgang abgeschlossen.",
+  "settings.importRestoreQueue": "Auch die aktuelle Wiedergabewarteschlange wiederherstellen",
+  "settings.importQueueHelp": "Stellt die gesicherte Warteschlange und Wiedergabeposition wieder her. Die Wiedergabe bleibt pausiert. Deaktivieren, um die aktuelle Warteschlange zu behalten und Titel anhand ihres Dateipfads zuzuordnen.",
+  "settings.importLegacyQueue": "Diese Sicherung enthält keine Wiedergabewarteschlange. Die aktuelle Warteschlange wurde beibehalten und die Titel anhand ihres Dateipfads zugeordnet.",
   "voiceAssistant.starting": "Wird gestartet…",
   "app.shell": "Simple Melody Player",
   "app.chooseFolderFirst": "Bitte wählen Sie den Musikordner aus und scannen Sie ihn zuerst.",

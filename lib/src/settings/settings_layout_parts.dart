@@ -599,6 +599,7 @@ class _ConfirmSettingsDialog extends StatelessWidget {
     this.confirmText,
     this.busy = false,
     this.progress,
+    this.content,
   });
 
   final String title;
@@ -608,6 +609,7 @@ class _ConfirmSettingsDialog extends StatelessWidget {
   final String? confirmText;
   final bool busy;
   final double? progress;
+  final Widget? content;
 
   @override
   Widget build(BuildContext context) {
@@ -615,6 +617,7 @@ class _ConfirmSettingsDialog extends StatelessWidget {
     return RemoveDialog(
       title: title,
       message: message,
+      content: content,
       confirmText: confirmText,
       pendingText:
           progress == null

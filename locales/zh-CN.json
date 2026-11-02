@@ -1,4 +1,8 @@
 {
+  "notification.operationDone": "操作完成",
+  "settings.importRestoreQueue": "同时恢复正在播放",
+  "settings.importQueueHelp": "恢复备份中的队列和进度，保持暂停。取消勾选则保留当前队列，并按文件路径重新匹配歌曲。",
+  "settings.importLegacyQueue": "此备份不含正在播放队列，已保留当前队列并按文件路径重新匹配。",
   "voiceAssistant.starting": "正在启动…",
   "app.shell": "简音播放器",
   "app.chooseFolderFirst": "请先选择音乐文件夹并扫描。",

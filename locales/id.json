@@ -1,4 +1,8 @@
 {
+  "notification.operationDone": "Operasi selesai.",
+  "settings.importRestoreQueue": "Pulihkan juga antrean pemutaran",
+  "settings.importQueueHelp": "Pulihkan antrean dan posisi pemutaran dari cadangan, dengan pemutaran tetap dijeda. Hapus centang untuk mempertahankan antrean saat ini dan mencocokkan lagu berdasarkan jalur berkas.",
+  "settings.importLegacyQueue": "Cadangan ini tidak berisi antrean pemutaran. Antrean saat ini dipertahankan dan lagu dicocokkan berdasarkan jalur berkas.",
   "voiceAssistant.starting": "Memulai…",
   "app.shell": "Simple Melody Player",
   "app.chooseFolderFirst": "Silakan pilih folder musik dan pindai terlebih dahulu.",

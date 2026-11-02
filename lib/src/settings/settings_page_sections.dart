@@ -526,6 +526,7 @@ extension _SettingsPageSections on _SettingsPageState {
                 onClick: () {
                   setState(() {
                     _showImportDataDialog = true;
+                    _restoreImportedQueue = true;
                   });
                 },
                 child: Text(i18n.t('settings.importData')),

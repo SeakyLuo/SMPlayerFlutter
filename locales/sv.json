@@ -1,4 +1,8 @@
 {
+  "notification.operationDone": "Åtgärden slutförd.",
+  "settings.importRestoreQueue": "Återställ även uppspelningskön",
+  "settings.importQueueHelp": "Återställer kön och uppspelningspositionen från säkerhetskopian och lämnar uppspelningen pausad. Avmarkera för att behålla den aktuella kön och matcha låtar efter filsökväg.",
+  "settings.importLegacyQueue": "Den här säkerhetskopian innehåller ingen uppspelningskö. Den aktuella kön har behållits och låtarna har matchats efter filsökväg.",
   "voiceAssistant.starting": "Startar…",
   "app.shell": "Simple Melody Player",
   "app.chooseFolderFirst": "Välj musikmappen och skanna den först.",

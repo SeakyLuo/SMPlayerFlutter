@@ -1,4 +1,8 @@
 {
+  "notification.operationDone": "Operace dokončena.",
+  "settings.importRestoreQueue": "Obnovit také aktuální frontu přehrávání",
+  "settings.importQueueHelp": "Obnoví frontu a pozici přehrávání ze zálohy. Přehrávání zůstane pozastavené. Zrušením zaškrtnutí zachováte aktuální frontu a skladby se přiřadí podle cesty k souboru.",
+  "settings.importLegacyQueue": "Tato záloha neobsahuje frontu přehrávání. Aktuální fronta byla zachována a skladby byly přiřazeny podle cesty k souboru.",
   "voiceAssistant.starting": "Spouštění…",
   "app.shell": "Simple Melody Player",
   "app.chooseFolderFirst": "Vyberte prosím složku s hudbou a nejprve ji naskenujte.",

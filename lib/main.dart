@@ -177,6 +177,7 @@ class _SmPlayerRootState extends State<SmPlayerRoot> {
       null,
       const LibraryRepository(),
     );
+    nextSettingsController.suppressAutoPlayOnRestore = true;
     await nextSettingsController.refresh();
     final nextLocation = resolveRestoredPage(
       nextSettingsController.snapshot.lastPage,

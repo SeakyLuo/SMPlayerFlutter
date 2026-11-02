@@ -1,4 +1,8 @@
 {
+  "notification.operationDone": "操作が完了しました。",
+  "settings.importRestoreQueue": "再生キューも復元する",
+  "settings.importQueueHelp": "バックアップのキューと再生位置を復元し、一時停止の状態にします。チェックを外すと現在のキューを保持し、ファイルパスで曲を照合します。",
+  "settings.importLegacyQueue": "このバックアップには再生キューが含まれていません。現在のキューを保持し、ファイルパスで曲を照合しました。",
   "voiceAssistant.starting": "起動中…",
   "app.shell": "Simple Melody Player",
   "app.chooseFolderFirst": "まず音楽フォルダーを選択してスキャンしてください。",

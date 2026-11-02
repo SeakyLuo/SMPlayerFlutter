@@ -1,4 +1,8 @@
 {
+  "notification.operationDone": "Operation completed.",
+  "settings.importRestoreQueue": "Restore Now Playing too",
+  "settings.importQueueHelp": "Restore the saved queue and position, paused. Uncheck to keep the current queue and match songs by file path.",
+  "settings.importLegacyQueue": "This backup has no Now Playing queue. The current queue was kept and matched by file path.",
   "voiceAssistant.starting": "Starting…",
   "app.shell": "Simple Melody Player",
   "app.chooseFolderFirst": "Choose a library folder and scan it first.",

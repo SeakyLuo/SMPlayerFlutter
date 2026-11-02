@@ -414,7 +414,8 @@ extension _SmPlayerShellNavigationMethods on _SmPlayerShellPageState {
       durationSeconds: restoredSong.duration.toDouble(),
       queueIndex: restoredIndex,
       progressSeconds: progressSeconds,
-      autoplay: settings.autoPlay,
+      autoplay:
+          settings.autoPlay && !_settingsController.suppressAutoPlayOnRestore,
     );
   }
 

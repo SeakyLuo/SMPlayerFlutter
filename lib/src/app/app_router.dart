@@ -34,6 +34,7 @@ import 'package:smplayer_flutter/src/library/ui/my_favorites_page.dart';
 import 'package:smplayer_flutter/src/library/ui/playlists_page.dart';
 import 'package:smplayer_flutter/src/library/ui/search_page.dart';
 import 'package:smplayer_flutter/src/playback/now_playing_page.dart';
+import 'package:smplayer_flutter/src/playback/media_control_provider.dart';
 import 'package:smplayer_flutter/src/platform/desktop_feature_service.dart';
 import 'package:smplayer_flutter/src/platform/external_open_model.dart';
 import 'package:smplayer_flutter/src/recent/recent_page.dart';
@@ -289,6 +290,14 @@ GoRouter createSmPlayerRouter({
                                 } else {
                                   await settingsController?.refresh();
                                   _invalidateLibraryData(ref);
+                                }
+                              },
+                              onPrepareDataImport: () {
+                                final player = ref.read(
+                                  mediaControlControllerProvider,
+                                );
+                                if (player.state.isPlaying) {
+                                  player.onTogglePlayPause();
                                 }
                               },
                               onSendFeedbackEmail: () {

@@ -1,4 +1,8 @@
 {
+  "notification.operationDone": "Operação concluída.",
+  "settings.importRestoreQueue": "Restaurar também a fila de reprodução",
+  "settings.importQueueHelp": "Restaura a fila e a posição salvas no backup, mantendo a reprodução pausada. Desmarque para manter a fila atual e associar as músicas pelo caminho do arquivo.",
+  "settings.importLegacyQueue": "Este backup não contém uma fila de reprodução. A fila atual foi mantida e as músicas foram associadas pelo caminho do arquivo.",
   "voiceAssistant.starting": "Iniciando…",
   "app.shell": "Simple Melody Player",
   "app.chooseFolderFirst": "Selecione a pasta de música e escaneie-a primeiro.",

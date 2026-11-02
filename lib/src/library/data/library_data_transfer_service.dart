@@ -6,6 +6,7 @@ import 'package:sqlite3/sqlite3.dart';
 
 import 'library_repository_paths.dart';
 import 'library_database_service.dart';
+import 'library_queue_backup.dart';
 
 const _activeState = 1;
 const _legacyUwpPackageIdentityName = '23778SeakyTheLoner.SMPlayer';
@@ -31,7 +32,11 @@ Future<void> _copyDatabase(String sourcePath, String targetPath) {
 class LibraryDataTransferService {
   const LibraryDataTransferService();
 
-  Future<bool> exportDataTo(File databaseFile, String targetPath) async {
+  Future<bool> exportDataTo(
+    File databaseFile,
+    String targetPath, {
+    required File nowPlayingFile,
+  }) async {
     if (!databaseFile.existsSync()) {
       return false;
     }
@@ -39,6 +44,7 @@ class LibraryDataTransferService {
     final target = File(targetPath);
     await target.parent.create(recursive: true);
     await _copyDatabase(databaseFile.path, target.path);
+    LibraryQueueBackup.capture(target, nowPlayingFile).writeToBackup(target);
     return true;
   }
 
@@ -46,6 +52,8 @@ class LibraryDataTransferService {
     File databaseFile,
     String sourcePath, {
     required Future<void> Function(String rootPath) rescanLibrary,
+    required File nowPlayingFile,
+    bool restoreNowPlaying = true,
   }) async {
     final source = File(sourcePath);
     if (!source.existsSync()) {
@@ -55,6 +63,16 @@ class LibraryDataTransferService {
     await databaseFile.parent.create(recursive: true);
     final backupFile = File('${databaseFile.path}.import-backup');
     final hadExistingDatabase = databaseFile.existsSync();
+    final oldQueueBytes =
+        nowPlayingFile.existsSync() ? nowPlayingFile.readAsBytesSync() : null;
+    final savedQueue = LibraryQueueBackup.read(source);
+    final useSavedQueue = restoreNowPlaying && savedQueue != null;
+    final queue =
+        useSavedQueue
+            ? savedQueue
+            : hadExistingDatabase
+            ? LibraryQueueBackup.capture(databaseFile, nowPlayingFile)
+            : const LibraryQueueBackup([], null, 0);
     final currentRootPath =
         hadExistingDatabase ? _readDatabaseRootPath(databaseFile) : '';
     if (hadExistingDatabase) {
@@ -80,8 +98,25 @@ class LibraryDataTransferService {
       } else if (importedRootPath.isNotEmpty) {
         await rescanLibrary(importedRootPath);
       }
+      queue.restore(
+        databaseFile,
+        nowPlayingFile,
+        oldRoot:
+            useSavedQueue && currentRootPath.isNotEmpty
+                ? importedRootPath
+                : null,
+        newRoot:
+            useSavedQueue && currentRootPath.isNotEmpty
+                ? currentRootPath
+                : null,
+      );
       return true;
     } catch (_) {
+      if (oldQueueBytes != null) {
+        nowPlayingFile.writeAsBytesSync(oldQueueBytes, flush: true);
+      } else if (nowPlayingFile.existsSync()) {
+        nowPlayingFile.deleteSync();
+      }
       if (hadExistingDatabase) {
         await _copyDatabase(backupFile.path, databaseFile.path);
       } else if (databaseFile.existsSync()) {

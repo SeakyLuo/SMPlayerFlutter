@@ -28,6 +28,21 @@ class SettingsController extends ChangeNotifier {
   Future<void> _displayModeStateWriteQueue = Future.value();
 
   SettingsSnapshot get snapshot => _snapshot;
+  bool suppressAutoPlayOnRestore = false;
+  bool _persistenceSuspended = false;
+
+  Future<void> suspendPersistenceForImport() async {
+    _persistenceSuspended = true;
+    await Future.wait([
+      _playbackSettingsWriteQueue,
+      _viewStateWriteQueue,
+      _displayModeStateWriteQueue,
+    ]);
+  }
+
+  void resumePersistenceAfterImport() {
+    _persistenceSuspended = false;
+  }
 
   void restoreSnapshot(SettingsSnapshot snapshot) {
     _snapshot = snapshot;
@@ -49,6 +64,7 @@ class SettingsController extends ChangeNotifier {
   }
 
   Future<void> updateSettings(AppSettingsUpdate update) async {
+    if (_persistenceSuspended) return;
     _snapshot = _snapshot.apply(update);
     setSmPlayerGlobalSettingsSnapshot(_snapshot);
     notifyListeners();
@@ -56,6 +72,7 @@ class SettingsController extends ChangeNotifier {
   }
 
   Future<void> savePlaybackSettings(PlaybackSettingsUpdate update) async {
+    if (_persistenceSuspended) return;
     _snapshot = _snapshot.applyPlaybackSettings(update);
     setSmPlayerGlobalSettingsSnapshot(_snapshot);
     final snapshot = _snapshot;
@@ -71,6 +88,7 @@ class SettingsController extends ChangeNotifier {
   }
 
   void savePlaybackSettingsImmediate(PlaybackSettingsUpdate update) {
+    if (_persistenceSuspended) return;
     _snapshot = _snapshot.applyPlaybackSettings(update);
     setSmPlayerGlobalSettingsSnapshot(_snapshot);
     final snapshot = _snapshot;
@@ -85,6 +103,7 @@ class SettingsController extends ChangeNotifier {
   }
 
   Future<void> saveViewState({String? lastPage, int? lastPlaylistId}) async {
+    if (_persistenceSuspended) return;
     _snapshot = _snapshot.copyWith(
       lastPage: lastPage,
       lastPlaylistId: lastPlaylistId,
@@ -110,6 +129,7 @@ class SettingsController extends ChangeNotifier {
   Future<void> saveDisplayModeState({
     required SmPlayerDisplayMode lastDisplayMode,
   }) async {
+    if (_persistenceSuspended) return;
     _snapshot = _snapshot.copyWith(lastDisplayMode: lastDisplayMode);
     setSmPlayerGlobalSettingsSnapshot(_snapshot);
     final snapshot = _snapshot;
