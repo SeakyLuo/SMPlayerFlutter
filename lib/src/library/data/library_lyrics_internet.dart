@@ -119,6 +119,8 @@ extension _LibraryLyricsInternet on LibraryLyricsService {
   ) {
     final simplifiedTitle = _removeBraces(song.title);
     final simplifiedArtist = _removeBraces(song.artist);
+    final compactTitle = _compactLyricsSearchSpaces(simplifiedTitle);
+    final compactArtist = _compactLyricsSearchSpaces(simplifiedArtist);
     final attempts = [
       _LyricsSearchAttempt(
         keyword: '${song.title} ${song.artist}'.trim(),
@@ -156,6 +158,18 @@ extension _LibraryLyricsInternet on LibraryLyricsService {
         artist: simplifiedArtist,
         originalTitle: song.title,
       ),
+      _LyricsSearchAttempt(
+        keyword: '$compactTitle $compactArtist'.trim(),
+        title: compactTitle,
+        artist: compactArtist,
+        originalTitle: song.title,
+      ),
+      _LyricsSearchAttempt(
+        keyword: compactTitle,
+        title: compactTitle,
+        artist: compactArtist,
+        originalTitle: song.title,
+      ),
     ];
     final seen = <String>{};
     return [
@@ -164,6 +178,13 @@ extension _LibraryLyricsInternet on LibraryLyricsService {
             seen.add('${attempt.keyword}\n${attempt.title}\n${attempt.artist}'))
           attempt,
     ];
+  }
+
+  String _compactLyricsSearchSpaces(String value) {
+    return value.trim().replaceAllMapped(
+      RegExp(r'(\p{Script=Han})\s+(?=\p{Script=Han})', unicode: true),
+      (match) => match[1]!,
+    );
   }
 
   Future<String> _searchSongMidByKeyword(

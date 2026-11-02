@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:io';
 import 'package:flutter/services.dart';
 
-import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -23,6 +22,12 @@ import 'package:smplayer_flutter/src/library/ui/artists_page.dart';
 import 'package:smplayer_flutter/src/library/ui/artists_navigation_provider.dart';
 import 'package:smplayer_flutter/src/library/ui/hidden_folders_page.dart';
 import 'package:smplayer_flutter/src/library/ui/local_page.dart';
+import 'package:smplayer_flutter/src/library/ui/library_root_picker.dart';
+import 'package:smplayer_flutter/src/library/ui/folder_update_result_dialog.dart';
+import 'package:smplayer_flutter/src/library/ui/local_folder_model.dart';
+import 'package:smplayer_flutter/src/library/ui/local_page_model.dart';
+import 'package:smplayer_flutter/src/library/ui/scan_progress_overlay.dart';
+import 'package:smplayer_flutter/src/app/input_dialog.dart';
 import 'package:smplayer_flutter/src/library/ui/missing_library_root_content.dart';
 import 'package:smplayer_flutter/src/library/ui/music_library_page.dart';
 import 'package:smplayer_flutter/src/library/ui/my_favorites_page.dart';
@@ -36,6 +41,8 @@ import 'package:smplayer_flutter/src/settings/settings_page.dart';
 import 'package:smplayer_flutter/src/settings/settings_controller.dart';
 import 'package:smplayer_flutter/src/settings/settings_model.dart';
 import 'package:url_launcher/url_launcher.dart';
+
+part 'library_root_gate.dart';
 
 final smPlayerRouter = createSmPlayerRouter();
 
@@ -265,26 +272,17 @@ GoRouter createSmPlayerRouter({
                                 libraryRepositoryProvider,
                               ),
                               onArtistDataChanged: () {
-                                ref.invalidate(libraryContentDataProvider);
                                 _invalidateLibraryData(ref);
                               },
-                              onScanLibrary: (
-                                rootPath, {
-                                cancellation,
-                                onProgress,
-                              }) async {
-                                final result = await ref
-                                    .read(libraryRepositoryProvider)
-                                    .scanAllMusicLibrary(
-                                      rootPath,
-                                      cancellation: cancellation,
-                                      onProgress: onProgress,
-                                    );
-                                if (result.libraryChanged) {
-                                  _invalidateLibraryData(ref);
-                                }
-                                return result;
-                              },
+                              onScanLibrary:
+                                  (rootPath, {cancellation, onProgress}) =>
+                                      _scanLibraryRootAndReload(
+                                        ref,
+                                        rootPath,
+                                        settingsController,
+                                        cancellation: cancellation,
+                                        onProgress: onProgress,
+                                      ),
                               onDataImported: () async {
                                 if (onDataImported != null) {
                                   await onDataImported();
@@ -610,127 +608,6 @@ Future<void> _revealSystemLogs() async {
   await openFolderInShell(logsDirectory.path);
 }
 
-class _LibraryRootGate extends ConsumerStatefulWidget {
-  const _LibraryRootGate({
-    required this.path,
-    required this.child,
-    this.settingsController,
-  });
-
-  final String path;
-  final Widget child;
-  final SettingsController? settingsController;
-
-  @override
-  ConsumerState<_LibraryRootGate> createState() => _LibraryRootGateState();
-}
-
-class _LibraryRootGateState extends ConsumerState<_LibraryRootGate> {
-  var _scanning = false;
-
-  @override
-  Widget build(BuildContext context) {
-    if (!_isLibraryRootGatedRoute(widget.path)) {
-      return widget.child;
-    }
-
-    final libraryValue = ref.watch(shellNavigationDataProvider);
-    return libraryValue.when(
-      data:
-          (library) =>
-              library.rootPath.isEmpty
-                  ? _MissingLibraryRootPage(
-                    loading: false,
-                    buttonLoading: _scanning,
-                    onPickLibraryRoot:
-                        _scanning
-                            ? null
-                            : () {
-                              unawaited(_pickLibraryRootAndScan());
-                            },
-                  )
-                  : widget.child,
-      loading: () => const _MissingLibraryRootPage(loading: true),
-      error:
-          (_, _) => _MissingLibraryRootPage(
-            loading: false,
-            buttonLoading: _scanning,
-            onPickLibraryRoot:
-                _scanning
-                    ? null
-                    : () {
-                      unawaited(_pickLibraryRootAndScan());
-                    },
-          ),
-    );
-  }
-
-  Future<void> _pickLibraryRootAndScan() async {
-    final i18n = context.smPlayerI18n;
-    setState(() {
-      _scanning = true;
-    });
-    try {
-      final rootPath =
-          (Platform.isMacOS || Platform.isWindows)
-              ? await pickDirectoryFromDesktopShell(
-                title: i18n.t('local.chooseMusicLibraryFolderDialogTitle'),
-                buttonLabel: i18n.t(
-                  'local.chooseMusicLibraryFolderDialogButton',
-                ),
-                locale: i18n.locale,
-              )
-              : await FilePicker.getDirectoryPath();
-      if (rootPath == null || rootPath.isEmpty) {
-        return;
-      }
-
-      await ref.read(libraryRepositoryProvider).scanAllMusicLibrary(rootPath);
-      await widget.settingsController?.updateSettings(
-        AppSettingsUpdate(rootPath: rootPath),
-      );
-      _invalidateLibraryData(ref);
-    } on PlatformException {
-      if (mounted) {
-        showAppNotification(
-          context: context,
-          message: i18n.t('library.folderPickerUnavailable'),
-        );
-      }
-    } finally {
-      if (mounted) {
-        setState(() {
-          _scanning = false;
-        });
-      }
-    }
-  }
-}
-
-class _MissingLibraryRootPage extends StatelessWidget {
-  const _MissingLibraryRootPage({
-    required this.loading,
-    this.buttonLoading = false,
-    this.onPickLibraryRoot,
-  });
-
-  final bool loading;
-  final bool buttonLoading;
-  final VoidCallback? onPickLibraryRoot;
-
-  @override
-  Widget build(BuildContext context) {
-    if (loading) {
-      return const SmPlayerLoadingState();
-    }
-
-    return MissingLibraryRootContent(
-      buttonLoading: buttonLoading,
-      onPickLibraryRoot: onPickLibraryRoot,
-    );
-  }
-}
-
 bool _isLibraryRootGatedRoute(String path) {
   return path == '/songs' ||
       path == '/artists' ||
@@ -751,6 +628,7 @@ String _searchRouteFor(String query, SearchHistoryType type) {
 }
 
 void _invalidateLibraryData(WidgetRef ref) {
+  ref.invalidate(libraryContentDataProvider);
   ref.invalidate(librarySongCountProvider);
   ref.invalidate(recentPageDataProvider);
   ref.invalidate(shellNavigationDataProvider);

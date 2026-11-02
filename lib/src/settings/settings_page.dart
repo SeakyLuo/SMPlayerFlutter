@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:io';
 import 'dart:math' as math;
 
 import 'package:file_picker/file_picker.dart';
@@ -18,6 +17,7 @@ import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/data/library_models.dart';
 import 'package:smplayer_flutter/src/library/data/library_repository.dart';
 import 'package:smplayer_flutter/src/library/ui/folder_update_result_dialog.dart';
+import 'package:smplayer_flutter/src/library/ui/library_root_picker.dart';
 import 'package:smplayer_flutter/src/library/ui/local_folder_model.dart';
 import 'package:smplayer_flutter/src/library/ui/popup_dialog.dart';
 import 'package:smplayer_flutter/src/library/ui/scan_progress_overlay.dart';
@@ -529,17 +529,10 @@ class _SettingsPageState extends State<SettingsPage> {
     try {
       selectedRootPath =
           widget.onPickLibraryRoot == null
-              ? (Platform.isMacOS || Platform.isWindows)
-                  ? await pickDirectoryFromDesktopShell(
-                    title: i18n.t('local.chooseMusicLibraryFolderDialogTitle'),
-                    buttonLabel: i18n.t(
-                      'local.chooseMusicLibraryFolderDialogButton',
-                    ),
-                    defaultPath:
-                        _snapshot.rootPath.isEmpty ? null : _snapshot.rootPath,
-                    locale: i18n.locale,
-                  )
-                  : await FilePicker.getDirectoryPath()
+              ? await pickMusicLibraryRoot(
+                i18n,
+                currentPath: _snapshot.rootPath,
+              )
               : await widget.onPickLibraryRoot!();
     } on PlatformException {
       if (mounted) {

@@ -534,15 +534,18 @@ class _PlaylistsPageState extends ConsumerState<PlaylistsPage> {
         Expanded(
           child:
               visiblePlaylists.isEmpty
-                  ? _PlaylistsEmptyState(
-                    title:
-                        _searchQuery.isEmpty
-                            ? i18n.t('playlists.none')
-                            : i18n.t('playlists.noMatch'),
-                    message:
-                        _searchQuery.isEmpty
-                            ? i18n.t('collection.scanFirst')
-                            : i18n.t('playlists.noMatchCopy'),
+                  ? Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 24),
+                    child: _PlaylistsEmptyState(
+                      title:
+                          _searchQuery.isEmpty
+                              ? i18n.t('playlists.none')
+                              : i18n.t('playlists.noMatch'),
+                      message:
+                          _searchQuery.isEmpty
+                              ? i18n.t('playlists.noneCopy')
+                              : i18n.t('playlists.noMatchCopy'),
+                    ),
                   )
                   : LayoutBuilder(
                     builder: (context, constraints) {

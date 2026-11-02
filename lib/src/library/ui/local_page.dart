@@ -1,8 +1,6 @@
 import 'dart:async';
-import 'dart:io';
 import 'package:flutter/services.dart';
 
-import 'package:file_picker/file_picker.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -38,6 +36,7 @@ import 'library_page_actions.dart'
         setSongsFavoriteWithUndo,
         showPlayNextUndoNotification;
 import 'local_folder_model.dart';
+import 'library_root_picker.dart';
 import 'library_page_data_cache.dart';
 import 'local_content_view.dart';
 import 'local_i18n_counts.dart';
