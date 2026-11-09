@@ -2,6 +2,42 @@
 
 Pairing, authorization, local HTTP APIs, streaming endpoints, and connection diagnostics.
 
+## LAN music sharing
+
+The source selector above sidebar search scopes library browsing, artists,
+albums, favorites and search. Playback and saved playlists retain complete,
+source-independent song identities. File browsing selects the local source.
+
+Sharing is off by default. Open Settings > External control and enable sharing for the configured local
+music library. The connection QR code is displayed immediately. Both screens show
+an eight-character code; approve a request only when those codes match.
+The provider must remain awake with SMPlayer running.
+
+Android and iOS clients can choose Scan to connect in Connect device.
+The code contains only the HTTPS address and certificate fingerprint; scanning
+pins that certificate before requesting approval and never bypasses the
+matching-code authorization step. Select the shared network address when the
+computer has multiple network interfaces. Camera failures return to manual
+connection with a toast. New approval requests scroll into view on the host.
+
+Device name, AI control port and remote playback port are edited directly in
+External control. Authorized devices are managed in a separate dialog.
+Music sharing uses a separate HTTPS listener (default port 29644) and UDP discovery
+on port 29645. Manual address entry is available. Certificates are pinned after
+pairing; private keys, client tokens and grant hashes use system secure storage.
+The local AI Agent listener is unchanged and is never exposed by sharing.
+
+Authorized endpoints are `/status`, `/catalog`, and `/songs/:id/audio`,
+`/songs/:id/artwork`, `/songs/:id/lyrics`. Audio supports byte ranges and HEAD.
+Playback uses a random, loopback-only bridge to the pinned HTTPS connection;
+authorization tokens never appear in playback URLs. Remote files are read-only.
+
+Imported metadata uses stable `smplayer-music://<device>/<song>` paths in Music,
+so existing playlist, favorite, queue and history storage retain their identities.
+Schema 6 adds only `Music.RemoteAvailable`. Catalog revision changes trigger
+synchronization; removed songs leave ordinary browsing but remain marked in
+playlists and queues. Offline devices retain their last known metadata.
+
 ## AI Agent API
 
 The API is disabled by default and can be enabled from Settings > AI Agent. It

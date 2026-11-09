@@ -82,5 +82,12 @@
 	<string>NSApplication</string>
 	<key>NSSpeechRecognitionUsageDescription</key>
 	<string>Simple Melody Player uses speech recognition to run voice assistant commands.</string>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>Connect to your computers to browse and play music you have authorized on your local network.</string>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
+	</dict>
 </dict>
 </plist>

@@ -140,7 +140,7 @@ class LibraryLocalRefreshService
       };
       final previousSongIds = {
         for (final row in db.select(
-          'SELECT Id, Path FROM Music WHERE State = 1',
+          "SELECT Id, Path FROM Music WHERE State = 1 AND Path NOT LIKE 'smplayer-music://%'",
         ))
           row['Path'] as String: row['Id'] as int,
       };

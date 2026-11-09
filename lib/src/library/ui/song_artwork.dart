@@ -1,3 +1,5 @@
+import '../../remote/music_share_access.dart';
+import '../../remote/music_share_models.dart';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -25,6 +27,9 @@ class SongArtwork extends StatelessWidget {
       return fallback;
     }
 
+    if (isRemoteMusicPath(path)) {
+      return _RemoteArtwork(path: path, fit: fit, placeholder: fallback);
+    }
     final file = File(path);
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -53,4 +58,42 @@ class SongArtwork extends StatelessWidget {
       },
     );
   }
+}
+
+class _RemoteArtwork extends StatefulWidget {
+  const _RemoteArtwork({
+    required this.path,
+    required this.fit,
+    required this.placeholder,
+  });
+  final String path;
+  final BoxFit fit;
+  final Widget placeholder;
+  @override
+  State<_RemoteArtwork> createState() => _RemoteArtworkState();
+}
+
+class _RemoteArtworkState extends State<_RemoteArtwork> {
+  late Future<File?> _file = activeMusicShareAccess!.artwork(widget.path);
+  @override
+  void didUpdateWidget(covariant _RemoteArtwork oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.path != widget.path) {
+      _file = activeMusicShareAccess!.artwork(widget.path);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => FutureBuilder<File?>(
+    future: _file,
+    builder:
+        (context, snapshot) =>
+            snapshot.data == null
+                ? widget.placeholder
+                : SongArtwork(
+                  artworkPath: snapshot.data!.path,
+                  fit: widget.fit,
+                  fallback: widget.placeholder,
+                ),
+  );
 }

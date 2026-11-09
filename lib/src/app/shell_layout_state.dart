@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:smplayer_flutter/src/app/shell_models.dart';
 import 'package:smplayer_flutter/src/library/ui/headered_playlist_app_bar_portal.dart';
 
@@ -74,8 +76,9 @@ class ShellLayoutState {
       rawEntry: rawHeaderedPlaylistAppBar,
       currentLocation: currentLocation,
     );
+    final mobile = Platform.isAndroid || Platform.isIOS;
     final minimalTitlebarHeight =
-        navigationMode == SmPlayerNavigationMode.minimal
+        !mobile && navigationMode == SmPlayerNavigationMode.minimal
             ? SmPlayerShellMetrics.minimalTitlebarHeight
             : 0.0;
     final immersiveMinimalTitlebar =

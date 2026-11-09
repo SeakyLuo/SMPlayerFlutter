@@ -1,3 +1,4 @@
+import '../remote/music_source_providers.dart';
 import 'dart:async';
 import 'dart:io';
 import 'package:flutter/services.dart';
@@ -611,7 +612,7 @@ Future<void> _sendFeedbackEmail(SmPlayerI18n i18n) async {
 
 Future<void> _revealSystemLogs() async {
   final logsDirectory = Directory(
-    p.join(defaultSmPlayerUserDataPath(), 'Logs'),
+    p.join(await defaultSmPlayerUserDataPath(), 'Logs'),
   );
   await logsDirectory.create(recursive: true);
   await openFolderInShell(logsDirectory.path);

@@ -144,7 +144,7 @@ class AppCenterCrashReporter {
 
   Future<String> _readInstallId() async {
     final file = File(
-      p.join(defaultSmPlayerUserDataPath(), 'app-center-install-id'),
+      p.join(await defaultSmPlayerUserDataPath(), 'app-center-install-id'),
     );
     if (await file.exists()) return (await file.readAsString()).trim();
     await file.parent.create(recursive: true);

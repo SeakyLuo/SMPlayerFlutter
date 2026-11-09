@@ -1,3 +1,4 @@
+import '../remote/music_share_approval_host.dart';
 import 'package:flutter/material.dart';
 import 'package:smplayer_flutter/src/app/shell_colors.dart';
 
@@ -113,6 +114,7 @@ class _SmPlayerShellFrameState extends State<SmPlayerShellFrame>
             child: Stack(
               fit: StackFit.expand,
               children: [
+                const MusicShareApprovalHost(),
                 if (_normalModeMounted)
                   IgnorePointer(
                     ignoring: widget.isMiniMode,

@@ -1,8 +1,13 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-permission android:name="android.permission.RECORD_AUDIO"/>
+    <uses-permission android:name="android.permission.CAMERA"/>
+    <uses-feature android:name="android.hardware.camera" android:required="false"/>
     <uses-permission android:name="android.permission.INTERNET"/>
 
     <application
+        android:networkSecurityConfig="@xml/music_network_security"
+        android:fullBackupContent="@xml/music_backup_rules"
+        android:dataExtractionRules="@xml/music_data_extraction_rules"
         android:label="Simple Melody Player"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">

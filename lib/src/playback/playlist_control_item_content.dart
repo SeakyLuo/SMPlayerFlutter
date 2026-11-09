@@ -309,7 +309,10 @@ class _QueueCopy extends StatelessWidget {
       children: [
         SearchMatchText(
           key: const ValueKey('PlaylistControlItem.Title'),
-          text: song.title,
+          text:
+              song.remoteAvailable
+                  ? song.title
+                  : '${song.title} · ${context.smPlayerI18n.t('share.songRemoved')}',
           query: searchQuery,
           maxLines: 1,
           overflow: TextOverflow.ellipsis,

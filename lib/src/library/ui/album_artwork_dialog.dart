@@ -1,3 +1,5 @@
+import '../../remote/music_share_models.dart';
+import 'song_artwork.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -72,6 +74,19 @@ class _AlbumArtworkDialogState extends ConsumerState<AlbumArtworkDialog> {
     final currentSong =
         librarySongs.where((song) => song.id == widget.songId).firstOrNull;
 
+    if (currentSong != null && isRemoteMusicPath(currentSong.path)) {
+      return PopupDialog(
+        navLabel: i18n.t('song.albumArt'),
+        navChildren: const [],
+        onClose: widget.onClose,
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 420, maxHeight: 420),
+            child: SongArtwork(artworkPath: currentSong.thumbnailPath),
+          ),
+        ),
+      );
+    }
     return Stack(
       children: [
         PopupDialog(

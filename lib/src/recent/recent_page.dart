@@ -1,3 +1,4 @@
+import '../remote/music_source_providers.dart';
 import 'dart:async';
 import 'dart:io';
 
@@ -185,10 +186,11 @@ class _RecentPageState extends ConsumerState<RecentPage>
   Widget build(BuildContext context) {
     final i18nValue = ref.watch(smPlayerI18nProvider);
     final snapshotValue = ref.watch(recentPageDataProvider);
+    final source = ref.watch(musicShareProvider);
     final songOverrides = ref.watch(librarySongOverridesProvider);
     final favoriteOverrides = ref.watch(libraryFavoriteOverridesProvider);
     final recentSongs =
-        ref.watch(recentSongsProvider).map((song) {
+        ref.watch(recentSongsProvider).where(source.includes).map((song) {
           final updated =
               applyFavoriteOverridesToSongs(
                 [song],
@@ -236,7 +238,7 @@ class _RecentPageState extends ConsumerState<RecentPage>
           ),
       data: (snapshot) {
         final songs = applyFavoriteOverridesToSongs(
-          snapshot.songs,
+          snapshot.songs.where(source.includes).toList(),
           favoriteOverrides,
           songOverrides,
         );

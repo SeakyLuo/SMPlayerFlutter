@@ -531,6 +531,7 @@ RecentLibrarySong _applySongOverrideToRecentSong(
   return RecentLibrarySong(
     id: override.id,
     path: override.path,
+    remoteAvailable: override.remoteAvailable,
     title: override.title,
     artist: override.artist,
     artists: override.artists,
@@ -556,6 +557,7 @@ LibrarySong _applyFavoriteOverrideToSong(
   return LibrarySong(
     id: song.id,
     path: song.path,
+    remoteAvailable: song.remoteAvailable,
     title: song.title,
     artist: song.artist,
     artists: song.artists,
@@ -580,6 +582,7 @@ RecentLibrarySong _applyFavoriteOverrideToRecentSong(
   return RecentLibrarySong(
     id: song.id,
     path: song.path,
+    remoteAvailable: song.remoteAvailable,
     title: song.title,
     artist: song.artist,
     artists: song.artists,

@@ -1,3 +1,4 @@
+import '../../remote/music_source_providers.dart';
 import 'dart:async';
 import 'dart:math';
 
@@ -33,6 +34,7 @@ part 'playlists_page_search_actions.dart';
 part 'playlists_page_toolbar.dart';
 part 'playlists_app_bar_actions.dart';
 part 'playlists_empty_state.dart';
+part 'playlists_page_grid.dart';
 part 'playlists_page_helpers.dart';
 part 'playlist_drop_placeholder.dart';
 part 'playlists_colors.dart';
@@ -203,7 +205,7 @@ class _PlaylistsPageState extends ConsumerState<PlaylistsPage> {
   @override
   Widget build(BuildContext context) {
     final i18nValue = ref.watch(smPlayerI18nProvider);
-    final snapshotValue = ref.watch(libraryContentDataProvider);
+    final snapshotValue = ref.watch(browsingLibraryContentDataProvider);
     final favoriteOverrides = ref.watch(libraryFavoriteOverridesProvider);
     final songOverrides = ref.watch(librarySongOverridesProvider);
     final playlistOverrides = ref.watch(libraryPlaylistOverridesProvider);
@@ -389,7 +391,12 @@ class _PlaylistsPageState extends ConsumerState<PlaylistsPage> {
                 songs.map((song) => song.id).toList(),
               );
           _patchLocalPlaylist(
-            _copyPlaylistWithSongIds(selectedPlaylist, const []),
+            _copyPlaylistWithSongIds(
+              selectedPlaylist,
+              selectedPlaylist.songIds
+                  .where((id) => !songs.any((song) => song.id == id))
+                  .toList(),
+            ),
           );
         },
         onSetPreferred: (level) async {
@@ -410,6 +417,10 @@ class _PlaylistsPageState extends ConsumerState<PlaylistsPage> {
           unawaited(recordRecentPlaylistPlayback(ref, selectedPlaylist.id));
         },
         onSortSongs: (songIds, sortCriterion) {
+          songIds = mergeVisiblePlaylistOrder(
+            selectedPlaylist.songIds,
+            songIds,
+          );
           unawaited(
             ref
                 .read(libraryRepositoryProvider)
@@ -434,369 +445,6 @@ class _PlaylistsPageState extends ConsumerState<PlaylistsPage> {
           context.go('/albums?album=${Uri.encodeQueryComponent(album)}');
         },
       ),
-    );
-  }
-
-  Widget _buildGrid(
-    BuildContext context,
-    SmPlayerI18n i18n,
-    LibraryContentData snapshot,
-    List<int>? playlistOrder,
-  ) {
-    final songsById = {for (final song in snapshot.songs) song.id: song};
-    final customPlaylists =
-        snapshot.playlists
-            .where(
-              (playlist) =>
-                  !playlist.isBuiltIn &&
-                  playlist.name != i18n.t('common.nowPlaying') &&
-                  playlist.name != 'Now Playing',
-            )
-            .toList();
-    final customPlaylistIds =
-        customPlaylists.map((playlist) => playlist.id).toList();
-    final orderedIds =
-        _previewPlaylistIds ??
-        _committedPlaylistIdsFor(customPlaylistIds) ??
-        playlistOrder ??
-        customPlaylistIds;
-    final playlistById = {
-      for (final playlist in customPlaylists) playlist.id: playlist,
-    };
-    final orderedPlaylists =
-        orderedIds
-            .map((playlistId) => playlistById[playlistId])
-            .whereType<LibraryPlaylist>()
-            .toList();
-    final visiblePlaylists =
-        _searchQuery.trim().isEmpty
-            ? orderedPlaylists
-            : _searchPlaylists(orderedPlaylists, songsById, _searchQuery);
-    final searchSuggestions =
-        _searchDraft.trim().isEmpty
-            ? const <String>[]
-            : _playlistSearchSuggestions(customPlaylists, songsById);
-    final searchHistoryEntries = latestSearchHistoryEntries(
-      ref.watch(recentSearchesProvider).valueOrNull ?? snapshot.recentSearches,
-      SearchHistoryType.playlists,
-    );
-    final useWorkspaceAppBar = WorkspaceNavigationAppBarScope.of(context);
-    _syncAppBarPortal(
-      showPortal: true,
-      routePath: '/playlists',
-      title:
-          snapshot.showCount
-              ? i18n.t('search.playlistsWithCount', {
-                'count':
-                    snapshot.playlists
-                        .where((playlist) => !playlist.isBuiltIn)
-                        .length,
-              })
-              : i18n.t('common.playlists'),
-      i18n: i18n,
-      searchSuggestions: searchSuggestions,
-      searchHistoryEntries: searchHistoryEntries,
-      onCreatePlaylist: () {
-        unawaited(_createPlaylist(context, i18n, snapshot));
-      },
-    );
-
-    return Column(
-      children: [
-        if (!useWorkspaceAppBar) ...[
-          Padding(
-            padding: const EdgeInsets.fromLTRB(24, 12, 24, 0),
-            child: _PlaylistsToolbar(
-              searchDraft: _searchDraft,
-              searchHasText: _searchDraft.isNotEmpty || _searchQuery.isNotEmpty,
-              i18n: i18n,
-              searchFocused: _searchFocused,
-              searchSuggestions: searchSuggestions,
-              searchHistoryEntries: searchHistoryEntries,
-              onSearchChanged: (value) {
-                setState(() {
-                  _searchDraft = value;
-                });
-              },
-              onSearchFocusChanged: _changeSearchFocus,
-              onSearchSubmitted: _submitSearch,
-              onClearSearch: _clearSearch,
-              onSelectSearchSuggestion: _selectSearchQuery,
-              onRemoveRecentSearch: _removeRecentSearch,
-              onClearRecentSearches: _clearRecentSearches,
-              onCreatePlaylist: () {
-                unawaited(_createPlaylist(context, i18n, snapshot));
-              },
-            ),
-          ),
-          const SizedBox(height: 18),
-        ],
-        Expanded(
-          child:
-              visiblePlaylists.isEmpty
-                  ? Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 24),
-                    child: _PlaylistsEmptyState(
-                      title:
-                          _searchQuery.isEmpty
-                              ? i18n.t('playlists.none')
-                              : i18n.t('playlists.noMatch'),
-                      message:
-                          _searchQuery.isEmpty
-                              ? i18n.t('playlists.noneCopy')
-                              : i18n.t('playlists.noMatchCopy'),
-                    ),
-                  )
-                  : LayoutBuilder(
-                    builder: (context, constraints) {
-                      final columns = ((constraints.maxWidth +
-                                  _playlistGridCrossAxisSpacing) /
-                              (_playlistCardWidth +
-                                  _playlistGridCrossAxisSpacing))
-                          .floor()
-                          .clamp(1, 8);
-                      return Padding(
-                        padding: const EdgeInsets.only(right: 18),
-                        child: EdgeAutoHideScrollbar(
-                          trailingEdgeOffset: 18,
-                          builder:
-                              (scrollController) => Listener(
-                                onPointerMove: (event) {
-                                  if (_draggingPlaylistId == null) {
-                                    return;
-                                  }
-                                  _previewPlaylistMoveToPoint(
-                                    customPlaylistIds,
-                                    event.position,
-                                  );
-                                },
-                                child: GridView.builder(
-                                  key: const ValueKey('Playlists.GridView'),
-                                  controller: scrollController,
-                                  padding: EdgeInsets.fromLTRB(
-                                    38,
-                                    useWorkspaceAppBar ? 20 : 8,
-                                    14,
-                                    116,
-                                  ),
-                                  gridDelegate:
-                                      SliverGridDelegateWithFixedCrossAxisCount(
-                                        crossAxisCount: columns,
-                                        mainAxisExtent: gridViewHolderHeight,
-                                        crossAxisSpacing:
-                                            _playlistGridCrossAxisSpacing,
-                                        mainAxisSpacing: 26,
-                                      ),
-                                  itemCount: visiblePlaylists.length,
-                                  itemBuilder: (context, index) {
-                                    final playlist = visiblePlaylists[index];
-                                    final playlistSongs =
-                                        playlist.songIds
-                                            .map((songId) => songsById[songId])
-                                            .whereType<LibrarySong>()
-                                            .toList();
-                                    return KeyedSubtree(
-                                      key: ValueKey(
-                                        'Playlists.PlaylistGridItem.${playlist.id}',
-                                      ),
-                                      child: Builder(
-                                        builder: (targetContext) {
-                                          _playlistCardContexts[playlist.id] =
-                                              targetContext;
-                                          return DragTarget<int>(
-                                            onWillAcceptWithDetails: (details) {
-                                              return details.data !=
-                                                  playlist.id;
-                                            },
-                                            onMove: (details) {
-                                              _previewPlaylistMoveToPoint(
-                                                customPlaylistIds,
-                                                details.offset,
-                                              );
-                                            },
-                                            onAcceptWithDetails: (_) {
-                                              _playlistDragAccepted = true;
-                                              _commitPlaylistPreview();
-                                            },
-                                            builder: (context, _, __) {
-                                              if (_draggingPlaylistId ==
-                                                  playlist.id) {
-                                                return _PlaylistDropPlaceholder(
-                                                  i18n: i18n,
-                                                );
-                                              }
-
-                                              return Draggable<int>(
-                                                data: playlist.id,
-                                                dragAnchorStrategy: (
-                                                  draggable,
-                                                  context,
-                                                  position,
-                                                ) {
-                                                  final renderObject =
-                                                      context.findRenderObject()
-                                                          as RenderBox;
-                                                  _playlistDragAnchorOffset =
-                                                      renderObject
-                                                          .globalToLocal(
-                                                            position,
-                                                          );
-                                                  return _playlistDragAnchorOffset!;
-                                                },
-                                                feedback: Material(
-                                                  color: Colors.transparent,
-                                                  child: SizedBox(
-                                                    width: _playlistCardWidth,
-                                                    height: _playlistCardHeight,
-                                                    child: GridViewHolder(
-                                                      playlist: playlist,
-                                                      songs: playlistSongs,
-                                                      subtitle: i18n.t(
-                                                        'playlists.songCount',
-                                                        {
-                                                          'count':
-                                                              playlist
-                                                                  .songCount,
-                                                        },
-                                                      ),
-                                                      playTooltip: i18n.t(
-                                                        'context.play',
-                                                      ),
-                                                      dragTooltip: i18n.t(
-                                                        'playlists.dragToSort',
-                                                      ),
-                                                      cardKey: const ValueKey(
-                                                        'Playlists.PlaylistCard',
-                                                      ),
-                                                      artworkKey: const ValueKey(
-                                                        'Playlists.ArtworkSurface',
-                                                      ),
-                                                      dragging: true,
-                                                      sorting: true,
-                                                      selected: false,
-                                                      onOpen: () {},
-                                                      onPlay: () {},
-                                                      onContextMenu: (_) {},
-                                                    ),
-                                                  ),
-                                                ),
-                                                onDragStarted: () {
-                                                  setState(() {
-                                                    _draggingPlaylistId =
-                                                        playlist.id;
-                                                    _playlistDragAccepted =
-                                                        false;
-                                                    final playlistIds =
-                                                        customPlaylistIds;
-                                                    _dragStartPlaylistIds =
-                                                        playlistIds;
-                                                    _previewPlaylistIds =
-                                                        playlistIds;
-                                                  });
-                                                },
-                                                onDraggableCanceled: (_, __) {
-                                                  if (_playlistDragAccepted) {
-                                                    return;
-                                                  }
-                                                  _commitPlaylistPreview();
-                                                },
-                                                onDragUpdate: (details) {
-                                                  _previewPlaylistMoveToPoint(
-                                                    customPlaylistIds,
-                                                    details.globalPosition,
-                                                  );
-                                                },
-                                                onDragEnd: (details) {
-                                                  if (_playlistDragAccepted) {
-                                                    return;
-                                                  }
-                                                  _previewPlaylistMoveToPoint(
-                                                    customPlaylistIds,
-                                                    details.offset,
-                                                  );
-                                                  _commitPlaylistPreview();
-                                                },
-                                                child: GridViewHolder(
-                                                  playlist: playlist,
-                                                  songs: playlistSongs,
-                                                  subtitle: i18n.t(
-                                                    'playlists.songCount',
-                                                    {
-                                                      'count':
-                                                          playlist.songCount,
-                                                    },
-                                                  ),
-                                                  playTooltip: i18n.t(
-                                                    'context.play',
-                                                  ),
-                                                  dragTooltip: i18n.t(
-                                                    'playlists.dragToSort',
-                                                  ),
-                                                  cardKey: const ValueKey(
-                                                    'Playlists.PlaylistCard',
-                                                  ),
-                                                  artworkKey: const ValueKey(
-                                                    'Playlists.ArtworkSurface',
-                                                  ),
-                                                  dragging: false,
-                                                  sorting:
-                                                      _draggingPlaylistId !=
-                                                      null,
-                                                  selected: false,
-                                                  onOpen: () {
-                                                    _persistLastPlaylist(
-                                                      playlist.id,
-                                                    );
-                                                    context.go(
-                                                      '/playlists/${playlist.id}',
-                                                    );
-                                                  },
-                                                  onPlay: () {
-                                                    if (playlistSongs
-                                                        .isNotEmpty) {
-                                                      unawaited(
-                                                        recordRecentPlaylistPlayback(
-                                                          ref,
-                                                          playlist.id,
-                                                        ),
-                                                      );
-                                                      _playTrack(
-                                                        snapshot,
-                                                        i18n,
-                                                        playlistSongs.first.id,
-                                                        playlistSongs
-                                                            .map(
-                                                              (song) => song.id,
-                                                            )
-                                                            .toList(),
-                                                      );
-                                                    }
-                                                  },
-                                                  onContextMenu: (position) {
-                                                    return _showPlaylistMenu(
-                                                      context,
-                                                      i18n,
-                                                      snapshot,
-                                                      playlist,
-                                                      position,
-                                                    );
-                                                  },
-                                                ),
-                                              );
-                                            },
-                                          );
-                                        },
-                                      ),
-                                    );
-                                  },
-                                ),
-                              ),
-                        ),
-                      );
-                    },
-                  ),
-        ),
-      ],
     );
   }
 }

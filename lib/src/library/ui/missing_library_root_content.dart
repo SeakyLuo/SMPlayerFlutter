@@ -1,3 +1,6 @@
+import 'dart:io';
+
+import '../../remote/music_share_dialog.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:smplayer_flutter/src/app/app_interaction_colors.dart';
@@ -22,59 +25,77 @@ class MissingLibraryRootContent extends StatelessWidget {
   Widget build(BuildContext context) {
     final i18n = context.smPlayerI18n;
     final colors = MissingLibraryRootThemeColors.of(context);
+    final mobile = Platform.isAndroid || Platform.isIOS;
 
-    return Align(
-      alignment: Alignment.topLeft,
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          color: colors.surface,
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: colors.border),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Padding(
-                padding: EdgeInsets.only(bottom: 4),
-                child: _MissingLibraryRootArtwork(),
+    final content = DecoratedBox(
+      decoration: BoxDecoration(
+        color: colors.surface,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: colors.border),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment:
+              mobile ? CrossAxisAlignment.center : CrossAxisAlignment.start,
+          children: [
+            const Padding(
+              padding: EdgeInsets.only(bottom: 4),
+              child: _MissingLibraryRootArtwork(),
+            ),
+            const SizedBox(height: 10),
+            Text(
+              i18n.t('local.noRoot'),
+              textAlign: mobile ? TextAlign.center : TextAlign.start,
+              style: TextStyle(
+                color: colors.textStrong,
+                fontSize: 26,
+                fontWeight: FontWeight.w600,
+                fontVariations: const [FontVariation.weight(650)],
               ),
-              const SizedBox(height: 10),
-              Text(
-                i18n.t('local.noRoot'),
+            ),
+            const SizedBox(height: 20),
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 760),
+              child: Text(
+                i18n.t('local.noRootCopy'),
+                textAlign: mobile ? TextAlign.center : TextAlign.start,
                 style: TextStyle(
-                  color: colors.textStrong,
-                  fontSize: 26,
-                  fontWeight: FontWeight.w600,
-                  fontVariations: const [FontVariation.weight(650)],
+                  color: colors.textMuted,
+                  fontSize: 14,
+                  height: 1.65,
                 ),
               ),
-              const SizedBox(height: 20),
-              ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 760),
-                child: Text(
-                  i18n.t('local.noRootCopy'),
-                  style: TextStyle(
-                    color: colors.textMuted,
-                    fontSize: 14,
-                    height: 1.65,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 18),
-              _MissingLibraryRootButton(
-                onPressed: onPickLibraryRoot,
-                icon: buttonLoading ? null : FluentIcons.folder_20_regular,
-                label: buttonLabel ?? i18n.t('library.chooseFolder'),
-                loading: buttonLoading,
-              ),
-            ],
-          ),
+            ),
+            const SizedBox(height: 18),
+            _MissingLibraryRootButton(
+              onPressed: onPickLibraryRoot,
+              icon: buttonLoading ? null : FluentIcons.folder_20_regular,
+              label: buttonLabel ?? i18n.t('library.chooseFolder'),
+              loading: buttonLoading,
+            ),
+            const SizedBox(height: 8),
+            TextButton(
+              onPressed: () => showMusicShareDialog(context),
+              child: Text(i18n.t('share.connectComputer')),
+            ),
+          ],
         ),
       ),
     );
+    if (mobile) {
+      return LayoutBuilder(
+        builder:
+            (context, constraints) => SingleChildScrollView(
+              child: ConstrainedBox(
+                constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                child: Center(child: content),
+              ),
+            ),
+      );
+    }
+    return Align(alignment: Alignment.topLeft, child: content);
   }
 }
 

@@ -24,6 +24,8 @@ import 'package:smplayer_flutter/src/playback/media_control_model.dart';
 import 'package:smplayer_flutter/src/playback/media_control_provider.dart';
 import 'package:smplayer_flutter/src/playback/quick_play_model.dart';
 
+import '../remote/music_source_selector.dart';
+
 part 'media_control_frame.dart';
 part 'media_control_surface.dart';
 part 'media_control_volume.dart';

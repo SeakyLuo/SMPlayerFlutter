@@ -1,3 +1,5 @@
+import '../../remote/music_share_access.dart';
+import '../../remote/music_share_models.dart';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
@@ -53,6 +55,9 @@ class LibraryLyricsService {
     settings.LyricsRequestMode mode = settings.LyricsRequestMode.auto,
   }) async {
     final song = _getLyricsSongLookup(databaseFile, songId);
+    if (isRemoteMusicPath(song.path)) {
+      return activeMusicShareAccess!.lyrics(song.path);
+    }
     final sidecarLyrics = await _getSidecarLyrics(song.path);
 
     if (mode == settings.LyricsRequestMode.embedded) {
@@ -196,6 +201,7 @@ class LibraryLyricsService {
     bool Function()? isCanceled,
     Future<void> Function()? waitIfPaused,
   }) async {
+    songs = songs.where((song) => !isRemoteMusicPath(song.path)).toList();
     var saved = 0;
     var overwritten = 0;
     var skipped = 0;

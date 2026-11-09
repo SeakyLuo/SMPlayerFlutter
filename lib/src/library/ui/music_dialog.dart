@@ -1,3 +1,5 @@
+import '../../remote/remote_song_details.dart';
+import '../../remote/music_share_models.dart';
 import 'dart:async';
 import 'dart:io';
 import 'dart:math' as math;
@@ -205,7 +207,9 @@ class _MusicDialogState extends ConsumerState<MusicDialog> {
       return;
     }
     _dependenciesInitialized = true;
-    _scheduleLoadSong(_dialogSessionKey);
+    if (!isRemoteMusicPath(widget.song.path)) {
+      _scheduleLoadSong(_dialogSessionKey);
+    }
   }
 
   @override
@@ -230,14 +234,16 @@ class _MusicDialogState extends ConsumerState<MusicDialog> {
     if (oldWidget.song.id == widget.song.id &&
         oldWidget.initialMode != widget.initialMode) {
       _mode = widget.initialMode;
-      unawaited(_loadCurrentMode());
+      if (!isRemoteMusicPath(widget.song.path)) unawaited(_loadCurrentMode());
     }
     if (oldWidget.song.id != widget.song.id) {
       _mode = widget.initialMode;
       _dialogSession = Object();
       _dialogSessionKey = (session: _dialogSession, songId: widget.song.id);
       _recordBrowseAfterFrame(widget.song.id);
-      _scheduleLoadSong(_dialogSessionKey);
+      if (!isRemoteMusicPath(widget.song.path)) {
+        _scheduleLoadSong(_dialogSessionKey);
+      }
     }
   }
 
@@ -347,6 +353,13 @@ class _MusicDialogState extends ConsumerState<MusicDialog> {
 
   @override
   Widget build(BuildContext context) {
+    if (isRemoteMusicPath(widget.song.path)) {
+      return RemoteSongDetails(
+        key: ValueKey(widget.song.path),
+        song: widget.song,
+        onClose: widget.onClose,
+      );
+    }
     ref.watch(
       musicDialogPropertiesStateProvider(_dialogSessionKey).select((_) => null),
     );

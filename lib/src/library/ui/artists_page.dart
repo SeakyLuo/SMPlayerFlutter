@@ -1,3 +1,4 @@
+import '../../remote/music_source_providers.dart';
 import 'dart:async';
 import 'dart:math';
 import 'dart:ui' show ColorFilter, ImageFilter, lerpDouble;
@@ -197,7 +198,9 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
   Widget build(BuildContext context) {
     _listenForArtistsListRequests(this);
     final i18nValue = ref.watch(smPlayerI18nProvider);
-    final snapshotValue = ref.watch(libraryContentDataProvider);
+    final snapshotValue = ref.watch(
+      browsingAvailableLibraryContentDataProvider,
+    );
     final songOverrides = ref.watch(librarySongOverridesProvider);
     final mediaState = ref.watch(
       mediaControlControllerProvider.select(
@@ -762,41 +765,6 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
         );
       },
     );
-  }
-
-  void _submitArtistSearch() {
-    final query = _artistSearch.trim();
-    if (query.isEmpty) {
-      return;
-    }
-
-    final snapshot = ref.read(libraryContentDataProvider).value!;
-    final i18n = ref.read(smPlayerI18nProvider).valueOrNull!;
-    final artistGroups = _readArtistGroups(snapshot, i18n);
-    final suggestions = searchArtists(artistGroups, query);
-    final exactMatches =
-        artistGroups.where((artist) => artist.name == query).toList();
-    final targetArtist =
-        exactMatches.isNotEmpty
-            ? exactMatches.first
-            : (suggestions.isEmpty ? null : suggestions.first);
-    final recentSearches = ref.read(recentSearchesProvider.notifier);
-    unawaited(
-      ref
-          .read(libraryRepositoryProvider)
-          .addRecentSearch(query, SearchHistoryType.artists)
-          .then((entry) {
-            if (entry != null) {
-              return recentSearches.record(entry);
-            }
-          }),
-    );
-    if (targetArtist != null) {
-      setState(() {
-        _artistSearch = targetArtist.name;
-      });
-      _openArtistDetail(targetArtist.name);
-    }
   }
 }
 

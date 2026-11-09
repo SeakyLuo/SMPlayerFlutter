@@ -78,7 +78,7 @@ mixin _LibraryLocalRefreshOperations {
           '''
           SELECT Path AS path
           FROM Music
-          WHERE State = ?
+          WHERE State = ? AND Path NOT LIKE 'smplayer-music://%'
         ''',
           [_activeState],
         )
@@ -94,7 +94,8 @@ mixin _LibraryLocalRefreshOperations {
       final deactivate = db.prepare('UPDATE $table SET State = ? WHERE Id = ?');
       try {
         for (final row in rows) {
-          if (!scannedPaths.contains(row['Path'] as String)) {
+          if (!(row['Path'] as String).startsWith('smplayer-music://') &&
+              !scannedPaths.contains(row['Path'] as String)) {
             deactivate.execute([_inactiveState, row['Id']]);
           }
         }

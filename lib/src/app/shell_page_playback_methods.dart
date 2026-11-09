@@ -169,8 +169,14 @@ extension _SmPlayerShellPlaybackMethods on _SmPlayerShellPageState {
     _mediaControlController.setTrackLoading(true);
     _syncingAudioPlayer = false;
     try {
-      await verifyAudioFileReadable(song.path);
-      final duration = await _audioPlayer.setFilePath(song.path);
+      final Duration? duration;
+      if (isRemoteMusicPath(song.path)) {
+        final uri = await activeMusicShareAccess!.audioUri(song.path);
+        duration = await _audioPlayer.setUrl(uri.toString());
+      } else {
+        await verifyAudioFileReadable(song.path);
+        duration = await _audioPlayer.setFilePath(song.path);
+      }
       if (!mounted || loadSerial != _audioLoadSerial) {
         return;
       }
@@ -205,6 +211,16 @@ extension _SmPlayerShellPlaybackMethods on _SmPlayerShellPageState {
         '$error\n'
         '$stackTrace',
       );
+      if (isRemoteMusicPath(song.path) && mounted) {
+        showAppNotification(
+          context: context,
+          message: context.smPlayerI18n.t(
+            error is MusicShareException
+                ? error.messageKey
+                : 'share.playbackFailed',
+          ),
+        );
+      }
       if (isAudioFilePermissionDenied(error) && mounted) {
         _showAudioFileAccessNotification();
       }
@@ -325,6 +341,23 @@ extension _SmPlayerShellPlaybackMethods on _SmPlayerShellPageState {
     }
     if (_mediaControlController.state.track.id != failedState.track.id) {
       _syncAudioPlayerFromController();
+      return;
+    }
+    final failedSong =
+        ref
+            .read(libraryContentDataProvider)
+            .valueOrNull
+            ?.songs
+            .where((song) => song.id == failedState.track.id)
+            .firstOrNull;
+    if (failedSong != null && isRemoteMusicPath(failedSong.path)) {
+      _syncingAudioPlayer = true;
+      _mediaControlController.setPlaybackRuntimeFailed(progressSeconds);
+      _syncingAudioPlayer = false;
+      showAppNotification(
+        context: context,
+        message: context.smPlayerI18n.t('share.playbackFailed'),
+      );
       return;
     }
     final permissionDenied = isAudioFilePermissionDenied(error);

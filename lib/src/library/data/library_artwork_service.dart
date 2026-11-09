@@ -1,3 +1,5 @@
+import '../../remote/music_share_access.dart';
+import '../../remote/music_share_models.dart';
 import 'dart:io';
 import 'dart:isolate';
 
@@ -183,7 +185,7 @@ class LibraryArtworkService {
         SELECT Path AS path
         FROM Music
         WHERE Album = ?
-          AND State = ?
+          AND State = ? AND Path NOT LIKE 'smplayer-music://%'
       ''',
         [albumName, _activeState],
       );
@@ -200,7 +202,7 @@ class LibraryArtworkService {
         UPDATE Music
         SET ThumbnailPath = ?
         WHERE Album = ?
-          AND State = ?
+          AND State = ? AND Path NOT LIKE 'smplayer-music://%'
       ''',
         [sourcePath, albumName, _activeState],
       );
@@ -249,7 +251,7 @@ class LibraryArtworkService {
         SELECT Path AS path
         FROM Music
         WHERE Album = ?
-          AND State = ?
+          AND State = ? AND Path NOT LIKE 'smplayer-music://%'
       ''',
         [albumName, _activeState],
       );
@@ -262,7 +264,7 @@ class LibraryArtworkService {
         UPDATE Music
         SET ThumbnailPath = ''
         WHERE Album = ?
-          AND State = ?
+          AND State = ? AND Path NOT LIKE 'smplayer-music://%'
       ''',
         [albumName, _activeState],
       );
@@ -331,6 +333,13 @@ class LibraryArtworkService {
   ) async {
     if (thumbnailPath.isNotEmpty && File(thumbnailPath).existsSync()) {
       return _createSongArtworkSnapshot(songId, thumbnailPath);
+    }
+
+    if (isRemoteMusicPath(songPath)) {
+      final file = await activeMusicShareAccess!.artwork(
+        thumbnailPath.isEmpty ? songPath : thumbnailPath,
+      );
+      return _createSongArtworkSnapshot(songId, file?.path ?? '');
     }
 
     final picture = await _id3TagService.readFirstPicture(songPath);

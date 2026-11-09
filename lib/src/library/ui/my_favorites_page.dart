@@ -1,3 +1,4 @@
+import '../../remote/music_source_providers.dart';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -18,7 +19,7 @@ class MyFavoritesPage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final i18nValue = ref.watch(smPlayerI18nProvider);
-    final snapshotValue = ref.watch(libraryContentDataProvider);
+    final snapshotValue = ref.watch(browsingLibraryContentDataProvider);
     final favoriteOverrides = ref.watch(libraryFavoriteOverridesProvider);
     final songOverrides = ref.watch(librarySongOverridesProvider);
 
@@ -141,6 +142,10 @@ class MyFavoritesPage extends ConsumerWidget {
                   );
             },
             onSortSongs: (songIds, sortCriterion) {
+              songIds = mergeVisiblePlaylistOrder(
+                favoritesPlaylist!.songIds,
+                songIds,
+              );
               unawaited(
                 ref
                     .read(libraryRepositoryProvider)

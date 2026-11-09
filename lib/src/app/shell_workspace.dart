@@ -633,9 +633,10 @@ String? _synchronousWorkspaceAppBarTitle({
 }) {
   final uri = Uri.parse(location);
   final path = uri.path;
-  final isAlbumDetailRoute =
-      path == '/albums' && uri.queryParameters.containsKey('album');
-  if (isAlbumDetailRoute) {
+  final isDetailRoute =
+      path == '/albums' && uri.queryParameters.containsKey('album') ||
+      path == '/artists' && uri.queryParameters.containsKey('artist');
+  if (isDetailRoute) {
     return null;
   }
 
@@ -643,6 +644,7 @@ String? _synchronousWorkspaceAppBarTitle({
     return switch (path) {
       '/songs' => i18n.t('library.allSongs'),
       '/albums' => i18n.t('library.allAlbums'),
+      '/artists' => i18n.t('library.allArtists'),
       '/playlists' => i18n.t('common.playlists'),
       '/now-playing' => i18n.t('common.nowPlaying'),
       '/search' => _searchWorkspaceTitle(uri, i18n),
@@ -651,6 +653,7 @@ String? _synchronousWorkspaceAppBarTitle({
   }
 
   return switch (path) {
+    '/artists' => i18n.t('library.allArtists'),
     '/songs' =>
       snapshot.showCount
           ? i18n.t('library.allSongsWithCount', {

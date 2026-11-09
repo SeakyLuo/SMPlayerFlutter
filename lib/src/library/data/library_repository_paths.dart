@@ -3,6 +3,7 @@ import 'dart:isolate';
 
 import 'package:flutter/services.dart';
 import 'package:path/path.dart' as p;
+import 'package:path_provider/path_provider.dart';
 
 const smPlayerDatabaseName = 'SMPlayerSettings.db';
 const nowPlayingJsonName = 'NowPlaying.json';
@@ -40,7 +41,7 @@ class LibraryRepositoryPaths {
     }
 
     final databaseFile = File(
-      p.join(defaultSmPlayerUserDataPath(), smPlayerDatabaseName),
+      p.join(await defaultSmPlayerUserDataPath(), smPlayerDatabaseName),
     );
     await databaseFile.parent.create(recursive: true);
     return databaseFile;
@@ -61,7 +62,9 @@ class LibraryRepositoryPaths {
       final uwpDatabase = await Isolate.run(windowsUwpDatabaseResolver);
       databaseFile =
           uwpDatabase ??
-          File(p.join(defaultSmPlayerUserDataPath(), smPlayerDatabaseName));
+          File(
+            p.join(await defaultSmPlayerUserDataPath(), smPlayerDatabaseName),
+          );
     }
     await databaseFile.parent.create(recursive: true);
     return databaseFile;
@@ -84,7 +87,11 @@ class LibraryRepositoryPaths {
   }
 }
 
-String defaultSmPlayerUserDataPath() {
+Future<String> defaultSmPlayerUserDataPath() async {
+  if (Platform.isAndroid || Platform.isIOS) {
+    return (await getApplicationSupportDirectory()).path;
+  }
+
   if (Platform.isWindows) {
     return p.join(Platform.environment['APPDATA']!, 'simple-melody-player');
   }

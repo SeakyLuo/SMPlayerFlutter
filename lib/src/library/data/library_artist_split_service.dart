@@ -1,3 +1,4 @@
+import '../../remote/music_share_models.dart';
 import 'dart:io';
 
 import 'dart:isolate';
@@ -25,7 +26,10 @@ class LibraryArtistSplitService {
   }) async {
     if (onProgress == null) {
       return Isolate.run(
-        _AnalyzeExistingLibraryTask(songs: songs, songIds: songIds).call,
+        _AnalyzeExistingLibraryTask(
+          songs: songs.where((song) => !isRemoteMusicPath(song.path)).toList(),
+          songIds: songIds,
+        ).call,
       );
     }
 
@@ -36,7 +40,7 @@ class LibraryArtistSplitService {
     try {
       return await Isolate.run(
         _AnalyzeExistingLibraryTask(
-          songs: songs,
+          songs: songs.where((song) => !isRemoteMusicPath(song.path)).toList(),
           songIds: songIds,
           progressPort: progressPort.sendPort,
         ).call,

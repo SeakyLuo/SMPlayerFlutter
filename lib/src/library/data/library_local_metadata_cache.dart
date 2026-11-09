@@ -27,7 +27,7 @@ Map<String, AudioFileMetadata> readStoredAudioFileMetadata(
               FileSize AS fileSize,
               DateModifiedMs AS dateModifiedMs
             FROM Music
-            WHERE State = ?
+            WHERE State = ? AND Path NOT LIKE 'smplayer-music://%'
           ''',
             [_activeState],
           )
@@ -45,7 +45,7 @@ Map<String, AudioFileMetadata> readStoredAudioFileMetadata(
               FileSize AS fileSize,
               DateModifiedMs AS dateModifiedMs
             FROM Music
-            WHERE State = ?
+            WHERE State = ? AND Path NOT LIKE 'smplayer-music://%'
               AND (Path = ? OR Path LIKE ? OR Path LIKE ?)
           ''',
             [_activeState, folderPath, '$folderPath/%', '$folderPath\\%'],

@@ -72,6 +72,7 @@ class LibraryReadService {
       SELECT
         Music.Id AS id,
         Music.Path AS path,
+        Music.RemoteAvailable AS remoteAvailable,
         Music.ThumbnailPath AS thumbnailPath,
         Music.Name AS title,
         Music.Artist AS artist,
@@ -125,6 +126,7 @@ class LibraryReadService {
       return LibrarySong(
         id: row['id'] as int,
         path: row['path'] as String,
+        remoteAvailable: row['remoteAvailable'] == 1,
         thumbnailPath: row['thumbnailPath'] as String,
         title: normalizeTagText(row['title'] as String),
         artist: artist,

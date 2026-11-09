@@ -26,6 +26,8 @@
 	<true/>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Simple Melody Player uses the microphone for voice assistant commands.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Scan a computer's connection QR code to pair and play its shared music.</string>
 	<key>NSSpeechRecognitionUsageDescription</key>
 	<string>Simple Melody Player uses speech recognition to run voice assistant commands.</string>
 	<key>UILaunchStoryboardName</key>
@@ -49,5 +51,12 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>Connect to your computers to browse and play music you have authorized on your local network.</string>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
+	</dict>
 </dict>
 </plist>

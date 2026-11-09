@@ -115,6 +115,25 @@ extension _HeaderedPlaylistControlLayout on _HeaderedPlaylistControlState {
                       ),
                     ),
                   ),
+                if (widget.type == HeaderedPlaylistType.playlist ||
+                    widget.type == HeaderedPlaylistType.favorites)
+                  SliverToBoxAdapter(
+                    child: MusicSourcePlaylistNotice(
+                      visible: visibleSongs.length,
+                      total:
+                          playlists
+                              .where(
+                                (playlist) =>
+                                    playlist.id ==
+                                    (widget.playlistId ??
+                                        widget.favoritePlaylistId),
+                              )
+                              .firstOrNull
+                              ?.songIds
+                              .length ??
+                          visibleSongs.length,
+                    ),
+                  ),
                 _HeaderedPlaylistListSliver(
                   showAlbum: widget.showAlbum,
                   bottomPadding:

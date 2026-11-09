@@ -8,7 +8,7 @@ class LibraryDatabaseService {
   const LibraryDatabaseService();
 
   // Increment when changing tables, columns, indexes, or the lyrics FTS schema.
-  static const schemaVersion = 5;
+  static const schemaVersion = 6;
 
   Database openInitializedLibraryDatabase(File databaseFile) {
     databaseFile.parent.createSync(recursive: true);
@@ -508,6 +508,7 @@ class LibraryDatabaseService {
       'AiAgentPort': 'INTEGER DEFAULT 29643',
     });
     _addColumnsIfMissing(db, 'Music', {
+      'RemoteAvailable': 'INTEGER NOT NULL DEFAULT 1',
       'Path': "TEXT DEFAULT ''",
       'Name': "TEXT DEFAULT ''",
       'Artist': "TEXT DEFAULT ''",

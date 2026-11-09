@@ -62,7 +62,8 @@ class _SearchPageDataCache {
         songs: _metadata.songs,
         lyrics: [
           for (final match in matches)
-            SearchLyricsResult(song: _songsById[match.songId]!, match: match),
+            if (_songsById.containsKey(match.songId))
+              SearchLyricsResult(song: _songsById[match.songId]!, match: match),
         ],
         playlists: _metadata.playlists,
         folders: _metadata.folders,

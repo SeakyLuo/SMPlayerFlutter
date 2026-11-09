@@ -411,6 +411,7 @@ extension _SettingsPageSections on _SettingsPageState {
       SettingsCard(
         title: i18n.t('settings.aiAgent'),
         children: [
+          const _SettingsDeviceName(),
           ToggleSettingRow(
             label: i18n.t('settings.aiAgentEnabled'),
             hint: i18n.t('settings.aiAgentEnabledHint'),
@@ -436,7 +437,7 @@ extension _SettingsPageSections on _SettingsPageState {
               _showMessage(i18n.t('settings.aiAgentPortInvalid'));
             },
             onEditingChanged: (editing) {
-              setState(() {
+              _updateSettingsPageState(() {
                 _editingAiAgentPort = editing;
               });
             },
@@ -475,6 +476,7 @@ extension _SettingsPageSections on _SettingsPageState {
               ),
             ],
           ),
+          const _SettingsMusicSharing(),
         ],
       ),
       SettingsCard(

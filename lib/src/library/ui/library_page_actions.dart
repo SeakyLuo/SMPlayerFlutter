@@ -565,3 +565,15 @@ Future<String?> requestPlaylistName({
     validate: (name) => validatePlaylistName(name, playlists, '', i18n),
   );
 }
+
+List<int> mergeVisiblePlaylistOrder(
+  List<int> complete,
+  List<int> visibleOrder,
+) {
+  final visibleIds = visibleOrder.toSet();
+  final iterator = visibleOrder.iterator;
+  return [
+    for (final id in complete)
+      if (visibleIds.contains(id)) (iterator..moveNext()).current else id,
+  ];
+}

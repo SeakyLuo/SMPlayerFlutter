@@ -62,8 +62,10 @@ class LibrarySong {
     required this.dateAdded,
     required this.favorite,
     required this.thumbnailPath,
+    this.remoteAvailable = true,
   });
 
+  final bool remoteAvailable;
   final int id;
   final String path;
   final String title;
@@ -91,6 +93,7 @@ class LibrarySong {
   }) {
     return LibrarySong(
       id: id,
+      remoteAvailable: remoteAvailable,
       path: path,
       title: title ?? this.title,
       artist: artist ?? this.artist,
@@ -333,6 +336,7 @@ class RecentLibrarySong extends LibrarySong {
     required super.dateAdded,
     required super.favorite,
     required super.thumbnailPath,
+    super.remoteAvailable,
     required this.playedAt,
   });
 
@@ -350,6 +354,7 @@ class RecentLibrarySong extends LibrarySong {
         dateAdded: song.dateAdded,
         favorite: song.favorite,
         thumbnailPath: song.thumbnailPath,
+        remoteAvailable: song.remoteAvailable,
       );
 
   final String playedAt;

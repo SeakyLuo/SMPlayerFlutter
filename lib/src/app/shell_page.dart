@@ -1,3 +1,6 @@
+import '../remote/music_share_access.dart';
+import '../remote/music_share_models.dart';
+import '../remote/music_source_providers.dart';
 import 'dart:async';
 import 'dart:io';
 import 'dart:math';
@@ -206,6 +209,16 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage>
     _playerDialogNotifier = ValueNotifier(null);
     _playerDialogRefreshNotifier = ValueNotifier(0);
     _audioPlayer = AudioPlayer();
+    unawaited(
+      ref.read(musicShareProvider).startup.catchError((Object error) {
+        if (mounted) {
+          showAppNotification(
+            context: context,
+            message: context.smPlayerI18n.t('share.connectionFailed'),
+          );
+        }
+      }),
+    );
     _mediaControlController.addListener(_syncAudioPlayerFromController);
     _settingsController.addListener(_handleSettingsChanged);
     _audioSubscriptions = [

@@ -301,7 +301,7 @@ class LibraryLyricsSearchService {
         '''
         SELECT Id AS songId, Path AS path
         FROM Music
-        WHERE State = ?
+        WHERE State = ? AND Path NOT LIKE 'smplayer-music://%'
           ${where == null ? '' : 'AND ($where)'}
         ORDER BY Id
       ''',

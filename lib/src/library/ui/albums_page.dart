@@ -1,3 +1,4 @@
+import '../../remote/music_source_providers.dart';
 import 'dart:async';
 import 'dart:math';
 import 'dart:ui' show lerpDouble;
@@ -205,7 +206,9 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
   @override
   Widget build(BuildContext context) {
     final i18nValue = ref.watch(smPlayerI18nProvider);
-    final snapshotValue = ref.watch(libraryContentDataProvider);
+    final snapshotValue = ref.watch(
+      browsingAvailableLibraryContentDataProvider,
+    );
     final songOverrides = ref.watch(librarySongOverridesProvider);
 
     if (i18nValue.isLoading) {

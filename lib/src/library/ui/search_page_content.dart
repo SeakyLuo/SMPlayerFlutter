@@ -2,7 +2,9 @@ part of 'search_page.dart';
 
 extension _SearchPageContent on _SearchPageState {
   Widget _buildSearchPage(BuildContext context) {
-    final snapshotValue = ref.watch(libraryContentDataProvider);
+    final snapshotValue = ref.watch(
+      browsingAvailableLibraryContentDataProvider,
+    );
     final songOverrides = ref.watch(librarySongOverridesProvider);
     final mediaState = ref.watch(
       mediaControlControllerProvider.select(

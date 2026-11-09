@@ -10,7 +10,17 @@ build_number="${version#*+}"
 [[ "$version" == *+* ]] || { echo 'pubspec.yaml 必须包含版本号和构建号，例如 4.0.2+1'; exit 1; }
 archive="$project_dir/build/macos/archive/Simple Melody Player-$build_name-build-$build_number.xcarchive"
 export_dir="$project_dir/build/macos/appstore-$build_name-build-$build_number"
-[[ ! -e "$archive" && ! -e "$export_dir" ]] || { echo '该版本的归档或安装包已存在；请先更新 pubspec.yaml 中的构建号。'; exit 1; }
+if [[ -e "$archive" || -e "$export_dir" ]]; then
+  if [[ "${1:-}" != '--overwrite' ]]; then
+    printf '该版本已有打包文件，覆盖后将重新生成。继续吗？[y/N] '
+    read -r answer || answer=''
+    [[ "$answer" == 'y' || "$answer" == 'Y' ]] || { echo '已取消。也可使用 --overwrite 直接覆盖。'; exit 1; }
+  fi
+  trash_dir="$(mktemp -d "$HOME/.Trash/SMPlayer-old-package.XXXXXXXX")"
+  [[ ! -e "$archive" ]] || mv "$archive" "$trash_dir/"
+  [[ ! -e "$export_dir" ]] || mv "$export_dir" "$trash_dir/"
+  echo "旧打包文件已移入废纸篓：$trash_dir"
+fi
 
 temp_dir="$(mktemp -d "${TMPDIR:-/tmp}/smplayer-package.XXXXXXXX")"
 cleanup() {
@@ -28,7 +38,7 @@ export PUB_HOSTED_URL="${PUB_HOSTED_URL:-https://pub.flutter-io.cn}"
 "$flutter_sdk/bin/flutter" pub get --enforce-lockfile
 
 # Some Xcode lipo versions reject multiple arguments to -verify_arch.
-framework="$flutter_sdk/bin/cache/artifacts/engine/darwin-x64-release/FlutterMacOS.framework/Versions/A/FlutterMacOS"
+framework="$flutter_sdk/bin/cache/artifacts/engine/darwin-x64-release/FlutterMacOS.xcframework/macos-arm64_x86_64/FlutterMacOS.framework/Versions/A/FlutterMacOS"
 if [[ -f "$framework" ]] && /usr/bin/lipo "$framework" -verify_arch arm64 && /usr/bin/lipo "$framework" -verify_arch x86_64 && ! /usr/bin/lipo "$framework" -verify_arch arm64 x86_64 2>/dev/null; then
   echo '当前 lipo 需要逐个验证架构，使用临时 Flutter SDK 副本。'
   cp -cR "$flutter_sdk" "$temp_dir/flutter"

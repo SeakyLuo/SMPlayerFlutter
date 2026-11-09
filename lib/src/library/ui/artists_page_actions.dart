@@ -1,6 +1,42 @@
 part of 'artists_page.dart';
 
 extension _ArtistsPageActions on _ArtistsPageState {
+  void _submitArtistSearch() {
+    final query = _artistSearch.trim();
+    if (query.isEmpty) {
+      return;
+    }
+
+    final snapshot =
+        ref.read(browsingAvailableLibraryContentDataProvider).value!;
+    final i18n = ref.read(smPlayerI18nProvider).valueOrNull!;
+    final artistGroups = _readArtistGroups(snapshot, i18n);
+    final suggestions = searchArtists(artistGroups, query);
+    final exactMatches =
+        artistGroups.where((artist) => artist.name == query).toList();
+    final targetArtist =
+        exactMatches.isNotEmpty
+            ? exactMatches.first
+            : (suggestions.isEmpty ? null : suggestions.first);
+    final recentSearches = ref.read(recentSearchesProvider.notifier);
+    unawaited(
+      ref
+          .read(libraryRepositoryProvider)
+          .addRecentSearch(query, SearchHistoryType.artists)
+          .then((entry) {
+            if (entry != null) {
+              return recentSearches.record(entry);
+            }
+          }),
+    );
+    if (targetArtist != null) {
+      _updateArtistsPageState(() {
+        _artistSearch = targetArtist.name;
+      });
+      _openArtistDetail(targetArtist.name);
+    }
+  }
+
   void _changeArtistSort(ArtistSortCriterion criterion) {
     _updateArtistsPageState(() {
       if (criterion == ArtistSortCriterion.reverse) {
@@ -26,7 +62,8 @@ extension _ArtistsPageActions on _ArtistsPageState {
       _artistSearch = query;
       _artistSearchFocused = false;
     });
-    final snapshot = ref.read(libraryContentDataProvider).value!;
+    final snapshot =
+        ref.read(browsingAvailableLibraryContentDataProvider).value!;
     final i18n = ref.read(smPlayerI18nProvider).valueOrNull!;
     final artistGroups = _readArtistGroups(snapshot, i18n);
     final exactMatches =

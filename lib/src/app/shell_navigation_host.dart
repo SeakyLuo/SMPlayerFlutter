@@ -1,3 +1,6 @@
+import 'dart:io';
+
+import '../remote/music_source_providers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:smplayer_flutter/src/app/main_navigation_view.dart';
@@ -195,7 +198,10 @@ class _ShellNavigationContent extends ConsumerWidget {
             );
     return MainNavigationView(
       isPaneOpen: layout.isNavigationPaneVisible,
-      showTitlebar: layout.navigationMode != SmPlayerNavigationMode.minimal,
+      showTitlebar:
+          !Platform.isAndroid &&
+          !Platform.isIOS &&
+          layout.navigationMode != SmPlayerNavigationMode.minimal,
       currentPath: layout.currentPath,
       searchText: searchText,
       i18n: i18n,
@@ -210,7 +216,12 @@ class _ShellNavigationContent extends ConsumerWidget {
       onSearchCleared: onSearchCleared,
       searchHistoryDismissEpoch: searchHistoryDismissEpoch,
       onSearchHistoryOpenChanged: onSearchHistoryOpenChanged,
-      onItemInvoked: onItemInvoked,
+      onItemInvoked: (target) {
+        if (target == '/local') {
+          ref.read(musicShareProvider).selectSource('local');
+        }
+        onItemInvoked(target);
+      },
       onRecentSearchRemove: onRecentSearchRemove,
       onRecentSearchesClear: onRecentSearchesClear,
       onCreatePlaylist: onCreatePlaylist,
