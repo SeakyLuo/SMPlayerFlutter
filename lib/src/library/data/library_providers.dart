@@ -11,8 +11,10 @@ final libraryDatabaseInitializationProvider = FutureProvider<void>((ref) {
   return ref.watch(libraryRepositoryProvider).initializeLibraryDatabase();
 });
 
-final recentPageDataProvider = FutureProvider<RecentPageData>((ref) {
-  return ref.watch(libraryRepositoryProvider).getRecentPageData();
+final recentPageDataProvider = FutureProvider<RecentPageData>((ref) async {
+  final repository = ref.watch(libraryRepositoryProvider);
+  final content = await ref.watch(libraryContentDataProvider.future);
+  return repository.getRecentPageData(content);
 });
 
 final recentSongsProvider =
@@ -166,8 +168,18 @@ Future<void> recordRecentArtistPlayback(WidgetRef ref, String artist) async {
   await recentCollections.recordArtist(entry);
 }
 
-final shellNavigationDataProvider = FutureProvider<ShellNavigationData>((ref) {
-  return ref.watch(libraryRepositoryProvider).getShellNavigationData();
+final shellNavigationDataProvider = FutureProvider<ShellNavigationData>((
+  ref,
+) async {
+  final content = await ref.watch(libraryContentDataProvider.future);
+  return ShellNavigationData(
+    songs: content.songs,
+    playlists: content.playlists,
+    folders: content.folders,
+    recentSearches: content.recentSearches,
+    nowPlaying: content.nowPlaying,
+    rootPath: content.rootPath,
+  );
 });
 
 final recentSearchesProvider =

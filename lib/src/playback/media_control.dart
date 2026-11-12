@@ -45,6 +45,10 @@ const _artworkColorMaxValue = 205;
 const _artworkColorGridDivisions = 16;
 const _defaultArtworkAccentColor = Color(0xff5b87b6);
 
+bool mediaControlShowsTrackCopy(double availableWidth) {
+  return !Platform.isAndroid && !Platform.isIOS || availableWidth >= 200;
+}
+
 EdgeInsets mediaControlPlayerPadding(double viewportWidth) {
   if (viewportWidth <= 520) {
     return const EdgeInsets.fromLTRB(12, 9, 12, 11);

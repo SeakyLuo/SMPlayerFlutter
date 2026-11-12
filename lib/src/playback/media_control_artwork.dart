@@ -58,6 +58,8 @@ Future<Color> extractPlayerArtworkAccentColor(String artworkPath) async {
     final bytes = await File(artworkPath).readAsBytes();
     final codec = await instantiateImageCodec(
       bytes,
+      targetWidth: 64,
+      targetHeight: 64,
     ).timeout(const Duration(seconds: 2));
     final frame = await codec.getNextFrame();
     final image = frame.image;

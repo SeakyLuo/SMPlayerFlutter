@@ -8,13 +8,18 @@ import 'package:path/path.dart' as p;
 import '../library/data/library_models.dart';
 import '../library/data/library_repository.dart';
 import 'music_share_access.dart';
+import 'music_share_artwork_cache.dart';
 import 'music_share_catalog.dart';
 import 'music_share_identity.dart';
 import 'music_share_models.dart';
 import 'music_share_server.dart';
 
 class MusicShareController extends ChangeNotifier implements MusicShareAccess {
-  MusicShareController(this.repository, this.onCatalogChanged) {
+  MusicShareController(
+    this.repository,
+    this.onCatalogChanged, {
+    required this.loadLibrary,
+  }) {
     ready = _load();
     startup = ready.then((_) async {
       busy = true;
@@ -29,6 +34,7 @@ class MusicShareController extends ChangeNotifier implements MusicShareAccess {
 
   final LibraryRepository repository;
   final VoidCallback onCatalogChanged;
+  final Future<LibraryContentData> Function() loadLibrary;
   late final Future<void> ready;
   late final Future<void> startup;
   late MusicShareIdentity identity;
@@ -37,6 +43,8 @@ class MusicShareController extends ChangeNotifier implements MusicShareAccess {
   final peers = <MusicPeer>[];
   final discovered = <DiscoveredMusicHost>[];
   final grants = <String, String>{};
+  final writeGrants = <String>{};
+  final permissionChanges = <String>{};
   var name = Platform.localHostname;
   var selectedSource = 'local';
   var sharing = false;
@@ -44,20 +52,26 @@ class MusicShareController extends ChangeNotifier implements MusicShareAccess {
   var busy = false;
   var initialized = false;
   var _disposed = false;
+  Future<void>? _shutdownFuture;
   Future<void> _savePending = Future.value();
   Timer? _connectionTimer;
   var _checking = false;
   HttpServer? _proxy;
   final _proxySecret = newShareSecret();
   final _proxyTransports = <MusicShareTransport>{};
+  late final _artworkCache = MusicShareArtworkCache(
+    Directory(p.join(p.dirname(databasePath), 'remote-artwork')),
+  );
 
   Future<void> _load() async {
-    await repository.initializeLibraryDatabase();
-    databasePath = await repository.getDatabasePath();
-    identity = await MusicShareIdentity.load();
-    final stored = await MusicShareIdentity.storage.read(
-      key: 'music-share-connections-v1',
-    );
+    final (snapshot, loadedIdentity, stored) =
+        await (
+          loadLibrary(),
+          MusicShareIdentity.load(),
+          MusicShareIdentity.storage.read(key: 'music-share-connections-v1'),
+        ).wait;
+    databasePath = snapshot.databasePath;
+    identity = loadedIdentity;
     if (stored != null) {
       final json = jsonDecode(stored) as Map<String, dynamic>;
       name = json['name'] as String;
@@ -65,6 +79,10 @@ class MusicShareController extends ChangeNotifier implements MusicShareAccess {
       sharing = json['sharing'] as bool;
       port = json['port'] as int? ?? musicSharePort;
       grants.addAll((json['grants'] as Map).cast<String, String>());
+      // Older saved authorizations grant playback only.
+      if (json.containsKey('writeGrants')) {
+        writeGrants.addAll((json['writeGrants'] as List).cast<String>());
+      }
       peers.addAll(
         (json['peers'] as List).map(
           (item) => MusicPeer.fromJson((item as Map).cast<String, dynamic>()),
@@ -72,15 +90,17 @@ class MusicShareController extends ChangeNotifier implements MusicShareAccess {
       );
     }
     server = MusicShareServer(
+      onLibraryChanged: onCatalogChanged,
       identity: identity,
       repository: repository,
       name: () => name,
       grants: grants,
+      writeGrants: writeGrants,
       onChanged: () {
         _notify();
       },
     );
-    server.updateLibrary(await repository.getLibraryContentData());
+    server.updateLibrary(snapshot);
     initialized = true;
     _notify();
     _connectionTimer = Timer.periodic(const Duration(seconds: 20), (_) {
@@ -100,6 +120,7 @@ class MusicShareController extends ChangeNotifier implements MusicShareAccess {
       'sharing': sharing,
       'port': port,
       'grants': grants,
+      'writeGrants': writeGrants.toList(),
       'peers': peers.map((peer) => peer.toJson()).toList(),
     });
     final operation = _savePending.then(
@@ -172,8 +193,8 @@ class MusicShareController extends ChangeNotifier implements MusicShareAccess {
     }
   }
 
-  Future<void> approve(String key, bool allow) async {
-    await server.approve(key, allow, persist: save);
+  Future<void> approve(String key, bool allow, {bool canWrite = false}) async {
+    await server.approve(key, allow, persist: save, canWrite: canWrite);
   }
 
   Future<void> revoke(String hash) async {
@@ -184,7 +205,32 @@ class MusicShareController extends ChangeNotifier implements MusicShareAccess {
     }
   }
 
+  Future<void> setWritePermission(String hash, bool enabled) async {
+    final previous = writeGrants.contains(hash);
+    permissionChanges.add(hash);
+    enabled ? writeGrants.add(hash) : writeGrants.remove(hash);
+    _notify();
+    try {
+      await save();
+    } catch (_) {
+      previous ? writeGrants.add(hash) : writeGrants.remove(hash);
+      rethrow;
+    } finally {
+      permissionChanges.remove(hash);
+      _notify();
+    }
+  }
+
+  @override
+  bool canWrite(String path) => peers.any(
+    (peer) =>
+        peer.id == Uri.parse(path).host &&
+        peer.canWrite &&
+        peer.status != MusicPeerStatus.unauthorized,
+  );
+
   Future<void> forget(MusicPeer peer) async {
+    _artworkCache.disconnect(peer.id);
     peers.remove(peer);
     for (final transport
         in _proxyTransports
@@ -286,6 +332,11 @@ class MusicShareController extends ChangeNotifier implements MusicShareAccess {
     final previous = peer.status;
     try {
       final status = await transport.json('/status');
+      final canWrite = status['canWrite'] == true;
+      if (peer.canWrite != canWrite) {
+        peer.canWrite = canWrite;
+        _notify();
+      }
       final revision = status['revision'] as String;
       final updatedName = status['name'] as String;
       if (updatedName != peer.name) {
@@ -428,42 +479,46 @@ class MusicShareController extends ChangeNotifier implements MusicShareAccess {
   }
 
   @override
-  Future<File?> artwork(String path) => _artworkLoads
-      .putIfAbsent(path, () => _loadArtwork(path))
-      .whenComplete(() => _artworkLoads.remove(path));
+  File? cachedArtwork(String path) =>
+      initialized ? _artworkCache.cached(path) : null;
 
-  final _artworkLoads = <String, Future<File?>>{};
+  @override
+  Future<File?> artwork(String path) async {
+    await ready;
+    return _artworkCache.load(path, peerFor(path));
+  }
 
-  Future<File?> _loadArtwork(String path) async {
-    final uri = Uri.parse(path);
-    final remoteId = uri.pathSegments.single;
-    final file = File(
-      p.join(
-        p.dirname(databasePath),
-        'remote-artwork',
-        '${uri.host}-$remoteId-${uri.queryParameters['art'] ?? 'original'}.img',
-      ),
-    );
-    if (await file.exists()) return file;
+  @override
+  Future<Map<String, dynamic>> songRequest(
+    String path,
+    String resource, {
+    String method = 'GET',
+    Object? body,
+  }) async {
     final peer = peerFor(path);
+    if (method != 'GET' && !peer.canWrite) {
+      throw const MusicShareException('share.readOnlyPermission');
+    }
     final transport = MusicShareTransport(
       peer.address,
       fingerprint: peer.fingerprint,
       token: peer.token,
     );
     try {
-      final response = await transport.open('/songs/$remoteId/artwork');
-      if (response.statusCode == 404) {
-        await response.drain<void>();
-        return null;
+      final id = Uri.parse(path).pathSegments.single;
+      final result = await transport.json(
+        '/songs/$id/$resource',
+        method: method,
+        body: body,
+      );
+      if (method != 'GET') unawaited(checkConnections());
+      return result;
+    } on MusicShareException catch (error) {
+      if (error.messageKey == 'share.readOnlyPermission') {
+        peer.canWrite = false;
+        _notify();
       }
-      if (response.statusCode != 200) {
-        await response.drain<void>();
-        throw const MusicShareException('share.connectionFailed');
-      }
-      await file.parent.create(recursive: true);
-      await response.pipe(file.openWrite());
-      return file;
+      rethrow;
     } finally {
       transport.close();
     }
@@ -471,6 +526,7 @@ class MusicShareController extends ChangeNotifier implements MusicShareAccess {
 
   @override
   Future<LyricsSnapshot> lyrics(String path) async {
+    await ready;
     final peer = peerFor(path);
     final remoteId = Uri.parse(path).pathSegments.single;
     final transport = MusicShareTransport(
@@ -498,15 +554,26 @@ class MusicShareController extends ChangeNotifier implements MusicShareAccess {
     }
   }
 
-  @override
-  void dispose() {
+  Future<void> shutdown() => _shutdownFuture ??= _shutdown();
+
+  Future<void> _shutdown() async {
     _disposed = true;
+    // Startup may already have failed; shutdown must still release resources.
+    await startup.then<void>((_) {}, onError: (Object _, StackTrace __) {});
     _connectionTimer?.cancel();
+    if (initialized) _artworkCache.dispose();
     for (final transport in _proxyTransports) {
       transport.close();
     }
-    unawaited(_proxy?.close(force: true));
-    if (initialized) unawaited(server.stop());
+    await Future.wait([
+      if (_proxy != null) _proxy!.close(force: true),
+      if (initialized) server.stop(),
+    ]);
+  }
+
+  @override
+  void dispose() {
+    unawaited(shutdown());
     super.dispose();
   }
 }

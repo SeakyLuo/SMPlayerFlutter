@@ -3,6 +3,8 @@ part of 'music_dialog.dart';
 class MusicInfoControl extends StatelessWidget {
   const MusicInfoControl({
     super.key,
+    this.hidePath = false,
+    this.readOnly = false,
     required this.sessionKey,
     required this.loading,
     required this.saving,
@@ -35,6 +37,8 @@ class MusicInfoControl extends StatelessWidget {
     required this.onReveal,
   });
 
+  final bool readOnly;
+  final bool hidePath;
   final MusicDialogSessionKey sessionKey;
   final bool loading;
   final bool saving;
@@ -84,10 +88,11 @@ class MusicInfoControl extends StatelessWidget {
             final state = ref.watch(
               musicDialogPropertiesStateProvider(sessionKey),
             );
+            if (readOnly && onPlay == null) return const SizedBox.shrink();
             return _MusicDialogCommandBar(
               showBusy: false,
               children: [
-                if (state.dirty)
+                if (!readOnly && state.dirty)
                   _MusicDialogCommandButton(
                     iconWidget: const _MusicDialogResetIcon(),
                     label: i18n.t('common.reset'),
@@ -110,18 +115,19 @@ class MusicInfoControl extends StatelessWidget {
                     commandBar: true,
                     onPressed: onPlay,
                   ),
-                _MusicDialogCommandButton(
-                  iconWidget: const _ElectronIcon(
-                    _ElectronIconName.save,
-                    size: 20,
+                if (!readOnly)
+                  _MusicDialogCommandButton(
+                    iconWidget: const _ElectronIcon(
+                      _ElectronIconName.save,
+                      size: 20,
+                    ),
+                    label: i18n.t('settings.save'),
+                    primary: true,
+                    commandBar: true,
+                    loading: saving,
+                    disabled: loading,
+                    onPressed: onSave,
                   ),
-                  label: i18n.t('settings.save'),
-                  primary: true,
-                  commandBar: true,
-                  loading: saving,
-                  disabled: loading,
-                  onPressed: onSave,
-                ),
               ],
             );
           },
@@ -152,10 +158,12 @@ class MusicInfoControl extends StatelessWidget {
                                   Expanded(
                                     child: _DialogField(
                                       controller: titleController,
-                                      readOnly: saving,
+                                      readOnly: saving || readOnly,
                                     ),
                                   ),
-                                  if (showUseFilenameButton) ...[
+                                  if (!readOnly &&
+                                      !hidePath &&
+                                      showUseFilenameButton) ...[
                                     const SizedBox(width: 8),
                                     _MusicDialogIconButton(
                                       key: const ValueKey(
@@ -184,14 +192,15 @@ class MusicInfoControl extends StatelessWidget {
                           label: i18n.t('song.subtitle'),
                           child: _DialogField(
                             controller: subtitleController,
-                            readOnly: saving,
+                            readOnly: saving || readOnly,
                           ),
                         ),
                         _PropertyRow(
                           label: i18n.t('common.artist'),
                           child: MusicDialogArtistFieldGrid(
                             controllers: artistControllers,
-                            saving: saving,
+                            saving: saving || readOnly,
+                            showActions: !readOnly,
                             onAddArtistCell: onAddArtistCell,
                             onRemoveArtistCell: onRemoveArtistCell,
                           ),
@@ -200,14 +209,14 @@ class MusicInfoControl extends StatelessWidget {
                           label: i18n.t('common.album'),
                           child: _DialogField(
                             controller: albumController,
-                            readOnly: saving,
+                            readOnly: saving || readOnly,
                           ),
                         ),
                         _PropertyRow(
                           label: i18n.t('song.albumArtist'),
                           child: _DialogField(
                             controller: albumArtistController,
-                            readOnly: saving,
+                            readOnly: saving || readOnly,
                           ),
                         ),
                         _PropertyRow(
@@ -240,7 +249,7 @@ class MusicInfoControl extends StatelessWidget {
                                       ),
                                     ),
                                   ),
-                                  if (playCount > 0) ...[
+                                  if (!readOnly && playCount > 0) ...[
                                     const SizedBox(width: 8),
                                     _MusicDialogIconButton(
                                       key: const ValueKey(
@@ -265,7 +274,7 @@ class MusicInfoControl extends StatelessWidget {
                           label: i18n.t('song.publisher'),
                           child: _DialogField(
                             controller: publisherController,
-                            readOnly: saving,
+                            readOnly: saving || readOnly,
                           ),
                         ),
                         _PropertyRow(
@@ -273,7 +282,7 @@ class MusicInfoControl extends StatelessWidget {
                           child: _DialogField(
                             key: const ValueKey('TrackNumberTextBox'),
                             controller: trackNumberController,
-                            readOnly: saving,
+                            readOnly: saving || readOnly,
                           ),
                         ),
                         _PropertyRow(
@@ -281,7 +290,7 @@ class MusicInfoControl extends StatelessWidget {
                           child: _DialogField(
                             key: const ValueKey('YearTextBox'),
                             controller: yearController,
-                            readOnly: saving,
+                            readOnly: saving || readOnly,
                           ),
                         ),
                         _PropertyRow(
@@ -340,35 +349,36 @@ class MusicInfoControl extends StatelessWidget {
                             readOnly: true,
                           ),
                         ),
-                        _PropertyRow(
-                          label: i18n.t('local.path'),
-                          child: Row(
-                            children: [
-                              Expanded(
-                                child: _DialogField(
-                                  controller: pathController,
-                                  readOnly: true,
-                                ),
-                              ),
-                              if (onReveal != null) ...[
-                                const SizedBox(width: 8),
-                                _MusicDialogIconButton(
-                                  key: const ValueKey(
-                                    'MusicDialog.ShowInExplorerButton',
+                        if (!hidePath)
+                          _PropertyRow(
+                            label: i18n.t('local.path'),
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: _DialogField(
+                                    controller: pathController,
+                                    readOnly: true,
                                   ),
-                                  iconWidget: const _ElectronIcon(
-                                    _ElectronIconName.folder,
-                                    size: 18,
-                                  ),
-                                  tooltip: i18n.t('song.showInExplorer'),
-                                  onPressed: () {
-                                    onReveal!(pathController.text);
-                                  },
                                 ),
+                                if (onReveal != null) ...[
+                                  const SizedBox(width: 8),
+                                  _MusicDialogIconButton(
+                                    key: const ValueKey(
+                                      'MusicDialog.ShowInExplorerButton',
+                                    ),
+                                    iconWidget: const _ElectronIcon(
+                                      _ElectronIconName.folder,
+                                      size: 18,
+                                    ),
+                                    tooltip: i18n.t('song.showInExplorer'),
+                                    onPressed: () {
+                                      onReveal!(pathController.text);
+                                    },
+                                  ),
+                                ],
                               ],
-                            ],
+                            ),
                           ),
-                        ),
                       ],
                     ),
                   ),

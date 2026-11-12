@@ -15,6 +15,7 @@ import 'package:smplayer_flutter/src/library/data/library_providers.dart';
 import 'package:smplayer_flutter/src/library/ui/headered_playlist_app_bar_portal.dart';
 import 'package:smplayer_flutter/src/library/ui/library_page_data_cache.dart';
 import 'package:smplayer_flutter/src/library/ui/local_title_grid.dart';
+import 'package:smplayer_flutter/src/remote/music_source_providers.dart';
 
 part 'shell_workspace_app_bar_title.dart';
 
@@ -59,13 +60,23 @@ class _SmPlayerWorkspaceState extends ConsumerState<SmPlayerWorkspace> {
   final _localDataCache = LibraryPageDataCache();
   final _workspaceAppBarPortals =
       <_WorkspaceAppBarPortalKey, WorkspaceAppBarPortalEntry>{};
+  WorkspaceAppBarPortalEntry? _lastWorkspaceAppBarPortal;
 
   @override
   Widget build(BuildContext context) {
+    ref.listen(musicShareProvider.select((share) => share.selectedSource), (
+      _,
+      _,
+    ) {
+      _workspaceAppBarPortals.clear();
+      _lastWorkspaceAppBarPortal = ref.read(workspaceAppBarPortalProvider);
+    });
     final shellColors = ShellThemeColors.of(context);
     final i18n =
         ref.watch(smPlayerI18nProvider).valueOrNull ?? context.smPlayerI18n;
     final snapshot = ref.watch(libraryContentDataProvider).valueOrNull;
+    final browsingSnapshot =
+        ref.watch(browsingAvailableLibraryContentDataProvider).valueOrNull;
     final title = _workspaceTitle(
       path: widget.currentPath,
       snapshot: snapshot,
@@ -73,7 +84,7 @@ class _SmPlayerWorkspaceState extends ConsumerState<SmPlayerWorkspace> {
     );
     final synchronousPortalTitle = _synchronousWorkspaceAppBarTitle(
       location: widget.currentLocation,
-      snapshot: snapshot,
+      snapshot: browsingSnapshot,
       i18n: i18n,
     );
     final rawHeaderedPlaylistAppBar = ref.watch(
@@ -145,6 +156,10 @@ class _SmPlayerWorkspaceState extends ConsumerState<SmPlayerWorkspace> {
   }
 
   void _rememberWorkspaceAppBarPortal(WorkspaceAppBarPortalEntry? entry) {
+    if (identical(entry, _lastWorkspaceAppBarPortal)) {
+      return;
+    }
+    _lastWorkspaceAppBarPortal = entry;
     if (entry == null) {
       return;
     }

@@ -1,5 +1,6 @@
 import '../remote/music_share_approval_host.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:smplayer_flutter/src/app/shell_colors.dart';
 
 class SmPlayerShellFrame extends StatefulWidget {
@@ -90,79 +91,89 @@ class _SmPlayerShellFrameState extends State<SmPlayerShellFrame>
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [widget.colors.bodyTop, widget.colors.bodyBottom],
-          ),
-        ),
-        child: Container(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [widget.colors.bodyHighlight, Colors.transparent],
-              stops: const [0, 0.36],
+    final systemUiStyle =
+        Theme.of(context).brightness == Brightness.dark
+            ? SystemUiOverlayStyle.light
+            : SystemUiOverlayStyle.dark;
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: systemUiStyle.copyWith(
+        statusBarColor: Colors.transparent,
+        systemStatusBarContrastEnforced: false,
+      ),
+      child: Scaffold(
+        backgroundColor: widget.colors.workspaceSolidSurface,
+        body: SafeArea(
+          bottom: false,
+          child: Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [widget.colors.bodyTop, widget.colors.bodyBottom],
+              ),
             ),
-          ),
-          child: SafeArea(
-            top: false,
-            bottom: false,
-            child: Stack(
-              fit: StackFit.expand,
-              children: [
-                const MusicShareApprovalHost(),
-                if (_normalModeMounted)
-                  IgnorePointer(
-                    ignoring: widget.isMiniMode,
-                    child: ExcludeSemantics(
-                      excluding: widget.isMiniMode,
-                      child: TickerMode(
-                        enabled: !widget.isMiniMode,
-                        child: FadeTransition(
-                          opacity: ReverseAnimation(_transition),
-                          child: ScaleTransition(
-                            scale: _normalScale,
-                            child: KeyedSubtree(
-                              key: const ValueKey(
-                                'SmPlayerShellFrame.NormalMode',
-                              ),
-                              child: Stack(
-                                fit: StackFit.expand,
-                                children: widget.children,
+            child: Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [widget.colors.bodyHighlight, Colors.transparent],
+                  stops: const [0, 0.36],
+                ),
+              ),
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  const MusicShareApprovalHost(),
+                  if (_normalModeMounted)
+                    IgnorePointer(
+                      ignoring: widget.isMiniMode,
+                      child: ExcludeSemantics(
+                        excluding: widget.isMiniMode,
+                        child: TickerMode(
+                          enabled: !widget.isMiniMode,
+                          child: FadeTransition(
+                            opacity: ReverseAnimation(_transition),
+                            child: ScaleTransition(
+                              scale: _normalScale,
+                              child: KeyedSubtree(
+                                key: const ValueKey(
+                                  'SmPlayerShellFrame.NormalMode',
+                                ),
+                                child: Stack(
+                                  fit: StackFit.expand,
+                                  children: widget.children,
+                                ),
                               ),
                             ),
                           ),
                         ),
                       ),
                     ),
-                  ),
-                if (_miniModeMounted)
-                  IgnorePointer(
-                    ignoring: !widget.isMiniMode,
-                    child: ExcludeSemantics(
-                      excluding: !widget.isMiniMode,
-                      child: TickerMode(
-                        enabled: widget.isMiniMode,
-                        child: FadeTransition(
-                          opacity: _transition,
-                          child: ScaleTransition(
-                            scale: _miniScale,
-                            child: KeyedSubtree(
-                              key: const ValueKey(
-                                'SmPlayerShellFrame.MiniMode',
+                  if (_miniModeMounted)
+                    IgnorePointer(
+                      ignoring: !widget.isMiniMode,
+                      child: ExcludeSemantics(
+                        excluding: !widget.isMiniMode,
+                        child: TickerMode(
+                          enabled: widget.isMiniMode,
+                          child: FadeTransition(
+                            opacity: _transition,
+                            child: ScaleTransition(
+                              scale: _miniScale,
+                              child: KeyedSubtree(
+                                key: const ValueKey(
+                                  'SmPlayerShellFrame.MiniMode',
+                                ),
+                                child: widget.miniModeHost,
                               ),
-                              child: widget.miniModeHost,
                             ),
                           ),
                         ),
                       ),
                     ),
-                  ),
-              ],
+                ],
+              ),
             ),
           ),
         ),

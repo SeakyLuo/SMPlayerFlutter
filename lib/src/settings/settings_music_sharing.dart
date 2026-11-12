@@ -10,6 +10,17 @@ class _SettingsMusicSharing extends ConsumerStatefulWidget {
 
 class _SettingsMusicSharingState extends ConsumerState<_SettingsMusicSharing> {
   var _editingPort = false;
+  final _connectionInfoButtonKey = GlobalKey();
+
+  Rect? _connectionInfoCloseTarget() {
+    if (!mounted) return null;
+    final buttonContext = _connectionInfoButtonKey.currentContext;
+    if (buttonContext == null) return null;
+    final box = buttonContext.findRenderObject()! as RenderBox;
+    final rect = box.localToGlobal(Offset.zero) & box.size;
+    final viewport = Offset.zero & MediaQuery.sizeOf(context);
+    return viewport.overlaps(rect) ? rect : null;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -25,8 +36,18 @@ class _SettingsMusicSharingState extends ConsumerState<_SettingsMusicSharing> {
           checked: running,
           enabled: share.initialized && !share.busy && !_editingPort,
           onChange:
-              (enabled) =>
-                  runMusicShareAction(context, () => share.setSharing(enabled)),
+              (enabled) => runMusicShareAction(context, () async {
+                await share.setSharing(enabled);
+                if (enabled && context.mounted) {
+                  await WidgetsBinding.instance.endOfFrame;
+                  if (context.mounted) {
+                    await showMusicShareConnectionInfo(
+                      context,
+                      closeTarget: _connectionInfoCloseTarget,
+                    );
+                  }
+                }
+              }),
         ),
         const SizedBox(height: 16),
         if (share.initialized)
@@ -73,12 +94,19 @@ class _SettingsMusicSharingState extends ConsumerState<_SettingsMusicSharing> {
               onClick: () => showMusicShareAuthorizedDevices(context),
               child: Text(i18n.t('share.authorizedDevices')),
             ),
+            if (running)
+              SettingsActionButton(
+                key: _connectionInfoButtonKey,
+                icon: FluentIcons.qr_code_24_regular,
+                onClick:
+                    () => showMusicShareConnectionInfo(
+                      context,
+                      closeTarget: _connectionInfoCloseTarget,
+                    ),
+                child: Text(i18n.t('share.connectionInfo')),
+              ),
           ],
         ),
-        if (running) ...[
-          const SizedBox(height: 16),
-          const MusicShareHostDetails(),
-        ],
       ],
     );
   }

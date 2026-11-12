@@ -63,8 +63,14 @@ class MusicShareIdentity {
 }
 
 class MusicShareTransport {
-  MusicShareTransport(this.address, {this.fingerprint, this.token}) {
+  MusicShareTransport(
+    this.address, {
+    this.fingerprint,
+    this.token,
+    int? maxConnectionsPerHost,
+  }) {
     _client.connectionTimeout = const Duration(seconds: 5);
+    _client.maxConnectionsPerHost = maxConnectionsPerHost;
     _client.badCertificateCallback = (certificate, host, port) {
       final digest = sha256.convert(certificate.der).toString();
       observedFingerprint = digest;
@@ -108,7 +114,11 @@ class MusicShareTransport {
     if (response.statusCode != 200) {
       await response.drain<void>();
       throw MusicShareException(
-        response.statusCode == 403 && path == '/pair'
+        response.statusCode == 403 &&
+                path != '/pair' &&
+                (method == 'POST' || method == 'DELETE')
+            ? 'share.readOnlyPermission'
+            : response.statusCode == 403 && path == '/pair'
             ? 'share.pairingClosed'
             : response.statusCode == 401
             ? 'share.authorizationRequired'

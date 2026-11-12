@@ -287,6 +287,7 @@ GoRouter createSmPlayerRouter({
                                       ),
                               onDataImported: () async {
                                 if (onDataImported != null) {
+                                  await ref.read(musicShareProvider).shutdown();
                                   await onDataImported();
                                 } else {
                                   await settingsController?.refresh();

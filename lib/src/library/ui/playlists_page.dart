@@ -3,13 +3,19 @@ import 'dart:async';
 import 'dart:math';
 
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:smplayer_flutter/src/library/ui/local_page_shell.dart'
+    show LocalPageEmptyArtwork;
+
+import 'package:smplayer_flutter/src/library/ui/popup_dialog.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:smplayer_flutter/src/app/edge_auto_hide_scrollbar.dart';
 import 'package:smplayer_flutter/src/app/input_dialog.dart';
 import 'package:smplayer_flutter/src/app/loading_state.dart';
+import 'package:smplayer_flutter/src/app/undoable_notification.dart';
 import 'package:smplayer_flutter/src/app/workspace_app_bar_portal.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/data/library_models.dart';
@@ -375,10 +381,7 @@ class _PlaylistsPageState extends ConsumerState<PlaylistsPage> {
           _renamePlaylistWithoutReload(selectedPlaylist, name);
         },
         onDelete: () async {
-          await ref
-              .read(libraryRepositoryProvider)
-              .deletePlaylist(selectedPlaylist.id);
-          _removeLocalPlaylist(selectedPlaylist.id);
+          await _deletePlaylistWithUndo(context, i18n, selectedPlaylist);
           if (context.mounted) {
             context.go('/playlists');
           }

@@ -110,16 +110,56 @@ extension _PlaylistsPageCrudActions on _PlaylistsPageState {
     final confirmed = await showSmPlayerConfirmDialog(
       context: context,
       i18n: i18n,
-      title: i18n.t('playlists.delete'),
+      title: i18n.t('playlists.deleteTitle'),
       message: i18n.t('headeredPlaylist.deleteConfirm', {
         'name': playlist.name,
       }),
       confirmText: i18n.t('playlists.delete'),
     );
-    if (confirmed) {
-      await ref.read(libraryRepositoryProvider).deletePlaylist(playlist.id);
-      _removeLocalPlaylist(playlist.id);
+    if (confirmed && context.mounted) {
+      await _deletePlaylistWithUndo(context, i18n, playlist);
     }
+  }
+
+  Future<void> _deletePlaylistWithUndo(
+    BuildContext context,
+    SmPlayerI18n i18n,
+    LibraryPlaylist playlist,
+  ) async {
+    final container = ProviderScope.containerOf(context, listen: false);
+    final repository = container.read(libraryRepositoryProvider);
+    final originalOrder = container.read(libraryPlaylistOrderProvider);
+    await repository.deletePlaylist(playlist.id);
+    _removeLocalPlaylist(playlist.id);
+    unawaited(
+      showUndoableAppNotification(
+        i18n: i18n,
+        message: i18n.t('notification.playlistRemoved', {
+          'name': playlist.name,
+        }),
+        onUndo: () async {
+          await repository.restorePlaylist(playlist);
+          final deleted = container.read(
+            libraryDeletedPlaylistIdsProvider.notifier,
+          );
+          final overrides = container.read(
+            libraryPlaylistOverridesProvider.notifier,
+          );
+          deleted.state = {...deleted.state}..remove(playlist.id);
+          overrides.state = {...overrides.state, playlist.id: playlist};
+          if (originalOrder != null) {
+            final order = container.read(libraryPlaylistOrderProvider.notifier);
+            final restoredOrder = [...order.state!];
+            final index = originalOrder.indexOf(playlist.id);
+            restoredOrder.insert(
+              index < restoredOrder.length ? index : restoredOrder.length,
+              playlist.id,
+            );
+            order.state = restoredOrder;
+          }
+        },
+      ),
+    );
   }
 
   Future<void> _showPlaylistMenu(

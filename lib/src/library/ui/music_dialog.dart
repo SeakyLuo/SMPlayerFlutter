@@ -1,4 +1,4 @@
-import '../../remote/remote_song_details.dart';
+import '../../remote/music_source_providers.dart';
 import '../../remote/music_share_models.dart';
 import 'dart:async';
 import 'dart:io';
@@ -207,9 +207,7 @@ class _MusicDialogState extends ConsumerState<MusicDialog> {
       return;
     }
     _dependenciesInitialized = true;
-    if (!isRemoteMusicPath(widget.song.path)) {
-      _scheduleLoadSong(_dialogSessionKey);
-    }
+    _scheduleLoadSong(_dialogSessionKey);
   }
 
   @override
@@ -234,16 +232,14 @@ class _MusicDialogState extends ConsumerState<MusicDialog> {
     if (oldWidget.song.id == widget.song.id &&
         oldWidget.initialMode != widget.initialMode) {
       _mode = widget.initialMode;
-      if (!isRemoteMusicPath(widget.song.path)) unawaited(_loadCurrentMode());
+      unawaited(_loadCurrentMode());
     }
     if (oldWidget.song.id != widget.song.id) {
       _mode = widget.initialMode;
       _dialogSession = Object();
       _dialogSessionKey = (session: _dialogSession, songId: widget.song.id);
       _recordBrowseAfterFrame(widget.song.id);
-      if (!isRemoteMusicPath(widget.song.path)) {
-        _scheduleLoadSong(_dialogSessionKey);
-      }
+      _scheduleLoadSong(_dialogSessionKey);
     }
   }
 
@@ -353,13 +349,6 @@ class _MusicDialogState extends ConsumerState<MusicDialog> {
 
   @override
   Widget build(BuildContext context) {
-    if (isRemoteMusicPath(widget.song.path)) {
-      return RemoteSongDetails(
-        key: ValueKey(widget.song.path),
-        song: widget.song,
-        onClose: widget.onClose,
-      );
-    }
     ref.watch(
       musicDialogPropertiesStateProvider(_dialogSessionKey).select((_) => null),
     );
@@ -374,9 +363,18 @@ class _MusicDialogState extends ConsumerState<MusicDialog> {
         _dialogSessionKey,
       ).select((_) => null),
     );
+    ref.watch(
+      musicShareProvider.select(
+        (share) =>
+            !isRemoteMusicPath(widget.song.path) ||
+            share.canWrite(widget.song.path),
+      ),
+    );
     final i18n = context.smPlayerI18n;
     ref.listen(libraryContentDataProvider, (previous, next) {
-      if (next.hasValue && _requestedModes.contains(SongDialogMode.albumArt)) {
+      if (!isRemoteMusicPath(widget.song.path) &&
+          next.hasValue &&
+          _requestedModes.contains(SongDialogMode.albumArt)) {
         unawaited(_loadArtworkRecommendation(librarySnapshotChanged: true));
       }
     });
@@ -434,7 +432,7 @@ class _MusicDialogState extends ConsumerState<MusicDialog> {
               SongDialogMode.albumArt => _buildAlbumArtControl(),
             },
           ),
-          if (_libraryArtworkPickerOpen)
+          if (_libraryArtworkPickerOpen && _canEditSong)
             Consumer(
               builder: (context, ref, child) {
                 final librarySongs =
@@ -453,7 +451,7 @@ class _MusicDialogState extends ConsumerState<MusicDialog> {
                 );
               },
             ),
-          if (_lyricsSearchPickerOpen)
+          if (_lyricsSearchPickerOpen && _canEditSong)
             LyricsSearchPickerDialog(
               song: widget.song,
               candidates: _lyricsSearchCandidates,

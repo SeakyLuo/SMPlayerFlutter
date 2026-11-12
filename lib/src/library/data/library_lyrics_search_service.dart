@@ -35,8 +35,23 @@ class LibraryLyricsSearchService {
     File databaseFile,
     String query, {
     String folderPath = '',
-  }) {
-    return _searchInBackground(_database, databaseFile.path, query, folderPath);
+  }) async {
+    try {
+      return await _searchInBackground(
+        _database,
+        databaseFile.path,
+        query,
+        folderPath,
+      );
+    } on Object catch (error, stackTrace) {
+      developer.log(
+        'Cannot search local lyrics index',
+        name: 'library.search',
+        error: error,
+        stackTrace: stackTrace,
+      );
+      rethrow;
+    }
   }
 
   static Future<List<LocalLyricsSearchMatch>> _searchInBackground(
@@ -115,7 +130,17 @@ class LibraryLyricsSearchService {
     File databaseFile, {
     void Function(LocalLyricsIndexProgress progress)? onProgress,
   }) async {
-    await _ensureMissingSongsIndexed(databaseFile, onProgress: onProgress);
+    try {
+      await _ensureMissingSongsIndexed(databaseFile, onProgress: onProgress);
+    } on Object catch (error, stackTrace) {
+      developer.log(
+        'Cannot index missing local lyrics',
+        name: 'library.search',
+        error: error,
+        stackTrace: stackTrace,
+      );
+      rethrow;
+    }
   }
 
   Future<void> refreshAll(File databaseFile) async {

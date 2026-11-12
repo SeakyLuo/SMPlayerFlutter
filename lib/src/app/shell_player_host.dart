@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import '../library/ui/local_song_location.dart';
 
@@ -260,7 +261,10 @@ class ShellPlayerHost extends StatelessWidget {
                   onToggleRepeatOne: mediaControlController.onToggleRepeatOne,
                   desktopLyricsEnabled:
                       settingsController.snapshot.desktopLyricsEnabled,
-                  onToggleDesktopLyrics: onToggleDesktopLyrics,
+                  onToggleDesktopLyrics:
+                      Platform.isAndroid || Platform.isIOS
+                          ? null
+                          : onToggleDesktopLyrics,
                   onToggleFavorite:
                       currentSong == null
                           ? mediaControlController.onToggleFavorite
@@ -454,23 +458,34 @@ class _ShellPlayerTrackInfo extends ConsumerWidget {
         ),
       ),
     );
-    final lyricsLine = resolvePlayerLyricLine(
-      lyrics: desktopLyricsForSong(currentSong),
-      song: currentSong,
-      progressSeconds: playback.progressSeconds,
-      durationSeconds: playback.durationSeconds,
-    );
-    return Align(
-      alignment: Alignment.centerLeft,
-      child: MediaControlTrackInfo(
-        track: playback.track,
-        artworkPath: resolvePlayerArtworkPath(playback.track, currentSong),
-        currentLyricsLine: lyricsLine,
-        onArtworkError: onArtworkError,
-        disabled: playback.track.id == null,
-        compact: compact,
-        onPressed: onPressed,
-      ),
+    final mobile = Platform.isAndroid || Platform.isIOS;
+    final lyricsLine =
+        mobile
+            ? null
+            : resolvePlayerLyricLine(
+              lyrics: desktopLyricsForSong(currentSong),
+              song: currentSong,
+              progressSeconds: playback.progressSeconds,
+              durationSeconds: playback.durationSeconds,
+            );
+    return LayoutBuilder(
+      builder:
+          (context, constraints) => Align(
+            alignment: Alignment.centerLeft,
+            child: MediaControlTrackInfo(
+              track: playback.track,
+              artworkPath: resolvePlayerArtworkPath(
+                playback.track,
+                currentSong,
+              ),
+              currentLyricsLine: lyricsLine,
+              onArtworkError: onArtworkError,
+              disabled: playback.track.id == null,
+              compact: compact,
+              showTrackCopy: mediaControlShowsTrackCopy(constraints.maxWidth),
+              onPressed: onPressed,
+            ),
+          ),
     );
   }
 }

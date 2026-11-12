@@ -84,33 +84,57 @@ class _AuthorizedDevices extends ConsumerWidget {
     return ListView(
       children: [
         for (final grant in share.grants.entries)
-          ListTile(
-            contentPadding: EdgeInsets.zero,
-            leading: Icon(
-              FluentIcons.desktop_24_regular,
-              color: colors.textMuted,
-            ),
-            title: Text(
-              grant.value,
-              style: TextStyle(color: colors.textStrong, fontSize: 14),
-            ),
-            trailing: PopupDialogActionButton(
-              label: i18n.t('share.revoke'),
-              onPressed: () async {
-                final confirmed = await showPopupConfirmDialog(
-                  context: context,
-                  title: i18n.t('share.revoke'),
-                  message: i18n.t('share.revokeConfirm', {'name': grant.value}),
-                  confirmLabel: i18n.t('share.revoke'),
-                );
-                if (confirmed && context.mounted) {
-                  await runMusicShareAction(
-                    context,
-                    () => share.revoke(grant.key),
-                  );
-                }
-              },
-            ),
+          Column(
+            children: [
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: Icon(
+                  FluentIcons.desktop_24_regular,
+                  color: colors.textMuted,
+                ),
+                title: Text(
+                  grant.value,
+                  style: TextStyle(color: colors.textStrong, fontSize: 14),
+                ),
+                trailing: PopupDialogActionButton(
+                  label: i18n.t('share.revoke'),
+                  onPressed:
+                      share.permissionChanges.contains(grant.key)
+                          ? null
+                          : () async {
+                            final confirmed = await showPopupConfirmDialog(
+                              context: context,
+                              title: i18n.t('share.revoke'),
+                              message: i18n.t('share.revokeConfirm', {
+                                'name': grant.value,
+                              }),
+                              confirmLabel: i18n.t('share.revoke'),
+                            );
+                            if (confirmed && context.mounted) {
+                              await runMusicShareAction(
+                                context,
+                                () => share.revoke(grant.key),
+                              );
+                            }
+                          },
+                ),
+              ),
+              CheckboxListTile(
+                contentPadding: EdgeInsets.zero,
+                value: share.writeGrants.contains(grant.key),
+                title: Text(
+                  i18n.t('share.allowEditing'),
+                  style: TextStyle(color: colors.textStrong, fontSize: 14),
+                ),
+                onChanged:
+                    share.permissionChanges.contains(grant.key)
+                        ? null
+                        : (value) => runMusicShareAction(
+                          context,
+                          () => share.setWritePermission(grant.key, value!),
+                        ),
+              ),
+            ],
           ),
         const SizedBox(height: 12),
         Text(

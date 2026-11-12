@@ -21,6 +21,13 @@ Future<bool> showPopupConfirmDialog({
               i18n ??
               const SmPlayerI18n(locale: smPlayerFallbackLocale, messages: {});
           var submitting = false;
+          var closing = false;
+
+          void close(bool confirmed) {
+            if (closing) return;
+            closing = true;
+            Navigator.of(dialogContext).pop(confirmed);
+          }
 
           return StatefulBuilder(
             builder: (dialogContext, setDialogState) {
@@ -30,7 +37,7 @@ Future<bool> showPopupConfirmDialog({
                 }
                 final callback = onConfirm;
                 if (callback == null) {
-                  Navigator.of(dialogContext).pop(true);
+                  close(true);
                   return;
                 }
                 setDialogState(() {
@@ -45,28 +52,27 @@ Future<bool> showPopupConfirmDialog({
                   }
                 }
                 if (dialogContext.mounted) {
-                  Navigator.of(dialogContext).pop(true);
+                  close(true);
                 }
               }
 
               return _InputDialogShell(
                 ariaLabel: title,
-                onClose: () => Navigator.of(dialogContext).pop(false),
+                onClose: () => close(false),
                 canClose: !submitting,
                 footer: PopupDialogActions(
                   children: [
-                    if (cancelIsPrimary)
-                      PopupDialogActionButton(
-                        label: cancelLabel ?? dialogI18n.t('common.cancel'),
-                        primary: true,
-                        onPressed:
-                            submitting
-                                ? null
-                                : () {
-                                  onCancel?.call();
-                                  Navigator.of(dialogContext).pop(false);
-                                },
-                      ),
+                    PopupDialogActionButton(
+                      label: cancelLabel ?? dialogI18n.t('common.cancel'),
+                      primary: cancelIsPrimary,
+                      onPressed:
+                          submitting
+                              ? null
+                              : () {
+                                onCancel?.call();
+                                close(false);
+                              },
+                    ),
                     PopupDialogActionButton(
                       label: confirmLabel,
                       primary: !cancelIsPrimary,
@@ -74,17 +80,6 @@ Future<bool> showPopupConfirmDialog({
                       loading: submitting,
                       onPressed: submitting ? null : () => unawaited(submit()),
                     ),
-                    if (!cancelIsPrimary)
-                      PopupDialogActionButton(
-                        label: cancelLabel ?? dialogI18n.t('common.cancel'),
-                        onPressed:
-                            submitting
-                                ? null
-                                : () {
-                                  onCancel?.call();
-                                  Navigator.of(dialogContext).pop(false);
-                                },
-                      ),
                   ],
                 ),
                 child: Column(

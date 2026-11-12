@@ -77,6 +77,10 @@ extension _MusicDialogStateResetActions on _MusicDialogState {
   }
 
   void _applyAlbumArtRecommendation(AlbumArtRecommendation recommendation) {
+    if (!_canEditSong) {
+      _showMessage(context.smPlayerI18n.t('share.readOnlyPermission'));
+      return;
+    }
     final state = ref.read(musicDialogArtworkStateProvider(_dialogSessionKey));
     if (state.operation != null) {
       return;
@@ -92,6 +96,10 @@ extension _MusicDialogStateResetActions on _MusicDialogState {
   }
 
   void _applyAlbumArtLibraryChoice(AlbumArtLibraryChoice choice) {
+    if (!_canEditSong) {
+      _showMessage(context.smPlayerI18n.t('share.readOnlyPermission'));
+      return;
+    }
     final state = ref.read(musicDialogArtworkStateProvider(_dialogSessionKey));
     if (state.operation != null) {
       return;

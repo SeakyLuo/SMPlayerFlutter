@@ -278,16 +278,6 @@ class _MusicShareConnectState extends ConsumerState<MusicShareConnect> {
             fontWeight: FontWeight.w600,
           ),
         ),
-        if (_discovering)
-          const Padding(
-            padding: EdgeInsets.symmetric(vertical: 24),
-            child: Center(
-              child: SizedBox.square(
-                dimension: 24,
-                child: CircularProgressIndicator(strokeWidth: 2),
-              ),
-            ),
-          ),
         for (final host in nearby)
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 12),
@@ -311,6 +301,16 @@ class _MusicShareConnectState extends ConsumerState<MusicShareConnect> {
                   onPressed: _connecting ? null : () => _connect(host.address),
                 ),
               ],
+            ),
+          ),
+        if (_discovering)
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 24),
+            child: Center(
+              child: SizedBox.square(
+                dimension: 24,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
             ),
           ),
         if (!_discovering && nearby.isEmpty)

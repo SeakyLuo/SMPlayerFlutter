@@ -101,6 +101,13 @@ extension _PlaylistsPageGrid on _PlaylistsPageState {
                   ? Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 24),
                     child: _PlaylistsEmptyState(
+                      searching: _searchQuery.isNotEmpty,
+                      onAction:
+                          _searchQuery.isEmpty
+                              ? () => unawaited(
+                                _createPlaylist(context, i18n, snapshot),
+                              )
+                              : _clearSearch,
                       title:
                           _searchQuery.isEmpty
                               ? i18n.t('playlists.none')

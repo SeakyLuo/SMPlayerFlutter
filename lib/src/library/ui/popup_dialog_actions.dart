@@ -33,6 +33,8 @@ class PopupDialogActionButton extends StatelessWidget {
     required this.label,
     required this.onPressed,
     this.primary = false,
+    this.icon,
+    this.height = 36,
     this.destructive = false,
     this.loading = false,
     this.loadingProgress,
@@ -41,6 +43,8 @@ class PopupDialogActionButton extends StatelessWidget {
   final String label;
   final VoidCallback? onPressed;
   final bool primary;
+  final IconData? icon;
+  final double height;
   final bool destructive;
   final bool loading;
   final double? loadingProgress;
@@ -51,12 +55,13 @@ class PopupDialogActionButton extends StatelessWidget {
     if (!primary) {
       return SmPlayerTextIconButton(
         label: label,
+        icon: icon,
         loading: loading,
         loadingProgress: loadingProgress,
         disabled: onPressed == null,
         onPressed: onPressed,
         minWidth: 88,
-        height: 36,
+        height: height,
         horizontalPadding: 16,
         fontSize: 16,
         fontWeight: FontWeight.w700,
@@ -73,12 +78,13 @@ class PopupDialogActionButton extends StatelessWidget {
       ),
       child: SmPlayerTextIconButton(
         label: label,
+        icon: icon,
         loading: loading,
         loadingProgress: loadingProgress,
         disabled: onPressed == null,
         onPressed: onPressed,
         minWidth: 88,
-        height: 36,
+        height: height,
         horizontalPadding: 16,
         fontSize: 16,
         fontWeight: FontWeight.w700,

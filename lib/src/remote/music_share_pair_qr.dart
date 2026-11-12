@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 
 import '../i18n/app_i18n.dart';
+import '../settings/settings_page.dart';
 import 'music_share_pair_code.dart';
 
 class MusicSharePairQr extends StatefulWidget {
@@ -43,19 +44,14 @@ class _MusicSharePairQrState extends State<MusicSharePairQr> {
         Text(i18n.t('share.qrConnectHint'), textAlign: TextAlign.center),
         const SizedBox(height: 12),
         if (widget.addresses.length > 1)
-          DropdownButtonFormField<String>(
-            initialValue: _address,
-            isExpanded: true,
-            decoration: InputDecoration(
-              labelText: i18n.t('share.networkAddress'),
-              isDense: true,
-              border: const OutlineInputBorder(),
-            ),
-            items: [
+          SelectSettingRow<String>(
+            label: i18n.t('share.networkAddress'),
+            value: _address,
+            options: [
               for (final address in widget.addresses)
-                DropdownMenuItem(value: address, child: Text(address)),
+                SelectSettingOption(value: address, label: address),
             ],
-            onChanged: (address) => setState(() => _address = address!),
+            onChange: (address) => setState(() => _address = address),
           )
         else
           SelectableText(_address),

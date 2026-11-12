@@ -24,6 +24,7 @@ class PopupDialog extends StatefulWidget {
     this.borderRadius = 12,
     this.onWindowDragStart,
     this.onWindowDragEnd,
+    this.closeTarget,
   });
 
   final String className;
@@ -47,6 +48,7 @@ class PopupDialog extends StatefulWidget {
   final double borderRadius;
   final VoidCallback? onWindowDragStart;
   final VoidCallback? onWindowDragEnd;
+  final Rect? Function()? closeTarget;
 
   @override
   State<PopupDialog> createState() => _PopupDialogState();
@@ -54,6 +56,52 @@ class PopupDialog extends StatefulWidget {
 
 class _PopupDialogState extends State<PopupDialog> {
   late final PopupDialogCloseHandler _closeHandler;
+  final _surfaceKey = GlobalKey();
+  var _closingAnimationStarted = false;
+  Rect? _closingSource;
+  Rect? _closingTarget;
+
+  double _closingProgress(Animation<double> animation) {
+    if (!_closingAnimationStarted &&
+        animation.status == AnimationStatus.reverse) {
+      _closingAnimationStarted = true;
+      final box = _surfaceKey.currentContext?.findRenderObject() as RenderBox?;
+      if (box != null && box.hasSize) {
+        _closingSource = box.localToGlobal(Offset.zero) & box.size;
+        _closingTarget = widget.closeTarget!();
+      }
+    }
+    return _closingAnimationStarted
+        ? Curves.easeInOutCubic.transform(1 - animation.value)
+        : 0;
+  }
+
+  Widget _animateClosingSurface(Widget surface, Animation<double> animation) {
+    return AnimatedBuilder(
+      animation: animation,
+      child: surface,
+      builder: (context, child) {
+        final progress = _closingProgress(animation);
+        final source = _closingSource;
+        final target = _closingTarget;
+        if (source == null || target == null) return child!;
+        final horizontalScale = target.width / source.width;
+        final verticalScale = target.height / source.height;
+        final endScale = (horizontalScale < verticalScale
+                ? horizontalScale
+                : verticalScale)
+            .clamp(0.0, 1.0);
+        return Transform.translate(
+          offset: (target.center - source.center) * progress,
+          child: Transform.scale(
+            scale: 1 + (endScale - 1) * progress,
+            child: child,
+          ),
+        );
+      },
+    );
+  }
+
   final _overlayController = OverlayPortalController(debugLabel: 'PopupDialog');
 
   @override
@@ -109,7 +157,11 @@ class _PopupDialogState extends State<PopupDialog> {
       navClassName: widget.navClassName,
     );
 
-    return Focus(
+    final closingAnimation =
+        widget.closeTarget == null
+            ? null
+            : ModalRoute.of(this.context)!.animation!;
+    final overlay = Focus(
       autofocus: true,
       onKeyEvent: (node, event) {
         if (event is! KeyDownEvent ||
@@ -144,6 +196,11 @@ class _PopupDialogState extends State<PopupDialog> {
                     final mobile =
                         widget.fullScreenOnNarrow &&
                         constraints.maxWidth <= popupDialogMobileBreakpoint;
+                    final view = View.of(context);
+                    // The root overlay covers the full view, even when its
+                    // caller has already consumed the MediaQuery safe padding.
+                    final topSafeInset =
+                        view.padding.top / view.devicePixelRatio;
                     final dialogWidth =
                         mobile
                             ? constraints.maxWidth
@@ -157,6 +214,7 @@ class _PopupDialogState extends State<PopupDialog> {
                         mobile
                             ? constraints.maxHeight
                             : (constraints.maxHeight -
+                                    topSafeInset -
                                     widget.verticalInset -
                                     keyboardInset)
                                 .clamp(0.0, widget.height);
@@ -203,7 +261,12 @@ class _PopupDialogState extends State<PopupDialog> {
                         child: Padding(
                           padding:
                               mobile
-                                  ? const EdgeInsets.fromLTRB(12, 44, 12, 10)
+                                  ? EdgeInsets.fromLTRB(
+                                    12,
+                                    44 + topSafeInset,
+                                    12,
+                                    10,
+                                  )
                                   : const EdgeInsets.fromLTRB(28, 22, 28, 18),
                           child: Row(
                             children: [
@@ -221,6 +284,7 @@ class _PopupDialogState extends State<PopupDialog> {
                       ),
                     );
                     final dialog = GestureDetector(
+                      key: _surfaceKey,
                       behavior: HitTestBehavior.opaque,
                       onTap: () {},
                       child: SizedBox(
@@ -306,11 +370,20 @@ class _PopupDialogState extends State<PopupDialog> {
                       fit: StackFit.expand,
                       children: [
                         Padding(
-                          padding: EdgeInsets.only(bottom: keyboardInset),
+                          padding: EdgeInsets.only(
+                            top: mobile ? 0 : topSafeInset,
+                            bottom: keyboardInset,
+                          ),
                           child: Align(
                             alignment:
                                 mobile ? Alignment.topCenter : Alignment.center,
-                            child: dialog,
+                            child:
+                                closingAnimation == null
+                                    ? dialog
+                                    : _animateClosingSurface(
+                                      dialog,
+                                      closingAnimation,
+                                    ),
                           ),
                         ),
                         if (!mobile)
@@ -337,7 +410,7 @@ class _PopupDialogState extends State<PopupDialog> {
                           ),
                         if (mobile)
                           Positioned(
-                            top: 0,
+                            top: topSafeInset,
                             left: 0,
                             right: 138,
                             height: 32,
@@ -376,6 +449,16 @@ class _PopupDialogState extends State<PopupDialog> {
           ),
         ),
       ),
+    );
+    if (closingAnimation == null) return overlay;
+    return AnimatedBuilder(
+      animation: closingAnimation,
+      child: overlay,
+      builder:
+          (context, child) => Opacity(
+            opacity: 1 - _closingProgress(closingAnimation),
+            child: child,
+          ),
     );
   }
 

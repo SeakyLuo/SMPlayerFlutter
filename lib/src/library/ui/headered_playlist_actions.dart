@@ -276,7 +276,7 @@ extension _HeaderedPlaylistControlActions on _HeaderedPlaylistControlState {
 
   Future<void> _requestDelete(SmPlayerI18n i18n) async {
     final confirmed = await _requestConfirm(
-      title: captionForHeaderedPlaylist(i18n, 'delete'),
+      title: i18n.t('playlists.deleteTitle'),
       message: i18n.t('headeredPlaylist.deleteConfirm', {'name': widget.title}),
       confirmText: captionForHeaderedPlaylist(i18n, 'delete'),
     );

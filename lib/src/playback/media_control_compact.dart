@@ -357,6 +357,9 @@ class _CompactMediaControlLayout extends StatelessWidget {
                               onArtworkError: onArtworkError,
                               disabled: track.id == null,
                               compact: true,
+                              showTrackCopy: mediaControlShowsTrackCopy(
+                                leadingWidth,
+                              ),
                               onPressed: onOpenNowPlaying,
                             ),
                       ),

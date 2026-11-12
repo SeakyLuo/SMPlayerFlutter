@@ -56,6 +56,10 @@ extension _MusicDialogStateArtworkActions on _MusicDialogState {
   }
 
   Future<void> _saveArtwork() async {
+    if (!_canEditSong) {
+      _showMessage(context.smPlayerI18n.t('share.readOnlyPermission'));
+      return;
+    }
     final sessionKey = _dialogSessionKey;
     final sessionState = ref.read(musicDialogArtworkStateProvider(sessionKey));
     if (sessionState.operation != null) {
@@ -87,7 +91,14 @@ extension _MusicDialogStateArtworkActions on _MusicDialogState {
       _artworkMissing = deleteArtwork;
       _originalArtworkMissing = deleteArtwork;
       _invalidateArtworkRecommendation();
-      _syncSongMutation(_songWithArtwork(_displayArtworkUrl), i18n);
+      final thumbnailPath =
+          isRemoteMusicPath(widget.song.path)
+              ? (await repository.getLibrarySongs(
+                songIds: [widget.song.id],
+              )).single.thumbnailPath
+              : _displayArtworkUrl;
+      if (!mounted || _dialogSessionKey != sessionKey) return;
+      _syncSongMutation(_songWithArtwork(thumbnailPath), i18n);
       _notifySaved();
       notifier.finish(dirty: false, refresh: true);
       if (_artworkMissing) {

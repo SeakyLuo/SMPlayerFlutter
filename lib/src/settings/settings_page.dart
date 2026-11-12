@@ -49,6 +49,7 @@ part 'settings_layout_parts.dart';
 part 'preference_page_parts.dart';
 
 part 'settings_library_actions.dart';
+part 'settings_library_folder_field.dart';
 part 'settings_lyrics_batch_actions.dart';
 part 'settings_ai_agent_actions.dart';
 part 'settings_music_sharing.dart';
@@ -192,6 +193,9 @@ class _SettingsPageState extends State<SettingsPage> {
 
   SettingsSnapshot get _snapshot => _settingsController.snapshot;
   bool get _isDataTransferBusy => _dataTransferState != DataTransferState.idle;
+  bool get _isExportingData =>
+      _dataTransferState == DataTransferState.openingExport ||
+      _dataTransferState == DataTransferState.exporting;
   bool get _isScanning => widget.scanning || _scanRunning;
   bool get _showLyricsBatchOptions => _sharedLyricsBatchState.showOptions;
   set _showLyricsBatchOptions(bool value) => _sharedLyricsBatchState.update(
@@ -358,7 +362,7 @@ class _SettingsPageState extends State<SettingsPage> {
                 ],
               ),
             ),
-            if (_dataTransferState != DataTransferState.idle)
+            if (_isDataTransferBusy && !_isExportingData)
               _SettingsProgressOverlay(state: _dataTransferState),
             if (_scanProgress case final progress?)
               ScanProgressOverlay(

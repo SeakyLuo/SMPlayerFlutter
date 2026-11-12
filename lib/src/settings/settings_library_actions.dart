@@ -1,6 +1,13 @@
 part of 'settings_page.dart';
 
 extension _SettingsLibraryActions on _SettingsPageState {
+  Future<void> _copyLibraryRoot() async {
+    await Clipboard.setData(ClipboardData(text: _snapshot.rootPath));
+    if (mounted) {
+      _showMessage(context.smPlayerI18n.t('common.copied'));
+    }
+  }
+
   Future<void> _pickLibraryRoot() async {
     if (_pickingLibraryRoot || _isScanning) {
       return;

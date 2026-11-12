@@ -59,8 +59,8 @@ class LibrarySnapshotService {
         }
       });
 
-  Future<RecentPageData> readRecent(String path, String queuePath) async {
-    final content = await readContent(path, queuePath);
+  Future<RecentPageData> readRecent(LibraryContentData content) async {
+    final path = content.databasePath;
     final songs = content.songs;
     final recent = await run(() {
       final db = _database.openInitializedLibraryDatabase(File(path));

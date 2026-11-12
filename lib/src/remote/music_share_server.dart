@@ -9,6 +9,7 @@ import '../library/data/library_repository.dart';
 import '../library/data/library_models.dart';
 import '../settings/settings_model.dart';
 import 'music_share_catalog.dart';
+import 'music_share_song_editor.dart';
 import 'music_share_identity.dart';
 import 'music_share_models.dart';
 
@@ -18,14 +19,18 @@ class MusicShareServer {
     required this.repository,
     required this.name,
     required this.grants,
+    required this.writeGrants,
     required this.onChanged,
+    required this.onLibraryChanged,
   });
 
   final MusicShareIdentity identity;
   final LibraryRepository repository;
   final String Function() name;
   final Map<String, String> grants;
+  final Set<String> writeGrants;
   final void Function() onChanged;
+  final void Function() onLibraryChanged;
   final requests = <String, MusicPairRequest>{};
   final _streams = <String, Set<HttpResponse>>{};
   HttpServer? _server;
@@ -115,6 +120,7 @@ class MusicShareServer {
     String key,
     bool allow, {
     required Future<void> Function() persist,
+    bool canWrite = false,
   }) async {
     final request = requests[key]!;
     if (DateTime.now().isAfter(request.expires) || request.state != 'pending') {
@@ -128,16 +134,19 @@ class MusicShareServer {
     final token = newShareSecret();
     final hash = shareDigest(token);
     grants[hash] = request.name;
+    if (canWrite) writeGrants.add(hash);
     try {
       await persist();
     } catch (_) {
       grants.remove(hash);
+      writeGrants.remove(hash);
       onChanged();
       rethrow;
     }
     if (!identical(requests[key], request) ||
         DateTime.now().isAfter(request.expires)) {
       grants.remove(hash);
+      writeGrants.remove(hash);
       await persist();
       throw const MusicShareException('share.pairingEnded');
     }
@@ -148,6 +157,7 @@ class MusicShareServer {
 
   Future<void> revoke(String hash) async {
     grants.remove(hash);
+    writeGrants.remove(hash);
     final responses = _streams.remove(hash) ?? {};
     for (final response in responses.toList()) {
       try {
@@ -234,12 +244,28 @@ class MusicShareServer {
         response.statusCode = HttpStatus.unauthorized;
         return;
       }
-      if (request.method != 'GET' && request.method != 'HEAD') {
+      if (request.method != 'GET' &&
+          request.method != 'HEAD' &&
+          !writeGrants.contains(hash)) {
+        response.statusCode = HttpStatus.forbidden;
+        return;
+      }
+      if (!{'GET', 'HEAD', 'POST', 'DELETE'}.contains(request.method)) {
+        response.statusCode = HttpStatus.methodNotAllowed;
+        return;
+      }
+      if ((path == '/status' || path == '/catalog') &&
+          request.method != 'GET' &&
+          request.method != 'HEAD') {
         response.statusCode = HttpStatus.methodNotAllowed;
         return;
       }
       if (path == '/status') {
-        _json(response, {'name': name(), 'revision': catalogRevision});
+        _json(response, {
+          'name': name(),
+          'revision': catalogRevision,
+          'canWrite': writeGrants.contains(hash),
+        });
         return;
       }
       if (path == '/catalog') {
@@ -248,7 +274,7 @@ class MusicShareServer {
         return;
       }
       final match = RegExp(
-        r'^/songs/(\d+)/(audio|artwork|lyrics)$',
+        r'^/songs/(\d+)/(audio|artwork|lyrics|properties|play-count)$',
       ).firstMatch(path);
       if (match == null) {
         response.statusCode = HttpStatus.notFound;
@@ -267,6 +293,26 @@ class MusicShareServer {
         return;
       }
       final kind = match.group(2)!;
+      if (kind == 'properties' ||
+          kind == 'play-count' ||
+          request.method == 'POST' ||
+          request.method == 'DELETE') {
+        final result = await handleSharedSongEdit(
+          request,
+          song,
+          kind,
+          repository,
+          canWrite:
+              () => grants.containsKey(hash) && writeGrants.contains(hash),
+        );
+        if (response.statusCode == HttpStatus.ok && request.method != 'GET') {
+          updateLibrary(await repository.getLibraryContentData());
+          onLibraryChanged();
+          result.addAll(sharedSongJson(_songs[songId]!));
+        }
+        _json(response, result);
+        return;
+      }
       if (kind == 'lyrics') {
         final lyrics = await repository.getSongLyrics(
           songId,
@@ -301,11 +347,14 @@ class MusicShareServer {
           _streams[hash]?.remove(response);
         }
       }
+    } on TypeError {
+      response.statusCode = HttpStatus.badRequest;
     } on FormatException {
       response.statusCode = HttpStatus.badRequest;
     } on FileSystemException {
       response.statusCode = HttpStatus.notFound;
     } catch (_) {
+      response.statusCode = HttpStatus.internalServerError;
       // A client may disconnect while seeking or while its grant is revoked.
     } finally {
       await response.close();

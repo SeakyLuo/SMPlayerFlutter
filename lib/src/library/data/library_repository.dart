@@ -1,3 +1,7 @@
+import 'dart:convert';
+import '../../remote/music_share_access.dart';
+import '../../remote/music_share_models.dart';
+import '../../remote/music_share_edit_codec.dart';
 import 'dart:io';
 
 import 'package:path/path.dart' as p;
@@ -63,6 +67,7 @@ export 'library_lyrics_service.dart'
         LyricsBatchResult,
         LyricsBatchSkipReason;
 
+part 'library_repository_song_editing.dart';
 part 'library_repository_platform.dart';
 part 'library_repository_local_operations.dart';
 part 'library_repository_collections.dart';
@@ -76,7 +81,10 @@ typedef _LyricsCacheKey =
     });
 
 class LibraryRepository
-    with _LibraryRepositoryLocalOperations, _LibraryRepositoryCollections {
+    with
+        _LibraryRepositoryLocalOperations,
+        _LibraryRepositoryCollections,
+        _LibraryRepositorySongEditing {
   const LibraryRepository({
     Future<File> Function()? databaseFileResolver,
     File Function()? nowPlayingFileResolver,
@@ -137,6 +145,7 @@ class LibraryRepository
   final InternetLyricsResolver? _internetLyricsResolver;
   final ShellThumbnailResolver _shellThumbnailResolver;
 
+  @override
   LibraryArtworkService get _artworkService => LibraryArtworkService(
     databaseFileResolver: _resolveDatabaseFile,
     shellThumbnailResolver: _shellThumbnailResolver,
@@ -204,12 +213,8 @@ class LibraryRepository
     return result.snapshot;
   }
 
-  Future<RecentPageData> getRecentPageData() async {
-    final databaseFile = await _resolveDatabaseFile();
-    return const LibrarySnapshotService().readRecent(
-      databaseFile.path,
-      _resolveNowPlayingFile(databaseFile).path,
-    );
+  Future<RecentPageData> getRecentPageData(LibraryContentData content) {
+    return const LibrarySnapshotService().readRecent(content);
   }
 
   Future<ShellNavigationData> getShellNavigationData() async {
@@ -253,6 +258,7 @@ class LibraryRepository
     return const LibrarySnapshotService().readSongCount(databaseFile.path);
   }
 
+  @override
   Future<List<LibrarySong>> getLibrarySongs({List<int>? songIds}) async {
     final databaseFile = await _resolveDatabaseFile();
     return const LibrarySnapshotService().readSongs(
@@ -470,23 +476,6 @@ class LibraryRepository
     await _playlistService.setSongsFavorite(databaseFile, songIds, favorite);
   }
 
-  Future<SongPropertiesSnapshot> getSongProperties(int songId) async {
-    final databaseFile = await _resolveDatabaseFile();
-    return _songPropertiesService.getSongProperties(databaseFile, songId);
-  }
-
-  Future<void> updateSongProperties(
-    int songId,
-    SongPropertiesUpdate update,
-  ) async {
-    final databaseFile = await _resolveDatabaseFile();
-    await _songPropertiesService.updateSongProperties(
-      databaseFile,
-      songId,
-      update,
-    );
-  }
-
   Future<List<SongPropertiesSnapshot>> getSongPropertiesBatch(
     List<int> songIds,
   ) async {
@@ -501,15 +490,6 @@ class LibraryRepository
     return _songPropertiesService.updateSongPropertiesBatch(
       databaseFile,
       updates,
-    );
-  }
-
-  Future<void> updateSongPlayCount(int songId, int playCount) async {
-    final databaseFile = await _resolveDatabaseFile();
-    await _songPropertiesService.updateSongPlayCount(
-      databaseFile,
-      songId,
-      playCount,
     );
   }
 
@@ -575,13 +555,6 @@ class LibraryRepository
 
   Future<String> readLyricsFromFile(String filePath) async {
     return _lyricsService.readLyricsFromFile(filePath);
-  }
-
-  Future<void> saveSongLyrics(int songId, String rawLyrics) async {
-    final databaseFile = await _resolveDatabaseFile();
-    await _lyricsService.saveSongLyrics(databaseFile, songId, rawLyrics);
-    _invalidateLyricsCache([songId]);
-    await _lyricsSearchService.refreshSongIds(databaseFile, [songId]);
   }
 
   Future<List<LocalLyricsSearchMatch>> searchLocalLyrics(
@@ -669,6 +642,7 @@ class LibraryRepository
     await _lyricsSearchService.refreshPaths(databaseFile, songPaths);
   }
 
+  @override
   void _invalidateLyricsCache(Iterable<int> songIds) {
     final ids = songIds.toSet();
     if (ids.isEmpty) {
@@ -714,19 +688,9 @@ class LibraryRepository
     return _artworkService.prepareSongArtworkSource(sourcePath);
   }
 
-  Future<void> saveSongArtwork(int songId, String sourcePath) async {
-    final databaseFile = await _resolveDatabaseFile();
-    await _artworkService.saveSongArtwork(databaseFile, songId, sourcePath);
-  }
-
   Future<void> saveAlbumArtwork(String albumName, String sourcePath) async {
     final databaseFile = await _resolveDatabaseFile();
     await _artworkService.saveAlbumArtwork(databaseFile, albumName, sourcePath);
-  }
-
-  Future<void> deleteSongArtwork(int songId) async {
-    final databaseFile = await _resolveDatabaseFile();
-    await _artworkService.deleteSongArtwork(databaseFile, songId);
   }
 
   Future<void> deleteAlbumArtwork(String albumName) async {

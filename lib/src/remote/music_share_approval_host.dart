@@ -72,6 +72,7 @@ class _MusicShareApprovalDialog extends ConsumerStatefulWidget {
 class _MusicShareApprovalDialogState
     extends ConsumerState<_MusicShareApprovalDialog> {
   var _submitting = false;
+  var _canWrite = false;
   var _closing = false;
 
   void _close() {
@@ -98,7 +99,7 @@ class _MusicShareApprovalDialogState
     }
     setState(() => _submitting = true);
     await runMusicShareAction(context, () async {
-      await share.approve(widget.requestKey, allow);
+      await share.approve(widget.requestKey, allow, canWrite: _canWrite);
       if (mounted) _close();
     });
     if (mounted) setState(() => _submitting = false);
@@ -115,7 +116,7 @@ class _MusicShareApprovalDialogState
     }
     final i18n = context.smPlayerI18n;
     final colors = PopupDialogColors.resolve(context);
-    final title = i18n.t('share.requestFrom', {'name': widget.request.name});
+    final title = i18n.t('share.connectionRequest');
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, result) {
@@ -148,6 +149,13 @@ class _MusicShareApprovalDialogState
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
+              PopupDialogMessageContent(
+                message: i18n.t('share.requestFrom', {
+                  'name': widget.request.name,
+                }),
+                padding: EdgeInsets.zero,
+              ),
+              const SizedBox(height: 16),
               SelectableText(
                 widget.request.code,
                 textAlign: TextAlign.center,
@@ -159,6 +167,18 @@ class _MusicShareApprovalDialogState
                 ),
               ),
               const SizedBox(height: 16),
+              CheckboxListTile(
+                contentPadding: EdgeInsets.zero,
+                value: _canWrite,
+                title: Text(
+                  i18n.t('share.allowEditing'),
+                  style: TextStyle(color: colors.textStrong, fontSize: 14),
+                ),
+                onChanged:
+                    _submitting
+                        ? null
+                        : (value) => setState(() => _canWrite = value!),
+              ),
               PopupDialogMessageContent(
                 message: i18n.t('share.approvalHint'),
                 padding: EdgeInsets.zero,

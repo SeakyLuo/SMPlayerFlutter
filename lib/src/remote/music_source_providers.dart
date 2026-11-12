@@ -14,6 +14,7 @@ final musicShareProvider = ChangeNotifierProvider<MusicShareController>((ref) {
       ref.invalidate(recentPageDataProvider);
       ref.invalidate(librarySongCountProvider);
     },
+    loadLibrary: () => ref.read(libraryContentDataProvider.future),
   );
   activeMusicShareAccess = controller;
   void updateSharedCatalog() {

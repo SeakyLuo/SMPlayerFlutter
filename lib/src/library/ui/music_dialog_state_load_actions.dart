@@ -67,6 +67,24 @@ extension _MusicDialogStateLoadActions on _MusicDialogState {
     if (!_isActiveLoad(songId, generation) || !_requestedModes.add(mode)) {
       return;
     }
+    if (isRemoteMusicPath(widget.song.path)) {
+      switch (mode) {
+        case SongDialogMode.properties:
+          ref
+              .read(
+                musicDialogPropertiesStateProvider(_dialogSessionKey).notifier,
+              )
+              .reset();
+        case SongDialogMode.lyrics:
+          ref
+              .read(musicDialogLyricsStateProvider(_dialogSessionKey).notifier)
+              .reset();
+        case SongDialogMode.albumArt:
+          ref
+              .read(musicDialogArtworkStateProvider(_dialogSessionKey).notifier)
+              .reset();
+      }
+    }
     await switch (mode) {
       SongDialogMode.properties => _loadProperties(
         repository,
@@ -96,6 +114,7 @@ extension _MusicDialogStateLoadActions on _MusicDialogState {
           .loaded();
     } catch (_) {
       if (_isActiveLoad(songId, generation)) {
+        _requestedModes.remove(SongDialogMode.properties);
         ref
             .read(
               musicDialogPropertiesStateProvider(_dialogSessionKey).notifier,
@@ -140,6 +159,7 @@ extension _MusicDialogStateLoadActions on _MusicDialogState {
       _selectInitialLyricsMatch();
     } catch (_) {
       if (_isActiveLoad(songId, generation)) {
+        _requestedModes.remove(SongDialogMode.lyrics);
         ref
             .read(musicDialogLyricsStateProvider(_dialogSessionKey).notifier)
             .loaded(showLyricsTimestamps: true);
@@ -200,13 +220,19 @@ extension _MusicDialogStateLoadActions on _MusicDialogState {
       ref
           .read(musicDialogArtworkStateProvider(_dialogSessionKey).notifier)
           .loaded();
-      await _resolveDisplayArtwork(repository, songId, generation);
-      await _loadArtworkRecommendation(dependencyChanged: true);
+      if (!isRemoteMusicPath(widget.song.path)) {
+        await _resolveDisplayArtwork(repository, songId, generation);
+        await _loadArtworkRecommendation(dependencyChanged: true);
+      }
     } catch (_) {
       if (_isActiveLoad(songId, generation)) {
+        _requestedModes.remove(SongDialogMode.albumArt);
         ref
             .read(musicDialogArtworkStateProvider(_dialogSessionKey).notifier)
             .loaded();
+        if (isRemoteMusicPath(widget.song.path)) {
+          _showMessage(context.smPlayerI18n.t('share.connectionFailed'));
+        }
       }
     }
   }
