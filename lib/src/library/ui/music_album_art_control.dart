@@ -15,6 +15,7 @@ class MusicAlbumArtControl extends StatelessWidget {
     required this.onSaveArtwork,
     required this.onResetArtwork,
     required this.onRequestDelete,
+    this.readOnly = false,
   });
 
   final LibrarySong song;
@@ -29,12 +30,14 @@ class MusicAlbumArtControl extends StatelessWidget {
   final VoidCallback onSaveArtwork;
   final VoidCallback onResetArtwork;
   final VoidCallback onRequestDelete;
+  final bool readOnly;
 
   @override
   Widget build(BuildContext context) {
     final saving = operation == MusicDialogOperation.saveArtwork;
     final changingArtwork = operation == MusicDialogOperation.changeArtwork;
     return AlbumArtEditorControl(
+      readOnly: readOnly,
       loading: loading,
       saving: saving,
       changingArtwork: changingArtwork,
@@ -44,7 +47,8 @@ class MusicAlbumArtControl extends StatelessWidget {
       recommendation: recommendation,
       songId: song.id,
       fallbackArtwork: true,
-      onApplyRecommendation: operation == null ? onApplyRecommendation : null,
+      onApplyRecommendation:
+          !readOnly && operation == null ? onApplyRecommendation : null,
       onChangeArtwork: onChangeArtwork,
       onChooseArtworkFromLibrary: onChooseArtworkFromLibrary,
       onSaveArtwork: onSaveArtwork,
@@ -72,6 +76,7 @@ class AlbumArtEditorControl extends ConsumerStatefulWidget {
     required this.onSaveArtwork,
     this.onResetArtwork,
     required this.onRequestDelete,
+    this.readOnly = false,
   });
 
   final bool loading;
@@ -89,6 +94,7 @@ class AlbumArtEditorControl extends ConsumerStatefulWidget {
   final VoidCallback onSaveArtwork;
   final VoidCallback? onResetArtwork;
   final VoidCallback onRequestDelete;
+  final bool readOnly;
 
   @override
   ConsumerState<AlbumArtEditorControl> createState() =>
@@ -117,6 +123,7 @@ class _AlbumArtEditorControlState extends ConsumerState<AlbumArtEditorControl> {
   }
 
   void _syncResolvedArtwork() {
+    if (widget.readOnly) return;
     if (widget.artworkDirty && widget.artworkUrl.isEmpty) {
       _artworkRequestKey = '';
       return;
@@ -174,45 +181,49 @@ class _AlbumArtEditorControlState extends ConsumerState<AlbumArtEditorControl> {
 
     return Column(
       children: [
-        _MusicDialogCommandBar(
-          showBusy: widget.showBusy,
-          children: [
-            if (widget.onResetArtwork != null)
-              _MusicDialogCommandButton(
-                iconWidget: const _MusicDialogResetIcon(),
-                label: i18n.t('common.reset'),
-                commandBar: true,
-                disabled: widget.loading || operationRunning,
-                onPressed: widget.onResetArtwork,
-              )
-            else if (hasArtworkFile)
+        if (!widget.readOnly)
+          _MusicDialogCommandBar(
+            showBusy: widget.showBusy,
+            children: [
+              if (widget.onResetArtwork != null)
+                _MusicDialogCommandButton(
+                  iconWidget: const _MusicDialogResetIcon(),
+                  label: i18n.t('common.reset'),
+                  commandBar: true,
+                  disabled: widget.loading || operationRunning,
+                  onPressed: widget.onResetArtwork,
+                )
+              else if (hasArtworkFile)
+                _MusicDialogCommandButton(
+                  iconWidget: const _ElectronIcon(
+                    _ElectronIconName.trash,
+                    size: 20,
+                  ),
+                  label: i18n.t('playlists.delete'),
+                  commandBar: true,
+                  disabled: widget.loading || operationRunning,
+                  onPressed: widget.onRequestDelete,
+                ),
+              _ArtworkSourceButton(
+                loading: widget.changingArtwork,
+                disabled: widget.loading || widget.saving,
+                onChangeArtwork: widget.onChangeArtwork,
+                onChooseArtworkFromLibrary: widget.onChooseArtworkFromLibrary,
+              ),
               _MusicDialogCommandButton(
                 iconWidget: const _ElectronIcon(
-                  _ElectronIconName.trash,
+                  _ElectronIconName.save,
                   size: 20,
                 ),
-                label: i18n.t('playlists.delete'),
+                label: i18n.t('settings.save'),
+                primary: true,
                 commandBar: true,
-                disabled: widget.loading || operationRunning,
-                onPressed: widget.onRequestDelete,
+                loading: widget.saving,
+                disabled: widget.loading || widget.changingArtwork,
+                onPressed: widget.onSaveArtwork,
               ),
-            _ArtworkSourceButton(
-              loading: widget.changingArtwork,
-              disabled: widget.loading || widget.saving,
-              onChangeArtwork: widget.onChangeArtwork,
-              onChooseArtworkFromLibrary: widget.onChooseArtworkFromLibrary,
-            ),
-            _MusicDialogCommandButton(
-              iconWidget: const _ElectronIcon(_ElectronIconName.save, size: 20),
-              label: i18n.t('settings.save'),
-              primary: true,
-              commandBar: true,
-              loading: widget.saving,
-              disabled: widget.loading || widget.changingArtwork,
-              onPressed: widget.onSaveArtwork,
-            ),
-          ],
-        ),
+            ],
+          ),
         Expanded(
           child:
               widget.loading && !hasArtworkFile

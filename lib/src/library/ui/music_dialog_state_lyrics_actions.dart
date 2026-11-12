@@ -2,6 +2,10 @@ part of 'music_dialog.dart';
 
 extension _MusicDialogStateLyricsActions on _MusicDialogState {
   Future<void> _saveLyrics() async {
+    if (!_canEditSong) {
+      _showMessage(context.smPlayerI18n.t('share.readOnlyPermission'));
+      return;
+    }
     final sessionKey = _dialogSessionKey;
     final sessionState = ref.read(musicDialogLyricsStateProvider(sessionKey));
     if (sessionState.operation != null || _lyricsSearchInProgress) {
@@ -46,6 +50,7 @@ extension _MusicDialogStateLyricsActions on _MusicDialogState {
     required String rawLyrics,
     required bool refreshLatestLyrics,
   }) {
+    if (!_canEditSong) return;
     final sessionKey = _dialogSessionKey;
     final dirty = ref.read(musicDialogLyricsStateProvider(sessionKey)).dirty;
     if (_mode != SongDialogMode.lyrics || !dirty) {
@@ -237,6 +242,10 @@ extension _MusicDialogStateLyricsActions on _MusicDialogState {
   Future<void> _applyInternetLyricsCandidate(
     InternetLyricsCandidate candidate,
   ) async {
+    if (!_canEditSong) {
+      _showMessage(context.smPlayerI18n.t('share.readOnlyPermission'));
+      return;
+    }
     final sessionKey = _dialogSessionKey;
     final songId = widget.song.id;
     final i18n = context.smPlayerI18n;
@@ -269,6 +278,7 @@ extension _MusicDialogStateLyricsActions on _MusicDialogState {
       );
       if (!mounted ||
           !confirmed ||
+          !_canEditSong ||
           _dialogSessionKey != sessionKey ||
           widget.song.id != songId) {
         return;

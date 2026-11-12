@@ -273,6 +273,7 @@ class MusicDialogArtistFieldGrid extends StatelessWidget {
                   children: [
                     _DialogField(
                       controller: entry.$2,
+                      readOnly: saving,
                       contentPadding: const EdgeInsets.fromLTRB(12, 16, 34, 10),
                     ),
                     if (showActions && controllers.length > 1)

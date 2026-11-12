@@ -2,6 +2,7 @@ part of 'music_dialog.dart';
 
 extension _MusicDialogStateShortcutActions on _MusicDialogState {
   KeyEventResult _handleShortcutKey(FocusNode node, KeyEvent event) {
+    if (!_canEditSong) return KeyEventResult.ignored;
     if (event is! KeyDownEvent) {
       return KeyEventResult.ignored;
     }

@@ -56,7 +56,9 @@ class NotificationDiagnostics {
     if (_users != 0) return;
     _sampler?.cancel();
     SchedulerBinding.instance.removeTimingsCallback(_frames);
-    unawaited(_sink?.flush());
+    final sink = _sink;
+    _sink = null;
+    unawaited(sink?.close());
   }
 
   static void _frames(List<FrameTiming> frames) {

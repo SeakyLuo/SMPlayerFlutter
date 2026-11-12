@@ -37,7 +37,6 @@ class ShellWorkspaceHost extends StatelessWidget {
           layout.immersiveMinimalTitlebar ? layout.minimalTitlebarHeight : 0,
       child: PageStorage(bucket: pageStorageBucket, child: child),
     );
-    final windowHeight = MediaQuery.sizeOf(context).height;
     final workspaceContent = ExcludeSemantics(
       excluding: suspended,
       child: TickerMode(enabled: !suspended, child: workspace),
@@ -48,11 +47,9 @@ class ShellWorkspaceHost extends StatelessWidget {
       left: layout.shellSidebarWidth,
       top: layout.workspaceTop,
       right: 0,
-      height:
-          windowHeight -
-          SmPlayerShellMetrics.playerHeight +
-          SmPlayerShellMetrics.playerTopRadius -
-          layout.workspaceTop,
+      bottom:
+          SmPlayerShellMetrics.playerHeight -
+          SmPlayerShellMetrics.playerTopRadius,
       child: workspaceContent,
     );
   }

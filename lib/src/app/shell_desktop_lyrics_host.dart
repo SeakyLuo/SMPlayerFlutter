@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:smplayer_flutter/src/app/shell_layout_state.dart';
@@ -44,6 +46,9 @@ class ShellDesktopLyricsHost extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    if (Platform.isAndroid || Platform.isIOS) {
+      return const SizedBox.shrink();
+    }
     return Positioned.fill(
       child: Consumer(
         builder: (context, ref, _) {

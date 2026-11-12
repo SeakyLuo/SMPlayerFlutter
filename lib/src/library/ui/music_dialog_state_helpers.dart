@@ -1,6 +1,10 @@
 part of 'music_dialog.dart';
 
 extension _MusicDialogStateHelpers on _MusicDialogState {
+  bool get _canEditSong =>
+      !isRemoteMusicPath(widget.song.path) ||
+      ref.read(musicShareProvider).canWrite(widget.song.path);
+
   bool get _lyricsSearchInProgress =>
       ref
           .read(internetLyricsCandidateSearchProvider(_dialogSessionKey))
@@ -175,6 +179,10 @@ extension _MusicDialogStateHelpers on _MusicDialogState {
   }
 
   String get _currentLyricsRawText {
+    if (!_canEditSong &&
+        !ref.read(musicDialogLyricsStateProvider(_dialogSessionKey)).dirty) {
+      return _originalLyricsText;
+    }
     return _showLyricsTimestamps
         ? _lyricsController.text
         : _mergePlainLyricsWithTimedRaw(_lyricsRawText, _lyricsController.text);

@@ -1,13 +1,12 @@
 import 'dart:io';
 
-import '../../remote/music_share_dialog.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:smplayer_flutter/src/app/app_interaction_colors.dart';
-import 'package:smplayer_flutter/src/app/text_icon_button.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 
-import 'default_album_artwork.dart';
+import '../../remote/music_share_dialog.dart';
+import 'popup_dialog.dart';
 
 class MissingLibraryRootContent extends StatelessWidget {
   const MissingLibraryRootContent({
@@ -26,136 +25,70 @@ class MissingLibraryRootContent extends StatelessWidget {
     final i18n = context.smPlayerI18n;
     final colors = MissingLibraryRootThemeColors.of(context);
     final mobile = Platform.isAndroid || Platform.isIOS;
+    final buttonHeight = mobile ? 48.0 : 40.0;
 
-    final content = DecoratedBox(
-      decoration: BoxDecoration(
-        color: colors.surface,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: colors.border),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment:
-              mobile ? CrossAxisAlignment.center : CrossAxisAlignment.start,
-          children: [
-            const Padding(
-              padding: EdgeInsets.only(bottom: 4),
-              child: _MissingLibraryRootArtwork(),
-            ),
-            const SizedBox(height: 10),
-            Text(
-              i18n.t('local.noRoot'),
-              textAlign: mobile ? TextAlign.center : TextAlign.start,
-              style: TextStyle(
-                color: colors.textStrong,
-                fontSize: 26,
-                fontWeight: FontWeight.w600,
-                fontVariations: const [FontVariation.weight(650)],
-              ),
-            ),
-            const SizedBox(height: 20),
-            ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 760),
-              child: Text(
-                i18n.t('local.noRootCopy'),
-                textAlign: mobile ? TextAlign.center : TextAlign.start,
-                style: TextStyle(
-                  color: colors.textMuted,
-                  fontSize: 14,
-                  height: 1.65,
+    return LayoutBuilder(
+      builder:
+          (context, constraints) => SingleChildScrollView(
+            child: ConstrainedBox(
+              constraints: BoxConstraints(minHeight: constraints.maxHeight),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 24),
+                child: Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 400),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          FluentIcons.folder_48_regular,
+                          size: 56,
+                          color: colors.textMuted,
+                        ),
+                        const SizedBox(height: 20),
+                        Text(
+                          i18n.t('local.noRoot'),
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: colors.textStrong,
+                            fontSize: 22,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          i18n.t('local.noRootCopy'),
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: colors.textMuted,
+                            fontSize: 14,
+                            height: 1.6,
+                          ),
+                        ),
+                        const SizedBox(height: 24),
+                        PopupDialogActionButton(
+                          label: buttonLabel ?? i18n.t('library.chooseFolder'),
+                          icon: FluentIcons.folder_20_regular,
+                          primary: true,
+                          height: buttonHeight,
+                          loading: buttonLoading,
+                          onPressed: onPickLibraryRoot,
+                        ),
+                        const SizedBox(height: 8),
+                        TextButton(
+                          onPressed: () => showMusicShareDialog(context),
+                          style: TextButton.styleFrom(
+                            minimumSize: Size(48, buttonHeight),
+                          ),
+                          child: Text(i18n.t('share.connectComputer')),
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
               ),
             ),
-            const SizedBox(height: 18),
-            _MissingLibraryRootButton(
-              onPressed: onPickLibraryRoot,
-              icon: buttonLoading ? null : FluentIcons.folder_20_regular,
-              label: buttonLabel ?? i18n.t('library.chooseFolder'),
-              loading: buttonLoading,
-            ),
-            const SizedBox(height: 8),
-            TextButton(
-              onPressed: () => showMusicShareDialog(context),
-              child: Text(i18n.t('share.connectComputer')),
-            ),
-          ],
-        ),
-      ),
-    );
-    if (mobile) {
-      return LayoutBuilder(
-        builder:
-            (context, constraints) => SingleChildScrollView(
-              child: ConstrainedBox(
-                constraints: BoxConstraints(minHeight: constraints.maxHeight),
-                child: Center(child: content),
-              ),
-            ),
-      );
-    }
-    return Align(alignment: Alignment.topLeft, child: content);
-  }
-}
-
-class _MissingLibraryRootArtwork extends StatelessWidget {
-  const _MissingLibraryRootArtwork();
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = MissingLibraryRootThemeColors.of(context);
-    return SizedBox.square(
-      dimension: 104,
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(14),
-          boxShadow: [
-            BoxShadow(
-              color: colors.artworkShadow,
-              offset: const Offset(0, 8),
-              blurRadius: 18,
-            ),
-          ],
-        ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(14),
-          child: Container(
-            foregroundDecoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: colors.artworkBorder),
-            ),
-            child: DefaultAlbumArtwork(
-              logoScale: 0.72,
-              logoOpacity: colors.artworkLogoOpacity,
-            ),
           ),
-        ),
-      ),
-    );
-  }
-}
-
-class _MissingLibraryRootButton extends StatelessWidget {
-  const _MissingLibraryRootButton({
-    this.icon,
-    required this.label,
-    required this.onPressed,
-    required this.loading,
-  });
-
-  final IconData? icon;
-  final String label;
-  final VoidCallback? onPressed;
-  final bool loading;
-
-  @override
-  Widget build(BuildContext context) {
-    return SmPlayerTextIconButton(
-      icon: icon,
-      label: label,
-      loading: loading,
-      onPressed: onPressed,
     );
   }
 }

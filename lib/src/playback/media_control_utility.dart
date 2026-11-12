@@ -94,7 +94,10 @@ class _MediaControlUtilityRowsState extends State<MediaControlUtilityRows> {
     final onToggleRepeatOne = widget.onToggleRepeatOne;
     final onToggleFavorite = widget.onToggleFavorite;
     final desktopLyricsEnabled = widget.desktopLyricsEnabled;
-    final onToggleDesktopLyrics = widget.onToggleDesktopLyrics;
+    final onToggleDesktopLyrics =
+        Platform.isAndroid || Platform.isIOS
+            ? null
+            : widget.onToggleDesktopLyrics;
     final onOpenVoiceAssistant = widget.onOpenVoiceAssistant;
     final condensed = widget.condensed;
     final minimal = widget.minimal;

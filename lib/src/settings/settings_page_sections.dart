@@ -9,50 +9,13 @@ extension _SettingsPageSections on _SettingsPageState {
       SettingsCard(
         title: i18n.t('library.root'),
         children: [
-          Row(
-            children: [
-              Expanded(
-                child: TooltipVisibility(
-                  visible: _snapshot.rootPath.isNotEmpty,
-                  child: Tooltip(
-                    message: _snapshot.rootPath,
-                    child: TextField(
-                      enabled: false,
-                      controller: TextEditingController(
-                        text: _snapshot.rootPath,
-                      ),
-                      decoration: InputDecoration(
-                        hintText: i18n.t('settings.musicFolderPlaceholder'),
-                        isDense: true,
-                        filled: true,
-                        fillColor: colors.inputSurface,
-                        disabledBorder: OutlineInputBorder(
-                          borderRadius: const BorderRadius.all(
-                            Radius.circular(8),
-                          ),
-                          borderSide: BorderSide(color: colors.inputBorder),
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              SizedBox.square(
-                dimension: 42,
-                child: _SettingsIconButton(
-                  icon: FluentIcons.folder_24_regular,
-                  tooltip: i18n.t('common.folders'),
-                  busy: _pickingLibraryRoot,
-                  onPressed:
-                      widget.loading || _isScanning || _pickingLibraryRoot
-                          ? null
-                          : () {
-                            unawaited(_pickLibraryRoot());
-                          },
-                ),
-              ),
-            ],
+          _SettingsLibraryFolderField(
+            path: _snapshot.rootPath,
+            busy: _pickingLibraryRoot,
+            enabled: !widget.loading && !_isScanning && !_pickingLibraryRoot,
+            onChoose: () => unawaited(_pickLibraryRoot()),
+            onCopy: () => unawaited(_copyLibraryRoot()),
+            onOpen: () => unawaited(openFolderInShell(_snapshot.rootPath)),
           ),
           if (widget.loading)
             Text(
@@ -189,104 +152,109 @@ extension _SettingsPageSections on _SettingsPageState {
             ),
         ],
       ),
-      SettingsCard(
-        key: _desktopLyricsKey,
-        id: 'desktop-lyrics',
-        title: i18n.t('settings.desktopLyrics'),
-        children: [
-          ToggleSettingRow(
-            label: i18n.t('settings.desktopLyricsEnabled'),
-            checked: _snapshot.desktopLyricsEnabled,
-            onChange: (checked) {
-              _updateSettings(AppSettingsUpdate(desktopLyricsEnabled: checked));
-            },
-          ),
-          ColorSettingRow(
-            label: i18n.t('settings.desktopLyricsColor'),
-            value: _snapshot.desktopLyricsColor,
-            onPickColor: widget.onPickColor,
-            onChange: (value) {
-              _updateSettings(AppSettingsUpdate(desktopLyricsColor: value));
-            },
-          ),
-          ToggleSettingRow(
-            label: i18n.t('settings.desktopLyricsStroke'),
-            checked: _snapshot.desktopLyricsStrokeColor.isNotEmpty,
-            onChange: (checked) {
-              _updateSettings(
-                AppSettingsUpdate(
-                  desktopLyricsStrokeColor: checked ? '#111111' : '',
-                ),
-              );
-            },
-          ),
-          if (_snapshot.desktopLyricsStrokeColor.isNotEmpty)
-            ColorSettingRow(
-              label: i18n.t('settings.desktopLyricsStrokeColor'),
-              value: _snapshot.desktopLyricsStrokeColor,
-              onPickColor: widget.onPickColor,
-              onChange: (value) {
+      if (!Platform.isAndroid && !Platform.isIOS)
+        SettingsCard(
+          key: _desktopLyricsKey,
+          id: 'desktop-lyrics',
+          title: i18n.t('settings.desktopLyrics'),
+          children: [
+            ToggleSettingRow(
+              label: i18n.t('settings.desktopLyricsEnabled'),
+              checked: _snapshot.desktopLyricsEnabled,
+              onChange: (checked) {
                 _updateSettings(
-                  AppSettingsUpdate(desktopLyricsStrokeColor: value),
+                  AppSettingsUpdate(desktopLyricsEnabled: checked),
                 );
               },
             ),
-          SelectSettingRow<String>(
-            label: i18n.t('settings.desktopLyricsFontFamily'),
-            value: _snapshot.desktopLyricsFontFamily,
-            options: _desktopLyricsFontOptions(i18n),
-            searchable: true,
-            searchPlaceholder: i18n.t('settings.desktopLyricsFontSearch'),
-            emptyLabel: i18n.t('settings.desktopLyricsFontNoResults'),
-            onChange: (value) {
-              _updateSettings(
-                AppSettingsUpdate(desktopLyricsFontFamily: value),
-              );
-            },
-          ),
-          RangeSettingRow(
-            label: i18n.t('settings.desktopLyricsFontSize'),
-            min: 20,
-            max: 48,
-            step: 1,
-            value: _snapshot.desktopLyricsFontSize,
-            valueLabel: '${_snapshot.desktopLyricsFontSize}px',
-            onChange: (value) {
-              _updateSettings(AppSettingsUpdate(desktopLyricsFontSize: value));
-            },
-          ),
-          RangeSettingRow(
-            label: i18n.t('settings.desktopLyricsOpacity'),
-            min: 45,
-            max: 100,
-            step: 1,
-            value: _snapshot.desktopLyricsOpacity,
-            valueLabel: '${_snapshot.desktopLyricsOpacity}%',
-            onChange: (value) {
-              _updateSettings(AppSettingsUpdate(desktopLyricsOpacity: value));
-            },
-          ),
-          SettingsButtonRow(
-            children: [
-              SettingsActionButton(
-                icon: FluentIcons.arrow_undo_24_regular,
-                onClick: () {
+            ColorSettingRow(
+              label: i18n.t('settings.desktopLyricsColor'),
+              value: _snapshot.desktopLyricsColor,
+              onPickColor: widget.onPickColor,
+              onChange: (value) {
+                _updateSettings(AppSettingsUpdate(desktopLyricsColor: value));
+              },
+            ),
+            ToggleSettingRow(
+              label: i18n.t('settings.desktopLyricsStroke'),
+              checked: _snapshot.desktopLyricsStrokeColor.isNotEmpty,
+              onChange: (checked) {
+                _updateSettings(
+                  AppSettingsUpdate(
+                    desktopLyricsStrokeColor: checked ? '#111111' : '',
+                  ),
+                );
+              },
+            ),
+            if (_snapshot.desktopLyricsStrokeColor.isNotEmpty)
+              ColorSettingRow(
+                label: i18n.t('settings.desktopLyricsStrokeColor'),
+                value: _snapshot.desktopLyricsStrokeColor,
+                onPickColor: widget.onPickColor,
+                onChange: (value) {
                   _updateSettings(
-                    const AppSettingsUpdate(
-                      desktopLyricsColor: '#4aa8ff',
-                      desktopLyricsStrokeColor: '#111111',
-                      desktopLyricsFontSize: 28,
-                      desktopLyricsFontFamily: 'system',
-                      desktopLyricsOpacity: 88,
-                    ),
+                    AppSettingsUpdate(desktopLyricsStrokeColor: value),
                   );
                 },
-                child: Text(i18n.t('settings.desktopLyricsRestoreDefaults')),
               ),
-            ],
-          ),
-        ],
-      ),
+            SelectSettingRow<String>(
+              label: i18n.t('settings.desktopLyricsFontFamily'),
+              value: _snapshot.desktopLyricsFontFamily,
+              options: _desktopLyricsFontOptions(i18n),
+              searchable: true,
+              searchPlaceholder: i18n.t('settings.desktopLyricsFontSearch'),
+              emptyLabel: i18n.t('settings.desktopLyricsFontNoResults'),
+              onChange: (value) {
+                _updateSettings(
+                  AppSettingsUpdate(desktopLyricsFontFamily: value),
+                );
+              },
+            ),
+            RangeSettingRow(
+              label: i18n.t('settings.desktopLyricsFontSize'),
+              min: 20,
+              max: 48,
+              step: 1,
+              value: _snapshot.desktopLyricsFontSize,
+              valueLabel: '${_snapshot.desktopLyricsFontSize}px',
+              onChange: (value) {
+                _updateSettings(
+                  AppSettingsUpdate(desktopLyricsFontSize: value),
+                );
+              },
+            ),
+            RangeSettingRow(
+              label: i18n.t('settings.desktopLyricsOpacity'),
+              min: 45,
+              max: 100,
+              step: 1,
+              value: _snapshot.desktopLyricsOpacity,
+              valueLabel: '${_snapshot.desktopLyricsOpacity}%',
+              onChange: (value) {
+                _updateSettings(AppSettingsUpdate(desktopLyricsOpacity: value));
+              },
+            ),
+            SettingsButtonRow(
+              children: [
+                SettingsActionButton(
+                  icon: FluentIcons.arrow_undo_24_regular,
+                  onClick: () {
+                    _updateSettings(
+                      const AppSettingsUpdate(
+                        desktopLyricsColor: '#4aa8ff',
+                        desktopLyricsStrokeColor: '#111111',
+                        desktopLyricsFontSize: 28,
+                        desktopLyricsFontFamily: 'system',
+                        desktopLyricsOpacity: 88,
+                      ),
+                    );
+                  },
+                  child: Text(i18n.t('settings.desktopLyricsRestoreDefaults')),
+                ),
+              ],
+            ),
+          ],
+        ),
     ];
   }
 
@@ -535,6 +503,7 @@ extension _SettingsPageSections on _SettingsPageState {
               ),
               SettingsActionButton(
                 disabled: _isDataTransferBusy,
+                loading: _isExportingData,
                 tooltip: i18n.t('settings.exportDataHint'),
                 onClick: () {
                   unawaited(_exportData());

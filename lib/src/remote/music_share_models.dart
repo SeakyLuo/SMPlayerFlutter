@@ -36,6 +36,7 @@ class MusicPeer {
   String address;
   final String fingerprint;
   final String token;
+  bool canWrite = false;
   MusicPeerStatus status = MusicPeerStatus.offline;
   String? catalogRevision;
 

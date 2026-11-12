@@ -43,6 +43,10 @@ extension _MusicDialogStatePropertyActions on _MusicDialogState {
   }
 
   Future<void> _saveProperties() async {
+    if (!_canEditSong) {
+      _showMessage(context.smPlayerI18n.t('share.readOnlyPermission'));
+      return;
+    }
     final sessionKey = _dialogSessionKey;
     final sessionState = ref.read(
       musicDialogPropertiesStateProvider(sessionKey),

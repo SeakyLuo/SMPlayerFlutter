@@ -17,6 +17,7 @@ extension _MusicDialogStateTabBuilders on _MusicDialogState {
           ),
         );
         return MusicInfoControl(
+          readOnly: !_canEditSong,
           sessionKey: _dialogSessionKey,
           loading: view.loading,
           saving: view.saving,
@@ -46,7 +47,9 @@ extension _MusicDialogStateTabBuilders on _MusicDialogState {
           onClearPlayCount: _clearPlayCount,
           onAddArtistCell: _addArtistCell,
           onRemoveArtistCell: _removeArtistCell,
-          onReveal: widget.onReveal,
+          hidePath: isRemoteMusicPath(widget.song.path),
+          onReveal:
+              isRemoteMusicPath(widget.song.path) ? null : widget.onReveal,
         );
       },
     );
@@ -65,6 +68,7 @@ extension _MusicDialogStateTabBuilders on _MusicDialogState {
           ),
         );
         return MusicLyricsControl(
+          readOnly: !_canEditSong,
           sessionKey: _dialogSessionKey,
           loading: view.loading,
           operation: view.operation,
@@ -95,6 +99,7 @@ extension _MusicDialogStateTabBuilders on _MusicDialogState {
           ),
         );
         return MusicAlbumArtControl(
+          readOnly: !_canEditSong,
           song: widget.song,
           loading: view.loading,
           operation: view.operation,

@@ -257,7 +257,9 @@ List<MenuFlyoutItem> _buildPlayerMoreMenuItems({
         (isCompact || currentSong != null))
       const MenuFlyoutItem.separator(key: 'play-actions-separator'),
     if (isCompact) ...[
-      if (onToggleDesktopLyrics != null)
+      if (!Platform.isAndroid &&
+          !Platform.isIOS &&
+          onToggleDesktopLyrics != null)
         MenuFlyoutItem(
           key: 'desktop-lyrics',
           text: _desktopLyricsTooltip(i18n, desktopLyricsEnabled),
