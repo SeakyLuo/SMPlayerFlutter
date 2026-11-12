@@ -1,12 +1,10 @@
 import '../remote/music_source_providers.dart';
 import 'dart:async';
-import 'dart:io';
 import 'package:flutter/services.dart';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:path/path.dart' as p;
 import 'package:smplayer_flutter/src/app/app_route_model.dart';
 import 'package:smplayer_flutter/src/app/loading_state.dart';
 import 'package:smplayer_flutter/src/app/library_detail_transition_page.dart';
@@ -16,7 +14,6 @@ import 'package:smplayer_flutter/src/app/undoable_notification.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/data/library_models.dart';
 import 'package:smplayer_flutter/src/library/data/library_providers.dart';
-import 'package:smplayer_flutter/src/library/data/library_repository.dart';
 import 'package:smplayer_flutter/src/library/ui/album_detail_page.dart';
 import 'package:smplayer_flutter/src/library/ui/albums_page.dart';
 import 'package:smplayer_flutter/src/library/ui/artists_page.dart';
@@ -43,6 +40,7 @@ import 'package:smplayer_flutter/src/settings/settings_page.dart';
 import 'package:smplayer_flutter/src/settings/settings_controller.dart';
 import 'package:smplayer_flutter/src/settings/settings_model.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:smplayer_flutter/src/platform/system_log.dart';
 
 part 'library_root_gate.dart';
 
@@ -611,9 +609,8 @@ Future<void> _sendFeedbackEmail(SmPlayerI18n i18n) async {
 }
 
 Future<void> _revealSystemLogs() async {
-  final logsDirectory = Directory(
-    p.join(await defaultSmPlayerUserDataPath(), 'Logs'),
-  );
+  await SystemLog.flush();
+  final logsDirectory = await SystemLog.directory;
   await logsDirectory.create(recursive: true);
   await openFolderInShell(logsDirectory.path);
 }

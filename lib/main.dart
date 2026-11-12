@@ -6,6 +6,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:just_audio_media_kit/just_audio_media_kit.dart';
+import 'package:smplayer_flutter/src/platform/system_log.dart';
 import 'package:smplayer_flutter/src/app/app_appearance_model.dart';
 import 'package:smplayer_flutter/src/app/app_route_model.dart';
 import 'package:smplayer_flutter/src/app/app_router.dart';
@@ -28,6 +29,8 @@ void main(List<String> args) {
   runZonedGuarded(() async {
     WidgetsFlutterBinding.ensureInitialized();
     crashReporter.register();
+    await SystemLog.initialize();
+    SystemLog.info('Launch arguments: $args');
     if (Platform.isWindows) {
       WidgetsBinding.instance.deferFirstFrame();
       JustAudioMediaKit.ensureInitialized(windows: true, linux: false);

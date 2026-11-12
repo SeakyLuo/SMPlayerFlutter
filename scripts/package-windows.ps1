@@ -76,9 +76,13 @@ Copy-Item -LiteralPath 'packaging\windows\Assets' -Destination $stage -Recurse
 [xml]$manifest = Get-Content -LiteralPath 'packaging\windows\AppxManifest.xml' -Raw -Encoding UTF8
 $manifest.Package.Identity.Version = $packageVersion
 $manifest.Save((Join-Path $stage 'AppxManifest.xml'))
-$package = Join-Path $output "SMPlayer-$packageVersion-x64.msix"
+$bundleInput = Join-Path $output ('bundle-input-' + [guid]::NewGuid().ToString('N'))
+New-Item -ItemType Directory -Path $bundleInput | Out-Null
+$package = Join-Path $bundleInput "SMPlayer-$packageVersion-x64.appx"
 Invoke-Checked $makeAppx @('pack', '/d', $stage, '/p', $package, '/o')
-$hash = Get-FileHash -LiteralPath $package -Algorithm SHA256
-Write-Host "Unsigned Store package: $package"
+$bundle = Join-Path $output "SMPlayer-$packageVersion-x64.appxbundle"
+Invoke-Checked $makeAppx @('bundle', '/d', $bundleInput, '/p', $bundle, '/bv', $packageVersion, '/o')
+$hash = Get-FileHash -LiteralPath $bundle -Algorithm SHA256
+Write-Host "Unsigned Store bundle: $bundle"
 Write-Host "SHA256: $($hash.Hash)"
 Write-Host 'No certificate installed, no app installed, no Store submission performed.'

@@ -1,7 +1,7 @@
 name: smplayer_flutter
 description: Cross-platform Simple Melody Player migration workspace.
 publish_to: 'none'
-version: 4.0.2+1
+version: 4.0.4+1
 
 environment:
   sdk: ^3.7.2
@@ -30,7 +30,9 @@ dependencies:
   qr_flutter: ^4.1.0
   mobile_scanner: ^7.2.0
   just_audio: ^0.10.5
-  just_audio_media_kit: ^2.1.0
+  # Keeps mpv external file errors separate from playback failures.
+  just_audio_media_kit:
+    path: third_party/just_audio_media_kit
   # ARM64 support is upstream but not yet published to pub.dev.
   media_kit_libs_windows_audio:
     git:
