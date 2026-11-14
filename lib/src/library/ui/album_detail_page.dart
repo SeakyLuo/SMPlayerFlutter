@@ -58,7 +58,8 @@ class _AlbumDetailPageState extends ConsumerState<AlbumDetailPage> {
     final favoriteOverrides = ref.watch(libraryFavoriteOverridesProvider);
     final songOverrides = ref.watch(librarySongOverridesProvider);
 
-    if (i18nValue.isLoading || snapshotValue.isLoading) {
+    if ((i18nValue.isLoading && !i18nValue.hasValue) ||
+        (snapshotValue.isLoading && !snapshotValue.hasValue)) {
       return const _AlbumDetailPanel(child: SmPlayerLoadingState());
     }
 
@@ -70,6 +71,7 @@ class _AlbumDetailPageState extends ConsumerState<AlbumDetailPage> {
     return SmPlayerI18nScope(
       i18n: i18n,
       child: snapshotValue.when(
+        skipLoadingOnReload: true,
         loading: () => const _AlbumDetailPanel(child: SmPlayerLoadingState()),
         error:
             (_, _) => _AlbumDetailPanel(
@@ -167,7 +169,9 @@ class _AlbumDetailPageState extends ConsumerState<AlbumDetailPage> {
                   unawaited(addSongsToPlaylist(ref, playlistId, songIds));
                 },
                 onToggleFavorite: (songId, favorite) {
-                  unawaited(setSongsFavorite(ref, [songId], favorite));
+                  unawaited(
+                    setSongsFavoriteFromControl(ref, [songId], favorite),
+                  );
                 },
                 onRecordPlay: () {
                   unawaited(recordRecentAlbumPlayback(ref, routeAlbumName));

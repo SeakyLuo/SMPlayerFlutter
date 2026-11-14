@@ -448,6 +448,12 @@ class LibraryPlaylistService {
     }
   }
 
+  void applySharedFavorites(Database db, List<int> liked, List<int> unliked) {
+    final settings = _readPlaylistSettings(db);
+    _setPlaylistSongsState(db, settings.myFavoritesId, liked, true);
+    _setPlaylistSongsState(db, settings.myFavoritesId, unliked, false);
+  }
+
   Future<void> addSongsToPlaylist(
     File databaseFile,
     int playlistId,

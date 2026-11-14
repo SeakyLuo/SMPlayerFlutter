@@ -181,6 +181,20 @@ class LibraryLyricsSearchService {
     );
   }
 
+  void refreshSongIdsInBackground(File databaseFile, List<int> songIds) {
+    refreshSongIds(databaseFile, songIds).catchError((
+      Object error,
+      StackTrace stackTrace,
+    ) {
+      developer.log(
+        'Cannot refresh song lyrics index',
+        name: 'library.search',
+        error: error,
+        stackTrace: stackTrace,
+      );
+    });
+  }
+
   Future<void> refreshSongIds(File databaseFile, List<int> songIds) async {
     if (songIds.isEmpty) {
       return;

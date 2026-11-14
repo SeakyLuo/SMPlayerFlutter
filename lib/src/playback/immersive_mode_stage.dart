@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'dart:math';
 import 'dart:ui';
 
@@ -429,7 +430,8 @@ double _compactArtworkSize({required double width, required double height}) {
 
 EdgeInsets immersiveModeContentPadding(double width) {
   if (width <= immersiveModeLayoutCompactBreakpoint) {
-    return const EdgeInsets.fromLTRB(18, 88, 18, 128);
+    final mobile = Platform.isAndroid || Platform.isIOS;
+    return EdgeInsets.fromLTRB(18, mobile ? 54 : 88, 18, 128);
   }
   if (width <= 1100) {
     return const EdgeInsets.fromLTRB(28, 72, 28, 128);

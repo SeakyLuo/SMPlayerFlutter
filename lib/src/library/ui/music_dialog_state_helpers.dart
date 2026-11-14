@@ -2,8 +2,10 @@ part of 'music_dialog.dart';
 
 extension _MusicDialogStateHelpers on _MusicDialogState {
   bool get _canEditSong =>
-      !isRemoteMusicPath(widget.song.path) ||
-      ref.read(musicShareProvider).canWrite(widget.song.path);
+      ref
+          .read(libraryRepositoryProvider)
+          .dataSource(widget.song.source)
+          .canWrite;
 
   bool get _lyricsSearchInProgress =>
       ref

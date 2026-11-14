@@ -37,7 +37,7 @@ class _PlaylistsAppBarActions extends StatefulWidget {
   final ValueChanged<String> onSelectSearchSuggestion;
   final ValueChanged<int> onRemoveRecentSearch;
   final VoidCallback onClearRecentSearches;
-  final VoidCallback onCreatePlaylist;
+  final VoidCallback? onCreatePlaylist;
 
   @override
   State<_PlaylistsAppBarActions> createState() =>

@@ -13,14 +13,21 @@ import 'music_share_catalog.dart';
 import 'music_share_identity.dart';
 import 'music_share_models.dart';
 import 'music_share_server.dart';
+import 'music_share_playlist_client.dart';
 
-class MusicShareController extends ChangeNotifier implements MusicShareAccess {
+part 'music_share_controller_authorization.dart';
+part 'music_share_controller_connections.dart';
+
+class MusicShareController extends ChangeNotifier
+    with _MusicShareAuthorization
+    implements MusicShareAccess {
   MusicShareController(
     this.repository,
     this.onCatalogChanged, {
     required this.loadLibrary,
   }) {
     ready = _load();
+    initialConnection = ready.then((_) => checkConnections());
     startup = ready.then((_) async {
       busy = true;
       try {
@@ -36,18 +43,28 @@ class MusicShareController extends ChangeNotifier implements MusicShareAccess {
   final VoidCallback onCatalogChanged;
   final Future<LibraryContentData> Function() loadLibrary;
   late final Future<void> ready;
+  late final Future<void> initialConnection;
   late final Future<void> startup;
   late MusicShareIdentity identity;
+  @override
   late MusicShareServer server;
   late String databasePath;
   final peers = <MusicPeer>[];
   final discovered = <DiscoveredMusicHost>[];
   final grants = <String, String>{};
+  final grantIdentities = <String, String>{};
+  final mobileGrants = <String>{};
+  @override
   final writeGrants = <String>{};
+  @override
   final permissionChanges = <String>{};
   var name = Platform.localHostname;
+  @override
   var selectedSource = 'local';
   var sharing = false;
+  ({int revision, String name})? incomingConnection;
+  var autoConnect = true;
+  String? lastConnectedPeerId;
   var port = musicSharePort;
   var busy = false;
   var initialized = false;
@@ -63,6 +80,34 @@ class MusicShareController extends ChangeNotifier implements MusicShareAccess {
     Directory(p.join(p.dirname(databasePath), 'remote-artwork')),
   );
 
+  late final _playlistClient = MusicSharePlaylistClient(repository, () {
+    onCatalogChanged();
+    _notify();
+  }, _notify);
+  @override
+  List<LibraryPlaylist> get remotePlaylists => _playlistClient.playlists;
+
+  @override
+  Future<LibraryPlaylist?> playlistOperation(
+    String device,
+    String operation, {
+    int? playlistId,
+    String? name,
+    List<int> songIds = const [],
+    List<int> playlistIds = const [],
+    LibraryPlaylist? restore,
+    PlaylistSortCriterion? criterion,
+  }) => _playlistClient.operate(
+    peerFor(remoteMusicPath(device, 0)),
+    operation,
+    playlistId: playlistId,
+    name: name,
+    songIds: songIds,
+    playlistIds: playlistIds,
+    restore: restore,
+    criterion: criterion,
+  );
+
   Future<void> _load() async {
     final (snapshot, loadedIdentity, stored) =
         await (
@@ -76,9 +121,26 @@ class MusicShareController extends ChangeNotifier implements MusicShareAccess {
       final json = jsonDecode(stored) as Map<String, dynamic>;
       name = json['name'] as String;
       selectedSource = json['source'] as String;
+      // Existing configurations default to automatic connection.
+      autoConnect =
+          json.containsKey('autoConnect') ? json['autoConnect'] as bool : true;
+      lastConnectedPeerId = json['lastConnectedPeerId'] as String?;
+      if (!json.containsKey('lastConnectedPeerId') &&
+          selectedSource != 'local' &&
+          selectedSource != 'all') {
+        lastConnectedPeerId = selectedSource;
+      }
       sharing = json['sharing'] as bool;
       port = json['port'] as int? ?? musicSharePort;
       grants.addAll((json['grants'] as Map).cast<String, String>());
+      if (json.containsKey('grantIdentities')) {
+        grantIdentities.addAll(
+          (json['grantIdentities'] as Map).cast<String, String>(),
+        );
+      }
+      if (json.containsKey('mobileGrants')) {
+        mobileGrants.addAll((json['mobileGrants'] as List).cast<String>());
+      }
       // Older saved authorizations grant playback only.
       if (json.containsKey('writeGrants')) {
         writeGrants.addAll((json['writeGrants'] as List).cast<String>());
@@ -88,38 +150,57 @@ class MusicShareController extends ChangeNotifier implements MusicShareAccess {
           (item) => MusicPeer.fromJson((item as Map).cast<String, dynamic>()),
         ),
       );
+      if (json['source'] == 'all') {
+        selectedSource = 'local';
+        await save();
+      }
     }
     server = MusicShareServer(
       onLibraryChanged: onCatalogChanged,
+      onPeerConnected: (name) {
+        incomingConnection = (
+          revision: (incomingConnection?.revision ?? 0) + 1,
+          name: name,
+        );
+        _notify();
+      },
       identity: identity,
       repository: repository,
       name: () => name,
       grants: grants,
+      grantIdentities: grantIdentities,
+      mobileGrants: mobileGrants,
       writeGrants: writeGrants,
       onChanged: () {
         _notify();
       },
     );
     server.updateLibrary(snapshot);
+    await _artworkCache.restore();
     initialized = true;
     _notify();
     _connectionTimer = Timer.periodic(const Duration(seconds: 20), (_) {
       unawaited(checkConnections());
     });
-    unawaited(checkConnections());
   }
 
+  @override
   void _notify() {
     if (!_disposed) notifyListeners();
   }
 
+  @override
   Future<void> save() {
     final value = jsonEncode({
       'name': name,
       'source': selectedSource,
       'sharing': sharing,
+      'autoConnect': autoConnect,
+      'lastConnectedPeerId': lastConnectedPeerId,
       'port': port,
       'grants': grants,
+      'grantIdentities': grantIdentities,
+      'mobileGrants': mobileGrants.toList(),
       'writeGrants': writeGrants.toList(),
       'peers': peers.map((peer) => peer.toJson()).toList(),
     });
@@ -136,16 +217,41 @@ class MusicShareController extends ChangeNotifier implements MusicShareAccess {
     return operation;
   }
 
-  Future<void> selectSource(String source) async {
-    selectedSource = source;
+  Future<void> setAutoConnect(bool enabled) async {
+    final previous = autoConnect;
+    autoConnect = enabled;
+    busy = true;
     _notify();
-    await save();
+    try {
+      await save();
+    } catch (_) {
+      autoConnect = previous;
+      rethrow;
+    } finally {
+      busy = false;
+      _notify();
+    }
+    if (enabled) unawaited(checkConnections());
+  }
+
+  Future<void> selectSource(String source) async {
+    await ready;
     final peer = peers.where((peer) => peer.id == source).firstOrNull;
-    if (peer != null) await syncPeer(peer);
+    if (peer != null) {
+      await syncPeer(peer, importCatalog: false, rememberConnection: true);
+    }
+    final previous = selectedSource;
+    selectedSource = source;
+    try {
+      await save();
+    } catch (_) {
+      selectedSource = previous;
+      rethrow;
+    }
+    _notify();
   }
 
   bool includes(LibrarySong song) {
-    if (selectedSource == 'all') return true;
     if (selectedSource == 'local') return !isRemoteMusicPath(song.path);
     return isRemoteMusicPath(song.path) &&
         Uri.parse(song.path).host == selectedSource;
@@ -157,10 +263,6 @@ class MusicShareController extends ChangeNotifier implements MusicShareAccess {
     _notify();
     try {
       if (enabled) {
-        final settings = await repository.readSettingsSnapshot();
-        if (settings.rootPath.isEmpty) {
-          throw const MusicShareException('share.chooseLibraryFirst');
-        }
         await server.start(port: port);
       } else {
         await server.stop();
@@ -193,33 +295,12 @@ class MusicShareController extends ChangeNotifier implements MusicShareAccess {
     }
   }
 
-  Future<void> approve(String key, bool allow, {bool canWrite = false}) async {
-    await server.approve(key, allow, persist: save, canWrite: canWrite);
-  }
-
-  Future<void> revoke(String hash) async {
-    try {
-      await server.revoke(hash);
-    } finally {
-      await save();
-    }
-  }
-
-  Future<void> setWritePermission(String hash, bool enabled) async {
-    final previous = writeGrants.contains(hash);
-    permissionChanges.add(hash);
-    enabled ? writeGrants.add(hash) : writeGrants.remove(hash);
-    _notify();
-    try {
-      await save();
-    } catch (_) {
-      previous ? writeGrants.add(hash) : writeGrants.remove(hash);
-      rethrow;
-    } finally {
-      permissionChanges.remove(hash);
-      _notify();
-    }
-  }
+  @override
+  bool isOnline(String path) => peers.any(
+    (peer) =>
+        peer.id == Uri.parse(path).host &&
+        peer.status == MusicPeerStatus.online,
+  );
 
   @override
   bool canWrite(String path) => peers.any(
@@ -232,6 +313,9 @@ class MusicShareController extends ChangeNotifier implements MusicShareAccess {
   Future<void> forget(MusicPeer peer) async {
     _artworkCache.disconnect(peer.id);
     peers.remove(peer);
+    _playlistClient.forget(peer.id);
+    repository.forgetRemotePreferences(peer.id);
+    if (lastConnectedPeerId == peer.id) lastConnectedPeerId = null;
     for (final transport
         in _proxyTransports
             .where((item) => item.address == peer.address)
@@ -245,8 +329,7 @@ class MusicShareController extends ChangeNotifier implements MusicShareAccess {
 
   Future<void> discover() async {
     await ready;
-    discovered.clear();
-    _notify();
+    final scanResults = <DiscoveredMusicHost>[];
     final socket = await RawDatagramSocket.bind(InternetAddress.anyIPv4, 0);
     socket.broadcastEnabled = true;
     var addressChanged = false;
@@ -269,11 +352,10 @@ class MusicShareController extends ChangeNotifier implements MusicShareAccess {
           peer.address = address;
           addressChanged = true;
         }
-        if (discovered.any((host) => host.id == id)) return;
-        discovered.add(
+        if (scanResults.any((host) => host.id == id)) return;
+        scanResults.add(
           DiscoveredMusicHost(id, json['name'] as String, address),
         );
-        _notify();
       } on FormatException {
         return;
       } on TypeError {
@@ -291,83 +373,11 @@ class MusicShareController extends ChangeNotifier implements MusicShareAccess {
       await subscription.cancel();
       socket.close();
     }
+    discovered
+      ..clear()
+      ..addAll(scanResults);
+    _notify();
     if (addressChanged) await save();
-  }
-
-  Future<void> checkConnections() async {
-    if (_checking || _disposed) return;
-    _checking = true;
-    try {
-      if (peers.any((peer) => peer.status == MusicPeerStatus.offline)) {
-        try {
-          await discover();
-        } on SocketException {
-          // UDP discovery may be unavailable; saved HTTPS addresses still work.
-        }
-      }
-      await Future.wait(
-        peers.map((peer) async {
-          final previous = peer.status;
-          try {
-            await syncPeer(
-              peer,
-              importCatalog: previous != MusicPeerStatus.online,
-            );
-          } catch (_) {
-            // Background checks update connection state; user actions show a toast.
-          }
-        }),
-      );
-    } finally {
-      _checking = false;
-    }
-  }
-
-  Future<void> syncPeer(MusicPeer peer, {bool importCatalog = true}) async {
-    final transport = MusicShareTransport(
-      peer.address,
-      fingerprint: peer.fingerprint,
-      token: peer.token,
-    );
-    final previous = peer.status;
-    try {
-      final status = await transport.json('/status');
-      final canWrite = status['canWrite'] == true;
-      if (peer.canWrite != canWrite) {
-        peer.canWrite = canWrite;
-        _notify();
-      }
-      final revision = status['revision'] as String;
-      final updatedName = status['name'] as String;
-      if (updatedName != peer.name) {
-        peer.name = updatedName;
-        await save();
-        _notify();
-      }
-      if (importCatalog || peer.catalogRevision != revision) {
-        final page = await transport.json('/catalog');
-        final songs =
-            (page['songs'] as List)
-                .map((item) => (item as Map).cast<String, dynamic>())
-                .toList();
-        await importMusicShareCatalog(databasePath, peer.id, songs);
-        peer.catalogRevision = revision;
-        onCatalogChanged();
-      }
-      peer.status = MusicPeerStatus.online;
-    } on MusicShareException catch (error) {
-      peer.status =
-          error.messageKey == 'share.authorizationRequired'
-              ? MusicPeerStatus.unauthorized
-              : MusicPeerStatus.offline;
-      rethrow;
-    } catch (_) {
-      peer.status = MusicPeerStatus.offline;
-      rethrow;
-    } finally {
-      transport.close();
-      if (previous != peer.status) _notify();
-    }
   }
 
   Future<MusicPeer> finishPairing(
@@ -417,9 +427,9 @@ class MusicShareController extends ChangeNotifier implements MusicShareAccess {
 
   @override
   Future<Uri> audioUri(String path) async {
-    await ready;
+    await initialConnection;
     final peer = peerFor(path);
-    await syncPeer(peer, importCatalog: false);
+    await syncPeer(peer, importCatalog: false, rememberConnection: true);
     _proxy ??= await HttpServer.bind(InternetAddress.loopbackIPv4, 0)
       ..listen((request) => unawaited(_serveProxy(request)));
     final song = Uri.parse(path).pathSegments.single;
@@ -494,6 +504,99 @@ class MusicShareController extends ChangeNotifier implements MusicShareAccess {
     String resource, {
     String method = 'GET',
     Object? body,
+  }) => _editRequest(
+    path,
+    '/songs/${Uri.parse(path).pathSegments.single}/$resource',
+    method: method,
+    body: body,
+  );
+
+  @override
+  Future<Map<String, dynamic>> songsRequest(
+    List<String> paths,
+    String resource, {
+    String method = 'GET',
+    Object? body,
+  }) {
+    final device = Uri.parse(paths.first).host;
+    if (paths.any((path) => Uri.parse(path).host != device)) {
+      throw const MusicShareException('share.sameDeviceSongs');
+    }
+    final ids = paths
+        .map((path) => Uri.parse(path).pathSegments.single)
+        .join(',');
+    return _editRequest(
+      paths.first,
+      '/songs/$resource?ids=$ids',
+      method: method,
+      body: body,
+    );
+  }
+
+  @override
+  Future<Map<String, dynamic>> preferenceRequest(
+    String device,
+    String operation,
+    Map<String, dynamic> values,
+  ) {
+    final read = operation == 'get' || operation == 'level';
+    final uri = Uri(
+      path: '/preferences',
+      queryParameters:
+          read
+              ? {
+                'operation': operation,
+                for (final e in values.entries) e.key: e.value.toString(),
+              }
+              : null,
+    );
+    return _editRequest(
+      remoteMusicPath(device, 0),
+      uri.toString(),
+      method: read ? 'GET' : 'POST',
+      body: read ? null : {'operation': operation, ...values},
+    );
+  }
+
+  @override
+  Future<Map<String, dynamic>> fileRequest(
+    String path,
+    String operation,
+    Map<String, dynamic> values,
+  ) async {
+    final id = Uri.parse(path).pathSegments.single;
+    final read = operation == 'info';
+    final result = await _editRequest(
+      path,
+      read ? '/files?operation=info&song=$id' : '/files',
+      method: read ? 'GET' : 'POST',
+      body: read ? null : {'operation': operation, 'song': id, ...values},
+    );
+    if (result['error'] case final String key) throw MusicShareException(key);
+    if (result.containsKey('catalog')) {
+      final peer = peerFor(path);
+      await importMusicShareCatalog(
+        databasePath,
+        peer.id,
+        (result['catalog'] as List)
+            .map((s) => (s as Map).cast<String, dynamic>())
+            .toList(),
+        removedSongIds:
+            result.containsKey('removed')
+                ? (result['removed'] as List).cast<int>()
+                : const [],
+      );
+      peer.catalogRevision = result['revision'] as String;
+      onCatalogChanged();
+    }
+    return result;
+  }
+
+  Future<Map<String, dynamic>> _editRequest(
+    String path,
+    String endpoint, {
+    String method = 'GET',
+    Object? body,
   }) async {
     final peer = peerFor(path);
     if (method != 'GET' && !peer.canWrite) {
@@ -505,13 +608,21 @@ class MusicShareController extends ChangeNotifier implements MusicShareAccess {
       token: peer.token,
     );
     try {
-      final id = Uri.parse(path).pathSegments.single;
-      final result = await transport.json(
-        '/songs/$id/$resource',
-        method: method,
-        body: body,
-      );
-      if (method != 'GET') unawaited(checkConnections());
+      final result = await transport.json(endpoint, method: method, body: body);
+      if (method != 'GET') {
+        if (result.containsKey('songs')) {
+          await importMusicShareCatalog(
+            databasePath,
+            peer.id,
+            (result['songs'] as List)
+                .map((s) => (s as Map).cast<String, dynamic>())
+                .toList(),
+            replace: false,
+          );
+          onCatalogChanged();
+        }
+        unawaited(checkConnections());
+      }
       return result;
     } on MusicShareException catch (error) {
       if (error.messageKey == 'share.readOnlyPermission') {

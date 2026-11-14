@@ -26,7 +26,7 @@ class _QueuePlayOverlayButton extends StatelessWidget {
 
   final String tooltip;
   final Widget icon;
-  final VoidCallback onPressed;
+  final VoidCallback? onPressed;
 
   @override
   Widget build(BuildContext context) {

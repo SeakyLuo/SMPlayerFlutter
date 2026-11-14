@@ -1,42 +1,47 @@
 import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 
-import '../app/text_icon_button.dart';
 import '../library/ui/popup_dialog.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../i18n/app_i18n.dart';
 import 'music_share_models.dart';
-import 'music_source_providers.dart';
-import 'music_source_selector.dart';
+import 'music_share_connect_button.dart';
 
-class MusicSharePeers extends ConsumerWidget {
+class MusicSharePeers extends StatelessWidget {
   const MusicSharePeers({
     super.key,
     required this.onReauthorize,
     required this.busy,
+    required this.onConnect,
+    this.connectingPeerId,
+    required this.peers,
+    this.showTitle = true,
   });
 
   final ValueChanged<String> onReauthorize;
   final bool busy;
+  final ValueChanged<MusicPeer> onConnect;
+  final String? connectingPeerId;
+  final List<MusicPeer> peers;
+  final bool showTitle;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final share = ref.watch(musicShareProvider);
+  Widget build(BuildContext context) {
     final i18n = context.smPlayerI18n;
     final colors = PopupDialogColors.resolve(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          i18n.t('share.connectedComputers'),
-          style: TextStyle(
-            color: colors.textStrong,
-            fontSize: 15,
-            fontWeight: FontWeight.w600,
+        if (showTitle)
+          Text(
+            i18n.t('share.connectedComputers'),
+            style: TextStyle(
+              color: colors.textStrong,
+              fontSize: 15,
+              fontWeight: FontWeight.w600,
+            ),
           ),
-        ),
-        for (final peer in share.peers)
+        for (final peer in peers)
           ListTile(
             contentPadding: EdgeInsets.zero,
             leading: Icon(
@@ -45,57 +50,58 @@ class MusicSharePeers extends ConsumerWidget {
             ),
             title: Text(
               peer.name,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
               style: TextStyle(color: colors.textStrong, fontSize: 14),
             ),
-            subtitle: Text(
-              i18n.t(switch (peer.status) {
-                MusicPeerStatus.online => 'share.online',
-                MusicPeerStatus.unauthorized => 'share.authorizationRequired',
-                MusicPeerStatus.offline => 'share.offline',
-              }),
-              style: TextStyle(color: colors.textMuted, fontSize: 13),
-            ),
-            trailing: Row(
-              mainAxisSize: MainAxisSize.min,
+            subtitle: Row(
               children: [
-                PopupDialogActionButton(
-                  label: i18n.t(
-                    peer.status == MusicPeerStatus.unauthorized
-                        ? 'share.reauthorize'
-                        : 'share.connect',
+                if (peer.status == MusicPeerStatus.online) ...[
+                  const SizedBox.square(
+                    dimension: 7,
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        color: Color(0xff34c759),
+                        shape: BoxShape.circle,
+                      ),
+                    ),
                   ),
-                  onPressed:
-                      busy
-                          ? null
-                          : () {
-                            if (peer.status == MusicPeerStatus.unauthorized) {
-                              onReauthorize(peer.address);
-                            } else {
-                              runMusicShareAction(
-                                context,
-                                () => share.syncPeer(peer),
-                              );
-                            }
-                          },
-                ),
-                const SizedBox(width: 4),
-                SmPlayerTextIconButton(
-                  label: i18n.t('share.disconnect'),
-                  icon: FluentIcons.dismiss_20_regular,
-                  showLabel: false,
-                  glassEnabled: false,
-                  horizontalPadding: 8,
-                  height: 36,
-                  onPressed:
-                      busy
-                          ? null
-                          : () => runMusicShareAction(
-                            context,
-                            () => share.forget(peer),
-                          ),
+                  const SizedBox(width: 6),
+                ],
+                Flexible(
+                  child: Text(
+                    i18n.t(switch (peer.status) {
+                      MusicPeerStatus.online => 'share.connectedState',
+                      MusicPeerStatus.unauthorized =>
+                        'share.authorizationRequired',
+                      MusicPeerStatus.offline => 'share.offline',
+                    }),
+                    style: TextStyle(color: colors.textMuted, fontSize: 13),
+                  ),
                 ),
               ],
             ),
+            trailing:
+                peer.status == MusicPeerStatus.online
+                    ? null
+                    : MusicShareConnectButton(
+                      label: i18n.t(
+                        connectingPeerId == peer.id
+                            ? 'share.connecting'
+                            : peer.status == MusicPeerStatus.unauthorized
+                            ? 'share.reauthorize'
+                            : 'share.connect',
+                      ),
+                      loading: connectingPeerId == peer.id,
+                      enabled: !busy,
+                      onPressed: () {
+                        if (peer.status == MusicPeerStatus.unauthorized) {
+                          onReauthorize(peer.address);
+                        } else {
+                          onConnect(peer);
+                        }
+                      },
+                    ),
           ),
       ],
     );

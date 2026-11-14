@@ -1,11 +1,14 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../i18n/app_i18n.dart';
+import '../app/undoable_notification.dart';
 import '../library/ui/popup_dialog.dart';
 import 'music_share_models.dart';
+import 'music_share_permission_selector.dart';
 import 'music_source_providers.dart';
 import 'music_source_selector.dart';
 
@@ -23,6 +26,21 @@ class _MusicShareApprovalHostState
 
   @override
   Widget build(BuildContext context) {
+    ref.listen(musicShareProvider.select((share) => share.incomingConnection), (
+      _,
+      event,
+    ) {
+      if (event == null) return;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        showAppNotification(
+          context: context,
+          message: context.smPlayerI18n.t('share.deviceConnected', {
+            'name': event.name,
+          }),
+        );
+      });
+    });
     final share = ref.watch(musicShareProvider);
     if (!_showing && share.initialized) {
       final pending =
@@ -149,39 +167,76 @@ class _MusicShareApprovalDialogState
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              PopupDialogMessageContent(
-                message: i18n.t('share.requestFrom', {
-                  'name': widget.request.name,
-                }),
-                padding: EdgeInsets.zero,
+              Row(
+                children: [
+                  Icon(
+                    widget.request.isMobile
+                        ? FluentIcons.phone_24_regular
+                        : FluentIcons.desktop_24_regular,
+                    size: 32,
+                    color: colors.textMuted,
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          widget.request.name,
+                          style: TextStyle(
+                            color: colors.textStrong,
+                            fontSize: 17,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          i18n.t('share.requestAccessLibrary'),
+                          style: TextStyle(
+                            color: colors.textMuted,
+                            fontSize: 14,
+                            height: 1.5,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(height: 16),
-              SelectableText(
-                widget.request.code,
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: colors.textStrong,
-                  fontSize: 28,
-                  fontWeight: FontWeight.w600,
-                  letterSpacing: 4,
+              const SizedBox(height: 24),
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      i18n.t('share.accessPermission'),
+                      style: TextStyle(
+                        color: colors.textStrong,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  MusicSharePermissionSelector(
+                    canWrite: _canWrite,
+                    enabled: !_submitting,
+                    onChanged: (value) => setState(() => _canWrite = value),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  i18n.t(
+                    _canWrite ? 'share.readWriteHint' : 'share.readOnlyHint',
+                  ),
+                  style: TextStyle(
+                    color: colors.textMuted,
+                    fontSize: 13,
+                    height: 1.5,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 16),
-              CheckboxListTile(
-                contentPadding: EdgeInsets.zero,
-                value: _canWrite,
-                title: Text(
-                  i18n.t('share.allowEditing'),
-                  style: TextStyle(color: colors.textStrong, fontSize: 14),
-                ),
-                onChanged:
-                    _submitting
-                        ? null
-                        : (value) => setState(() => _canWrite = value!),
-              ),
-              PopupDialogMessageContent(
-                message: i18n.t('share.approvalHint'),
-                padding: EdgeInsets.zero,
               ),
             ],
           ),

@@ -146,6 +146,7 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage>
   var _playbackRuntimeSettingsRestored = false;
   var _playbackTrackRestoreScheduled = false;
   var _playbackTrackRestored = false;
+  var _restoringPlaybackTrack = false;
   SmPlayerNavigationMode? _navigationMode;
   var _currentPath = '/songs';
   final _routeMemory = <String, String>{};
@@ -210,13 +211,13 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage>
     _playerDialogRefreshNotifier = ValueNotifier(0);
     _audioPlayer = AudioPlayer();
     unawaited(
-      ref.read(musicShareProvider).startup.catchError((Object error) {
-        if (mounted) {
-          showAppNotification(
-            context: context,
-            message: context.smPlayerI18n.t('share.connectionFailed'),
-          );
-        }
+      ref.read(musicShareProvider).startup.catchError((
+        Object error,
+        StackTrace stack,
+      ) {
+        debugPrint(
+          'Simple Melody Player sharing startup failed: $error\n$stack',
+        );
       }),
     );
     _mediaControlController.addListener(_syncAudioPlayerFromController);
@@ -405,18 +406,22 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage>
       }
     });
     ref.listen(libraryContentDataProvider, (previous, next) {
-      final snapshot = next.valueOrNull;
-      final trackId = _mediaControlController.state.track.id;
-      if (snapshot == null || trackId == null) {
-        return;
-      }
-      final song =
-          snapshot.songs.where((song) => song.id == trackId).firstOrNull;
-      if (song != null) {
-        _mediaControlController.updateTrackMetadata(
-          mediaControlTrackForSong(song, context.smPlayerI18n),
-        );
-      }
+      // Playback notifications must run after dependent providers finish rebuilding.
+      scheduleMicrotask(() {
+        if (!mounted) return;
+        final snapshot = ref.read(libraryContentDataProvider).valueOrNull;
+        final trackId = _mediaControlController.state.track.id;
+        if (snapshot == null || trackId == null) {
+          return;
+        }
+        final song =
+            snapshot.songs.where((song) => song.id == trackId).firstOrNull;
+        if (song != null) {
+          _mediaControlController.updateTrackMetadata(
+            mediaControlTrackForSong(song, context.smPlayerI18n),
+          );
+        }
+      });
     });
     final currentLocation = widget.currentLocation ?? currentPath;
     final layout = ShellLayoutState.resolve(
@@ -566,19 +571,7 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage>
                 }),
               );
             },
-            onCreatePlaylist: () {
-              final snapshot = ref.read(libraryContentDataProvider).valueOrNull;
-              final i18n =
-                  ref.read(smPlayerI18nProvider).value ?? context.smPlayerI18n;
-              unawaited(
-                _createPlaylistFromNavigation(
-                  context: _shellFrameKey.currentContext!,
-                  ref: ref,
-                  i18n: i18n,
-                  snapshot: snapshot,
-                ),
-              );
-            },
+            onCreatePlaylist: () => _createPlaylistFromNavigationAction(ref),
             onDuplicatePlaylist: (playlist) {
               unawaited(
                 _duplicatePlaylistFromNavigation(
@@ -588,20 +581,9 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage>
                 ),
               );
             },
-            onRenamePlaylist: (playlist) {
-              final snapshot = ref.read(libraryContentDataProvider).valueOrNull;
-              final i18n =
-                  ref.read(smPlayerI18nProvider).value ?? context.smPlayerI18n;
-              unawaited(
-                _renamePlaylistFromNavigation(
-                  context: _shellFrameKey.currentContext!,
-                  ref: ref,
-                  i18n: i18n,
-                  snapshot: snapshot,
-                  playlist: playlist,
-                ),
-              );
-            },
+            onRenamePlaylist:
+                (playlist) =>
+                    _renamePlaylistFromNavigationAction(ref, playlist),
             onDeletePlaylist: (playlist) {
               final snapshot = ref.read(libraryContentDataProvider).valueOrNull;
               final i18n =

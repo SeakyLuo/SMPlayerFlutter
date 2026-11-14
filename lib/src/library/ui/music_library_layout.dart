@@ -130,7 +130,15 @@ extension _MusicLibraryLayout on _MusicLibraryPageState {
               }
               final customPlaylists =
                   playlists
-                      .where((playlist) => !playlist.isBuiltIn)
+                      .where(
+                        (playlist) =>
+                            !playlist.isBuiltIn &&
+                            canEditPlaylist(playlist) &&
+                            playlistBelongsToSource(
+                              playlist,
+                              activeMusicShareAccess!.selectedSource,
+                            ),
+                      )
                       .map(
                         (playlist) => MultiSelectCommandBarPlaylist(
                           id: playlist.id,
@@ -273,9 +281,11 @@ extension _MusicLibraryLayout on _MusicLibraryPageState {
                                                                 song.id ==
                                                                 songId,
                                                           );
-                                                      setSongsFavorite(ref, [
-                                                        songId,
-                                                      ], !song.favorite);
+                                                      setSongsFavoriteFromControl(
+                                                        ref,
+                                                        [songId],
+                                                        !song.favorite,
+                                                      );
                                                     },
                                                     onPlayNext: _playNext,
                                                     onOpenAddToPlaylistMenu: (
@@ -348,9 +358,11 @@ extension _MusicLibraryLayout on _MusicLibraryPageState {
                                                                 song.id ==
                                                                 songId,
                                                           );
-                                                      setSongsFavorite(ref, [
-                                                        songId,
-                                                      ], !song.favorite);
+                                                      setSongsFavoriteFromControl(
+                                                        ref,
+                                                        [songId],
+                                                        !song.favorite,
+                                                      );
                                                     },
                                                     onPlayNext: _playNext,
                                                     onOpenAddToPlaylistMenu: (

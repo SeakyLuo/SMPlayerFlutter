@@ -1238,7 +1238,7 @@ class _ImmersiveModePageState extends ConsumerState<ImmersiveModePage>
   }
 
   Future<void> _toggleSongsFavorite(List<int> songIds, bool favorite) async {
-    await setSongsFavorite(ref, songIds, favorite);
+    await setSongsFavoriteFromControl(ref, songIds, favorite);
   }
 
   void _addSongToNowPlaying(LibrarySong song, List<int> queueSongIds) {

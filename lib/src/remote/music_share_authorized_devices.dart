@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../i18n/app_i18n.dart';
 import '../library/ui/popup_dialog.dart';
 import 'music_source_providers.dart';
+import 'music_share_permission_selector.dart';
 import 'music_source_selector.dart';
 
 Future<void> showMusicShareAuthorizedDevices(BuildContext context) {
@@ -84,63 +85,81 @@ class _AuthorizedDevices extends ConsumerWidget {
     return ListView(
       children: [
         for (final grant in share.grants.entries)
-          Column(
-            children: [
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                leading: Icon(
-                  FluentIcons.desktop_24_regular,
-                  color: colors.textMuted,
-                ),
-                title: Text(
-                  grant.value,
-                  style: TextStyle(color: colors.textStrong, fontSize: 14),
-                ),
-                trailing: PopupDialogActionButton(
-                  label: i18n.t('share.revoke'),
-                  onPressed:
-                      share.permissionChanges.contains(grant.key)
-                          ? null
-                          : () async {
-                            final confirmed = await showPopupConfirmDialog(
-                              context: context,
-                              title: i18n.t('share.revoke'),
-                              message: i18n.t('share.revokeConfirm', {
-                                'name': grant.value,
-                              }),
-                              confirmLabel: i18n.t('share.revoke'),
-                            );
-                            if (confirmed && context.mounted) {
-                              await runMusicShareAction(
-                                context,
-                                () => share.revoke(grant.key),
-                              );
-                            }
-                          },
-                ),
-              ),
-              CheckboxListTile(
-                contentPadding: EdgeInsets.zero,
-                value: share.writeGrants.contains(grant.key),
-                title: Text(
-                  i18n.t('share.allowEditing'),
-                  style: TextStyle(color: colors.textStrong, fontSize: 14),
-                ),
-                onChanged:
-                    share.permissionChanges.contains(grant.key)
-                        ? null
-                        : (value) => runMusicShareAction(
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final icon = Icon(
+                share.mobileGrants.contains(grant.key)
+                    ? FluentIcons.phone_24_regular
+                    : FluentIcons.desktop_24_regular,
+                color: colors.textMuted,
+              );
+              final title = Text(
+                grant.value,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(color: colors.textStrong, fontSize: 14),
+              );
+              final actions = Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  MusicSharePermissionSelector(
+                    canWrite: share.writeGrants.contains(grant.key),
+                    enabled: !share.permissionChanges.contains(grant.key),
+                    loading: share.permissionChanges.contains(grant.key),
+                    onChanged:
+                        (canWrite) => runMusicShareAction(
                           context,
-                          () => share.setWritePermission(grant.key, value!),
+                          () => share.setWritePermission(grant.key, canWrite),
                         ),
-              ),
-            ],
+                  ),
+                  const SizedBox(width: 8),
+                  PopupDialogActionButton(
+                    label: i18n.t('share.revoke'),
+                    loading: share.permissionChanges.contains(grant.key),
+                    onPressed:
+                        share.permissionChanges.contains(grant.key)
+                            ? null
+                            : () async {
+                              await showPopupConfirmDialog(
+                                context: context,
+                                title: i18n.t('share.revoke'),
+                                message: i18n.t('share.revokeConfirm', {
+                                  'name': grant.value,
+                                }),
+                                confirmLabel: i18n.t('share.revoke'),
+                                destructive: true,
+                                onConfirm:
+                                    () => runMusicShareAction(
+                                      context,
+                                      () => share.revoke(grant.key),
+                                    ),
+                              );
+                            },
+                  ),
+                ],
+              );
+              if (constraints.maxWidth < 400) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: icon,
+                      title: title,
+                    ),
+                    Align(alignment: Alignment.centerRight, child: actions),
+                    const SizedBox(height: 12),
+                  ],
+                );
+              }
+              return ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: icon,
+                title: title,
+                trailing: actions,
+              );
+            },
           ),
-        const SizedBox(height: 12),
-        Text(
-          i18n.t('share.revokeHint'),
-          style: TextStyle(color: colors.textMuted, fontSize: 13),
-        ),
       ],
     );
   }

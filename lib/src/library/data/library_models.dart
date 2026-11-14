@@ -1,3 +1,5 @@
+import 'library_source.dart';
+
 import 'package:smplayer_flutter/src/settings/settings_model.dart'
     show LocalViewMode;
 
@@ -64,6 +66,8 @@ class LibrarySong {
     required this.thumbnailPath,
     this.remoteAvailable = true,
   });
+
+  LibrarySource get source => LibrarySource.fromPath(path);
 
   final bool remoteAvailable;
   final int id;
@@ -449,6 +453,7 @@ List<SearchHistoryEntry> latestSearchHistoryEntries(
 class LibraryPlaylist {
   const LibraryPlaylist({
     required this.id,
+    this.remotePath = '',
     required this.name,
     required this.priority,
     required this.songCount,
@@ -458,6 +463,12 @@ class LibraryPlaylist {
   });
 
   final int id;
+  LibrarySource get source =>
+      remotePath.isEmpty
+          ? const LocalLibrarySource()
+          : LibrarySource.fromPath(remotePath);
+
+  final String remotePath;
   final String name;
   final int priority;
   final int songCount;
@@ -474,6 +485,7 @@ class LibraryPlaylist {
   }) {
     return LibraryPlaylist(
       id: id,
+      remotePath: remotePath,
       name: name ?? this.name,
       priority: priority ?? this.priority,
       songCount: songCount ?? this.songCount,
@@ -738,6 +750,29 @@ class LibraryContentData {
     this.localViewMode = LocalViewMode.grid,
     this.rootPath = '',
   });
+
+  LibraryContentData withPlaylists(List<LibraryPlaylist> values) =>
+      LibraryContentData(
+        songs: songs,
+        hasLibrary: hasLibrary,
+        sortCriterion: sortCriterion,
+        albumsSort: albumsSort,
+        databasePath: databasePath,
+        recentSongs: recentSongs,
+        recentPlaylists: recentPlaylists,
+        recentAlbums: recentAlbums,
+        recentArtists: recentArtists,
+        recentSearches: recentSearches,
+        playlists: values,
+        folders: folders,
+        favoritePlaylistId: favoritePlaylistId,
+        nowPlaying: nowPlaying,
+        showCount: showCount,
+        hideMultiSelectCommandBarAfterOperation:
+            hideMultiSelectCommandBarAfterOperation,
+        localViewMode: localViewMode,
+        rootPath: rootPath,
+      );
 
   final List<LibrarySong> songs;
   final List<RecentLibrarySong> recentSongs;

@@ -409,14 +409,19 @@ extension _SmPlayerShellNavigationMethods on _SmPlayerShellPageState {
     _playbackTrackRestored = true;
     final progressSeconds =
         settings.saveMusicProgress ? settings.musicProgress : 0.0;
-    _mediaControlController.playTrack(
-      mediaControlTrackForSong(restoredSong, context.smPlayerI18n),
-      durationSeconds: restoredSong.duration.toDouble(),
-      queueIndex: restoredIndex,
-      progressSeconds: progressSeconds,
-      autoplay:
-          settings.autoPlay && !_settingsController.suppressAutoPlayOnRestore,
-    );
+    _restoringPlaybackTrack = true;
+    try {
+      _mediaControlController.playTrack(
+        mediaControlTrackForSong(restoredSong, context.smPlayerI18n),
+        durationSeconds: restoredSong.duration.toDouble(),
+        queueIndex: restoredIndex,
+        progressSeconds: progressSeconds,
+        autoplay:
+            settings.autoPlay && !_settingsController.suppressAutoPlayOnRestore,
+      );
+    } finally {
+      _restoringPlaybackTrack = false;
+    }
   }
 
   Future<void> _restoreDesktopWindowFullScreenState() async {

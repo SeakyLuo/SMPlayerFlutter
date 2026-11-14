@@ -1,4 +1,6 @@
 import 'dart:math';
+import '../remote/music_share_models.dart';
+import '../remote/music_share_access.dart';
 
 import 'package:smplayer_flutter/src/library/data/library_models.dart';
 import 'package:smplayer_flutter/src/library/ui/song_display_helpers.dart';
@@ -14,6 +16,21 @@ List<int> quickPlaySongIds({
   required PreferenceSettingsSnapshot preferences,
   int randomLimit = quickPlayDefaultLimit,
 }) {
+  songs =
+      songs
+          .where(
+            (song) =>
+                preferences.source == 'local'
+                    ? !isRemoteMusicPath(song.path)
+                    : isRemoteMusicPath(song.path) &&
+                        Uri.parse(song.path).host == preferences.source,
+          )
+          .toList();
+  playlists =
+      playlists
+          .where((p) => playlistBelongsToSource(p, preferences.source))
+          .toList();
+  if (preferences.source != 'local') folders = const [];
   final songsById = {for (final song in songs) song.id: song};
   final playlistsById = {
     for (final playlist in playlists) playlist.id: playlist,

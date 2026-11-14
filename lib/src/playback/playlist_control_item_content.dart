@@ -204,7 +204,11 @@ class _QueueArtwork extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final artworkShadowVisible = hovered;
+    final available = canPlayLibrarySong(song);
+    final unavailableLabel = context.smPlayerI18n.t(
+      song.remoteAvailable ? 'share.offline' : 'share.unavailableShort',
+    );
+    final artworkShadowVisible = hovered && available;
     final artworkShadow = BoxShadow(
       color: const Color(0xff202d3f).withValues(alpha: 0.24),
       offset: const Offset(0, 8),
@@ -254,12 +258,35 @@ class _QueueArtwork extends StatelessWidget {
               ),
             ),
           )
-        else if (current)
+        else if (current && available)
           Positioned.fill(
             key: const ValueKey('PlaylistControlItem.PlayingOverlay'),
             child: _QueuePlayingOverlay(playing: playing),
           ),
-        if (!selectionMode && hovered)
+        if (!available && !selectionMode)
+          Positioned(
+            top: 0,
+            right: 0,
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                color: const Color(0xe6000000),
+                borderRadius: BorderRadius.circular(3),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                child: Text(
+                  unavailableLabel,
+                  style: const TextStyle(
+                    fontSize: 10,
+                    height: 1.2,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        if (available && !selectionMode && hovered)
           Positioned.fill(
             child: Center(
               child: _QueuePlayOverlayButton(

@@ -27,7 +27,13 @@ extension _SmPlayerShellQueueMethods on _SmPlayerShellPageState {
       return false;
     }
     final progressSeconds = _audioPlayer.position.inMilliseconds / 1000;
+    final current =
+        snapshot.songs
+            .where((song) => song.id == _mediaControlController.state.track.id)
+            .firstOrNull;
     if (!forcePrevious &&
+        current != null &&
+        canPlayLibrarySong(current) &&
         shouldRestartCurrentTrackForPrevious(
           progressSeconds: progressSeconds,
           queueLength: playbackSongIds.length,
@@ -74,8 +80,9 @@ extension _SmPlayerShellQueueMethods on _SmPlayerShellPageState {
       return _shuffleAndPlayNextRound(snapshot, playbackSongIds);
     }
 
-    final nextIndex = nextQueueIndexForPlayback(
-      queueLength: playbackSongIds.length,
+    final nextIndex = nextPlayableQueueIndex(
+      songIds: playbackSongIds,
+      songs: snapshot.songs,
       currentIndex: currentIndex,
       mode: _mediaControlController.state.mode,
       forward: forward,
@@ -106,8 +113,17 @@ extension _SmPlayerShellQueueMethods on _SmPlayerShellPageState {
       playbackSongIds,
       _mediaControlController.state.track.id,
     );
+    final first = nextPlayableQueueIndex(
+      songIds: nextSongIds,
+      songs: snapshot.songs,
+      currentIndex: -1,
+      mode: PlaybackMode.once,
+      forward: true,
+      automatic: false,
+    );
+    if (first == null) return false;
     setNowPlayingQueue(ref, nextSongIds);
-    return _playQueueSong(snapshot, nextSongIds, 0);
+    return _playQueueSong(snapshot, nextSongIds, first);
   }
 
   List<int> _playbackSongIds(LibraryContentData snapshot) {
@@ -155,7 +171,7 @@ extension _SmPlayerShellQueueMethods on _SmPlayerShellPageState {
     final songsById = {for (final song in snapshot.songs) song.id: song};
     final songId = songIds[queueIndex];
     final song = songsById[songId];
-    if (song == null) {
+    if (song == null || !canPlayLibrarySong(song)) {
       return false;
     }
 

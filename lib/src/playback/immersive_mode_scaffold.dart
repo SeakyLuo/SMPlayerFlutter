@@ -2,6 +2,7 @@ import 'dart:io';
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:smplayer_flutter/src/playback/media_control.dart';
 import 'package:smplayer_flutter/src/playback/immersive_mode_theme.dart';
 
@@ -181,24 +182,31 @@ class ImmersiveModeScaffold extends StatelessWidget {
         if (!night) _ImmersiveModeDayWashOverlay(coverColor: coverColor),
       ],
     );
-    return Stack(
-      fit: StackFit.expand,
-      children: [
-        _ImmersiveModeBackgroundTransition(
-          key: const ValueKey('ImmersiveMode.BackgroundEntrance'),
-          animation: entranceAnimation,
-          child: backdrop,
-        ),
-        Theme(
-          data: scopedTheme,
-          child: ScrollConfiguration(
-            behavior: ScrollConfiguration.of(
-              context,
-            ).copyWith(scrollbars: false),
-            child: child,
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: (night ? SystemUiOverlayStyle.light : SystemUiOverlayStyle.dark)
+          .copyWith(
+            statusBarColor: Colors.transparent,
+            systemStatusBarContrastEnforced: false,
           ),
-        ),
-      ],
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          _ImmersiveModeBackgroundTransition(
+            key: const ValueKey('ImmersiveMode.BackgroundEntrance'),
+            animation: entranceAnimation,
+            child: backdrop,
+          ),
+          Theme(
+            data: scopedTheme,
+            child: ScrollConfiguration(
+              behavior: ScrollConfiguration.of(
+                context,
+              ).copyWith(scrollbars: false),
+              child: SafeArea(bottom: false, child: child),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

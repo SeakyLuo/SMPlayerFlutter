@@ -31,7 +31,7 @@ class _PlaylistsToolbar extends StatefulWidget {
   final ValueChanged<String> onSelectSearchSuggestion;
   final ValueChanged<int> onRemoveRecentSearch;
   final VoidCallback onClearRecentSearches;
-  final VoidCallback onCreatePlaylist;
+  final VoidCallback? onCreatePlaylist;
 
   @override
   State<_PlaylistsToolbar> createState() => _PlaylistsToolbarState();

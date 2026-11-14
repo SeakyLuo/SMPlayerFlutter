@@ -148,11 +148,21 @@ extension _SmPlayerShellPlayerActions on _SmPlayerShellPageState {
 
   void _togglePlayerFavorite(WidgetRef ref, LibrarySong song) {
     final nextFavorite = !_mediaControlController.state.track.favorite;
-    if (_mediaControlController.state.track.id == song.id &&
-        _mediaControlController.state.track.favorite != nextFavorite) {
-      _mediaControlController.onToggleFavorite();
-    }
-    unawaited(setSongsFavorite(ref, [song.id], nextFavorite));
+    unawaited(() async {
+      try {
+        await setSongsFavorite(ref, [song.id], nextFavorite);
+      } catch (error) {
+        if (mounted)
+          showAppNotification(
+            context: context,
+            message: context.smPlayerI18n.t(
+              error is MusicShareException
+                  ? error.messageKey
+                  : 'song.updateFailed',
+            ),
+          );
+      }
+    }());
   }
 
   void _addPlayerSongToNowPlaying(WidgetRef ref, LibrarySong song) {
@@ -217,42 +227,80 @@ extension _SmPlayerShellPlayerActions on _SmPlayerShellPageState {
     required SmPlayerI18n i18n,
     required LibraryContentData? snapshot,
   }) async {
-    final currentSnapshot =
-        snapshot ?? await ref.read(libraryContentDataProvider.future);
-    if (!context.mounted || currentSnapshot == null) {
-      return;
-    }
+    try {
+      if (!canCreateSourcePlaylist()) {
+        throw const MusicShareException('share.readOnlyPermission');
+      }
+      final currentSnapshot =
+          snapshot ?? await ref.read(libraryContentDataProvider.future);
+      if (!context.mounted || currentSnapshot == null) {
+        return;
+      }
 
-    final name = await showSmPlayerInputDialog(
-      context: context,
-      i18n: i18n,
-      title: i18n.t('playlists.createNew'),
-      defaultValue: getNextPlaylistName(
-        i18n.t('common.playlist'),
-        currentSnapshot.playlists,
-      ),
-      placeholder: i18n.t('playlists.namePlaceholder'),
-      confirmText: i18n.t('playlists.create'),
-      validate: (name) {
-        return validatePlaylistName(name, currentSnapshot.playlists, '', i18n);
-      },
-    );
-    if (name == null) {
-      return;
-    }
+      final name = await showSmPlayerInputDialog(
+        context: context,
+        i18n: i18n,
+        title: i18n.t('playlists.createNew'),
+        defaultValue: getNextPlaylistName(
+          i18n.t('common.playlist'),
+          currentSnapshot.playlists
+              .where(
+                (p) => playlistBelongsToSource(
+                  p,
+                  activeMusicShareAccess!.selectedSource,
+                ),
+              )
+              .toList(),
+        ),
+        placeholder: i18n.t('playlists.namePlaceholder'),
+        confirmText: i18n.t('playlists.create'),
+        validate: (name) {
+          return validatePlaylistName(
+            name,
+            currentSnapshot.playlists
+                .where(
+                  (p) => playlistBelongsToSource(
+                    p,
+                    activeMusicShareAccess!.selectedSource,
+                  ),
+                )
+                .toList(),
+            '',
+            i18n,
+          );
+        },
+      );
+      if (name == null) {
+        return;
+      }
 
-    final playlist = await ref
-        .read(libraryRepositoryProvider)
-        .createPlaylist(name, const []);
-    patchLibraryPlaylistOverride(ref, playlist);
-    if (!context.mounted) {
-      return;
+      final playlist = await ref
+          .read(libraryRepositoryProvider)
+          .createPlaylist(
+            name,
+            const [],
+            LibrarySource.fromDevice(activeMusicShareAccess!.selectedSource),
+          );
+      patchLibraryPlaylistOverride(ref, playlist);
+      if (!context.mounted) {
+        return;
+      }
+      showPlaylistCreatedNotification(
+        context: context,
+        i18n: i18n,
+        playlist: playlist,
+      );
+    } catch (error) {
+      if (context.mounted)
+        showAppNotification(
+          context: context,
+          message: context.smPlayerI18n.t(
+            error is MusicShareException
+                ? error.messageKey
+                : 'song.updateFailed',
+          ),
+        );
     }
-    showPlaylistCreatedNotification(
-      context: context,
-      i18n: i18n,
-      playlist: playlist,
-    );
   }
 
   Future<void> _duplicatePlaylistFromNavigation({
@@ -260,24 +308,37 @@ extension _SmPlayerShellPlayerActions on _SmPlayerShellPageState {
     required LibraryContentData? snapshot,
     required LibraryPlaylist playlist,
   }) async {
-    final currentSnapshot =
-        snapshot ?? await ref.read(libraryContentDataProvider.future);
-    if (currentSnapshot == null) {
-      return;
-    }
-    final duplicate = await ref
-        .read(libraryRepositoryProvider)
-        .createPlaylist(
-          getNextPlaylistName(playlist.name, currentSnapshot.playlists),
-          playlist.songIds,
+    try {
+      final currentSnapshot =
+          snapshot ?? await ref.read(libraryContentDataProvider.future);
+      if (currentSnapshot == null) {
+        return;
+      }
+      final duplicate = await ref
+          .read(libraryRepositoryProvider)
+          .createPlaylist(
+            getNextPlaylistName(playlist.name, currentSnapshot.playlists),
+            playlist.songIds,
+            playlist.source,
+          );
+      patchLibraryPlaylistOverride(ref, duplicate);
+      if (mounted) {
+        showPlaylistCreatedNotification(
+          context: context,
+          i18n: context.smPlayerI18n,
+          playlist: duplicate,
         );
-    patchLibraryPlaylistOverride(ref, duplicate);
-    if (mounted) {
-      showPlaylistCreatedNotification(
-        context: context,
-        i18n: context.smPlayerI18n,
-        playlist: duplicate,
-      );
+      }
+    } catch (error) {
+      if (context.mounted)
+        showAppNotification(
+          context: context,
+          message: context.smPlayerI18n.t(
+            error is MusicShareException
+                ? error.messageKey
+                : 'song.updateFailed',
+          ),
+        );
     }
   }
 
@@ -288,34 +349,55 @@ extension _SmPlayerShellPlayerActions on _SmPlayerShellPageState {
     required LibraryContentData? snapshot,
     required LibraryPlaylist playlist,
   }) async {
-    final currentSnapshot =
-        snapshot ?? await ref.read(libraryContentDataProvider.future);
-    if (currentSnapshot == null || !context.mounted) {
-      return;
-    }
+    try {
+      final currentSnapshot =
+          snapshot ?? await ref.read(libraryContentDataProvider.future);
+      if (currentSnapshot == null || !context.mounted) {
+        return;
+      }
 
-    final name = await showSmPlayerInputDialog(
-      context: context,
-      i18n: i18n,
-      title: i18n.t('playlists.rename'),
-      defaultValue: playlist.name,
-      placeholder: i18n.t('playlists.namePlaceholder'),
-      confirmText: i18n.t('playlists.rename'),
-      validate: (name) {
-        return validatePlaylistName(
-          name,
-          currentSnapshot.playlists,
-          playlist.name,
-          i18n,
+      final name = await showSmPlayerInputDialog(
+        context: context,
+        i18n: i18n,
+        title: i18n.t('playlists.rename'),
+        defaultValue: playlist.name,
+        placeholder: i18n.t('playlists.namePlaceholder'),
+        confirmText: i18n.t('playlists.rename'),
+        validate: (name) {
+          return validatePlaylistName(
+            name,
+            currentSnapshot.playlists
+                .where(
+                  (p) => playlistBelongsToSource(
+                    p,
+                    activeMusicShareAccess!.selectedSource,
+                  ),
+                )
+                .toList(),
+            playlist.name,
+            i18n,
+          );
+        },
+      );
+      if (name == null || name == playlist.name) {
+        return;
+      }
+
+      await ref
+          .read(libraryRepositoryProvider)
+          .renamePlaylist(playlist.id, name);
+      patchLibraryPlaylistOverride(ref, playlist.copyWith(name: name));
+    } catch (error) {
+      if (context.mounted)
+        showAppNotification(
+          context: context,
+          message: context.smPlayerI18n.t(
+            error is MusicShareException
+                ? error.messageKey
+                : 'song.updateFailed',
+          ),
         );
-      },
-    );
-    if (name == null || name == playlist.name) {
-      return;
     }
-
-    await ref.read(libraryRepositoryProvider).renamePlaylist(playlist.id, name);
-    patchLibraryPlaylistOverride(ref, playlist.copyWith(name: name));
   }
 
   Future<void> _deletePlaylistFromNavigation({
@@ -324,27 +406,81 @@ extension _SmPlayerShellPlayerActions on _SmPlayerShellPageState {
     required LibraryContentData? snapshot,
     required LibraryPlaylist playlist,
   }) async {
-    final currentSnapshot =
-        snapshot ?? await ref.read(libraryContentDataProvider.future);
-    if (currentSnapshot == null) {
-      return;
+    try {
+      final currentSnapshot =
+          snapshot ?? await ref.read(libraryContentDataProvider.future);
+      if (currentSnapshot == null) {
+        return;
+      }
+      await ref.read(libraryRepositoryProvider).deletePlaylist(playlist.id);
+      removeLibraryPlaylistOverride(ref, playlist.id);
+      _showUndo(
+        i18n.t('notification.playlistRemoved', {'name': playlist.name}),
+        () async {
+          await ref.read(libraryRepositoryProvider).restorePlaylist(playlist);
+          patchLibraryPlaylistOverride(ref, playlist);
+        },
+      );
+    } catch (error) {
+      if (context.mounted)
+        showAppNotification(
+          context: context,
+          message: context.smPlayerI18n.t(
+            error is MusicShareException
+                ? error.messageKey
+                : 'song.updateFailed',
+          ),
+        );
     }
-    await ref.read(libraryRepositoryProvider).deletePlaylist(playlist.id);
-    removeLibraryPlaylistOverride(ref, playlist.id);
-    _showUndo(
-      i18n.t('notification.playlistRemoved', {'name': playlist.name}),
-      () async {
-        await ref.read(libraryRepositoryProvider).restorePlaylist(playlist);
-        patchLibraryPlaylistOverride(ref, playlist);
-      },
-    );
   }
 
   Future<void> _reorderPlaylistsFromNavigation({
     required WidgetRef ref,
     required List<int> playlistIds,
   }) async {
-    await ref.read(libraryRepositoryProvider).reorderPlaylists(playlistIds);
-    setLibraryPlaylistOrder(ref, playlistIds);
+    try {
+      await ref.read(libraryRepositoryProvider).reorderPlaylists(playlistIds);
+      setLibraryPlaylistOrder(ref, playlistIds);
+    } catch (error) {
+      if (context.mounted)
+        showAppNotification(
+          context: context,
+          message: context.smPlayerI18n.t(
+            error is MusicShareException
+                ? error.messageKey
+                : 'song.updateFailed',
+          ),
+        );
+    }
+  }
+
+  void _createPlaylistFromNavigationAction(WidgetRef ref) {
+    final snapshot = ref.read(libraryContentDataProvider).valueOrNull;
+    final i18n = ref.read(smPlayerI18nProvider).value ?? context.smPlayerI18n;
+    unawaited(
+      _createPlaylistFromNavigation(
+        context: _shellFrameKey.currentContext!,
+        ref: ref,
+        i18n: i18n,
+        snapshot: snapshot,
+      ),
+    );
+  }
+
+  void _renamePlaylistFromNavigationAction(
+    WidgetRef ref,
+    LibraryPlaylist playlist,
+  ) {
+    final snapshot = ref.read(libraryContentDataProvider).valueOrNull;
+    final i18n = ref.read(smPlayerI18nProvider).value ?? context.smPlayerI18n;
+    unawaited(
+      _renamePlaylistFromNavigation(
+        context: _shellFrameKey.currentContext!,
+        ref: ref,
+        i18n: i18n,
+        snapshot: snapshot,
+        playlist: playlist,
+      ),
+    );
   }
 }

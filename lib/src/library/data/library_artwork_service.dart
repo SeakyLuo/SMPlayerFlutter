@@ -173,6 +173,45 @@ class LibraryArtworkService {
     }
   }
 
+  Future<void> updateSongsArtwork(
+    File databaseFile,
+    List<int> songIds,
+    String? sourcePath,
+  ) async {
+    final selected = songIds.toSet();
+    final db = sqlite3.open(databaseFile.path);
+    try {
+      final rows =
+          db
+              .select(
+                "SELECT Id, Path FROM Music WHERE State = ? AND Path NOT LIKE 'smplayer-music://%'",
+                [_activeState],
+              )
+              .where((row) => selected.contains(row['Id'] as int))
+              .toList();
+      final picture =
+          sourcePath == null
+              ? null
+              : Id3Picture(
+                data: await File(sourcePath).readAsBytes(),
+                format: _getArtworkMimeType(sourcePath),
+              );
+      final update = db.prepare(
+        'UPDATE Music SET ThumbnailPath = ? WHERE Id = ?',
+      );
+      try {
+        for (final row in rows) {
+          await _id3TagService.writeSongArtwork(row['Path'] as String, picture);
+          update.execute([sourcePath ?? '', row['Id']]);
+        }
+      } finally {
+        update.dispose();
+      }
+    } finally {
+      db.dispose();
+    }
+  }
+
   Future<void> saveAlbumArtwork(
     File databaseFile,
     String albumName,

@@ -3,6 +3,7 @@ part of 'playlist_control_item.dart';
 extension _PlaylistControlItemLayout on _PlaylistControlItemState {
   Widget _buildRow(BuildContext context, BoxConstraints constraints) {
     final i18n = context.smPlayerI18n;
+    final available = canPlayLibrarySong(widget.song);
     final hasAlbumColumn = widget.showAlbum;
     final windowWidth = MediaQuery.sizeOf(context).width;
     final compactVariant = windowWidth <= 720;
@@ -41,7 +42,7 @@ extension _PlaylistControlItemLayout on _PlaylistControlItemState {
       focusColor: Colors.transparent,
       highlightColor: Colors.transparent,
       splashColor: Colors.transparent,
-      onTap: _activateRow,
+      onTap: available || widget.selectionMode ? _activateRow : null,
       onSecondaryTapDown: (details) {
         unawaited(
           _openPinnedMenu(
@@ -302,6 +303,34 @@ extension _PlaylistControlItemLayout on _PlaylistControlItemState {
         ),
       ),
     );
+    final displayContent =
+        available
+            ? content
+            : ColorFiltered(
+              colorFilter: const ColorFilter.matrix([
+                .2126,
+                .7152,
+                .0722,
+                0,
+                0,
+                .2126,
+                .7152,
+                .0722,
+                0,
+                0,
+                .2126,
+                .7152,
+                .0722,
+                0,
+                0,
+                0,
+                0,
+                0,
+                1,
+                0,
+              ]),
+              child: Opacity(opacity: .58, child: content),
+            );
     final disableAnimations = MediaQuery.disableAnimationsOf(context);
     final dark = Theme.of(context).brightness == Brightness.dark;
     final neutralSwipeBackground =
@@ -490,7 +519,7 @@ extension _PlaylistControlItemLayout on _PlaylistControlItemState {
                           offset: Offset(offset * _physicalSwipeDirection, 0),
                           child: child,
                         ),
-                    child: content,
+                    child: displayContent,
                   ),
                   if (dropPosition != null)
                     Positioned(
@@ -517,7 +546,7 @@ extension _PlaylistControlItemLayout on _PlaylistControlItemState {
       button: true,
       child: MouseRegion(
         opaque: false,
-        cursor: SystemMouseCursors.click,
+        cursor: available ? SystemMouseCursors.click : SystemMouseCursors.basic,
         child: row,
       ),
     );

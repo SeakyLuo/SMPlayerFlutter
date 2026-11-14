@@ -1,4 +1,6 @@
-import '../../remote/music_source_playlist_notice.dart';
+import 'package:smplayer_flutter/src/remote/music_share_models.dart';
+import 'package:smplayer_flutter/src/remote/music_source_selector.dart';
+import 'package:smplayer_flutter/src/remote/music_share_access.dart';
 import 'dart:async';
 import 'dart:io';
 import 'dart:math';
@@ -30,6 +32,7 @@ import 'package:smplayer_flutter/src/library/ui/music_dialog.dart';
 import 'package:smplayer_flutter/src/library/ui/page_selection_store.dart';
 import 'package:smplayer_flutter/src/library/ui/playlist_artwork.dart';
 import 'package:smplayer_flutter/src/library/ui/popup_dialog.dart';
+import 'package:smplayer_flutter/src/library/ui/song_artwork.dart';
 import 'package:smplayer_flutter/src/library/ui/song_display_helpers.dart'
     as song_display;
 import 'package:smplayer_flutter/src/platform/desktop_feature_service.dart';

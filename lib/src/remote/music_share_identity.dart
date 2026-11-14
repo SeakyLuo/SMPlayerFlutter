@@ -94,6 +94,10 @@ class MusicShareTransport {
     final uri = Uri.parse(address).resolve(path);
     final request = await _client.openUrl(method, uri);
     request.followRedirects = false;
+    request.headers.set(
+      'X-Smplayer-Device-Type',
+      Platform.isAndroid || Platform.isIOS ? 'mobile' : 'desktop',
+    );
     if (token != null) {
       request.headers.set(HttpHeaders.authorizationHeader, 'Bearer $token');
     }

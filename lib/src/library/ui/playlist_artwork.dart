@@ -1,3 +1,4 @@
+import '../../remote/music_share_models.dart';
 import '../data/library_models.dart';
 import '../data/library_repository.dart';
 import 'local_folder_model.dart';
@@ -15,6 +16,18 @@ List<String>? getCachedPlaylistArtworkUrls(String signature) {
 
 void cachePlaylistArtworkUrls(String signature, List<String> artworkUrls) {
   _playlistArtworkUrlsCache[signature] = artworkUrls;
+}
+
+List<String> getKnownPlaylistArtworkUrls(List<LibrarySong> songs) {
+  final albums = <String>{};
+  final paths = <String>[];
+  for (final song in songs) {
+    if (song.thumbnailPath.isNotEmpty && albums.add(song.album)) {
+      paths.add(song.thumbnailPath);
+      if (paths.length == 4) break;
+    }
+  }
+  return paths;
 }
 
 Future<List<String>> resolvePlaylistArtworkUrls(
@@ -114,13 +127,18 @@ Future<Map<int, String>> _resolveSongArtworkMap(
   List<LibrarySong> songs,
   LibraryRepository repository,
 ) async {
+  final localSongs =
+      songs.where((song) => !isRemoteMusicPath(song.path)).toList();
   final snapshotsBySongId = await _resolveSongArtworkSnapshotMap(
-    songs,
+    localSongs,
     repository,
   );
-  return snapshotsBySongId.map(
-    (songId, snapshot) => MapEntry(songId, snapshot.artworkUrl),
-  );
+  return {
+    for (final song in songs)
+      if (isRemoteMusicPath(song.path)) song.id: song.thumbnailPath,
+    for (final entry in snapshotsBySongId.entries)
+      entry.key: entry.value.artworkUrl,
+  };
 }
 
 Future<Map<int, SongArtworkSnapshot>> _resolveSongArtworkSnapshotMap(

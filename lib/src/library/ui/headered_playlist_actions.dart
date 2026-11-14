@@ -108,6 +108,16 @@ extension _HeaderedPlaylistControlActions on _HeaderedPlaylistControlState {
     try {
       await widget.onRemoveSongs?.call(songIds);
       _showUndoRemoveSongs(songIds);
+    } catch (error) {
+      if (mounted)
+        showAppNotification(
+          context: context,
+          message: context.smPlayerI18n.t(
+            error is MusicShareException
+                ? error.messageKey
+                : 'song.updateFailed',
+          ),
+        );
     } finally {
       if (widget.type == HeaderedPlaylistType.favorites) {
         _updateState(() {
@@ -172,7 +182,10 @@ extension _HeaderedPlaylistControlActions on _HeaderedPlaylistControlState {
       context: context,
       i18n: i18n,
       message: message,
-      onUndo: onUndo,
+      onUndo:
+          () => runMusicShareAction(context, () async {
+            await onUndo();
+          }),
     );
   }
 
@@ -294,8 +307,10 @@ extension _HeaderedPlaylistControlActions on _HeaderedPlaylistControlState {
     if (confirmed) {
       final songsById = {for (final song in widget.songs) song.id: song};
       final songIds = widget.songs.map((song) => song.id).toList();
-      await widget.onClear?.call();
-      _showUndoRemoveSongs(songIds, originalSongsById: songsById);
+      await runMusicShareAction(context, () async {
+        await widget.onClear?.call();
+        _showUndoRemoveSongs(songIds, originalSongsById: songsById);
+      });
     }
   }
 

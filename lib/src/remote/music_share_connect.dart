@@ -5,17 +5,22 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 
-import '../app/text_icon_button.dart';
+import '../app/smplayer_switch.dart';
+import '../app/smplayer_auto_hide_scrollbar.dart';
 import '../library/ui/popup_dialog.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../app/undoable_notification.dart';
 import '../i18n/app_i18n.dart';
 import 'music_share_identity.dart';
+import 'music_share_pair_identity.dart';
 import 'music_share_models.dart';
 import 'music_share_peers.dart';
+import 'music_share_connect_button.dart';
 import 'music_share_scanner.dart';
+import 'music_share_pair_code.dart';
 import 'music_source_providers.dart';
+import 'music_source_selector.dart';
 
 class MusicShareConnect extends ConsumerStatefulWidget {
   const MusicShareConnect({super.key, required this.onConnected});
@@ -26,11 +31,13 @@ class MusicShareConnect extends ConsumerStatefulWidget {
 
 class _MusicShareConnectState extends ConsumerState<MusicShareConnect> {
   final _address = TextEditingController();
+  final _scrollController = ScrollController(keepScrollOffset: false);
   var _discovering = true;
   var _connecting = false;
+  String? _connectingPeerId;
+  var _connectingFromScan = false;
   var _canceled = false;
-  var _scanning = false;
-  String? _code;
+  var _waitingApproval = false;
   String? _hostName;
   MusicShareTransport? _transport;
 
@@ -50,7 +57,39 @@ class _MusicShareConnectState extends ConsumerState<MusicShareConnect> {
     }
   }
 
-  Future<void> _connect(String address, {String? fingerprint}) async {
+  Future<void> _connectKnown(MusicPeer peer) async {
+    setState(() {
+      _connecting = true;
+      _connectingPeerId = peer.id;
+    });
+    try {
+      await runMusicShareAction(context, () async {
+        final share = ref.read(musicShareProvider);
+        if (share.selectedSource != peer.id ||
+            peer.status != MusicPeerStatus.online) {
+          await share.selectSource(peer.id);
+        }
+        if (!mounted) return;
+        final router = GoRouter.of(context);
+        widget.onConnected();
+        router.go('/songs');
+      });
+    } finally {
+      if (mounted) {
+        setState(() {
+          _connecting = false;
+          _connectingPeerId = null;
+        });
+      }
+    }
+  }
+
+  Future<void> _connect(
+    String address, {
+    String? fingerprint,
+    String? peerId,
+    bool fromScan = false,
+  }) async {
     final i18n = context.smPlayerI18n;
     final host = Uri.tryParse(
       address.trim().contains('://')
@@ -72,6 +111,8 @@ class _MusicShareConnectState extends ConsumerState<MusicShareConnect> {
     }
     setState(() {
       _connecting = true;
+      _connectingPeerId = peerId;
+      _connectingFromScan = fromScan;
       _canceled = false;
     });
     final transport = MusicShareTransport(
@@ -91,20 +132,35 @@ class _MusicShareConnectState extends ConsumerState<MusicShareConnect> {
           hello['version'] != 1) {
         throw const MusicShareException('share.connectionFailed');
       }
-      // The first connection is trusted only after the user compares the code
-      // on both screens. All subsequent connections pin this certificate.
+      // The first connection is trusted after approval on the sharing device.
+      // All subsequent connections pin this certificate.
       final secret = newShareSecret();
       await transport.json(
         '/pair',
         method: 'POST',
-        body: {'name': share.name, 'secret': secret},
+        body: {
+          'name': share.name,
+          'secret': secret,
+          ...await signPairIdentity(
+            share.identity,
+            transport.observedFingerprint!,
+            secret,
+            share.name,
+          ),
+          if (share.peers
+                  .where(
+                    (peer) =>
+                        peer.id == hostId &&
+                        peer.fingerprint == transport.observedFingerprint,
+                  )
+                  .firstOrNull
+              case final previous?)
+            'previousToken': previous.token,
+        },
       );
-      final code = shareDigest(
-        '${transport.observedFingerprint}:$secret',
-      ).substring(0, 8);
       if (!mounted || _canceled) return;
       setState(() {
-        _code = code;
+        _waitingApproval = true;
         _hostName = hello['name'] as String;
       });
       await share.finishPairing(
@@ -117,9 +173,7 @@ class _MusicShareConnectState extends ConsumerState<MusicShareConnect> {
       showAppNotification(context: context, message: i18n.t('share.connected'));
       final router = GoRouter.of(context);
       widget.onConnected();
-      if (router.routeInformationProvider.value.uri.path == '/local') {
-        router.go('/songs');
-      }
+      router.go('/songs');
     } catch (error) {
       if (mounted && !_canceled) {
         showAppNotification(
@@ -136,10 +190,45 @@ class _MusicShareConnectState extends ConsumerState<MusicShareConnect> {
       if (mounted) {
         setState(() {
           _connecting = false;
-          _code = null;
+          _connectingPeerId = null;
+          _connectingFromScan = false;
+          _transport = null;
+          _waitingApproval = false;
         });
       }
     }
+  }
+
+  void _cancelConnection() {
+    _canceled = true;
+    _transport?.close();
+    setState(() => _waitingApproval = false);
+  }
+
+  void _reauthorize(String address) {
+    final peer = ref
+        .read(musicShareProvider)
+        .peers
+        .firstWhere((peer) => peer.address == address);
+    unawaited(_connect(address, peerId: peer.id));
+  }
+
+  Future<void> _scan() async {
+    final code = await Navigator.of(
+      context,
+      rootNavigator: true,
+    ).push<MusicSharePairCode>(
+      MaterialPageRoute(
+        fullscreenDialog: true,
+        builder:
+            (scanContext) => MusicShareScanner(
+              onCancel: () => Navigator.of(scanContext).pop(),
+              onScanned: (code) => Navigator.of(scanContext).pop(code),
+            ),
+      ),
+    );
+    if (!mounted || code == null) return;
+    await _connect(code.address, fingerprint: code.fingerprint, fromScan: true);
   }
 
   @override
@@ -147,7 +236,33 @@ class _MusicShareConnectState extends ConsumerState<MusicShareConnect> {
     _canceled = true;
     _transport?.close();
     _address.dispose();
+    _scrollController.dispose();
     super.dispose();
+  }
+
+  Widget _buildScrollable({
+    required String page,
+    required List<Widget> children,
+  }) {
+    const scrollbarGutter = 8.0;
+    return ScrollConfiguration(
+      key: ValueKey(page),
+      behavior: ScrollConfiguration.of(context).copyWith(scrollbars: false),
+      child: SmPlayerAutoHideScrollbar(
+        controller: _scrollController,
+        crossAxisMargin: (scrollbarGutter - 7) / 2,
+        showOnHover: true,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: scrollbarGutter),
+          child: ListView(
+            controller: _scrollController,
+            primary: false,
+            padding: EdgeInsets.zero,
+            children: children,
+          ),
+        ),
+      ),
+    );
   }
 
   @override
@@ -155,52 +270,95 @@ class _MusicShareConnectState extends ConsumerState<MusicShareConnect> {
     final i18n = context.smPlayerI18n;
     final share = ref.watch(musicShareProvider);
     final colors = PopupDialogColors.resolve(context);
-    if (_scanning) {
-      return MusicShareScanner(
-        onCancel: () => setState(() => _scanning = false),
-        onScanned: (code) {
-          setState(() => _scanning = false);
-          unawaited(_connect(code.address, fingerprint: code.fingerprint));
-        },
-      );
-    }
-    if (_code != null) {
-      return ListView(
-        padding: EdgeInsets.zero,
-        children: [
-          Text(i18n.t('share.waitingApproval', {'name': _hostName!})),
-          const SizedBox(height: 24),
-          Center(
-            child: SelectableText(
-              _code!,
-              style: const TextStyle(
-                fontSize: 32,
-                letterSpacing: 6,
-                fontWeight: FontWeight.w600,
-              ),
+    if (_waitingApproval) {
+      return LayoutBuilder(
+        builder:
+            (context, constraints) => _buildScrollable(
+              page: 'approval',
+              children: [
+                ConstrainedBox(
+                  constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                  child: Align(
+                    alignment: const Alignment(0, -0.25),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 24),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            FluentIcons.laptop_24_regular,
+                            size: 40,
+                            color: colors.textMuted,
+                          ),
+                          const SizedBox(height: 20),
+                          Text(
+                            i18n.t('share.waitingApprovalTitle'),
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              color: colors.textStrong,
+                              fontSize: 20,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            _hostName!,
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              color: colors.textMuted,
+                              fontSize: 16,
+                            ),
+                          ),
+                          const SizedBox(height: 20),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              const SizedBox.square(
+                                dimension: 14,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              ),
+                              const SizedBox(width: 10),
+                              Flexible(
+                                child: Text(
+                                  i18n.t('share.waitingApprovalHint'),
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(
+                                    color: colors.textMuted,
+                                    fontSize: 14,
+                                    height: 1.5,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 24),
+                          PopupDialogActionButton(
+                            label: i18n.t('share.cancelConnection'),
+                            height: 40,
+                            onPressed: _cancelConnection,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ],
             ),
-          ),
-          const SizedBox(height: 24),
-          Text(i18n.t('share.compareCode')),
-          const SizedBox(height: 24),
-          PopupDialogActionButton(
-            label: i18n.t('common.cancel'),
-            onPressed: () {
-              _canceled = true;
-              _transport?.close();
-              setState(() {
-                _code = null;
-              });
-            },
-          ),
-        ],
       );
     }
+    final mobile = Platform.isAndroid || Platform.isIOS;
     final knownIds = share.peers.map((peer) => peer.id).toSet();
+    final nearbyIds = share.discovered.map((host) => host.id).toSet();
+    final savedPeers =
+        share.peers.where((peer) => !nearbyIds.contains(peer.id)).toList();
+    final nearbyPeers =
+        share.peers.where((peer) => nearbyIds.contains(peer.id)).toList();
     final nearby =
         share.discovered.where((host) => !knownIds.contains(host.id)).toList();
-    return ListView(
-      padding: EdgeInsets.zero,
+    final devices = _buildScrollable(
+      page: 'devices',
       children: [
         Text(
           i18n.t('share.connectHint'),
@@ -210,12 +368,16 @@ class _MusicShareConnectState extends ConsumerState<MusicShareConnect> {
         if (Platform.isAndroid || Platform.isIOS) ...[
           Align(
             alignment: Alignment.centerLeft,
-            child: SmPlayerTextIconButton(
-              label: i18n.t('share.scanToConnect'),
+            child: MusicShareConnectButton(
+              label: i18n.t(
+                _connectingFromScan
+                    ? 'share.connecting'
+                    : 'share.scanToConnect',
+              ),
+              loading: _connectingFromScan,
               icon: FluentIcons.scan_camera_24_regular,
-              glassEnabled: false,
-              disabled: _connecting,
-              onPressed: () => setState(() => _scanning = true),
+              enabled: !_connecting,
+              onPressed: _scan,
             ),
           ),
           const SizedBox(height: 16),
@@ -238,34 +400,52 @@ class _MusicShareConnectState extends ConsumerState<MusicShareConnect> {
                 child: PopupDialogTextField(
                   controller: _address,
                   enabled: !_connecting,
-                  placeholder: '192.168.1.10:29644',
+                  placeholder:
+                      mobile ? null : i18n.t('share.addressPlaceholder'),
                   onSubmitted: _connecting ? null : _connect,
                 ),
               ),
               const SizedBox(width: 10),
-              SmPlayerTextIconButton(
+              MusicShareConnectButton(
                 label: i18n.t(
-                  _connecting ? 'share.connecting' : 'share.connect',
+                  _connecting &&
+                          _connectingPeerId == null &&
+                          !_connectingFromScan
+                      ? 'share.connecting'
+                      : 'share.connect',
                 ),
-                height: 42,
-                minWidth: 88,
-                fontSize: 16,
-                fontWeight: FontWeight.w700,
-                fontVariations: const [],
-                horizontalPadding: 16,
-                glassEnabled: false,
-                loading: _connecting,
-                disabled: _connecting,
+                loading:
+                    _connecting &&
+                    _connectingPeerId == null &&
+                    !_connectingFromScan,
+                enabled: !_connecting,
                 onPressed: () => _connect(_address.text),
               ),
             ],
           ),
         ),
-        if (share.peers.isNotEmpty) ...[
+        if (mobile) ...[
+          const SizedBox(height: 8),
+          Text(
+            i18n.t('share.addressPlaceholder'),
+            style: TextStyle(
+              color: colors.textMuted,
+              fontSize: 13,
+              height: 1.5,
+            ),
+          ),
+        ],
+        if (savedPeers.isNotEmpty) ...[
           const SizedBox(height: 20),
           Divider(height: 1, color: colors.border),
           const SizedBox(height: 16),
-          MusicSharePeers(busy: _connecting, onReauthorize: _connect),
+          MusicSharePeers(
+            peers: savedPeers,
+            busy: _connecting,
+            onReauthorize: _reauthorize,
+            onConnect: _connectKnown,
+            connectingPeerId: _connectingPeerId,
+          ),
         ],
         const SizedBox(height: 20),
         Divider(height: 1, color: colors.border),
@@ -278,6 +458,15 @@ class _MusicShareConnectState extends ConsumerState<MusicShareConnect> {
             fontWeight: FontWeight.w600,
           ),
         ),
+        if (nearbyPeers.isNotEmpty)
+          MusicSharePeers(
+            peers: nearbyPeers,
+            showTitle: false,
+            busy: _connecting,
+            onReauthorize: _reauthorize,
+            onConnect: _connectKnown,
+            connectingPeerId: _connectingPeerId,
+          ),
         for (final host in nearby)
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 12),
@@ -296,9 +485,15 @@ class _MusicShareConnectState extends ConsumerState<MusicShareConnect> {
                   ),
                 ),
                 const SizedBox(width: 12),
-                PopupDialogActionButton(
-                  label: i18n.t('share.connect'),
-                  onPressed: _connecting ? null : () => _connect(host.address),
+                MusicShareConnectButton(
+                  label: i18n.t(
+                    _connectingPeerId == host.id
+                        ? 'share.connecting'
+                        : 'share.connect',
+                  ),
+                  loading: _connectingPeerId == host.id,
+                  enabled: !_connecting,
+                  onPressed: () => _connect(host.address, peerId: host.id),
                 ),
               ],
             ),
@@ -313,7 +508,7 @@ class _MusicShareConnectState extends ConsumerState<MusicShareConnect> {
               ),
             ),
           ),
-        if (!_discovering && nearby.isEmpty)
+        if (!_discovering && share.discovered.isEmpty)
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 24),
             child: Column(
@@ -325,7 +520,11 @@ class _MusicShareConnectState extends ConsumerState<MusicShareConnect> {
                 ),
                 const SizedBox(height: 12),
                 Text(
-                  i18n.t('share.noDevices'),
+                  i18n.t(
+                    savedPeers.isEmpty
+                        ? 'share.noDevices'
+                        : 'share.noOtherDevices',
+                  ),
                   style: TextStyle(
                     color: colors.textStrong,
                     fontSize: 14,
@@ -342,6 +541,73 @@ class _MusicShareConnectState extends ConsumerState<MusicShareConnect> {
             ),
           ),
       ],
+    );
+    return Column(
+      children: [
+        Expanded(child: devices),
+        const SizedBox(height: 12),
+        if (_connecting && _transport != null)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: PopupDialogActionButton(
+              label: i18n.t('common.cancel'),
+              onPressed: _cancelConnection,
+            ),
+          ),
+        _AutoConnectSetting(enabled: !_connecting),
+      ],
+    );
+  }
+}
+
+class _AutoConnectSetting extends ConsumerWidget {
+  const _AutoConnectSetting({required this.enabled});
+  final bool enabled;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final share = ref.watch(musicShareProvider);
+    final i18n = context.smPlayerI18n;
+    final colors = PopupDialogColors.resolve(context);
+    final interactive = enabled && share.initialized && !share.busy;
+    void change(bool value) {
+      unawaited(
+        runMusicShareAction(context, () => share.setAutoConnect(value)),
+      );
+    }
+
+    return InkWell(
+      borderRadius: BorderRadius.circular(8),
+      onTap: interactive ? () => change(!share.autoConnect) : null,
+      child: Container(
+        constraints: const BoxConstraints(minHeight: 38),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(
+                i18n.t('share.autoConnect'),
+                style: TextStyle(
+                  color: colors.textStrong,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
+            const SizedBox(width: 16),
+            IgnorePointer(
+              ignoring: !interactive,
+              child: Opacity(
+                opacity: interactive ? 1 : .55,
+                child: SmPlayerSwitch(
+                  value: share.autoConnect,
+                  onChanged: change,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

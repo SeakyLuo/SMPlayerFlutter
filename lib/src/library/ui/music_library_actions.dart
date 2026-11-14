@@ -334,7 +334,7 @@ extension _MusicLibraryActions on _MusicLibraryPageState {
                   for (final selectedSong in selectedSongs)
                     selectedSong.id: selectedSong,
                 };
-                setSongsFavorite(
+                setSongsFavoriteFromControl(
                   ref,
                   notFavoriteSongIds(selectedSongIds, songsById),
                   true,

@@ -1,6 +1,7 @@
 import 'package:sqlite3/sqlite3.dart';
 
 import '../library/data/library_models.dart';
+import '../library/data/library_playlist_service.dart';
 import '../library/data/library_snapshot_service.dart';
 import 'music_share_models.dart';
 
@@ -11,6 +12,8 @@ Map<String, dynamic> sharedSongJson(LibrarySong song) => {
   'artists': song.artists,
   'album': song.album,
   'duration': song.duration,
+  'lyricsOffsetMs': song.lyricsOffsetMs,
+  'favorite': song.favorite,
   'dateAdded': song.dateAdded,
   'artwork': song.thumbnailPath.isNotEmpty,
   'artworkRevision': shareDigest(song.thumbnailPath),
@@ -19,8 +22,10 @@ Map<String, dynamic> sharedSongJson(LibrarySong song) => {
 Future<void> importMusicShareCatalog(
   String databasePath,
   String deviceId,
-  List<Map<String, dynamic>> songs,
-) => LibrarySnapshotService.run(() {
+  List<Map<String, dynamic>> songs, {
+  bool replace = true,
+  List<int> removedSongIds = const [],
+}) => LibrarySnapshotService.run(() {
   final db = sqlite3.open(databasePath);
   try {
     db.execute('BEGIN IMMEDIATE');
@@ -31,9 +36,11 @@ Future<void> importMusicShareCatalog(
       ))
         row['Path'] as String: row['Id'] as int,
     };
-    db.execute('UPDATE Music SET RemoteAvailable = 0 WHERE Path LIKE ?', [
-      '$remoteMusicScheme://$deviceId/%',
-    ]);
+    if (replace) {
+      db.execute('UPDATE Music SET RemoteAvailable = 0 WHERE Path LIKE ?', [
+        '$remoteMusicScheme://$deviceId/%',
+      ]);
+    }
     final upsert = db.prepare('''
       INSERT INTO Music (Path, Name, Artist, Album, Duration, DateAdded, ThumbnailPath, RemoteAvailable, State)
       VALUES (?, ?, ?, ?, ?, ?, ?, 1, 1)
@@ -41,12 +48,17 @@ Future<void> importMusicShareCatalog(
         Artist = excluded.Artist, Album = excluded.Album,
         Duration = excluded.Duration, ThumbnailPath = excluded.ThumbnailPath, RemoteAvailable = 1, State = 1
     ''');
+    final updateOffset = db.prepare(
+      'UPDATE Music SET LyricsOffsetMs = ? WHERE Id = ?',
+    );
     final clearArtists = db.prepare(
       'DELETE FROM MusicArtist WHERE MusicId = ?',
     );
     final insertArtist = db.prepare('''
       INSERT INTO MusicArtist (MusicId, Name, Priority, State) VALUES (?, ?, ?, 1)
     ''');
+    final liked = <int>[];
+    final unliked = <int>[];
     try {
       for (final song in songs) {
         final path = remoteMusicPath(deviceId, song['id'] as int);
@@ -60,6 +72,13 @@ Future<void> importMusicShareCatalog(
           song['artwork'] == true ? '$path?art=${song['artworkRevision']}' : '',
         ]);
         final id = paths[path] ?? db.lastInsertRowId;
+        // Older hosts do not publish the shared offset.
+        if (song.containsKey('lyricsOffsetMs')) {
+          updateOffset.execute([song['lyricsOffsetMs'], id]);
+        }
+        if (song.containsKey('favorite')) {
+          (song['favorite'] as bool ? liked : unliked).add(id);
+        }
         clearArtists.execute([id]);
         final artists = (song['artists'] as List).cast<String>();
         for (var index = 0; index < artists.length; index++) {
@@ -68,8 +87,20 @@ Future<void> importMusicShareCatalog(
       }
     } finally {
       upsert.dispose();
+      updateOffset.dispose();
       clearArtists.dispose();
       insertArtist.dispose();
+    }
+    if (liked.isNotEmpty || unliked.isNotEmpty) {
+      const LibraryPlaylistService().applySharedFavorites(db, liked, unliked);
+    }
+    if (removedSongIds.isNotEmpty) {
+      final removedPaths =
+          removedSongIds.map((id) => remoteMusicPath(deviceId, id)).toList();
+      db.execute(
+        'UPDATE Music SET State = 0, RemoteAvailable = 0 WHERE Path IN (${List.filled(removedPaths.length, '?').join(',')})',
+        removedPaths,
+      );
     }
     db.execute('COMMIT');
   } catch (_) {

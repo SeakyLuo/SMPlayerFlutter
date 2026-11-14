@@ -26,15 +26,16 @@ class _PreferenceSettingsPageState extends State<PreferenceSettingsPage> {
   };
 
   late PreferenceSettingsSnapshot _snapshot;
+  late final String _source;
   final _preferenceScrollController = ScrollController();
   final _expandedSections = <PreferenceSectionKey>{};
   var _loading = false;
-  var _loadFailed = false;
   var _loadStarted = false;
 
   @override
   void initState() {
     super.initState();
+    _source = activeMusicShareAccess?.selectedSource ?? 'local';
     _snapshot = widget.initialSnapshot ?? PreferenceSettingsSnapshot.defaults();
     if (widget.initialSnapshot == null) {
       _loading = true;
@@ -79,8 +80,6 @@ class _PreferenceSettingsPageState extends State<PreferenceSettingsPage> {
         child:
             _loading
                 ? _PreferenceLoading(message: i18n.t('preferences.loading'))
-                : _loadFailed
-                ? _PreferenceLoading(message: i18n.t('preferences.loadFailed'))
                 : _buildPreferencePage(i18n),
       ),
     );
@@ -168,6 +167,7 @@ class _PreferenceSettingsPageState extends State<PreferenceSettingsPage> {
     try {
       final snapshot = await widget.libraryRepository.getPreferenceSettings(
         unknownAlbumName: unknownAlbumName,
+        source: _source,
       );
       if (!mounted) {
         return;
@@ -175,27 +175,32 @@ class _PreferenceSettingsPageState extends State<PreferenceSettingsPage> {
       setState(() {
         _snapshot = snapshot;
         _loading = false;
-        _loadFailed = false;
       });
     } on Object {
       if (!mounted) {
         return;
       }
-      setState(() {
-        _loading = false;
-        _loadFailed = true;
-      });
+      showAppNotification(
+        context: context,
+        message: context.smPlayerI18n.t('preferences.loadFailed'),
+      );
+      widget.onClose();
     }
   }
 
   void _toggleEnabled(PreferenceSectionKey section, bool enabled) {
-    setState(() {
-      _snapshot = _snapshot.copyWith(
-        enabled: {..._snapshot.enabled, section: enabled},
-      );
-    });
     unawaited(
-      widget.libraryRepository.updatePreferenceSettings({section: enabled}),
+      runMusicShareAction(context, () async {
+        await widget.libraryRepository.updatePreferenceSettings({
+          section: enabled,
+        }, source: _source);
+        if (!mounted) return;
+        setState(() {
+          _snapshot = _snapshot.copyWith(
+            enabled: {..._snapshot.enabled, section: enabled},
+          );
+        });
+      }),
     );
   }
 
@@ -210,54 +215,66 @@ class _PreferenceSettingsPageState extends State<PreferenceSettingsPage> {
   }
 
   void _updateItem(PreferenceItemSnapshot item, PreferenceItemSnapshot update) {
-    setState(() {
-      _snapshot = _snapshotWithUpdatedItems(
-        _snapshot,
-        _sectionForPreferenceType(item.type),
-        (items) =>
-            items
-                .map(
-                  (current) =>
-                      _samePreferenceItem(current, item) ? update : current,
-                )
-                .toList(),
-      );
-    });
     unawaited(
-      widget.libraryRepository.updatePreferenceItem(
-        item.id,
-        isEnabled: update.isEnabled,
-        level: update.level,
-      ),
+      runMusicShareAction(context, () async {
+        await widget.libraryRepository.updatePreferenceItem(
+          item.id,
+          isEnabled: update.isEnabled,
+          level: update.level,
+        );
+        if (!mounted) return;
+        setState(() {
+          _snapshot = _snapshotWithUpdatedItems(
+            _snapshot,
+            _sectionForPreferenceType(item.type),
+            (items) =>
+                items
+                    .map(
+                      (current) =>
+                          _samePreferenceItem(current, item) ? update : current,
+                    )
+                    .toList(),
+          );
+        });
+      }),
     );
   }
 
   void _removeItem(PreferenceItemSnapshot item) {
-    setState(() {
-      _snapshot = _snapshotWithUpdatedItems(
-        _snapshot,
-        _sectionForPreferenceType(item.type),
-        (items) =>
-            items
-                .where((current) => !_samePreferenceItem(current, item))
-                .toList(),
-      );
-    });
-    unawaited(widget.libraryRepository.removePreferenceItemById(item.id));
+    unawaited(
+      runMusicShareAction(context, () async {
+        await widget.libraryRepository.removePreferenceItemById(item.id);
+        if (!mounted) return;
+        setState(() {
+          _snapshot = _snapshotWithUpdatedItems(
+            _snapshot,
+            _sectionForPreferenceType(item.type),
+            (items) =>
+                items
+                    .where((current) => !_samePreferenceItem(current, item))
+                    .toList(),
+          );
+        });
+      }),
+    );
   }
 
   void _clearInvalid(PreferenceSectionKey section) {
-    setState(() {
-      _snapshot = _snapshotWithUpdatedItems(
-        _snapshot,
-        section,
-        (items) => items.where((item) => item.isValid).toList(),
-      );
-    });
     unawaited(
-      widget.libraryRepository.clearInvalidPreferenceItems(
-        _preferenceEntityTypeForSection(section),
-      ),
+      runMusicShareAction(context, () async {
+        await widget.libraryRepository.clearInvalidPreferenceItems(
+          _preferenceEntityTypeForSection(section),
+          source: _source,
+        );
+        if (!mounted) return;
+        setState(() {
+          _snapshot = _snapshotWithUpdatedItems(
+            _snapshot,
+            section,
+            (items) => items.where((item) => item.isValid).toList(),
+          );
+        });
+      }),
     );
   }
 }

@@ -85,23 +85,10 @@ class _CoverImage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final file = File(artworkUrl);
-    if (file.existsSync()) {
-      return LayoutBuilder(
-        builder: (context, constraints) {
-          final devicePixelRatio = MediaQuery.devicePixelRatioOf(context);
-          return Image.file(
-            file,
-            fit: BoxFit.cover,
-            cacheWidth: (constraints.maxWidth * devicePixelRatio).ceil(),
-            cacheHeight: (constraints.maxHeight * devicePixelRatio).ceil(),
-            gaplessPlayback: true,
-          );
-        },
-      );
-    }
-
-    return const _CoverFallback();
+    return SongArtwork(
+      artworkPath: artworkUrl,
+      fallback: const _CoverFallback(),
+    );
   }
 }
 

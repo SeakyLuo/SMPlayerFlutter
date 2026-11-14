@@ -444,7 +444,7 @@ extension _NowPlayingPageActions on _NowPlayingPageState {
     if (songIds.isEmpty) {
       return;
     }
-    unawaited(setSongsFavorite(ref, songIds, true));
+    unawaited(setSongsFavoriteFromControl(ref, songIds, true));
     final i18n = context.smPlayerI18n;
     _showUndo(
       songIds.length == 1

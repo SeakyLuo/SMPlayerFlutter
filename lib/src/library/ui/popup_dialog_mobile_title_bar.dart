@@ -17,6 +17,7 @@ class _PopupDialogMobileTitleBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final mobile = Platform.isAndroid || Platform.isIOS;
     final leadingInset =
         Platform.isMacOS ? SmPlayerShellMetrics.macOSTitlebarLeadingInset : 8.0;
     return Padding(
@@ -43,11 +44,15 @@ class _PopupDialogMobileTitleBar extends StatelessWidget {
                     title,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
+                    textScaler: mobile ? TextScaler.noScaling : null,
                     style: TextStyle(
-                      color: colors.text,
-                      fontSize: 13,
-                      fontWeight: FontWeight.w500,
-                      height: 1,
+                      color:
+                          mobile
+                              ? ShellThemeColors.of(context).headerText
+                              : colors.text,
+                      fontSize: mobile ? 16 : 13,
+                      fontWeight: mobile ? FontWeight.w700 : FontWeight.w500,
+                      height: mobile ? 1.1 : 1,
                     ),
                   ),
                 ),

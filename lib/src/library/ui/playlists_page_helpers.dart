@@ -48,6 +48,7 @@ List<int> _addUniqueSongIds(List<int> currentSongIds, List<int> songIds) {
 LibraryPlaylist _copyPlaylistWithName(LibraryPlaylist playlist, String name) {
   return LibraryPlaylist(
     id: playlist.id,
+    remotePath: playlist.remotePath,
     name: name,
     priority: playlist.priority,
     songCount: playlist.songCount,
@@ -64,6 +65,7 @@ LibraryPlaylist _copyPlaylistWithSongIds(
 }) {
   return LibraryPlaylist(
     id: playlist.id,
+    remotePath: playlist.remotePath,
     name: playlist.name,
     priority: playlist.priority,
     songCount: songIds.length,

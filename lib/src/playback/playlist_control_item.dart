@@ -1,4 +1,7 @@
 import 'dart:async';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../remote/music_share_access.dart';
+import '../remote/music_source_providers.dart';
 import 'dart:math' show max, min;
 import 'dart:ui';
 
@@ -77,7 +80,7 @@ const _queueActionSize = 32.0;
 const _queueActionGap = 8.0;
 final _openPlaylistSwipeOwner = ValueNotifier<Object?>(null);
 
-class PlaylistControlItem extends StatefulWidget {
+class PlaylistControlItem extends ConsumerStatefulWidget {
   const PlaylistControlItem({
     super.key,
     required this.song,
@@ -160,10 +163,11 @@ class PlaylistControlItem extends StatefulWidget {
   final bool showBottomBorder;
 
   @override
-  State<PlaylistControlItem> createState() => _PlaylistControlItemState();
+  ConsumerState<PlaylistControlItem> createState() =>
+      _PlaylistControlItemState();
 }
 
-class _PlaylistControlItemState extends State<PlaylistControlItem> {
+class _PlaylistControlItemState extends ConsumerState<PlaylistControlItem> {
   var _hovered = false;
   var _menuPin = _PlaylistControlMenuPin.none;
   var _swipeOffset = 0.0;
@@ -291,6 +295,7 @@ class _PlaylistControlItemState extends State<PlaylistControlItem> {
       _resetSwipe();
       return;
     }
+    if (!canPlayLibrarySong(widget.song)) return;
     if (widget.onActivateRow case final onActivateRow?) {
       onActivateRow();
       return;
@@ -358,6 +363,7 @@ class _PlaylistControlItemState extends State<PlaylistControlItem> {
 
   @override
   Widget build(BuildContext context) {
+    ref.watch(musicShareProvider);
     return LayoutBuilder(builder: _buildRow);
   }
 

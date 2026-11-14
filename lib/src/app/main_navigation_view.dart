@@ -13,6 +13,7 @@ import 'package:smplayer_flutter/src/library/ui/page_search_history_panel.dart';
 import 'package:smplayer_flutter/src/library/ui/search_commit_icon_button.dart';
 
 import '../library/ui/menu_flyout.dart';
+import '../remote/music_share_access.dart';
 
 part 'main_navigation_models.dart';
 part 'main_navigation_search.dart';

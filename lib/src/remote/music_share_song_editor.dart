@@ -4,6 +4,7 @@ import 'dart:io';
 import '../library/data/library_models.dart';
 import '../library/data/library_repository.dart';
 import 'music_share_edit_codec.dart';
+import 'music_share_models.dart';
 
 Future<Map<String, dynamic>> handleSharedSongEdit(
   HttpRequest request,
@@ -24,7 +25,13 @@ Future<Map<String, dynamic>> handleSharedSongEdit(
     return {};
   }
   if (request.method != 'POST' ||
-      !{'properties', 'lyrics', 'artwork', 'play-count'}.contains(resource)) {
+      !{
+        'properties',
+        'lyrics',
+        'artwork',
+        'play-count',
+        'lyrics-offset',
+      }.contains(resource)) {
     request.response.statusCode = HttpStatus.methodNotAllowed;
     return {};
   }
@@ -49,33 +56,46 @@ Future<Map<String, dynamic>> handleSharedSongEdit(
       );
     case 'lyrics':
       await repository.saveSongLyrics(song.id, json['rawText'] as String);
+    case 'lyrics-offset':
+      await repository.updateLyricsOffset(song.id, json['offsetMs'] as int);
     case 'play-count':
       await repository.updateSongPlayCount(song.id, json['playCount'] as int);
     case 'artwork':
-      final image = base64Decode(json['image'] as String);
-      final header = String.fromCharCodes(image.take(12));
-      final extension = switch (header) {
-        String h when h.startsWith('\u00ff\u00d8') => '.jpg',
-        String h when h.startsWith('\u0089PNG\r\n\u001a\n') => '.png',
-        String h when h.startsWith('RIFF') && h.endsWith('WEBP') => '.webp',
-        String h when h.startsWith('BM') => '.bmp',
-        _ => throw const FormatException('Unsupported artwork format'),
-      };
-      final directory = await Directory.systemTemp.createTemp(
-        'shared-artwork-',
+      await withSharedArtwork(
+        json,
+        repository,
+        canWrite,
+        (prepared) => repository.saveSongArtwork(song.id, prepared),
       );
-      try {
-        final file = File('${directory.path}/cover$extension');
-        await file.writeAsBytes(image);
-        final prepared = await repository.prepareSongArtworkSource(file.path);
-        if (!canWrite()) {
-          request.response.statusCode = HttpStatus.forbidden;
-          return {};
-        }
-        await repository.saveSongArtwork(song.id, prepared);
-      } finally {
-        await directory.delete(recursive: true);
-      }
   }
   return {};
+}
+
+Future<void> withSharedArtwork(
+  Map<String, dynamic> json,
+  LibraryRepository repository,
+  bool Function() canWrite,
+  Future<void> Function(String path) save,
+) async {
+  final image = base64Decode(json['image'] as String);
+  final header = String.fromCharCodes(image.take(12));
+  final extension = switch (header) {
+    String h when h.startsWith('\u00ff\u00d8') => '.jpg',
+    String h when h.startsWith('\u0089PNG\r\n\u001a\n') => '.png',
+    String h when h.startsWith('RIFF') && h.endsWith('WEBP') => '.webp',
+    String h when h.startsWith('BM') => '.bmp',
+    _ => throw const FormatException('Unsupported artwork format'),
+  };
+  final directory = await Directory.systemTemp.createTemp('shared-artwork-');
+  try {
+    final file = File('${directory.path}/cover$extension');
+    await file.writeAsBytes(image);
+    final prepared = await repository.prepareSongArtworkSource(file.path);
+    if (!canWrite()) {
+      throw const MusicShareException('share.readOnlyPermission');
+    }
+    await save(prepared);
+  } finally {
+    await directory.delete(recursive: true);
+  }
 }

@@ -27,7 +27,15 @@ extension _HeaderedPlaylistControlLayout on _HeaderedPlaylistControlState {
     final playlists = _effectivePlaylists(widget.playlists);
     final customPlaylists =
         playlists
-            .where((playlist) => !playlist.isBuiltIn)
+            .where(
+              (playlist) =>
+                  !playlist.isBuiltIn &&
+                  canEditPlaylist(playlist) &&
+                  playlistBelongsToSource(
+                    playlist,
+                    activeMusicShareAccess!.selectedSource,
+                  ),
+            )
             .map(
               (playlist) => MultiSelectCommandBarPlaylist(
                 id: playlist.id,
@@ -99,6 +107,7 @@ extension _HeaderedPlaylistControlLayout on _HeaderedPlaylistControlState {
                   SliverPersistentHeader(
                     pinned: true,
                     delegate: _HeaderHeroSliverDelegate(
+                      topInset: MediaQuery.paddingOf(context).top,
                       type: widget.type,
                       title: widget.title,
                       info: getHeaderPlaylistInfo(headerSongs, i18n),
@@ -113,25 +122,6 @@ extension _HeaderedPlaylistControlLayout on _HeaderedPlaylistControlState {
                         activeSortCriterion,
                         customPlaylists,
                       ),
-                    ),
-                  ),
-                if (widget.type == HeaderedPlaylistType.playlist ||
-                    widget.type == HeaderedPlaylistType.favorites)
-                  SliverToBoxAdapter(
-                    child: MusicSourcePlaylistNotice(
-                      visible: visibleSongs.length,
-                      total:
-                          playlists
-                              .where(
-                                (playlist) =>
-                                    playlist.id ==
-                                    (widget.playlistId ??
-                                        widget.favoritePlaylistId),
-                              )
-                              .firstOrNull
-                              ?.songIds
-                              .length ??
-                          visibleSongs.length,
                     ),
                   ),
                 _HeaderedPlaylistListSliver(

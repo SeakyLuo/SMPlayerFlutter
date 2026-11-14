@@ -115,7 +115,7 @@ extension _HeaderedPlaylistControlArtwork on _HeaderedPlaylistControlState {
       return;
     }
 
-    _resolvedPlaylistArtworkUrls = const [];
+    _resolvedPlaylistArtworkUrls = getKnownPlaylistArtworkUrls(songs);
     _refreshHeaderArtworkColor(_currentHeaderArtworkUrls());
     final generation = ++_playlistArtworkGeneration;
     unawaited(
@@ -178,7 +178,13 @@ extension _HeaderedPlaylistControlArtwork on _HeaderedPlaylistControlState {
 
   Future<Color> _extractHeaderArtworkColor(String artworkPath) async {
     try {
-      final bytes = await File(artworkPath).readAsBytes();
+      final file =
+          isRemoteMusicPath(artworkPath)
+              ? activeMusicShareAccess!.cachedArtwork(artworkPath) ??
+                  await activeMusicShareAccess!.artwork(artworkPath)
+              : File(artworkPath);
+      if (file == null) return _defaultHeaderArtworkColor;
+      final bytes = await file.readAsBytes();
       final codec = await instantiateImageCodec(
         bytes,
       ).timeout(const Duration(seconds: 2));

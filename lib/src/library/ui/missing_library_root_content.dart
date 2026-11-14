@@ -75,12 +75,27 @@ class MissingLibraryRootContent extends StatelessWidget {
                           onPressed: onPickLibraryRoot,
                         ),
                         const SizedBox(height: 8),
-                        TextButton(
-                          onPressed: () => showMusicShareDialog(context),
-                          style: TextButton.styleFrom(
-                            minimumSize: Size(48, buttonHeight),
+                        Semantics(
+                          button: true,
+                          child: GestureDetector(
+                            behavior: HitTestBehavior.opaque,
+                            onTap: () => showMusicShareDialog(context),
+                            child: Container(
+                              height: buttonHeight,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                              ),
+                              alignment: Alignment.center,
+                              child: Text(
+                                i18n.t('share.connectComputer'),
+                                style: Theme.of(
+                                  context,
+                                ).textTheme.labelLarge?.copyWith(
+                                  color: Theme.of(context).colorScheme.primary,
+                                ),
+                              ),
+                            ),
                           ),
-                          child: Text(i18n.t('share.connectComputer')),
                         ),
                       ],
                     ),

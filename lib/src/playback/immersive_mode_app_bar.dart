@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:smplayer_flutter/src/app/text_icon_button.dart';
@@ -22,6 +24,8 @@ class ImmersiveModeAppBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final mobile = Platform.isAndroid || Platform.isIOS;
+    final topInset = mobile ? 8.0 : immersiveModeTopButtonTopInset;
     final immersiveColors = ImmersiveModeThemeColors.of(context);
     final topButtonColors = immersiveModeTopButtonColors(
       context,
@@ -32,11 +36,11 @@ class ImmersiveModeAppBar extends StatelessWidget {
     );
     return SizedBox(
       width: double.infinity,
-      height: immersiveModeAppBarHeight,
+      height: mobile ? 58 : immersiveModeAppBarHeight,
       child: Stack(
         children: [
           Positioned(
-            top: immersiveModeTopButtonTopInset,
+            top: topInset,
             left: immersiveModeTopButtonEdgeInset,
             child: SmPlayerTextIconButtonTheme(
               colors: topButtonColors,
@@ -56,7 +60,7 @@ class ImmersiveModeAppBar extends StatelessWidget {
             ),
           ),
           Positioned(
-            top: immersiveModeTopButtonTopInset,
+            top: topInset,
             right: immersiveModeTopButtonEdgeInset,
             child: SmPlayerTextIconButtonTheme(
               colors: topButtonColors,

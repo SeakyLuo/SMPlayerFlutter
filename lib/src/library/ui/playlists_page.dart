@@ -1,3 +1,7 @@
+import '../data/library_source.dart';
+import 'package:smplayer_flutter/src/remote/music_source_selector.dart';
+import 'package:smplayer_flutter/src/remote/music_share_models.dart';
+import 'package:smplayer_flutter/src/remote/music_share_access.dart';
 import '../../remote/music_source_providers.dart';
 import 'dart:async';
 import 'dart:math';
@@ -143,7 +147,7 @@ class _PlaylistsPageState extends ConsumerState<PlaylistsPage> {
     required SmPlayerI18n i18n,
     required List<String> searchSuggestions,
     required List<SearchHistoryEntry> searchHistoryEntries,
-    required VoidCallback onCreatePlaylist,
+    required VoidCallback? onCreatePlaylist,
   }) {
     final signature =
         '$showPortal:$routePath:$title:$_appBarSearchOpen:$_searchDraft:$_searchQuery:$_searchFocused:${searchSuggestions.length}:${searchHistoryEntries.length}';
@@ -221,7 +225,8 @@ class _PlaylistsPageState extends ConsumerState<PlaylistsPage> {
       nowPlayingQueueOverrideProvider,
     );
 
-    if (i18nValue.isLoading || snapshotValue.isLoading) {
+    if ((i18nValue.isLoading && !i18nValue.hasValue) ||
+        (snapshotValue.isLoading && !snapshotValue.hasValue)) {
       return const SmPlayerLoadingState();
     }
 
@@ -231,6 +236,7 @@ class _PlaylistsPageState extends ConsumerState<PlaylistsPage> {
     }
 
     return snapshotValue.when(
+      skipLoadingOnReload: true,
       loading: () => const SmPlayerLoadingState(),
       error:
           (_, _) => Center(
@@ -362,46 +368,62 @@ class _PlaylistsPageState extends ConsumerState<PlaylistsPage> {
             );
             return;
           }
-          unawaited(setSongsFavorite(ref, [songId], false));
+          unawaited(setSongsFavoriteFromControl(ref, [songId], false));
         },
-        onRemoveSongs: (songIds) async {
-          await ref
-              .read(libraryRepositoryProvider)
-              .removeSongsFromPlaylist(selectedPlaylist.id, songIds);
-          _patchLocalPlaylist(
-            _copyPlaylistWithSongIds(
-              selectedPlaylist,
-              selectedPlaylist.songIds
-                  .where((songId) => !songIds.contains(songId))
-                  .toList(),
-            ),
-          );
-        },
-        onRename: (name) {
-          _renamePlaylistWithoutReload(selectedPlaylist, name);
-        },
-        onDelete: () async {
-          await _deletePlaylistWithUndo(context, i18n, selectedPlaylist);
-          if (context.mounted) {
-            context.go('/playlists');
-          }
-        },
-        onClear: () async {
-          await ref
-              .read(libraryRepositoryProvider)
-              .removeSongsFromPlaylist(
-                selectedPlaylist.id,
-                songs.map((song) => song.id).toList(),
-              );
-          _patchLocalPlaylist(
-            _copyPlaylistWithSongIds(
-              selectedPlaylist,
-              selectedPlaylist.songIds
-                  .where((id) => !songs.any((song) => song.id == id))
-                  .toList(),
-            ),
-          );
-        },
+        onRemoveSongs:
+            !canEditPlaylist(selectedPlaylist)
+                ? null
+                : (songIds) async {
+                  await ref
+                      .read(libraryRepositoryProvider)
+                      .removeSongsFromPlaylist(selectedPlaylist.id, songIds);
+                  _patchLocalPlaylist(
+                    _copyPlaylistWithSongIds(
+                      selectedPlaylist,
+                      selectedPlaylist.songIds
+                          .where((songId) => !songIds.contains(songId))
+                          .toList(),
+                    ),
+                  );
+                },
+        onRename:
+            !canEditPlaylist(selectedPlaylist)
+                ? null
+                : (name) {
+                  _renamePlaylistWithoutReload(selectedPlaylist, name);
+                },
+        onDelete:
+            !canEditPlaylist(selectedPlaylist)
+                ? null
+                : () async {
+                  final deleted = await _deletePlaylistWithUndo(
+                    context,
+                    i18n,
+                    selectedPlaylist,
+                  );
+                  if (deleted && context.mounted) {
+                    context.go('/playlists');
+                  }
+                },
+        onClear:
+            !canEditPlaylist(selectedPlaylist)
+                ? null
+                : () async {
+                  await ref
+                      .read(libraryRepositoryProvider)
+                      .removeSongsFromPlaylist(
+                        selectedPlaylist.id,
+                        songs.map((song) => song.id).toList(),
+                      );
+                  _patchLocalPlaylist(
+                    _copyPlaylistWithSongIds(
+                      selectedPlaylist,
+                      selectedPlaylist.songIds
+                          .where((id) => !songs.any((song) => song.id == id))
+                          .toList(),
+                    ),
+                  );
+                },
         onSetPreferred: (level) async {
           await ref
               .read(libraryRepositoryProvider)
@@ -419,28 +441,34 @@ class _PlaylistsPageState extends ConsumerState<PlaylistsPage> {
         onRecordPlay: () {
           unawaited(recordRecentPlaylistPlayback(ref, selectedPlaylist.id));
         },
-        onSortSongs: (songIds, sortCriterion) {
-          songIds = mergeVisiblePlaylistOrder(
-            selectedPlaylist.songIds,
-            songIds,
-          );
-          unawaited(
-            ref
-                .read(libraryRepositoryProvider)
-                .reorderPlaylistSongs(
-                  selectedPlaylist.id,
-                  songIds,
-                  sortCriterion,
-                ),
-          );
-          _patchLocalPlaylist(
-            _copyPlaylistWithSongIds(
-              selectedPlaylist,
-              songIds,
-              sortCriterion: sortCriterion,
-            ),
-          );
-        },
+        onSortSongs:
+            !canEditPlaylist(selectedPlaylist)
+                ? null
+                : (songIds, sortCriterion) {
+                  songIds = mergeVisiblePlaylistOrder(
+                    selectedPlaylist.songIds,
+                    songIds,
+                  );
+                  unawaited(
+                    runMusicShareAction(context, () async {
+                      await ref
+                          .read(libraryRepositoryProvider)
+                          .reorderPlaylistSongs(
+                            selectedPlaylist.id,
+                            songIds,
+                            sortCriterion,
+                          );
+                      if (!mounted) return;
+                      _patchLocalPlaylist(
+                        _copyPlaylistWithSongIds(
+                          selectedPlaylist,
+                          songIds,
+                          sortCriterion: sortCriterion,
+                        ),
+                      );
+                    }),
+                  );
+                },
         onArtistClick: (artist) {
           context.go('/artists?artist=${Uri.encodeQueryComponent(artist)}');
         },

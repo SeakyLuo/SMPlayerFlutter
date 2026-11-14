@@ -1,3 +1,5 @@
+import '../../remote/music_share_access.dart';
+import '../../remote/music_source_providers.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'library_models.dart';
@@ -171,10 +173,16 @@ Future<void> recordRecentArtistPlayback(WidgetRef ref, String artist) async {
 final shellNavigationDataProvider = FutureProvider<ShellNavigationData>((
   ref,
 ) async {
+  final selectedSource = ref.watch(
+    musicShareProvider.select((share) => share.selectedSource),
+  );
   final content = await ref.watch(libraryContentDataProvider.future);
   return ShellNavigationData(
     songs: content.songs,
-    playlists: content.playlists,
+    playlists:
+        content.playlists
+            .where((p) => playlistBelongsToSource(p, selectedSource))
+            .toList(),
     folders: content.folders,
     recentSearches: content.recentSearches,
     nowPlaying: content.nowPlaying,
@@ -367,6 +375,7 @@ void patchLibrarySongOverrides(WidgetRef ref, Iterable<LibrarySong> songs) {
 }
 
 void patchLibraryPlaylistOverride(WidgetRef ref, LibraryPlaylist playlist) {
+  if (playlist.remotePath.isNotEmpty) return;
   final overrideNotifier = ref.read(libraryPlaylistOverridesProvider.notifier);
   final deletedNotifier = ref.read(libraryDeletedPlaylistIdsProvider.notifier);
   final orderNotifier = ref.read(libraryPlaylistOrderProvider.notifier);
@@ -379,6 +388,7 @@ void patchLibraryPlaylistOverride(WidgetRef ref, LibraryPlaylist playlist) {
 }
 
 void removeLibraryPlaylistOverride(WidgetRef ref, int playlistId) {
+  if (playlistId < 0) return;
   final overrideNotifier = ref.read(libraryPlaylistOverridesProvider.notifier);
   final deletedNotifier = ref.read(libraryDeletedPlaylistIdsProvider.notifier);
   overrideNotifier.state = {...overrideNotifier.state}..remove(playlistId);
@@ -391,6 +401,7 @@ void removeLibraryPlaylistOverride(WidgetRef ref, int playlistId) {
 }
 
 void setLibraryPlaylistOrder(WidgetRef ref, List<int> playlistIds) {
+  if (playlistIds.any((id) => id < 0)) return;
   ref.read(libraryPlaylistOrderProvider.notifier).state = playlistIds;
 }
 
@@ -637,6 +648,7 @@ LibraryPlaylist _copyPlaylistWithSongIds(
 ) {
   return LibraryPlaylist(
     id: playlist.id,
+    remotePath: playlist.remotePath,
     name: playlist.name,
     priority: playlist.priority,
     songCount: songIds.length,

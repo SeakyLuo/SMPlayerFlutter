@@ -9,6 +9,7 @@ class _HeaderHeroSliverDelegate extends SliverPersistentHeaderDelegate {
     required this.coverColor,
     required this.windowDragCallbacks,
     required this.commandBar,
+    required this.topInset,
   });
 
   final HeaderedPlaylistType type;
@@ -18,12 +19,13 @@ class _HeaderHeroSliverDelegate extends SliverPersistentHeaderDelegate {
   final Color coverColor;
   final SmPlayerWindowDragCallbacks? windowDragCallbacks;
   final Widget commandBar;
+  final double topInset;
 
   @override
-  double get minExtent => 126;
+  double get minExtent => 126 + topInset;
 
   @override
-  double get maxExtent => 326;
+  double get maxExtent => 326 + topInset;
 
   @override
   Widget build(
@@ -50,6 +52,7 @@ class _HeaderHeroSliverDelegate extends SliverPersistentHeaderDelegate {
   @override
   bool shouldRebuild(covariant _HeaderHeroSliverDelegate oldDelegate) {
     return type != oldDelegate.type ||
+        topInset != oldDelegate.topInset ||
         title != oldDelegate.title ||
         info != oldDelegate.info ||
         artworkUrls != oldDelegate.artworkUrls ||
@@ -84,6 +87,7 @@ class _HeaderHero extends StatelessWidget {
   Widget build(BuildContext context) {
     final compact = MediaQuery.sizeOf(context).width <= 720;
     final colors = HeaderedPlaylistThemeColors.of(context);
+    final topInset = MediaQuery.paddingOf(context).top;
     final compactTopInset =
         _compactHeaderTopInset * (1 - collapseProgress).clamp(0.0, 1.0);
     final heroHeight =
@@ -92,7 +96,8 @@ class _HeaderHero extends StatelessWidget {
           compact ? 138 : 126,
           collapseProgress,
         )! +
-        compactTopInset;
+        compactTopInset +
+        topInset;
     final coverSize =
         lerpDouble(compact ? 180 : 240, compact ? 68 : 86, collapseProgress)!;
     final titleSize =
@@ -101,7 +106,8 @@ class _HeaderHero extends StatelessWidget {
         lerpDouble(compact ? 8 : 30, compact ? 4 : 8, collapseProgress)!;
     final infoMargin = compact ? 8.0 : lerpDouble(24, 8, collapseProgress)!;
     final heroPaddingTop =
-        compact ? compactTopInset : lerpDouble(50, 24, collapseProgress)!;
+        topInset +
+        (compact ? compactTopInset : lerpDouble(50, 24, collapseProgress)!);
     final horizontalPadding = compact ? 4.0 : 40.0;
     final gap =
         lerpDouble(compact ? 12 : 42, compact ? 12 : 18, collapseProgress)!;

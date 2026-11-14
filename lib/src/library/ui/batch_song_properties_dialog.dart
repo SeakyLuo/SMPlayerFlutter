@@ -1,4 +1,5 @@
 import 'dart:async';
+import '../../remote/music_share_models.dart';
 
 import 'package:flutter/foundation.dart' show listEquals;
 import 'package:flutter/material.dart';
@@ -54,19 +55,32 @@ Future<bool> showBatchSongPropertiesDialog({
       i18n: i18n,
       message: message,
       onUndo: () async {
-        final updates = {
-          for (final songId in result.updatedSongIds)
-            songId: _updateFromSnapshot(result.beforeProperties[songId]!),
-        };
-        final undoResult = await container
-            .read(libraryRepositoryProvider)
-            .updateSongPropertiesBatch(updates);
-        final restoredSongs = {
-          for (final songId in undoResult.updatedSongIds)
-            songId: result.beforeSongs[songId]!,
-        };
-        _applySongOverrides(container, restoredSongs, i18n);
-        _invalidateSongMetadata(container);
+        try {
+          final updates = {
+            for (final songId in result.updatedSongIds)
+              songId: _updateFromSnapshot(result.beforeProperties[songId]!),
+          };
+          final undoResult = await container
+              .read(libraryRepositoryProvider)
+              .updateSongPropertiesBatch(updates);
+          final restoredSongs = {
+            for (final songId in undoResult.updatedSongIds)
+              songId: result.beforeSongs[songId]!,
+          };
+          _applySongOverrides(container, restoredSongs, i18n);
+          _invalidateSongMetadata(container);
+        } catch (error) {
+          if (context.mounted) {
+            showAppNotification(
+              context: context,
+              message: i18n.t(
+                error is MusicShareException
+                    ? error.messageKey
+                    : 'song.batchEditFailed',
+              ),
+            );
+          }
+        }
       },
     ),
   );
@@ -448,14 +462,14 @@ class _BatchSongPropertiesDialogState
       return;
     }
     try {
+      final library = ref.read(libraryContentDataProvider).value!;
+      final songsById = {for (final song in library.songs) song.id: song};
       final result = await ref
           .read(libraryRepositoryProvider)
           .updateSongPropertiesBatch({
             for (final entry in changedBySongId.entries)
               entry.key: _updateFromSnapshot(entry.value),
           });
-      final library = ref.read(libraryContentDataProvider).value!;
-      final songsById = {for (final song in library.songs) song.id: song};
       final beforeSongs = {
         for (final songId in result.updatedSongIds) songId: songsById[songId]!,
       };
@@ -481,14 +495,18 @@ class _BatchSongPropertiesDialogState
           ),
         );
       }
-    } catch (_) {
+    } catch (error) {
       if (mounted) {
         setState(() {
           _saving = false;
         });
         showAppNotification(
           context: context,
-          message: context.smPlayerI18n.t('song.batchEditFailed'),
+          message: context.smPlayerI18n.t(
+            error is MusicShareException
+                ? error.messageKey
+                : 'song.batchEditFailed',
+          ),
         );
       }
     }
@@ -633,7 +651,11 @@ void _applySongOverrides(
   SmPlayerI18n i18n,
 ) {
   final notifier = container.read(librarySongOverridesProvider.notifier);
-  notifier.state = {...notifier.state, ...songs};
+  notifier.state = {
+    ...notifier.state,
+    for (final song in songs.values)
+      if (!isRemoteMusicPath(song.path)) song.id: song,
+  };
   final mediaController = container.read(mediaControlControllerProvider);
   final currentSong = songs[mediaController.state.track.id];
   if (currentSong != null) {

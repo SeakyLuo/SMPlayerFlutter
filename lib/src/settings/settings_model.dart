@@ -591,6 +591,7 @@ class PreferenceItemSnapshot {
 
 class PreferenceSettingsSnapshot {
   const PreferenceSettingsSnapshot({
+    this.source = 'local',
     required this.enabled,
     required this.songs,
     required this.artists,
@@ -637,6 +638,7 @@ class PreferenceSettingsSnapshot {
     );
   }
 
+  final String source;
   final Map<PreferenceSectionKey, bool> enabled;
   final List<PreferenceItemSnapshot> songs;
   final List<PreferenceItemSnapshot> artists;
@@ -655,6 +657,7 @@ class PreferenceSettingsSnapshot {
     List<PreferenceItemSnapshot>? others,
   }) {
     return PreferenceSettingsSnapshot(
+      source: source,
       enabled: enabled ?? this.enabled,
       songs: songs ?? this.songs,
       artists: artists ?? this.artists,

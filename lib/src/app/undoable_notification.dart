@@ -481,8 +481,9 @@ class _AppNotificationController {
   void removePresentation() {
     if (_notificationPresentation.value?.controller == this) {
       _notificationPresentation.value = null;
+      // A replaced notification can still receive its exit-animation callback.
+      runningActionIndex.dispose();
     }
-    runningActionIndex.dispose();
   }
 }
 

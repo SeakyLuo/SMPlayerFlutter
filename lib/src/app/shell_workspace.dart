@@ -250,6 +250,8 @@ class _WorkspacePageSurface extends StatelessWidget {
   Widget build(BuildContext context) {
     final overlayNavigationAppBar =
         showNavigationAppBar && headeredPlaylistAppBar != null;
+    final headeredTopInset =
+        navigationAppBarTopInset + MediaQuery.paddingOf(context).top;
     final headeredPlaylistCommandBar = headeredPlaylistAppBar?.commandBarBuilder
         ?.call(context);
     final pageTitle =
@@ -301,56 +303,63 @@ class _WorkspacePageSurface extends StatelessWidget {
     );
     return ColoredBox(
       color: routeSurface,
-      child: Stack(
-        children: [
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              if (workspaceNavigationAppBar != null)
-                SizedBox(height: workspaceNavigationAppBarHeight)
-              else if (!overlayNavigationAppBar && localTitleContent != null)
-                _WorkspaceLocalHeader(child: localTitleContent!)
-              else if (!overlayNavigationAppBar && pageTitle.isNotEmpty)
-                _WorkspaceHeader(
-                  title: pageTitle,
-                  tooltip: workspaceAppBarPortal?.titleTooltip,
-                  height: headerHeight,
-                ),
-              Expanded(child: content),
-            ],
-          ),
-          if (workspaceNavigationAppBar != null)
-            Positioned(
-              top: 0,
-              left: 0,
-              right: 0,
-              height: workspaceNavigationAppBarHeight,
-              child: workspaceNavigationAppBar,
+      child: SafeArea(
+        top: headeredPlaylistAppBar == null,
+        bottom: false,
+        child: Stack(
+          children: [
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                if (workspaceNavigationAppBar != null)
+                  SizedBox(height: workspaceNavigationAppBarHeight)
+                else if (!overlayNavigationAppBar && localTitleContent != null)
+                  _WorkspaceLocalHeader(child: localTitleContent!)
+                else if (!overlayNavigationAppBar && pageTitle.isNotEmpty)
+                  _WorkspaceHeader(
+                    title: pageTitle,
+                    tooltip: workspaceAppBarPortal?.titleTooltip,
+                    height: headerHeight,
+                  ),
+                Expanded(child: content),
+              ],
             ),
-          if (overlayNavigationAppBar)
-            Positioned(
-              top: 0,
-              left: 0,
-              right: 0,
-              height:
-                  navigationAppBarTopInset +
-                  _workspaceNavigationAppBarTopRowHeight,
-              child: _WorkspaceNavigationAppBar(
-                headeredPlaylistAppBar: headeredPlaylistAppBar,
-                title: headeredPlaylistAppBar!.title,
-                titleTooltip: null,
-                navigationMenuLabel: navigationMenuLabel,
-                onNavigationMenuPressed: onNavigationMenuPressed,
-                titleContent: null,
-                actions: headeredPlaylistCommandBar,
-                bottomContent: null,
-                bottomPadding: _workspaceNavigationAppBarBottomPadding,
-                topInset: navigationAppBarTopInset,
+            if (workspaceNavigationAppBar != null)
+              Positioned(
+                top: 0,
+                left: 0,
+                right: 0,
+                height: workspaceNavigationAppBarHeight,
+                child: workspaceNavigationAppBar,
               ),
-            ),
-          if (!showNavigationAppBar && headeredPlaylistAppBar != null)
-            _HeaderedPlaylistAppBarPortal(entry: headeredPlaylistAppBar!),
-        ],
+            if (overlayNavigationAppBar)
+              Positioned(
+                top: 0,
+                left: 0,
+                right: 0,
+                height:
+                    headeredTopInset +
+                    _workspaceNavigationAppBarTopRowHeight +
+                    (headeredTopInset == 0
+                        ? _workspaceNavigationAppBarBottomPadding
+                        : 0),
+                child: _WorkspaceNavigationAppBar(
+                  headeredPlaylistAppBar: headeredPlaylistAppBar,
+                  title: headeredPlaylistAppBar!.title,
+                  titleTooltip: null,
+                  navigationMenuLabel: navigationMenuLabel,
+                  onNavigationMenuPressed: onNavigationMenuPressed,
+                  titleContent: null,
+                  actions: headeredPlaylistCommandBar,
+                  bottomContent: null,
+                  bottomPadding: _workspaceNavigationAppBarBottomPadding,
+                  topInset: headeredTopInset,
+                ),
+              ),
+            if (!showNavigationAppBar && headeredPlaylistAppBar != null)
+              _HeaderedPlaylistAppBarPortal(entry: headeredPlaylistAppBar!),
+          ],
+        ),
       ),
     );
   }

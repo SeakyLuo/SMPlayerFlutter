@@ -13,6 +13,15 @@ class MusicShareArtworkCache {
   final _loads = <String, Future<File?>>{};
   final _transports = <String, MusicShareTransport>{};
 
+  Future<void> restore() async {
+    if (!await directory.exists()) return;
+    await for (final entry in directory.list()) {
+      if (entry is File && p.extension(entry.path) == '.img') {
+        _files[p.basenameWithoutExtension(entry.path)] = entry;
+      }
+    }
+  }
+
   // The catalog revision identifies the host's artwork path, shared by songs
   // using the same cover. Paths without a revision remain scoped to the song.
   String _key(Uri uri) =>

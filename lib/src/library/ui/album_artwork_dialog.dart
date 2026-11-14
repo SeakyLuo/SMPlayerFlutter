@@ -1,4 +1,5 @@
 import '../../remote/music_share_models.dart';
+import '../../remote/music_share_access.dart';
 import 'song_artwork.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
@@ -74,7 +75,7 @@ class _AlbumArtworkDialogState extends ConsumerState<AlbumArtworkDialog> {
     final currentSong =
         librarySongs.where((song) => song.id == widget.songId).firstOrNull;
 
-    if (currentSong != null && isRemoteMusicPath(currentSong.path)) {
+    if (currentSong != null && !canEditLibrarySong(currentSong)) {
       return PopupDialog(
         navLabel: i18n.t('song.albumArt'),
         navChildren: const [],
@@ -203,9 +204,16 @@ class _AlbumArtworkDialogState extends ConsumerState<AlbumArtworkDialog> {
     try {
       final repository = ref.read(libraryRepositoryProvider);
       if (deleteArtwork) {
-        await repository.deleteAlbumArtwork(widget.albumName);
+        await repository.deleteAlbumArtwork(
+          widget.albumName,
+          songId: widget.songId,
+        );
       } else {
-        await repository.saveAlbumArtwork(widget.albumName, _artworkSourcePath);
+        await repository.saveAlbumArtwork(
+          widget.albumName,
+          _artworkSourcePath,
+          songId: widget.songId,
+        );
       }
       if (!mounted) {
         return;
@@ -222,11 +230,15 @@ class _AlbumArtworkDialogState extends ConsumerState<AlbumArtworkDialog> {
           deleteArtwork ? 'song.albumArtDeleted' : 'song.albumArtSaved',
         ),
       );
-    } catch (_) {
+    } catch (error) {
       if (mounted) {
         showAppNotification(
           context: context,
-          message: i18n.t('song.updateFailed'),
+          message: i18n.t(
+            error is MusicShareException
+                ? error.messageKey
+                : 'song.updateFailed',
+          ),
         );
       }
     } finally {

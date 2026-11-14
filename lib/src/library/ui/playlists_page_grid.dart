@@ -60,9 +60,12 @@ extension _PlaylistsPageGrid on _PlaylistsPageState {
       i18n: i18n,
       searchSuggestions: searchSuggestions,
       searchHistoryEntries: searchHistoryEntries,
-      onCreatePlaylist: () {
-        unawaited(_createPlaylist(context, i18n, snapshot));
-      },
+      onCreatePlaylist:
+          !canCreateSourcePlaylist()
+              ? null
+              : () {
+                unawaited(_createPlaylist(context, i18n, snapshot));
+              },
     );
 
     return Column(
@@ -88,9 +91,12 @@ extension _PlaylistsPageGrid on _PlaylistsPageState {
               onSelectSearchSuggestion: _selectSearchQuery,
               onRemoveRecentSearch: _removeRecentSearch,
               onClearRecentSearches: _clearRecentSearches,
-              onCreatePlaylist: () {
-                unawaited(_createPlaylist(context, i18n, snapshot));
-              },
+              onCreatePlaylist:
+                  !canCreateSourcePlaylist()
+                      ? null
+                      : () {
+                        unawaited(_createPlaylist(context, i18n, snapshot));
+                      },
             ),
           ),
           const SizedBox(height: 18),
@@ -104,9 +110,11 @@ extension _PlaylistsPageGrid on _PlaylistsPageState {
                       searching: _searchQuery.isNotEmpty,
                       onAction:
                           _searchQuery.isEmpty
-                              ? () => unawaited(
-                                _createPlaylist(context, i18n, snapshot),
-                              )
+                              ? !canCreateSourcePlaylist()
+                                  ? null
+                                  : () => unawaited(
+                                    _createPlaylist(context, i18n, snapshot),
+                                  )
                               : _clearSearch,
                       title:
                           _searchQuery.isEmpty
@@ -198,6 +206,10 @@ extension _PlaylistsPageGrid on _PlaylistsPageState {
                                               }
 
                                               return Draggable<int>(
+                                                maxSimultaneousDrags:
+                                                    canEditPlaylist(playlist)
+                                                        ? 1
+                                                        : 0,
                                                 data: playlist.id,
                                                 dragAnchorStrategy: (
                                                   draggable,

@@ -365,9 +365,11 @@ class _MusicDialogState extends ConsumerState<MusicDialog> {
     );
     ref.watch(
       musicShareProvider.select(
-        (share) =>
-            !isRemoteMusicPath(widget.song.path) ||
-            share.canWrite(widget.song.path),
+        (_) =>
+            ref
+                .read(libraryRepositoryProvider)
+                .dataSource(widget.song.source)
+                .canWrite,
       ),
     );
     final i18n = context.smPlayerI18n;

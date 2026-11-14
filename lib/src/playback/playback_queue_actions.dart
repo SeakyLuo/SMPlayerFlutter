@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import '../remote/music_share_access.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:smplayer_flutter/src/app/undoable_notification.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
@@ -278,6 +279,15 @@ void playQueueIndexFromSongs({
 }) {
   final songsById = {for (final song in songs) song.id: song};
   final song = songsById[songIds[queueIndex]]!;
+  if (!canPlayLibrarySong(song)) {
+    showAppNotification(
+      context: ref.context,
+      message: i18n.t(
+        song.remoteAvailable ? 'share.offline' : 'share.songRemoved',
+      ),
+    );
+    return;
+  }
   final MediaControlController controller =
       mediaController ?? ref.read(mediaControlControllerProvider);
   controller.playTrack(
@@ -360,4 +370,34 @@ void insertOrPlayNowPlayingSong({
     queueIndex: queueIndex,
     showQueueUpdatedNotification: false,
   );
+}
+
+int? nextPlayableQueueIndex({
+  required List<int> songIds,
+  required List<LibrarySong> songs,
+  required int currentIndex,
+  required PlaybackMode mode,
+  required bool forward,
+  required bool automatic,
+}) {
+  final playable = songs.where(canPlayLibrarySong).map((s) => s.id).toSet();
+  var index = currentIndex;
+  final effectiveMode =
+      mode == PlaybackMode.repeatOne &&
+              (currentIndex < 0 || !playable.contains(songIds[currentIndex]))
+          ? PlaybackMode.once
+          : mode;
+  for (var checked = 0; checked < songIds.length; checked++) {
+    final next = nextQueueIndexForPlayback(
+      queueLength: songIds.length,
+      currentIndex: index,
+      mode: effectiveMode,
+      forward: forward,
+      automatic: automatic,
+    );
+    if (next == null) return null;
+    if (playable.contains(songIds[next])) return next;
+    index = next;
+  }
+  return null;
 }

@@ -196,6 +196,8 @@ class _PopupDialogState extends State<PopupDialog> {
                     final mobile =
                         widget.fullScreenOnNarrow &&
                         constraints.maxWidth <= popupDialogMobileBreakpoint;
+                    final useMobileTitle =
+                        mobile && (Platform.isAndroid || Platform.isIOS);
                     final view = View.of(context);
                     // The root overlay covers the full view, even when its
                     // caller has already consumed the MediaQuery safe padding.
@@ -219,7 +221,15 @@ class _PopupDialogState extends State<PopupDialog> {
                                     keyboardInset)
                                 .clamp(0.0, widget.height);
                     final navChildren = _navChildrenForMode(
-                      widget.navChildren,
+                      useMobileTitle
+                          ? [
+                            for (final child in widget.navChildren)
+                              if (child is! PopupDialogTitle &&
+                                  !(child is Flexible &&
+                                      child.child is PopupDialogTitle))
+                                child,
+                          ]
+                          : widget.navChildren,
                       mobile: mobile,
                       dialogClasses: dialogClasses,
                     );
@@ -265,7 +275,9 @@ class _PopupDialogState extends State<PopupDialog> {
                                     12,
                                     44 + topSafeInset,
                                     12,
-                                    10,
+                                    useMobileTitle && navChildren.isEmpty
+                                        ? 0
+                                        : 10,
                                   )
                                   : const EdgeInsets.fromLTRB(28, 22, 28, 18),
                           child: Row(
@@ -412,10 +424,13 @@ class _PopupDialogState extends State<PopupDialog> {
                           Positioned(
                             top: topSafeInset,
                             left: 0,
-                            right: 138,
+                            right: useMobileTitle ? 0 : 138,
                             height: 32,
                             child: _PopupDialogMobileTitleBar(
-                              title: i18n.t('app.shell'),
+                              title:
+                                  useMobileTitle
+                                      ? widget.navLabel
+                                      : i18n.t('app.shell'),
                               colors: colors,
                               onClose: _closeHandler,
                               onWindowDragStart: onWindowDragStart,

@@ -9,7 +9,8 @@ class RecentNowPlayingDetailPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final i18nValue = ref.watch(smPlayerI18nProvider);
     final snapshotValue = ref.watch(recentPageDataProvider);
-    if (i18nValue.isLoading || snapshotValue.isLoading) {
+    if ((i18nValue.isLoading && !i18nValue.hasValue) ||
+        (snapshotValue.isLoading && !snapshotValue.hasValue)) {
       return const _RecentPagePanel(child: SmPlayerLoadingState());
     }
 
@@ -17,6 +18,7 @@ class RecentNowPlayingDetailPage extends ConsumerWidget {
     return SmPlayerI18nScope(
       i18n: i18n,
       child: snapshotValue.when(
+        skipLoadingOnReload: true,
         loading: () => const _RecentPagePanel(child: SmPlayerLoadingState()),
         error:
             (_, _) => _RecentPagePanel(
@@ -91,7 +93,7 @@ class RecentNowPlayingDetailPage extends ConsumerWidget {
               unawaited(addSongsToPlaylist(ref, playlistId, songIds));
             },
             onToggleFavorite: (songId, favorite) {
-              unawaited(setSongsFavorite(ref, [songId], favorite));
+              unawaited(setSongsFavoriteFromControl(ref, [songId], favorite));
             },
             onMoveToMusicOrPlay: (songId) {
               _insertOrPlayRecentNowPlayingSong(ref, snapshot, i18n, songId);

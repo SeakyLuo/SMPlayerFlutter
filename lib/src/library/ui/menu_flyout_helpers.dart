@@ -1,4 +1,6 @@
 import '../../remote/music_share_models.dart';
+import '../../remote/music_share_file_actions.dart';
+import '../../remote/music_source_selector.dart';
 import 'dart:async';
 import 'dart:math';
 
@@ -57,7 +59,10 @@ MenuFlyoutItem buildPreferenceMenuFlyoutItem({
         MenuFlyoutItem(
           key: '$key-undo',
           text: i18n.t('preferences.undoPrefer'),
-          onPressed: onUndoPreference,
+          onPressedWithContext:
+              (context) => runMusicShareAction(context, () async {
+                await onUndoPreference();
+              }),
         ),
         MenuFlyoutItem.separator(key: '$key-undo-separator'),
       ],
@@ -69,7 +74,10 @@ MenuFlyoutItem buildPreferenceMenuFlyoutItem({
               preferenceLevel == level
                   ? FluentIcons.checkmark_20_regular
                   : null,
-          onPressed: () => onSetPreference(level),
+          onPressedWithContext:
+              (context) => runMusicShareAction(context, () async {
+                await onSetPreference(level);
+              }),
         ),
     ],
   );
@@ -278,6 +286,7 @@ List<MenuFlyoutItem> buildMusicMenuFlyoutItems({
   bool keepViewActionsOpen = false,
   bool keepFavoritesInAddTo = false,
 }) {
+  final remoteFiles = isRemoteMusicPath(songPath) && showDelete;
   if (isRemoteMusicPath(songPath)) {
     showDelete = false;
     showHideFile = false;
@@ -377,8 +386,12 @@ List<MenuFlyoutItem> buildMusicMenuFlyoutItems({
     );
   }
 
+  if (remoteFiles) {
+    items.addAll(buildRemoteFileMenuItems(i18n, songPath, songTitle));
+  }
+
   if (showMoveToFolder && folders.isNotEmpty && onMoveToFolder != null) {
-    final moveToFolderItem = _buildMoveToFolderMenuFlyoutItem(
+    final moveToFolderItem = buildMoveToFolderMenuFlyoutItem(
       i18n: i18n,
       folders: folders,
       songPath: songPath,
@@ -496,7 +509,7 @@ const _preferenceLevels = [
   'very-high',
 ];
 
-MenuFlyoutItem? _buildMoveToFolderMenuFlyoutItem({
+MenuFlyoutItem? buildMoveToFolderMenuFlyoutItem({
   required SmPlayerI18n i18n,
   required List<MenuFlyoutFolder> folders,
   required String songPath,

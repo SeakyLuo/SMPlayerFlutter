@@ -307,7 +307,15 @@ List<MenuFlyoutItem> _buildPlayerMoreMenuItems({
 
   final customPlaylists =
       playlists
-          .where((playlist) => !playlist.isBuiltIn)
+          .where(
+            (playlist) =>
+                !playlist.isBuiltIn &&
+                canEditPlaylist(playlist) &&
+                playlistBelongsToSource(
+                  playlist,
+                  activeMusicShareAccess!.selectedSource,
+                ),
+          )
           .map(
             (playlist) => MultiSelectCommandBarPlaylist(
               id: playlist.id,

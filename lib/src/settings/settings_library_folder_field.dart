@@ -79,24 +79,29 @@ class _SettingsLibraryFolderField extends StatelessWidget {
               ),
             ),
           ),
-          const SizedBox(width: 6),
-          IconButton(
-            tooltip: i18n.t('common.copy'),
-            onPressed: enabled && hasPath ? onCopy : null,
-            icon: const Icon(FluentIcons.copy_20_regular, size: 20),
-            color: colors.textStrong,
-            constraints: const BoxConstraints.tightFor(width: 38, height: 40),
-            padding: EdgeInsets.zero,
-          ),
-          if (desktop)
+          if (hasPath) ...[
+            const SizedBox(width: 6),
             IconButton(
-              tooltip: i18n.t('local.openInFileManager'),
-              onPressed: enabled && hasPath ? onOpen : null,
-              icon: const Icon(FluentIcons.folder_open_20_regular, size: 20),
+              tooltip: i18n.t('common.copy'),
+              onPressed: enabled ? onCopy : null,
+              icon: const Icon(FluentIcons.copy_20_regular, size: 20),
               color: colors.textStrong,
               constraints: const BoxConstraints.tightFor(width: 38, height: 40),
               padding: EdgeInsets.zero,
             ),
+            if (desktop)
+              IconButton(
+                tooltip: i18n.t('local.openInFileManager'),
+                onPressed: enabled ? onOpen : null,
+                icon: const Icon(FluentIcons.folder_open_20_regular, size: 20),
+                color: colors.textStrong,
+                constraints: const BoxConstraints.tightFor(
+                  width: 38,
+                  height: 40,
+                ),
+                padding: EdgeInsets.zero,
+              ),
+          ],
         ],
       ),
     );

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -18,6 +19,7 @@ import 'package:smplayer_flutter/src/library/data/library_repository.dart';
 import 'package:smplayer_flutter/src/platform/desktop_feature_service.dart';
 import 'package:smplayer_flutter/src/platform/app_center_crash_reporter.dart';
 import 'package:smplayer_flutter/src/platform/external_open_model.dart';
+import 'package:smplayer_flutter/src/remote/music_source_providers.dart';
 import 'package:smplayer_flutter/src/settings/settings_controller.dart';
 import 'package:smplayer_flutter/src/settings/settings_model.dart';
 import 'package:screen_retriever/screen_retriever.dart' as screen;
@@ -28,6 +30,10 @@ void main(List<String> args) {
   runZonedGuarded(() async {
     WidgetsFlutterBinding.ensureInitialized();
     crashReporter.register();
+    if (Platform.isAndroid) {
+      WidgetsBinding.instance.deferFirstFrame();
+      await SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+    }
     if (Platform.isWindows) {
       WidgetsBinding.instance.deferFirstFrame();
       JustAudioMediaKit.ensureInitialized(windows: true, linux: false);
@@ -275,6 +281,7 @@ class _SmPlayerAppState extends ConsumerState<SmPlayerApp> {
   Widget build(BuildContext context) {
     final i18nValue = ref.watch(smPlayerI18nProvider);
     final libraryValue = ref.watch(libraryContentDataProvider);
+    final shareReady = ref.watch(musicShareReadyProvider);
     if (!_initialDatabaseSnapshotLoaded &&
         (libraryValue.hasValue || libraryValue.hasError)) {
       _initialDatabaseSnapshotLoaded = true;
@@ -290,8 +297,14 @@ class _SmPlayerAppState extends ConsumerState<SmPlayerApp> {
         isAppNightMode(settings) ? Brightness.dark : lightTheme.brightness;
     final i18n = i18nValue.valueOrNull;
 
-    if (i18n == null || !_initialDatabaseSnapshotLoaded) {
+    if (i18n == null ||
+        !_initialDatabaseSnapshotLoaded ||
+        (!shareReady.hasValue && !shareReady.hasError)) {
       return SmPlayerSplashScreen(brightness: brightness);
+    }
+
+    if (Platform.isAndroid && !WidgetsBinding.instance.sendFramesToEngine) {
+      WidgetsBinding.instance.allowFirstFrame();
     }
 
     return MaterialApp.router(

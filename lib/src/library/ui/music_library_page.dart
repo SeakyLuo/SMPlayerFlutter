@@ -1,3 +1,4 @@
+import 'package:smplayer_flutter/src/remote/music_share_access.dart';
 import '../../remote/music_source_providers.dart';
 import 'dart:async';
 import 'dart:math';
@@ -50,6 +51,7 @@ part 'music_library_actions.dart';
 part 'music_library_table.dart';
 part 'music_library_row_overlays.dart';
 part 'music_library_rows.dart';
+part 'music_library_sort_bar.dart';
 part 'music_library_quick_jump.dart';
 part 'music_library_helpers.dart';
 

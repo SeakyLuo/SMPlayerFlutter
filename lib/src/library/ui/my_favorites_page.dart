@@ -23,7 +23,8 @@ class MyFavoritesPage extends ConsumerWidget {
     final favoriteOverrides = ref.watch(libraryFavoriteOverridesProvider);
     final songOverrides = ref.watch(librarySongOverridesProvider);
 
-    if (i18nValue.isLoading || snapshotValue.isLoading) {
+    if ((i18nValue.isLoading && !i18nValue.hasValue) ||
+        (snapshotValue.isLoading && !snapshotValue.hasValue)) {
       return const _FavoritesPagePanel(child: SmPlayerLoadingState());
     }
 
@@ -33,6 +34,7 @@ class MyFavoritesPage extends ConsumerWidget {
     }
 
     return snapshotValue.when(
+      skipLoadingOnReload: true,
       loading: () => const _FavoritesPagePanel(child: SmPlayerLoadingState()),
       error:
           (_, _) => _FavoritesPagePanel(
@@ -163,7 +165,7 @@ class MyFavoritesPage extends ConsumerWidget {
               context.go('/albums?album=${Uri.encodeQueryComponent(album)}');
             },
             onToggleFavorite: (songId, favorite) {
-              unawaited(setSongsFavorite(ref, [songId], favorite));
+              unawaited(setSongsFavoriteFromControl(ref, [songId], favorite));
             },
           ),
         );

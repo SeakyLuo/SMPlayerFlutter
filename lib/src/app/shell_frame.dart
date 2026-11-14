@@ -103,6 +103,7 @@ class _SmPlayerShellFrameState extends State<SmPlayerShellFrame>
       child: Scaffold(
         backgroundColor: widget.colors.workspaceSolidSurface,
         body: SafeArea(
+          top: false,
           bottom: false,
           child: Container(
             decoration: BoxDecoration(

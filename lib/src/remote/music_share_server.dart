@@ -10,8 +10,13 @@ import '../library/data/library_models.dart';
 import '../settings/settings_model.dart';
 import 'music_share_catalog.dart';
 import 'music_share_song_editor.dart';
+import 'music_share_batch_editor.dart';
+import 'music_share_preferences.dart';
+import 'music_share_files.dart';
+import 'music_share_playlists.dart';
 import 'music_share_identity.dart';
 import 'music_share_models.dart';
+import 'music_share_pair_identity.dart';
 
 class MusicShareServer {
   MusicShareServer({
@@ -19,18 +24,25 @@ class MusicShareServer {
     required this.repository,
     required this.name,
     required this.grants,
+    required this.grantIdentities,
+    required this.mobileGrants,
     required this.writeGrants,
     required this.onChanged,
     required this.onLibraryChanged,
+    required this.onPeerConnected,
   });
 
   final MusicShareIdentity identity;
   final LibraryRepository repository;
   final String Function() name;
   final Map<String, String> grants;
+  final Map<String, String> grantIdentities;
+  final Set<String> mobileGrants;
   final Set<String> writeGrants;
   final void Function() onChanged;
   final void Function() onLibraryChanged;
+  final void Function(String name) onPeerConnected;
+  final _connectedClients = <String>{};
   final requests = <String, MusicPairRequest>{};
   final _streams = <String, Set<HttpResponse>>{};
   HttpServer? _server;
@@ -38,8 +50,14 @@ class MusicShareServer {
   Timer? _expiryTimer;
   String _rootPath = '';
   final _songs = <int, LibrarySong>{};
+  final _deletedPlaylists = <int, (LibraryPlaylist, DateTime)>{};
   String _catalog = '{"songs":[]}';
   String catalogRevision = '';
+
+  late final _files = MusicShareFiles(repository, (snapshot) {
+    updateLibrary(snapshot);
+    onLibraryChanged();
+  });
 
   void updateLibrary(LibraryContentData snapshot) {
     _rootPath = snapshot.rootPath;
@@ -58,6 +76,10 @@ class MusicShareServer {
   bool get running => _server != null;
 
   Future<void> start({int port = musicSharePort}) async {
+    await repository.getPreferenceSettings(
+      source: 'local',
+      unknownAlbumName: '',
+    );
     _server = await HttpServer.bindSecure(
       InternetAddress.anyIPv4,
       port,
@@ -133,43 +155,81 @@ class MusicShareServer {
     }
     final token = newShareSecret();
     final hash = shareDigest(token);
+    final replaced = <String, (String, bool, String?, bool)>{
+      if (request.deviceIdentity != null)
+        for (final entry in grants.entries)
+          if (grantIdentities[entry.key] == request.deviceIdentity ||
+              entry.key == request.previousGrant &&
+                  !grantIdentities.containsKey(entry.key))
+            entry.key: (
+              entry.value,
+              writeGrants.contains(entry.key),
+              grantIdentities[entry.key],
+              mobileGrants.contains(entry.key),
+            ),
+    };
+    void restorePrevious() {
+      grants.remove(hash);
+      writeGrants.remove(hash);
+      grantIdentities.remove(hash);
+      mobileGrants.remove(hash);
+      for (final entry in replaced.entries) {
+        grants[entry.key] = entry.value.$1;
+        if (entry.value.$2) writeGrants.add(entry.key);
+        if (entry.value.$4) mobileGrants.add(entry.key);
+        if (entry.value.$3 case final device?) {
+          grantIdentities[entry.key] = device;
+        }
+      }
+    }
+
+    for (final old in replaced.keys) {
+      grants.remove(old);
+      writeGrants.remove(old);
+      grantIdentities.remove(old);
+      mobileGrants.remove(old);
+    }
     grants[hash] = request.name;
+    if (request.deviceIdentity case final device?) {
+      grantIdentities[hash] = device;
+    }
     if (canWrite) writeGrants.add(hash);
+    if (request.isMobile) mobileGrants.add(hash);
     try {
       await persist();
     } catch (_) {
-      grants.remove(hash);
-      writeGrants.remove(hash);
+      restorePrevious();
       onChanged();
       rethrow;
     }
     if (!identical(requests[key], request) ||
         DateTime.now().isAfter(request.expires)) {
-      grants.remove(hash);
-      writeGrants.remove(hash);
+      restorePrevious();
       await persist();
       throw const MusicShareException('share.pairingEnded');
     }
     request.token = token;
     request.state = 'approved';
     onChanged();
+    for (final old in replaced.keys) {
+      await revoke(old);
+    }
   }
 
   Future<void> revoke(String hash) async {
+    _connectedClients.remove(hash);
     grants.remove(hash);
+    grantIdentities.remove(hash);
     writeGrants.remove(hash);
-    final responses = _streams.remove(hash) ?? {};
-    for (final response in responses.toList()) {
-      try {
-        final socket = await response.detachSocket(writeHeaders: false);
-        socket.destroy();
-      } on HttpException {
-        // The client may have closed this response while revocation started.
-      } on StateError {
-        // An already completed response has no active socket to detach.
-      }
-    }
+    mobileGrants.remove(hash);
     onChanged();
+    final responses = _streams.remove(hash) ?? {};
+    for (final response in responses) {
+      // The client may have closed this response while revocation started.
+      // An already completed response has no active socket to detach.
+      // A deadline can abort an active response after its headers have been sent.
+      response.deadline = Duration.zero;
+    }
   }
 
   Future<void> stop() async {
@@ -178,12 +238,15 @@ class MusicShareServer {
     _discovery = null;
     await _server?.close(force: true);
     _server = null;
+    await _files.close();
     requests.clear();
+    _connectedClients.clear();
     _streams.clear();
   }
 
   Future<void> _handle(HttpRequest request) async {
     final response = request.response;
+    var sendingFile = false;
     try {
       if (request.headers.value('origin') != null) {
         response.statusCode = HttpStatus.forbidden;
@@ -208,6 +271,21 @@ class MusicShareServer {
           response.statusCode = HttpStatus.badRequest;
           return;
         }
+        // Old clients do not provide a device key and cannot be deduplicated.
+        final deviceIdentity =
+            body.containsKey('publicKey') || body.containsKey('proof')
+                ? await verifyPairIdentity(
+                  body['publicKey'] as String,
+                  body['proof'] as String,
+                  identity.fingerprint,
+                  secret,
+                  clientName,
+                )
+                : null;
+        final previousGrant =
+            deviceIdentity != null && body.containsKey('previousToken')
+                ? shareDigest(body['previousToken'] as String)
+                : null;
         final key = shareDigest(secret);
         final code = shareDigest(
           '${identity.fingerprint}:$secret',
@@ -216,6 +294,9 @@ class MusicShareServer {
           secret: secret,
           name: clientName,
           code: code,
+          deviceIdentity: deviceIdentity,
+          previousGrant: previousGrant,
+          isMobile: request.headers.value('X-Smplayer-Device-Type') == 'mobile',
         );
         _json(response, {'code': code});
         onChanged();
@@ -261,10 +342,14 @@ class MusicShareServer {
         return;
       }
       if (path == '/status') {
+        if (request.method == 'GET' && _connectedClients.add(hash)) {
+          onPeerConnected(grants[hash]!);
+        }
         _json(response, {
           'name': name(),
           'revision': catalogRevision,
           'canWrite': writeGrants.contains(hash),
+          'playlistSupport': true,
         });
         return;
       }
@@ -273,8 +358,65 @@ class MusicShareServer {
         response.write(_catalog);
         return;
       }
+      if (path == '/playlists') {
+        final result = await serveSharedPlaylists(
+          request,
+          repository,
+          _songs.keys.toSet(),
+          () => grants.containsKey(hash) && writeGrants.contains(hash),
+          _deletedPlaylists,
+        );
+        if (request.method == 'POST' && response.statusCode == HttpStatus.ok) {
+          onLibraryChanged();
+        }
+        _json(response, result);
+        return;
+      }
+      if (path == '/files') {
+        _json(
+          response,
+          await _files.handle(
+            request,
+            hash,
+            () => grants.containsKey(hash) && writeGrants.contains(hash),
+          ),
+        );
+        return;
+      }
+      if (path == '/preferences') {
+        final result = await handleSharedPreferences(
+          request,
+          repository,
+          _songs,
+          _rootPath,
+          () => grants.containsKey(hash) && writeGrants.contains(hash),
+        );
+        if (request.method == 'POST' && response.statusCode == HttpStatus.ok) {
+          onLibraryChanged();
+        }
+        _json(response, result);
+        return;
+      }
+      if (path == '/songs/properties' ||
+          path == '/songs/artwork' ||
+          path == '/songs/favorites') {
+        final result = await handleSharedBatchEdit(
+          request,
+          path.split('/').last,
+          _songs,
+          _rootPath,
+          repository,
+          () => grants.containsKey(hash) && writeGrants.contains(hash),
+        );
+        if (response.statusCode == HttpStatus.ok && request.method != 'GET') {
+          updateLibrary(await repository.getLibraryContentData());
+          onLibraryChanged();
+        }
+        _json(response, result);
+        return;
+      }
       final match = RegExp(
-        r'^/songs/(\d+)/(audio|artwork|lyrics|properties|play-count)$',
+        r'^/songs/(\d+)/(audio|artwork|lyrics|properties|play-count|lyrics-offset)$',
       ).firstMatch(path);
       if (match == null) {
         response.statusCode = HttpStatus.notFound;
@@ -294,6 +436,7 @@ class MusicShareServer {
       }
       final kind = match.group(2)!;
       if (kind == 'properties' ||
+          kind == 'lyrics-offset' ||
           kind == 'play-count' ||
           request.method == 'POST' ||
           request.method == 'DELETE') {
@@ -334,6 +477,7 @@ class MusicShareServer {
         }
         (_streams[hash] ??= {}).add(response);
         try {
+          sendingFile = true;
           await _sendFile(
             request,
             file,
@@ -347,17 +491,26 @@ class MusicShareServer {
           _streams[hash]?.remove(response);
         }
       }
+    } on MusicShareException catch (error) {
+      if (error.messageKey != 'share.readOnlyPermission') rethrow;
+      response.statusCode = HttpStatus.forbidden;
     } on TypeError {
       response.statusCode = HttpStatus.badRequest;
     } on FormatException {
       response.statusCode = HttpStatus.badRequest;
     } on FileSystemException {
-      response.statusCode = HttpStatus.notFound;
+      if (!sendingFile) response.statusCode = HttpStatus.notFound;
     } catch (_) {
-      response.statusCode = HttpStatus.internalServerError;
+      if (!sendingFile) response.statusCode = HttpStatus.internalServerError;
       // A client may disconnect while seeking or while its grant is revoked.
     } finally {
-      await response.close();
+      try {
+        await response.close();
+      } on HttpException {
+        // Revocation can close a response while its file stream is finishing.
+      } on SocketException {
+        // The revoked client no longer has an open connection.
+      }
     }
   }
 

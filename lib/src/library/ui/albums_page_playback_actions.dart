@@ -69,33 +69,14 @@ extension _AlbumsPagePlaybackActions on _AlbumsPageState {
     );
   }
 
-  Future<void> _setSongsFavoriteWithUndo(
-    List<int> songIds,
-    bool favorite,
-  ) async {
-    if (songIds.isEmpty) {
-      return;
-    }
-
-    final snapshot = ref.read(libraryContentDataProvider).value!;
-    final songsById = {for (final song in snapshot.songs) song.id: song};
-    final i18n = context.smPlayerI18n;
-    await setSongsFavorite(ref, songIds, favorite);
-    _showUndoNotification(
-      songIds.length == 1
-          ? i18n.t('notification.songAddedTo', {
-            'title': songsById[songIds.first]!.title,
-            'target': i18n.t('common.myFavorites'),
-          })
-          : i18n.t('notification.songsAddedTo', {
-            'count': songIds.length,
-            'target': i18n.t('common.myFavorites'),
-          }),
-      () async {
-        await setSongsFavorite(ref, songIds, !favorite);
-      },
-    );
-  }
+  Future<void> _setSongsFavoriteWithUndo(List<int> songIds, bool favorite) =>
+      setSongsFavoriteWithUndo(
+        context: context,
+        ref: ref,
+        i18n: context.smPlayerI18n,
+        songIds: songIds,
+        favorite: favorite,
+      );
 
   void _showUndoNotification(String message, FutureOr<void> Function() onUndo) {
     showUndoableNotification(

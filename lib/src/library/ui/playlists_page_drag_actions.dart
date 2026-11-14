@@ -71,15 +71,24 @@ extension _PlaylistsPageDragActions on _PlaylistsPageState {
     if (nextPlaylistIds != null &&
         startPlaylistIds != null &&
         !_idsEqual(startPlaylistIds, nextPlaylistIds)) {
-      _committedPlaylistIds = nextPlaylistIds;
+      if (nextPlaylistIds.every((id) => id >= 0)) {
+        _committedPlaylistIds = nextPlaylistIds;
+      }
       unawaited(_persistPlaylistOrder(nextPlaylistIds));
     }
     _clearPlaylistDrag();
   }
 
   Future<void> _persistPlaylistOrder(List<int> playlistIds) async {
-    await ref.read(libraryRepositoryProvider).reorderPlaylists(playlistIds);
-    setLibraryPlaylistOrder(ref, playlistIds);
+    await runMusicShareAction(context, () async {
+      try {
+        await ref.read(libraryRepositoryProvider).reorderPlaylists(playlistIds);
+        setLibraryPlaylistOrder(ref, playlistIds);
+      } catch (_) {
+        if (mounted) _updateState(() => _committedPlaylistIds = null);
+        rethrow;
+      }
+    });
   }
 
   void _clearPlaylistDrag() {

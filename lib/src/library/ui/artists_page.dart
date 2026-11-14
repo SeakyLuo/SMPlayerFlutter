@@ -636,7 +636,7 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
                             .onTogglePlayPause,
                     onPlayNext: _playNext,
                     onToggleFavorite: (songId, favorite) {
-                      setSongsFavorite(ref, [songId], favorite);
+                      setSongsFavoriteFromControl(ref, [songId], favorite);
                     },
                     onOpenSongAddToMenu: _showSongAddToMenu,
                     onToggleSongSelection: _toggleSongSelection,

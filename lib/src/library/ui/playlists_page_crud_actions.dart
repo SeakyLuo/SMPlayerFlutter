@@ -7,32 +7,52 @@ extension _PlaylistsPageCrudActions on _PlaylistsPageState {
     LibraryContentData snapshot, [
     List<int> songIds = const [],
   ]) async {
-    final name = await _requestPlaylistName(
-      context: context,
-      i18n: i18n,
-      title: i18n.t('playlists.createNew'),
-      defaultName: getNextPlaylistName(
-        i18n.t('common.playlist'),
-        snapshot.playlists,
-      ),
-      confirmText: i18n.t('playlists.create'),
-      playlists: snapshot.playlists,
-      currentName: '',
-    );
-    if (name == null) {
-      return;
-    }
-
-    final playlist = await ref
-        .read(libraryRepositoryProvider)
-        .createPlaylist(name, songIds);
-    _addLocalPlaylist(playlist);
-    if (context.mounted) {
-      showPlaylistCreatedNotification(
+    try {
+      if (!canCreateSourcePlaylist()) {
+        throw const MusicShareException('share.readOnlyPermission');
+      }
+      final name = await _requestPlaylistName(
         context: context,
         i18n: i18n,
-        playlist: playlist,
+        title: i18n.t('playlists.createNew'),
+        defaultName: getNextPlaylistName(
+          i18n.t('common.playlist'),
+          snapshot.playlists,
+        ),
+        confirmText: i18n.t('playlists.create'),
+        playlists: snapshot.playlists,
+        currentName: '',
       );
+      if (name == null) {
+        return;
+      }
+
+      final playlist = await ref
+          .read(libraryRepositoryProvider)
+          .createPlaylist(
+            name,
+            songIds,
+            LibrarySource.fromDevice(activeMusicShareAccess!.selectedSource),
+          );
+      _addLocalPlaylist(playlist);
+      if (context.mounted) {
+        showPlaylistCreatedNotification(
+          context: context,
+          i18n: i18n,
+          playlist: playlist,
+        );
+      }
+    } catch (error) {
+      if (context.mounted) {
+        showAppNotification(
+          context: context,
+          message: context.smPlayerI18n.t(
+            error is MusicShareException
+                ? error.messageKey
+                : 'song.updateFailed',
+          ),
+        );
+      }
     }
   }
 
@@ -45,6 +65,7 @@ extension _PlaylistsPageCrudActions on _PlaylistsPageState {
   }
 
   Future<void> _saveLastPlaylist(int playlistId) async {
+    if (playlistId < 0) return;
     await ref
         .read(libraryRepositoryProvider)
         .saveViewState(lastPlaylistId: playlistId);
@@ -66,13 +87,29 @@ extension _PlaylistsPageCrudActions on _PlaylistsPageState {
       currentName: playlist.name,
     );
     if (name != null && name != playlist.name) {
-      _renamePlaylistWithoutReload(playlist, name);
+      await _renamePlaylistWithoutReload(playlist, name);
     }
   }
 
-  void _renamePlaylistWithoutReload(LibraryPlaylist playlist, String name) {
-    _patchLocalPlaylist(_copyPlaylistWithName(playlist, name));
-    unawaited(_persistPlaylistRename(playlist.id, name));
+  Future<void> _renamePlaylistWithoutReload(
+    LibraryPlaylist playlist,
+    String name,
+  ) async {
+    try {
+      await _persistPlaylistRename(playlist.id, name);
+      if (mounted) _patchLocalPlaylist(_copyPlaylistWithName(playlist, name));
+    } catch (error) {
+      if (context.mounted) {
+        showAppNotification(
+          context: context,
+          message: context.smPlayerI18n.t(
+            error is MusicShareException
+                ? error.messageKey
+                : 'song.updateFailed',
+          ),
+        );
+      }
+    }
   }
 
   Future<void> _persistPlaylistRename(int playlistId, String name) async {
@@ -84,22 +121,35 @@ extension _PlaylistsPageCrudActions on _PlaylistsPageState {
     int playlistId,
     List<int> songIds,
   ) async {
-    if (playlistId == snapshot.favoritePlaylistId) {
-      await setSongsFavorite(ref, songIds, true);
-      return;
+    try {
+      if (playlistId == snapshot.favoritePlaylistId) {
+        await setSongsFavorite(ref, songIds, true);
+        return;
+      }
+      await ref
+          .read(libraryRepositoryProvider)
+          .addSongsToPlaylist(playlistId, songIds);
+      final playlist = snapshot.playlists.firstWhere(
+        (playlist) => playlist.id == playlistId,
+      );
+      _patchLocalPlaylist(
+        _copyPlaylistWithSongIds(
+          playlist,
+          _addUniqueSongIds(playlist.songIds, songIds),
+        ),
+      );
+    } catch (error) {
+      if (context.mounted) {
+        showAppNotification(
+          context: context,
+          message: context.smPlayerI18n.t(
+            error is MusicShareException
+                ? error.messageKey
+                : 'song.updateFailed',
+          ),
+        );
+      }
     }
-    await ref
-        .read(libraryRepositoryProvider)
-        .addSongsToPlaylist(playlistId, songIds);
-    final playlist = snapshot.playlists.firstWhere(
-      (playlist) => playlist.id == playlistId,
-    );
-    _patchLocalPlaylist(
-      _copyPlaylistWithSongIds(
-        playlist,
-        _addUniqueSongIds(playlist.songIds, songIds),
-      ),
-    );
   }
 
   Future<void> _deletePlaylist(
@@ -121,45 +171,76 @@ extension _PlaylistsPageCrudActions on _PlaylistsPageState {
     }
   }
 
-  Future<void> _deletePlaylistWithUndo(
+  Future<bool> _deletePlaylistWithUndo(
     BuildContext context,
     SmPlayerI18n i18n,
     LibraryPlaylist playlist,
   ) async {
-    final container = ProviderScope.containerOf(context, listen: false);
-    final repository = container.read(libraryRepositoryProvider);
-    final originalOrder = container.read(libraryPlaylistOrderProvider);
-    await repository.deletePlaylist(playlist.id);
-    _removeLocalPlaylist(playlist.id);
-    unawaited(
-      showUndoableAppNotification(
-        i18n: i18n,
-        message: i18n.t('notification.playlistRemoved', {
-          'name': playlist.name,
-        }),
-        onUndo: () async {
-          await repository.restorePlaylist(playlist);
-          final deleted = container.read(
-            libraryDeletedPlaylistIdsProvider.notifier,
-          );
-          final overrides = container.read(
-            libraryPlaylistOverridesProvider.notifier,
-          );
-          deleted.state = {...deleted.state}..remove(playlist.id);
-          overrides.state = {...overrides.state, playlist.id: playlist};
-          if (originalOrder != null) {
-            final order = container.read(libraryPlaylistOrderProvider.notifier);
-            final restoredOrder = [...order.state!];
-            final index = originalOrder.indexOf(playlist.id);
-            restoredOrder.insert(
-              index < restoredOrder.length ? index : restoredOrder.length,
-              playlist.id,
-            );
-            order.state = restoredOrder;
-          }
-        },
-      ),
-    );
+    try {
+      final container = ProviderScope.containerOf(context, listen: false);
+      final repository = container.read(libraryRepositoryProvider);
+      final originalOrder = container.read(libraryPlaylistOrderProvider);
+      await repository.deletePlaylist(playlist.id);
+      _removeLocalPlaylist(playlist.id);
+      unawaited(
+        showUndoableAppNotification(
+          i18n: i18n,
+          message: i18n.t('notification.playlistRemoved', {
+            'name': playlist.name,
+          }),
+          onUndo: () async {
+            try {
+              await repository.restorePlaylist(playlist);
+              if (playlist.remotePath.isNotEmpty) return;
+              final deleted = container.read(
+                libraryDeletedPlaylistIdsProvider.notifier,
+              );
+              final overrides = container.read(
+                libraryPlaylistOverridesProvider.notifier,
+              );
+              deleted.state = {...deleted.state}..remove(playlist.id);
+              overrides.state = {...overrides.state, playlist.id: playlist};
+              if (originalOrder != null) {
+                final order = container.read(
+                  libraryPlaylistOrderProvider.notifier,
+                );
+                final restoredOrder = [...order.state!];
+                final index = originalOrder.indexOf(playlist.id);
+                restoredOrder.insert(
+                  index < restoredOrder.length ? index : restoredOrder.length,
+                  playlist.id,
+                );
+                order.state = restoredOrder;
+              }
+            } catch (error) {
+              if (context.mounted) {
+                showAppNotification(
+                  context: context,
+                  message: context.smPlayerI18n.t(
+                    error is MusicShareException
+                        ? error.messageKey
+                        : 'song.updateFailed',
+                  ),
+                );
+              }
+            }
+          },
+        ),
+      );
+      return true;
+    } catch (error) {
+      if (context.mounted) {
+        showAppNotification(
+          context: context,
+          message: context.smPlayerI18n.t(
+            error is MusicShareException
+                ? error.messageKey
+                : 'song.updateFailed',
+          ),
+        );
+      }
+    }
+    return false;
   }
 
   Future<void> _showPlaylistMenu(
@@ -175,6 +256,7 @@ extension _PlaylistsPageCrudActions on _PlaylistsPageState {
       items: [
         MenuFlyoutItem(
           key: 'rename-playlist',
+          disabled: !canEditPlaylist(playlist),
           text: i18n.t('playlists.rename'),
           icon: FluentIcons.edit_20_regular,
           onPressed: () {
@@ -183,6 +265,7 @@ extension _PlaylistsPageCrudActions on _PlaylistsPageState {
         ),
         MenuFlyoutItem(
           key: 'duplicate-playlist',
+          disabled: !canEditPlaylist(playlist),
           text: i18n.t('playlists.duplicate'),
           icon: FluentIcons.copy_20_regular,
           onPressed: () {
@@ -191,6 +274,7 @@ extension _PlaylistsPageCrudActions on _PlaylistsPageState {
         ),
         MenuFlyoutItem(
           key: 'delete-playlist',
+          disabled: !canEditPlaylist(playlist),
           text: i18n.t('playlists.delete'),
           icon: FluentIcons.delete_20_regular,
           onPressed: () {
@@ -205,19 +289,33 @@ extension _PlaylistsPageCrudActions on _PlaylistsPageState {
     LibraryContentData snapshot,
     LibraryPlaylist playlist,
   ) async {
-    final duplicatedPlaylist = await ref
-        .read(libraryRepositoryProvider)
-        .createPlaylist(
-          getNextPlaylistName(playlist.name, snapshot.playlists),
-          playlist.songIds,
+    try {
+      final duplicatedPlaylist = await ref
+          .read(libraryRepositoryProvider)
+          .createPlaylist(
+            getNextPlaylistName(playlist.name, snapshot.playlists),
+            playlist.songIds,
+            playlist.source,
+          );
+      _addLocalPlaylist(duplicatedPlaylist);
+      if (mounted) {
+        showPlaylistCreatedNotification(
+          context: context,
+          i18n: context.smPlayerI18n,
+          playlist: duplicatedPlaylist,
         );
-    _addLocalPlaylist(duplicatedPlaylist);
-    if (mounted) {
-      showPlaylistCreatedNotification(
-        context: context,
-        i18n: context.smPlayerI18n,
-        playlist: duplicatedPlaylist,
-      );
+      }
+    } catch (error) {
+      if (context.mounted) {
+        showAppNotification(
+          context: context,
+          message: context.smPlayerI18n.t(
+            error is MusicShareException
+                ? error.messageKey
+                : 'song.updateFailed',
+          ),
+        );
+      }
     }
   }
 }

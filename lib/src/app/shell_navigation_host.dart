@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import '../remote/music_source_providers.dart';
+import '../remote/music_share_access.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:smplayer_flutter/src/app/main_navigation_view.dart';
@@ -55,11 +56,11 @@ class ShellNavigationHost extends ConsumerWidget {
   final ValueChanged<String> onItemInvoked;
   final ValueChanged<int> onRecentSearchRemove;
   final VoidCallback onRecentSearchesClear;
-  final VoidCallback onCreatePlaylist;
-  final ValueChanged<LibraryPlaylist> onDuplicatePlaylist;
-  final ValueChanged<LibraryPlaylist> onRenamePlaylist;
-  final ValueChanged<LibraryPlaylist> onDeletePlaylist;
-  final ValueChanged<List<int>> onReorderPlaylists;
+  final VoidCallback? onCreatePlaylist;
+  final ValueChanged<LibraryPlaylist>? onDuplicatePlaylist;
+  final ValueChanged<LibraryPlaylist>? onRenamePlaylist;
+  final ValueChanged<LibraryPlaylist>? onDeletePlaylist;
+  final ValueChanged<List<int>>? onReorderPlaylists;
   final ValueChanged<int> onPlaylistRandomPlay;
   final VoidCallback? onWindowDragStart;
   final VoidCallback? onWindowDragEnd;
@@ -92,31 +93,34 @@ class ShellNavigationHost extends ConsumerWidget {
                 : Colors.transparent,
         shadowBlur:
             layout.navigationMode == SmPlayerNavigationMode.minimal ? 42 : 48,
-        child: Padding(
-          padding: EdgeInsets.only(top: layout.navigationContentTopInset),
-          child: _ShellNavigationContent(
-            layout: layout,
-            searchText: searchText,
-            onPaneToggle: onPaneToggle,
-            onGoBack: onGoBack,
-            onSearchTextChanged: onSearchTextChanged,
-            onSearchCommitted: onSearchCommitted,
-            onRecentSearchSelected: onRecentSearchSelected,
-            onSearchCleared: onSearchCleared,
-            searchHistoryDismissEpoch: searchHistoryDismissEpoch,
-            onSearchHistoryOpenChanged: onSearchHistoryOpenChanged,
-            onItemInvoked: onItemInvoked,
-            onRecentSearchRemove: onRecentSearchRemove,
-            onRecentSearchesClear: onRecentSearchesClear,
-            onCreatePlaylist: onCreatePlaylist,
-            onDuplicatePlaylist: onDuplicatePlaylist,
-            onRenamePlaylist: onRenamePlaylist,
-            onDeletePlaylist: onDeletePlaylist,
-            onReorderPlaylists: onReorderPlaylists,
-            onPlaylistRandomPlay: onPlaylistRandomPlay,
-            onWindowDragStart: onWindowDragStart,
-            onWindowDragEnd: onWindowDragEnd,
-            onTitlebarTap: onTitlebarTap,
+        child: SafeArea(
+          bottom: false,
+          child: Padding(
+            padding: EdgeInsets.only(top: layout.navigationContentTopInset),
+            child: _ShellNavigationContent(
+              layout: layout,
+              searchText: searchText,
+              onPaneToggle: onPaneToggle,
+              onGoBack: onGoBack,
+              onSearchTextChanged: onSearchTextChanged,
+              onSearchCommitted: onSearchCommitted,
+              onRecentSearchSelected: onRecentSearchSelected,
+              onSearchCleared: onSearchCleared,
+              searchHistoryDismissEpoch: searchHistoryDismissEpoch,
+              onSearchHistoryOpenChanged: onSearchHistoryOpenChanged,
+              onItemInvoked: onItemInvoked,
+              onRecentSearchRemove: onRecentSearchRemove,
+              onRecentSearchesClear: onRecentSearchesClear,
+              onCreatePlaylist: onCreatePlaylist,
+              onDuplicatePlaylist: onDuplicatePlaylist,
+              onRenamePlaylist: onRenamePlaylist,
+              onDeletePlaylist: onDeletePlaylist,
+              onReorderPlaylists: onReorderPlaylists,
+              onPlaylistRandomPlay: onPlaylistRandomPlay,
+              onWindowDragStart: onWindowDragStart,
+              onWindowDragEnd: onWindowDragEnd,
+              onTitlebarTap: onTitlebarTap,
+            ),
           ),
         ),
       ),
@@ -164,11 +168,11 @@ class _ShellNavigationContent extends ConsumerWidget {
   final ValueChanged<String> onItemInvoked;
   final ValueChanged<int> onRecentSearchRemove;
   final VoidCallback onRecentSearchesClear;
-  final VoidCallback onCreatePlaylist;
-  final ValueChanged<LibraryPlaylist> onDuplicatePlaylist;
-  final ValueChanged<LibraryPlaylist> onRenamePlaylist;
-  final ValueChanged<LibraryPlaylist> onDeletePlaylist;
-  final ValueChanged<List<int>> onReorderPlaylists;
+  final VoidCallback? onCreatePlaylist;
+  final ValueChanged<LibraryPlaylist>? onDuplicatePlaylist;
+  final ValueChanged<LibraryPlaylist>? onRenamePlaylist;
+  final ValueChanged<LibraryPlaylist>? onDeletePlaylist;
+  final ValueChanged<List<int>>? onReorderPlaylists;
   final ValueChanged<int> onPlaylistRandomPlay;
   final VoidCallback? onWindowDragStart;
   final VoidCallback? onWindowDragEnd;
@@ -176,6 +180,8 @@ class _ShellNavigationContent extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    ref.watch(musicShareProvider);
+    final canCreate = canCreateSourcePlaylist();
     final snapshot = ref.watch(libraryContentDataProvider).valueOrNull;
     final playlistOverrides = ref.watch(libraryPlaylistOverridesProvider);
     final deletedPlaylistIds = ref.watch(libraryDeletedPlaylistIdsProvider);
@@ -224,11 +230,11 @@ class _ShellNavigationContent extends ConsumerWidget {
       },
       onRecentSearchRemove: onRecentSearchRemove,
       onRecentSearchesClear: onRecentSearchesClear,
-      onCreatePlaylist: onCreatePlaylist,
+      onCreatePlaylist: canCreate ? onCreatePlaylist : null,
       onDuplicatePlaylist: onDuplicatePlaylist,
       onRenamePlaylist: onRenamePlaylist,
       onDeletePlaylist: onDeletePlaylist,
-      onReorderPlaylists: onReorderPlaylists,
+      onReorderPlaylists: canCreate ? onReorderPlaylists : null,
       onPlaylistRandomPlay: onPlaylistRandomPlay,
       onWindowDragStart: onWindowDragStart,
       onWindowDragEnd: onWindowDragEnd,

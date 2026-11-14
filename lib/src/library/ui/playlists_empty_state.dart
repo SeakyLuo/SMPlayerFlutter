@@ -11,7 +11,7 @@ class _PlaylistsEmptyState extends StatelessWidget {
   final String title;
   final String message;
   final bool searching;
-  final VoidCallback onAction;
+  final VoidCallback? onAction;
 
   @override
   Widget build(BuildContext context) {
@@ -59,21 +59,22 @@ class _PlaylistsEmptyState extends StatelessWidget {
                           ),
                         ),
                         const SizedBox(height: 24),
-                        PopupDialogActionButton(
-                          label: i18n.t(
-                            searching
-                                ? 'common.clearSearch'
-                                : 'playlists.createNew',
-                          ),
-                          icon:
+                        if (onAction != null)
+                          PopupDialogActionButton(
+                            label: i18n.t(
                               searching
-                                  ? FluentIcons.dismiss_20_regular
-                                  : FluentIcons.add_20_regular,
-                          primary: true,
-                          height:
-                              Platform.isAndroid || Platform.isIOS ? 48 : 40,
-                          onPressed: onAction,
-                        ),
+                                  ? 'common.clearSearch'
+                                  : 'playlists.createNew',
+                            ),
+                            icon:
+                                searching
+                                    ? FluentIcons.dismiss_20_regular
+                                    : FluentIcons.add_20_regular,
+                            primary: true,
+                            height:
+                                Platform.isAndroid || Platform.isIOS ? 48 : 40,
+                            onPressed: onAction,
+                          ),
                       ],
                     ),
                   ),

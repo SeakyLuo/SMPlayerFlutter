@@ -141,6 +141,12 @@ extension _SmPlayerShellPlaybackMethods on _SmPlayerShellPageState {
       return;
     }
 
+    if (isRemoteMusicPath(song.path) &&
+        !canPlayLibrarySong(song) &&
+        !state.isPlaying) {
+      return;
+    }
+
     if (_loadedAudioTrackId != song.id || _loadedAudioPath != song.path) {
       if (_loadingAudioTrackId == song.id && _loadingAudioPath == song.path) {
         _pendingAudioAutoplay = state.isPlaying;
@@ -160,6 +166,7 @@ extension _SmPlayerShellPlaybackMethods on _SmPlayerShellPageState {
   }
 
   Future<void> _loadAudioSong(LibrarySong song, MediaControlState state) async {
+    final notifyOnFailure = !_restoringPlaybackTrack && state.isPlaying;
     final loadSerial = _audioLoadSerial + 1;
     _audioLoadSerial = loadSerial;
     _loadingAudioTrackId = song.id;
@@ -211,7 +218,7 @@ extension _SmPlayerShellPlaybackMethods on _SmPlayerShellPageState {
         '$error\n'
         '$stackTrace',
       );
-      if (isRemoteMusicPath(song.path) && mounted) {
+      if (notifyOnFailure && isRemoteMusicPath(song.path) && mounted) {
         showAppNotification(
           context: context,
           message: context.smPlayerI18n.t(
@@ -221,7 +228,7 @@ extension _SmPlayerShellPlaybackMethods on _SmPlayerShellPageState {
           ),
         );
       }
-      if (isAudioFilePermissionDenied(error) && mounted) {
+      if (notifyOnFailure && isAudioFilePermissionDenied(error) && mounted) {
         _showAudioFileAccessNotification();
       }
       _loadedAudioTrackId = null;
@@ -304,6 +311,8 @@ extension _SmPlayerShellPlaybackMethods on _SmPlayerShellPageState {
   }
 
   void _handleAudioPlaybackError(PlayerException error) {
+    // Source-loading errors are handled by the matching setUrl/setFilePath future.
+    if (_loadingAudioTrackId != null) return;
     final state = _mediaControlController.state;
     final trackId = state.track.id;
     if (_loadedAudioTrackId != trackId && _loadingAudioTrackId != trackId) {

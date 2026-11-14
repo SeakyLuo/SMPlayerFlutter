@@ -568,18 +568,26 @@ extension _SmPlayerShellDesktopMethods on _SmPlayerShellPageState {
   }
 
   void _updateDesktopLyricsOffset(LibrarySong song, int offsetMs) {
-    unawaited(
-      ref
-          .read(libraryRepositoryProvider)
-          .updateLyricsOffset(song.id, clampedDesktopLyricsOffset(offsetMs))
-          .then((_) {
-            ref.invalidate(libraryContentDataProvider);
-            _lastDesktopLyricsSignature = null;
-            if (mounted) {
-              setState(() {});
-            }
-          }),
-    );
+    unawaited(() async {
+      try {
+        await ref
+            .read(libraryRepositoryProvider)
+            .updateLyricsOffset(song.id, clampedDesktopLyricsOffset(offsetMs));
+        ref.invalidate(libraryContentDataProvider);
+        _lastDesktopLyricsSignature = null;
+        if (mounted) setState(() {});
+      } catch (error) {
+        if (!mounted) return;
+        showAppNotification(
+          context: context,
+          message: context.smPlayerI18n.t(
+            error is MusicShareException
+                ? error.messageKey
+                : 'song.updateFailed',
+          ),
+        );
+      }
+    }());
   }
 
   void _saveNavigationCollapsed(bool collapsed) {

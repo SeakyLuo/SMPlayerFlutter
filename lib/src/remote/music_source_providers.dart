@@ -5,7 +5,8 @@ import '../library/data/library_providers.dart';
 import 'music_share_access.dart';
 import 'music_share_controller.dart';
 
-final musicShareProvider = ChangeNotifierProvider<MusicShareController>((ref) {
+final ChangeNotifierProvider<MusicShareController>
+musicShareProvider = ChangeNotifierProvider<MusicShareController>((ref) {
   final controller = MusicShareController(
     ref.read(libraryRepositoryProvider),
     () {
@@ -40,6 +41,10 @@ final musicShareProvider = ChangeNotifierProvider<MusicShareController>((ref) {
   return controller;
 });
 
+final musicShareReadyProvider = FutureProvider<void>((ref) {
+  return ref.watch(musicShareProvider.notifier).ready;
+});
+
 final browsingLibraryContentDataProvider =
     Provider<AsyncValue<LibraryContentData>>(
       (ref) => _browse(ref, includeUnavailable: true),
@@ -54,7 +59,16 @@ AsyncValue<LibraryContentData> _browse(
   Ref ref, {
   required bool includeUnavailable,
 }) {
-  final share = ref.watch(musicShareProvider);
+  ref.watch(
+    musicShareProvider.select((share) {
+      final peer =
+          share.peers
+              .where((peer) => peer.id == share.selectedSource)
+              .firstOrNull;
+      return (share.selectedSource, peer?.status, peer?.canWrite);
+    }),
+  );
+  final share = ref.read(musicShareProvider);
   return ref.watch(libraryContentDataProvider).whenData((source) {
     final songs =
         source.songs
@@ -75,11 +89,19 @@ AsyncValue<LibraryContentData> _browse(
       recentAlbums: source.recentAlbums,
       recentArtists: source.recentArtists,
       recentSearches: source.recentSearches,
-      playlists: source.playlists,
-      folders:
-          share.selectedSource == 'local' || share.selectedSource == 'all'
-              ? source.folders
-              : const [],
+      playlists:
+          source.playlists
+              .where(
+                (playlist) =>
+                    playlist.isBuiltIn ||
+                    (share.selectedSource == 'local'
+                        ? playlist.remotePath.isEmpty
+                        : playlist.remotePath.isNotEmpty &&
+                            Uri.parse(playlist.remotePath).host ==
+                                share.selectedSource),
+              )
+              .toList(),
+      folders: share.selectedSource == 'local' ? source.folders : const [],
       favoritePlaylistId: source.favoritePlaylistId,
       nowPlaying: source.nowPlaying,
       showCount: source.showCount,

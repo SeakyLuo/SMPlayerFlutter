@@ -530,7 +530,9 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
                       onToggleQueueSelection: _toggleQueueSelection,
                       onToggleFavorite: (song) {
                         unawaited(
-                          setSongsFavorite(ref, [song.id], !song.favorite),
+                          setSongsFavoriteFromControl(ref, [
+                            song.id,
+                          ], !song.favorite),
                         );
                       },
                       onOpenAddToPlaylist: (buttonContext, song) {

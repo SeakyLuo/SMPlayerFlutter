@@ -578,18 +578,24 @@ class _MainNavigationPlaylistItemButtonState
         items: [
           MenuFlyoutItem(
             key: 'rename-playlist',
+            disabled:
+                widget.onRename == null || !canEditPlaylist(widget.playlist),
             text: widget.i18n.t('playlists.rename'),
             icon: FluentIcons.edit_20_regular,
             onPressed: () => widget.onRename?.call(widget.playlist),
           ),
           MenuFlyoutItem(
             key: 'duplicate-playlist',
+            disabled:
+                widget.onDuplicate == null || !canEditPlaylist(widget.playlist),
             text: widget.i18n.t('playlists.duplicate'),
             icon: FluentIcons.copy_20_regular,
             onPressed: () => widget.onDuplicate?.call(widget.playlist),
           ),
           MenuFlyoutItem(
             key: 'delete-playlist',
+            disabled:
+                widget.onDelete == null || !canEditPlaylist(widget.playlist),
             text: widget.i18n.t('playlists.delete'),
             icon: FluentIcons.delete_20_regular,
             onPressed: () => widget.onDelete?.call(widget.playlist),
