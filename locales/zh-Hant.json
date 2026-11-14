@@ -1107,5 +1107,7 @@
   "share.waitingApprovalTitle": "等待授權",
   "share.waitingApprovalHint": "請在對方裝置上允許本次連線。",
   "share.cancelConnection": "取消連線",
-  "share.requestAccessLibrary": "請求存取本機音樂庫"
+  "share.requestAccessLibrary": "請求存取本機音樂庫",
+  "share.requestTimedOut": "請求逾時，請稍後重試。",
+  "share.deviceForgotten": "裝置已移除，已停止同步。"
 }

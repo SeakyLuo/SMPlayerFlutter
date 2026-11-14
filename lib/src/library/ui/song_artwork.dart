@@ -1,3 +1,4 @@
+import 'dart:async';
 import '../../remote/music_share_access.dart';
 import '../../remote/music_share_models.dart';
 import 'dart:io';
@@ -211,13 +212,45 @@ class _RemoteArtwork extends StatefulWidget {
 }
 
 class _RemoteArtworkState extends State<_RemoteArtwork> {
-  late Future<File?> _file = activeMusicShareAccess!.artwork(widget.path);
+  late Future<File?> _file;
+  late StreamSubscription<String> _changes;
+  var _failed = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _file = _load(widget.path);
+    _changes = activeMusicShareAccess!.remoteDataChanges.listen((device) {
+      if (!mounted || !_failed || Uri.parse(widget.path).host != device) return;
+      setState(() {
+        _failed = false;
+        _file = _load(widget.path);
+      });
+    });
+  }
+
+  Future<File?> _load(String path) async {
+    try {
+      return await activeMusicShareAccess!.artwork(path);
+    } catch (_) {
+      if (mounted && widget.path == path) _failed = true;
+      rethrow;
+    }
+  }
+
   @override
   void didUpdateWidget(covariant _RemoteArtwork oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.path != widget.path) {
-      _file = activeMusicShareAccess!.artwork(widget.path);
+      _failed = false;
+      _file = _load(widget.path);
     }
+  }
+
+  @override
+  void dispose() {
+    unawaited(_changes.cancel());
+    super.dispose();
   }
 
   @override

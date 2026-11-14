@@ -157,7 +157,15 @@ class MusicShareTransport {
     String path, {
     String method = 'GET',
     Object? body,
-  }) => runNetworkOperation(() => _json(path, method: method, body: body));
+  }) async {
+    try {
+      return await runNetworkOperation(
+        () => _json(path, method: method, body: body),
+      );
+    } on TimeoutException {
+      throw const MusicShareException('share.requestTimedOut');
+    }
+  }
 
   Future<Map<String, dynamic>> _json(
     String path, {
@@ -165,28 +173,26 @@ class MusicShareTransport {
     Object? body,
   }) async {
     final response = await _open(path, method: method, body: body);
-    if (response.statusCode != 200) {
-      await response.drain<void>();
-      throw MusicShareException(
-        response.statusCode == 403 &&
-                path != '/pair' &&
-                (method == 'POST' || method == 'DELETE')
-            ? 'share.readOnlyPermission'
-            : response.statusCode == 403 && path == '/pair'
-            ? 'share.pairingClosed'
-            : response.statusCode == 401
-            ? 'share.authorizationRequired'
-            : 'share.connectionFailed',
-        httpStatusCode: response.statusCode,
-      );
-    }
     final bytes = await response
         .fold<BytesBuilder>(
           BytesBuilder(),
           (builder, data) => builder..add(data),
         )
         .timeout(const Duration(seconds: 15));
-    return jsonDecode(utf8.decode(bytes.takeBytes())) as Map<String, dynamic>;
+    final text = utf8.decode(bytes.takeBytes());
+    final payload =
+        (response.statusCode == HttpStatus.ok ||
+                response.headers.contentType?.mimeType == 'application/json')
+            ? jsonDecode(text) as Map<String, dynamic>
+            : <String, dynamic>{};
+    if (response.statusCode != HttpStatus.ok) {
+      throw MusicShareException(
+        payload['error'] as String? ??
+            '${response.statusCode} ${response.reasonPhrase}',
+        httpStatusCode: response.statusCode,
+      );
+    }
+    return payload;
   }
 
   void close() {

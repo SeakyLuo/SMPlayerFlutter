@@ -196,11 +196,6 @@ final class RemoteLibraryDataSource implements LibraryDataSource {
       method: 'POST',
       body: {'offsetMs': offsetMs},
     );
-    await repository._lyricsService.updateLyricsOffset(
-      await repository._resolveDatabaseFile(),
-      song.id,
-      offsetMs,
-    );
   }
 
   @override
@@ -212,28 +207,12 @@ final class RemoteLibraryDataSource implements LibraryDataSource {
             : {'image': base64Encode(await File(sourcePath).readAsBytes())};
     if (songs.length == 1) {
       final song = songs.single;
-      final result = await access.songRequest(
+      await access.songRequest(
         song.path,
         'artwork',
         method: sourcePath == null ? 'DELETE' : 'POST',
         body: body,
       );
-      final path =
-          result['artwork'] == true
-              ? '${song.path}?art=${result['artworkRevision']}'
-              : '';
-      final file = await repository._resolveDatabaseFile();
-      await LibrarySnapshotService.run(() {
-        final db = sqlite3.open(file.path);
-        try {
-          db.execute('UPDATE Music SET ThumbnailPath = ? WHERE Id = ?', [
-            path,
-            song.id,
-          ]);
-        } finally {
-          db.dispose();
-        }
-      });
     } else {
       await access.songsRequest(
         songs.map((s) => s.path).toList(),

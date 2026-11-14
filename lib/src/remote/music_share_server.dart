@@ -14,6 +14,8 @@ import 'music_share_song_editor.dart';
 import 'music_share_batch_editor.dart';
 import 'music_share_preferences.dart';
 import 'music_share_files.dart';
+import 'music_share_access.dart';
+import '../platform/system_log.dart';
 import 'music_share_playlists.dart';
 import 'music_share_identity.dart';
 import 'music_share_models.dart';
@@ -57,12 +59,15 @@ class MusicShareServer {
   String _libraryRevision = '';
   final events = MusicShareEventHub();
 
-  late final _files = MusicShareFiles(repository, (snapshot) {
-    updateLibrary(snapshot);
+  late final _files = MusicShareFiles(repository, () {
     onLibraryChanged();
   });
 
   void updateLibrary(LibraryContentData snapshot) {
+    final previousSongs = {
+      for (final song in _songs.values)
+        song.id: shareDigest(jsonEncode(sharedSongJson(song))),
+    };
     _rootPath = snapshot.rootPath;
     _songs.clear();
     for (final song in snapshot.songs) {
@@ -74,12 +79,31 @@ class MusicShareServer {
       'songs': _songs.values.map(sharedSongJson).toList(),
     });
     catalogRevision = shareDigest(_catalog);
+    final changed = {
+      for (final song in _songs.values)
+        if (previousSongs.remove(song.id) !=
+            shareDigest(jsonEncode(sharedSongJson(song))))
+          song.id,
+      ...previousSongs.keys,
+    };
+    if (running) {
+      if (changed.length > 128) {
+        events.dataChanged('library');
+      } else {
+        for (final id in changed) {
+          events.dataChanged('song:$id');
+        }
+      }
+    }
+    updatePlaylists(snapshot.playlists);
+  }
+
+  void updatePlaylists(List<LibraryPlaylist> playlists) {
     final sharedIds = _songs.keys.toSet();
     final revision = shareDigest(
       jsonEncode([
-        catalogRevision,
         name(),
-        snapshot.playlists
+        playlists
             .where((playlist) => !playlist.isBuiltIn && playlist.id > 0)
             .map((playlist) => sharedPlaylistJson(playlist, sharedIds))
             .toList(),
@@ -87,7 +111,7 @@ class MusicShareServer {
     );
     if (revision != _libraryRevision) {
       _libraryRevision = revision;
-      if (running) events.dataChanged('library');
+      if (running) events.dataChanged('playlists');
     }
   }
 
@@ -272,6 +296,7 @@ class MusicShareServer {
     try {
       if (request.headers.value('origin') != null) {
         response.statusCode = HttpStatus.forbidden;
+        _json(response, {'error': 'share.readOnlyPermission'});
         return;
       }
       final path = request.uri.path;
@@ -340,11 +365,13 @@ class MusicShareServer {
       );
       if (authorization == null || !authorization.startsWith('Bearer ')) {
         response.statusCode = HttpStatus.unauthorized;
+        _json(response, {'error': 'share.authorizationRequired'});
         return;
       }
       final hash = shareDigest(authorization.substring(7));
       if (!grants.containsKey(hash)) {
         response.statusCode = HttpStatus.unauthorized;
+        _json(response, {'error': 'share.authorizationRequired'});
         return;
       }
       if (path == '/events' && request.method == 'GET') {
@@ -362,6 +389,7 @@ class MusicShareServer {
           request.method != 'HEAD' &&
           !writeGrants.contains(hash)) {
         response.statusCode = HttpStatus.forbidden;
+        _json(response, {'error': 'share.readOnlyPermission'});
         return;
       }
       if (!{'GET', 'HEAD', 'POST', 'DELETE'}.contains(request.method)) {
@@ -388,6 +416,21 @@ class MusicShareServer {
         return;
       }
       if (path == '/catalog') {
+        final ids = request.uri.queryParameters['ids'];
+        if (ids != null) {
+          final requested = ids.split(',').map(int.parse).toSet();
+          _json(response, {
+            'songs':
+                requested
+                    .where(_songs.containsKey)
+                    .map((id) => sharedSongJson(_songs[id]!))
+                    .toList(),
+            'removed':
+                requested.where((id) => !_songs.containsKey(id)).toList(),
+            'revision': catalogRevision,
+          });
+          return;
+        }
         response.headers.contentType = ContentType.json;
         response.write(_catalog);
         return;
@@ -396,12 +439,12 @@ class MusicShareServer {
         final result = await serveSharedPlaylists(
           request,
           repository,
-          _songs.keys.toSet(),
+          Map<int, LibrarySong>.of(_songs),
           () => grants.containsKey(hash) && writeGrants.contains(hash),
           _deletedPlaylists,
         );
         if (request.method == 'POST' && response.statusCode == HttpStatus.ok) {
-          events.dataChanged('library');
+          events.dataChanged('playlists');
           onLibraryChanged();
         }
         _json(response, result);
@@ -445,8 +488,7 @@ class MusicShareServer {
           () => grants.containsKey(hash) && writeGrants.contains(hash),
         );
         if (response.statusCode == HttpStatus.ok && request.method != 'GET') {
-          updateLibrary(await repository.getLibraryContentData());
-          events.dataChanged('library');
+          activeMusicShareAccess?.localDataChanged('library');
           onLibraryChanged();
         }
         _json(response, result);
@@ -469,6 +511,7 @@ class MusicShareServer {
       final root = await Directory(_rootPath).resolveSymbolicLinks();
       if (!p.isWithin(root, resolved)) {
         response.statusCode = HttpStatus.forbidden;
+        _json(response, {'error': 'share.readOnlyPermission'});
         return;
       }
       final kind = match.group(2)!;
@@ -486,10 +529,8 @@ class MusicShareServer {
               () => grants.containsKey(hash) && writeGrants.contains(hash),
         );
         if (response.statusCode == HttpStatus.ok && request.method != 'GET') {
-          updateLibrary(await repository.getLibraryContentData());
-          events.dataChanged('library');
+          activeMusicShareAccess?.localDataChanged('library');
           onLibraryChanged();
-          result.addAll(sharedSongJson(_songs[songId]!));
         }
         _json(response, result);
         return;
@@ -530,16 +571,37 @@ class MusicShareServer {
         }
       }
     } on MusicShareException catch (error) {
-      if (error.messageKey != 'share.readOnlyPermission') rethrow;
-      response.statusCode = HttpStatus.forbidden;
-    } on TypeError {
+      response.statusCode =
+          error.messageKey == 'share.readOnlyPermission'
+              ? HttpStatus.forbidden
+              : HttpStatus.badRequest;
+      _json(response, {'error': error.messageKey});
+    } on TypeError catch (error, stack) {
+      SystemLog.error(
+        'Shared request failed: ${request.method} ${request.uri.path}',
+        error,
+        stack,
+      );
       response.statusCode = HttpStatus.badRequest;
-    } on FormatException {
+      _json(response, {'error': error.toString()});
+    } on FormatException catch (error) {
       response.statusCode = HttpStatus.badRequest;
-    } on FileSystemException {
-      if (!sendingFile) response.statusCode = HttpStatus.notFound;
-    } catch (_) {
-      if (!sendingFile) response.statusCode = HttpStatus.internalServerError;
+      _json(response, {'error': error.message});
+    } on FileSystemException catch (error) {
+      if (!sendingFile) {
+        response.statusCode = HttpStatus.notFound;
+        _json(response, {'error': error.message});
+      }
+    } catch (error, stack) {
+      if (!sendingFile) {
+        SystemLog.error(
+          'Shared request failed: ${request.method} ${request.uri.path}',
+          error,
+          stack,
+        );
+        response.statusCode = HttpStatus.internalServerError;
+        _json(response, {'error': error.toString()});
+      }
       // A client may disconnect while seeking or while its grant is revoked.
     } finally {
       try {
@@ -565,7 +627,8 @@ class MusicShareServer {
 
   void _json(HttpResponse response, Object body) {
     response.headers.contentType = ContentType.json;
-    response.write(jsonEncode(body));
+    final encoded = jsonEncode(body);
+    response.write(encoded);
   }
 }
 

@@ -5,6 +5,8 @@ import 'package:path/path.dart' as p;
 import 'music_share_identity.dart';
 import 'music_share_models.dart';
 
+const _artworkIdleTimeout = Duration(seconds: 15);
+
 class MusicShareArtworkCache {
   MusicShareArtworkCache(this.directory, {this.onNetworkError});
 
@@ -12,6 +14,7 @@ class MusicShareArtworkCache {
 
   final Directory directory;
   final _files = <String, File>{};
+  final _generations = <String, int>{};
   final _loads = <String, Future<File?>>{};
   final _transports = <String, MusicShareTransport>{};
 
@@ -34,15 +37,18 @@ class MusicShareArtworkCache {
   Future<File?> load(String path, MusicPeer peer) {
     final uri = Uri.parse(path);
     final key = _key(uri);
+    final generation = _generations[peer.id] ?? 0;
+    bool isCurrent() => (_generations[peer.id] ?? 0) == generation;
     final cachedFile = _files[key];
     if (cachedFile != null) return Future.value(cachedFile);
     return _loads.putIfAbsent(key, () async {
       try {
-        final file = await _download(uri, key, _transport(peer));
+        final file = await _download(uri, key, _transport(peer), isCurrent);
+        if (!isCurrent()) return null;
         if (file != null) _files[key] = file;
         return file;
       } finally {
-        _loads.remove(key);
+        if (isCurrent()) _loads.remove(key);
       }
     });
   }
@@ -70,6 +76,7 @@ class MusicShareArtworkCache {
     Uri uri,
     String key,
     MusicShareTransport transport,
+    bool Function() isCurrent,
   ) async {
     final file = File(p.join(directory.path, '$key.img'));
     if (await file.exists()) return file;
@@ -86,27 +93,52 @@ class MusicShareArtworkCache {
 
     final response = await transport.open('/songs/$remoteId/artwork');
     if (response.statusCode == HttpStatus.notFound) {
-      await response.drain<void>();
+      await transport.runNetworkOperation(
+        () => response.timeout(_artworkIdleTimeout).drain<void>(),
+      );
       return null;
     }
     if (response.statusCode != HttpStatus.ok) {
-      await response.drain<void>();
+      await transport.runNetworkOperation(
+        () => response.timeout(_artworkIdleTimeout).drain<void>(),
+      );
       throw const MusicShareException('share.connectionFailed');
     }
     await directory.create(recursive: true);
     final pending = File('${file.path}.part');
     try {
-      await transport.runNetworkOperation(
-        () => response.pipe(pending.openWrite()),
-      );
+      await transport.runNetworkOperation(() async {
+        final sink = pending.openWrite();
+        try {
+          await sink.addStream(response.timeout(_artworkIdleTimeout));
+        } finally {
+          await sink.close();
+        }
+      });
+      if (!isCurrent()) return null;
       return await pending.rename(file.path);
     } finally {
       if (await pending.exists()) await pending.delete();
     }
   }
 
-  void disconnect(String peerId) {
+  Future<void> disconnect(String peerId) async {
+    final prefix = '$peerId-';
+    final pending =
+        _loads.entries
+            .where((entry) => entry.key.startsWith(prefix))
+            .map((entry) => entry.value)
+            .toList();
+    _generations.update(peerId, (value) => value + 1, ifAbsent: () => 1);
+    _loads.removeWhere((key, _) => key.startsWith(prefix));
+    _files.removeWhere((key, _) => key.startsWith(prefix));
     _transports.remove(peerId)?.close();
+    await Future.wait(
+      pending.map(
+        (load) =>
+            load.then<void>((_) {}, onError: (Object _, StackTrace __) {}),
+      ),
+    );
   }
 
   void dispose() {

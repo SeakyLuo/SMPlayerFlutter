@@ -3,6 +3,21 @@ part of 'library_repository.dart';
 mixin _LibraryRepositoryCollections on _LibraryDataSources {
   Future<File> _resolveDatabaseFile();
 
+  Future<List<LibraryPlaylist>> getLocalPlaylists() async {
+    final file = await _resolveDatabaseFile();
+    return LibrarySnapshotService.run(() {
+      final db = sqlite3.open(file.path);
+      try {
+        db.execute('BEGIN');
+        final playlists = LibraryRepository._playlistService.readPlaylists(db);
+        db.execute('COMMIT');
+        return playlists;
+      } finally {
+        db.dispose();
+      }
+    });
+  }
+
   Future<LibraryPlaylist> createPlaylist(
     String name, [
     List<int> songIds = const [],

@@ -148,6 +148,7 @@ extension MusicShareConnections on MusicShareController {
     final pending = _peerSyncs[peer.id];
     if (pending != null) {
       await pending;
+      if (_disposed || !peers.contains(peer)) return;
       if (rememberConnection) {
         lastConnectedPeerId = peer.id;
         await save();
@@ -165,7 +166,7 @@ extension MusicShareConnections on MusicShareController {
     try {
       await operation;
     } finally {
-      _peerSyncs.remove(peer.id);
+      if (identical(_peerSyncs[peer.id], operation)) _peerSyncs.remove(peer.id);
       if (_peerDataEpochs[peer.id] != epoch) peer.catalogRevision = null;
     }
   }
@@ -181,6 +182,7 @@ extension MusicShareConnections on MusicShareController {
       fingerprint: peer.fingerprint,
       token: peer.token,
     );
+    _peerTransports[transport] = peer;
     final previous = peer.status;
     final elapsed = Stopwatch()..start();
     var stage = 'status';
@@ -195,8 +197,7 @@ extension MusicShareConnections on MusicShareController {
         _notify();
       }
       final revision = status['revision'] as String;
-      final reconnecting = !_events.containsKey(peer.id);
-      await _connectEvents(peer);
+      final recovering = _requestRecoveryPeers.contains(peer.id);
       if (_disposed || !peers.contains(peer)) return;
       reachable = true;
       _requestRecoveryPeers.remove(peer.id);
@@ -208,9 +209,9 @@ extension MusicShareConnections on MusicShareController {
           'address=${peer.address}; previousFailures=$failedHeartbeats',
         );
       }
-      if (reconnecting) {
-        peer.catalogRevision = null;
-        _playlistClient.invalidate(peer.id);
+      if (previous != MusicPeerStatus.online ||
+          failedHeartbeats > 0 ||
+          recovering) {
         _remoteDataChanges.add(peer.id);
       }
       final updatedName = status['name'] as String;
@@ -228,15 +229,35 @@ extension MusicShareConnections on MusicShareController {
         );
         _notify();
       }
+      unawaited(
+        _connectEvents(peer).catchError((Object error, StackTrace stack) {
+          SystemLog.error(
+            'Remote notification channel connection failed: device=${peer.name}',
+            error,
+            stack,
+          );
+        }),
+      );
+      _retryPendingPeerData(peer);
+      if (_localChanges.isNotEmpty && _localChangeTimer == null) {
+        _localDataChanged(_localChanges.first);
+      }
       if (importCatalog || peer.catalogRevision != revision) {
         stage = 'catalog';
         final page = await transport.json('/catalog');
+        if (_disposed || !peers.contains(peer)) return;
         final songs =
             (page['songs'] as List)
                 .map((item) => (item as Map).cast<String, dynamic>())
                 .toList();
         stage = 'catalog-import';
-        await importMusicShareCatalog(databasePath, peer.id, songs);
+        await importMusicShareCatalog(
+          databasePath,
+          peer.id,
+          songs,
+          isCurrent: () => !_disposed && peers.contains(peer),
+        );
+        if (_disposed || !peers.contains(peer)) return;
         peer.catalogRevision = revision;
         onCatalogChanged();
       }
@@ -244,6 +265,7 @@ extension MusicShareConnections on MusicShareController {
         stage = 'playlists';
         await _playlistClient.refresh(peer);
       }
+      if (_disposed || !peers.contains(peer)) return;
       stage = 'save';
       if (rememberConnection) {
         lastConnectedPeerId = peer.id;
@@ -260,6 +282,7 @@ extension MusicShareConnections on MusicShareController {
         );
       }
     } catch (error, stack) {
+      if (_disposed || !peers.contains(peer)) return;
       if (error is MusicShareException &&
           error.messageKey == 'share.authorizationRequired') {
         _requestRecoveryPeers.remove(peer.id);
@@ -287,6 +310,7 @@ extension MusicShareConnections on MusicShareController {
       _logConnectionFailure(peer, stage, previous, elapsed, error, stack);
       rethrow;
     } finally {
+      _peerTransports.remove(transport);
       transport.close();
       if (notifiedStatus != peer.status) _notify();
     }

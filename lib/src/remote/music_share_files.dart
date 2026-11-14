@@ -3,9 +3,8 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:path/path.dart' as p;
 import '../library/data/library_file_relocation_service.dart';
-import '../library/data/library_models.dart';
+import '../platform/system_log.dart';
 import '../library/data/library_repository.dart';
-import 'music_share_catalog.dart';
 import 'music_share_models.dart';
 
 class _FileAction {
@@ -27,7 +26,7 @@ class _FileAction {
 class MusicShareFiles {
   MusicShareFiles(this.repository, this.changed);
   final LibraryRepository repository;
-  final void Function(LibraryContentData) changed;
+  final void Function() changed;
   final _actions = <String, _FileAction>{};
   Future<void> _pending = Future.value();
 
@@ -102,7 +101,7 @@ class MusicShareFiles {
         final ticket = values['ticket'] as String;
         final action = _actions[ticket];
         if (action == null && operation == 'commit') {
-          return _catalog(snapshot.rootPath);
+          return {};
         }
         if (action == null || action.owner != owner) {
           throw const MusicShareException('share.fileUndoExpired');
@@ -130,7 +129,8 @@ class MusicShareFiles {
         }
         action.timer.cancel();
         _actions.remove(ticket);
-        return _catalog(snapshot.rootPath);
+        _notifyChanged();
+        return {};
       }
       final id = int.parse(values['song'].toString());
       final song =
@@ -243,38 +243,25 @@ class MusicShareFiles {
           onError: (Object _, StackTrace __) {},
         );
       });
-      return {
-        ...await _catalog(snapshot.rootPath),
-        'ticket': ticket,
-        if (operation == 'delete') 'removed': [id],
-      };
+      _notifyChanged();
+      return {'ticket': ticket};
     } on MusicShareException catch (error) {
       if (error.messageKey == 'share.readOnlyPermission') {
         request.response.statusCode = HttpStatus.forbidden;
         return {};
       }
       return {'error': error.messageKey};
-    } on FileSystemException {
-      return {'error': 'share.fileOperationFailed'};
+    } on FileSystemException catch (error) {
+      return {'error': error.message};
     }
   }
 
-  Future<Map<String, dynamic>> _catalog(String root) async {
-    final snapshot = await repository.getLibraryContentData();
-    changed(snapshot);
-    final catalog = {
-      'songs':
-          snapshot.songs
-              .where(
-                (s) => !isRemoteMusicPath(s.path) && p.isWithin(root, s.path),
-              )
-              .map(sharedSongJson)
-              .toList(),
-    };
-    return {
-      'catalog': catalog['songs'],
-      'revision': shareDigest(jsonEncode(catalog)),
-    };
+  void _notifyChanged() {
+    unawaited(
+      Future<void>(changed).catchError((Object error, StackTrace stack) {
+        SystemLog.error('Remote file cache notification failed', error, stack);
+      }),
+    );
   }
 
   Future<void> _checkDeleteLocation(_FileAction action) async {
@@ -296,7 +283,7 @@ class MusicShareFiles {
         await repository.commitDeleteSongFromDisk(id);
       } on MusicShareException {
         await repository.undoDeleteSongFromDisk(id);
-        changed(await repository.getLibraryContentData());
+        _notifyChanged();
       } on Object {
         // The pending-delete file retains this request for normal startup recovery.
       }

@@ -15,7 +15,7 @@ final class LocalLibraryDataSource implements LibraryDataSource {
       name,
       songIds,
     );
-    activeMusicShareAccess?.localDataChanged('library');
+    activeMusicShareAccess?.localDataChanged('playlists');
     return result;
   }
 
@@ -25,7 +25,7 @@ final class LocalLibraryDataSource implements LibraryDataSource {
       await repository._resolveDatabaseFile(),
       id,
     );
-    activeMusicShareAccess?.localDataChanged('library');
+    activeMusicShareAccess?.localDataChanged('playlists');
   }
 
   @override
@@ -34,7 +34,7 @@ final class LocalLibraryDataSource implements LibraryDataSource {
       await repository._resolveDatabaseFile(),
       playlist,
     );
-    activeMusicShareAccess?.localDataChanged('library');
+    activeMusicShareAccess?.localDataChanged('playlists');
   }
 
   @override
@@ -44,7 +44,7 @@ final class LocalLibraryDataSource implements LibraryDataSource {
       id,
       name,
     );
-    activeMusicShareAccess?.localDataChanged('library');
+    activeMusicShareAccess?.localDataChanged('playlists');
   }
 
   @override
@@ -53,7 +53,7 @@ final class LocalLibraryDataSource implements LibraryDataSource {
     await LibrarySnapshotService.run(
       () => LibraryRepository._playlistService.reorderPlaylists(file, ids),
     );
-    activeMusicShareAccess?.localDataChanged('library');
+    activeMusicShareAccess?.localDataChanged('playlists');
   }
 
   @override
@@ -63,7 +63,7 @@ final class LocalLibraryDataSource implements LibraryDataSource {
       id,
       songIds,
     );
-    activeMusicShareAccess?.localDataChanged('library');
+    activeMusicShareAccess?.localDataChanged('playlists');
   }
 
   @override
@@ -73,7 +73,7 @@ final class LocalLibraryDataSource implements LibraryDataSource {
       id,
       songIds,
     );
-    activeMusicShareAccess?.localDataChanged('library');
+    activeMusicShareAccess?.localDataChanged('playlists');
   }
 
   @override
@@ -88,7 +88,7 @@ final class LocalLibraryDataSource implements LibraryDataSource {
       songIds,
       criterion,
     );
-    activeMusicShareAccess?.localDataChanged('library');
+    activeMusicShareAccess?.localDataChanged('playlists');
   }
 
   @override

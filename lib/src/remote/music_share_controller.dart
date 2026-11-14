@@ -7,6 +7,7 @@ import 'package:path/path.dart' as p;
 
 import '../library/data/library_models.dart';
 import '../library/data/library_repository.dart';
+import '../library/data/library_snapshot_service.dart';
 import '../platform/system_log.dart';
 import 'music_share_access.dart';
 import 'music_share_artwork_cache.dart';
@@ -76,8 +77,14 @@ class MusicShareController extends ChangeNotifier
   Timer? _connectionTimer;
   var _checking = false;
   final _events = <String, _MusicShareEventConnection>{};
+  final _editingRequests = <(String, String, String)>{};
+  final _peerTransports = <MusicShareTransport, MusicPeer>{};
   final _peerSyncs = <String, Future<void>>{};
   final _eventRefreshTimers = <String, Timer>{};
+  final _refreshingPeers = <MusicPeer>{};
+  final _pendingPlaylistPeers = <String>{};
+  final _pendingCatalogPeers = <String>{};
+  final _pendingSongIds = <String, Set<int>>{};
   final _peerDataEpochs = <String, int>{};
   Timer? _localChangeTimer;
   final _localChanges = <String>{};
@@ -104,6 +111,7 @@ class MusicShareController extends ChangeNotifier
     },
     _notify,
     onNetworkError: _requestConnectionRecovery,
+    isCurrent: (peer) => !_disposed && peers.contains(peer),
   );
   @override
   List<LibraryPlaylist> get remotePlaylists => _playlistClient.playlists;
@@ -118,16 +126,21 @@ class MusicShareController extends ChangeNotifier
     List<int> playlistIds = const [],
     LibraryPlaylist? restore,
     PlaylistSortCriterion? criterion,
-  }) => _playlistClient.operate(
-    peerFor(remoteMusicPath(device, 0)),
-    operation,
-    playlistId: playlistId,
-    name: name,
-    songIds: songIds,
-    playlistIds: playlistIds,
-    restore: restore,
-    criterion: criterion,
-  );
+  }) async {
+    final peer = peerFor(remoteMusicPath(device, 0));
+    final result = await _playlistClient.operate(
+      peer,
+      operation,
+      playlistId: playlistId,
+      name: name,
+      songIds: songIds,
+      playlistIds: playlistIds,
+      restore: restore,
+      criterion: criterion,
+    );
+    _invalidatePeerData(peer, catalog: false);
+    return result;
+  }
 
   Future<void> _load() async {
     final (snapshot, loadedIdentity, stored) =
@@ -332,12 +345,23 @@ class MusicShareController extends ChangeNotifier
   );
 
   Future<void> forget(MusicPeer peer) async {
+    _peerSyncs.remove(peer.id);
+    for (final transport
+        in _peerTransports.entries
+            .where((entry) => identical(entry.value, peer))
+            .map((entry) => entry.key)
+            .toList()) {
+      transport.close();
+    }
+    _pendingPlaylistPeers.remove(peer.id);
+    _pendingCatalogPeers.remove(peer.id);
+    _pendingSongIds.remove(peer.id);
     _disconnectEvents(peer.id);
     _requestRecoveryPeers.remove(peer.id);
     _heartbeatSilence.remove(peer.id);
     _heartbeatFailures.remove(peer.id);
     _connectionFailures.remove(peer.id);
-    _artworkCache.disconnect(peer.id);
+    final artworkStopped = _artworkCache.disconnect(peer.id);
     peers.remove(peer);
     _playlistClient.forget(peer.id);
     repository.forgetRemotePreferences(peer.id);
@@ -349,6 +373,10 @@ class MusicShareController extends ChangeNotifier
       transport.close();
     }
     if (selectedSource == peer.id) selectedSource = 'local';
+    await Future.wait([
+      artworkStopped,
+      LibrarySnapshotService.waitForPendingOperations(),
+    ]);
     await save();
     _notify();
   }
@@ -457,9 +485,8 @@ class MusicShareController extends ChangeNotifier
 
   @override
   Future<Uri> audioUri(String path) async {
-    await initialConnection;
+    await ready;
     final peer = peerFor(path);
-    await syncPeer(peer, importCatalog: false, rememberConnection: true);
     _proxy ??= await HttpServer.bind(InternetAddress.loopbackIPv4, 0)
       ..listen((request) => unawaited(_serveProxy(request)));
     final song = Uri.parse(path).pathSegments.single;
@@ -496,6 +523,16 @@ class MusicShareController extends ChangeNotifier
         method: request.method,
         range: request.headers.value(HttpHeaders.rangeHeader),
       );
+      if ((response.statusCode == HttpStatus.ok ||
+              response.statusCode == HttpStatus.partialContent) &&
+          lastConnectedPeerId != peer.id) {
+        lastConnectedPeerId = peer.id;
+        unawaited(
+          save().catchError((Object error, StackTrace stack) {
+            SystemLog.error('Unable to remember audio device', error, stack);
+          }),
+        );
+      }
       request.response.statusCode = response.statusCode;
       for (final header in [
         HttpHeaders.contentTypeHeader,
@@ -610,22 +647,6 @@ class MusicShareController extends ChangeNotifier
       body: read ? null : {'operation': operation, 'song': id, ...values},
     );
     if (result['error'] case final String key) throw MusicShareException(key);
-    if (result.containsKey('catalog')) {
-      final peer = peerFor(path);
-      await importMusicShareCatalog(
-        databasePath,
-        peer.id,
-        (result['catalog'] as List)
-            .map((s) => (s as Map).cast<String, dynamic>())
-            .toList(),
-        removedSongIds:
-            result.containsKey('removed')
-                ? (result['removed'] as List).cast<int>()
-                : const [],
-      );
-      peer.catalogRevision = result['revision'] as String;
-      onCatalogChanged();
-    }
     return result;
   }
 
@@ -633,6 +654,29 @@ class MusicShareController extends ChangeNotifier
     String path,
     String endpoint, {
     String method = 'GET',
+    Object? body,
+  }) async {
+    final key = (path, endpoint, method);
+    final writing = method != 'GET';
+    if (writing && !_editingRequests.add(key)) {
+      throw const MusicShareException('song.processingRequest');
+    }
+    try {
+      return await _performEditRequest(
+        path,
+        endpoint,
+        method: method,
+        body: body,
+      );
+    } finally {
+      if (writing) _editingRequests.remove(key);
+    }
+  }
+
+  Future<Map<String, dynamic>> _performEditRequest(
+    String path,
+    String endpoint, {
+    required String method,
     Object? body,
   }) async {
     final peer = peerFor(path);
@@ -648,18 +692,19 @@ class MusicShareController extends ChangeNotifier
     );
     try {
       final result = await transport.json(endpoint, method: method, body: body);
-      if (method != 'GET') {
-        if (result.containsKey('songs')) {
-          await importMusicShareCatalog(
-            databasePath,
-            peer.id,
-            (result['songs'] as List)
-                .map((s) => (s as Map).cast<String, dynamic>())
-                .toList(),
-            replace: false,
-          );
-          onCatalogChanged();
-        }
+      if (_disposed || !peers.contains(peer)) {
+        throw const MusicShareException('share.deviceForgotten');
+      }
+      if (method != 'GET' && !result.containsKey('error')) {
+        final ids = Uri.parse(endpoint).queryParameters['ids'];
+        _invalidatePeerData(
+          peer,
+          catalog: false,
+          songIds:
+              ids == null
+                  ? [int.parse(Uri.parse(path).pathSegments.single)]
+                  : ids.split(',').map(int.parse).toList(),
+        );
       }
       return result;
     } on MusicShareException catch (error) {

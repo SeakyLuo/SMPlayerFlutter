@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:path/path.dart' as p;
+import '../platform/system_log.dart';
 import 'music_share_catalog.dart';
 import 'music_share_models.dart';
 
@@ -22,33 +22,26 @@ Map<String, dynamic> sharedPlaylistJson(
 Future<Map<String, dynamic>> serveSharedPlaylists(
   HttpRequest request,
   LibraryRepository repository,
-  Set<int> songs,
+  Map<int, LibrarySong> sharedSongs,
   bool Function() canWrite,
   Map<int, (LibraryPlaylist, DateTime)> deletedPlaylists,
 ) async {
-  final snapshot = await repository.getLibraryContentData();
-  final eligibleSongs =
-      snapshot.songs
-          .where(
-            (s) =>
-                !isRemoteMusicPath(s.path) &&
-                p.isWithin(snapshot.rootPath, s.path),
-          )
-          .toList();
-  songs = eligibleSongs.map((s) => s.id).toSet();
-  final catalog = {'songs': eligibleSongs.map(sharedSongJson).toList()};
-  final revision = shareDigest(jsonEncode(catalog));
-  final payload = <String, dynamic>{
-    'revision': revision,
-    if (request.uri.queryParameters['revision'] != revision) ...catalog,
-  };
+  final localPlaylists = await repository.getLocalPlaylists();
+  final songs = sharedSongs.keys.toSet();
   deletedPlaylists.removeWhere(
     (_, value) =>
         DateTime.now().difference(value.$2) > const Duration(minutes: 2),
   );
   final playlists =
-      snapshot.playlists.where((p) => !p.isBuiltIn && p.id > 0).toList();
+      localPlaylists.where((p) => !p.isBuiltIn && p.id > 0).toList();
   if (request.method == 'GET') {
+    final eligibleSongs = sharedSongs.values;
+    final catalog = {'songs': eligibleSongs.map(sharedSongJson).toList()};
+    final revision = shareDigest(jsonEncode(catalog));
+    final payload = <String, dynamic>{
+      'revision': revision,
+      if (request.uri.queryParameters['revision'] != revision) ...catalog,
+    };
     return {
       ...payload,
       'playlists': playlists.map((p) => sharedPlaylistJson(p, songs)).toList(),
@@ -85,11 +78,13 @@ Future<Map<String, dynamic>> serveSharedPlaylists(
     request.response.statusCode = HttpStatus.notFound;
     return {};
   }
-  int? created;
+  LibraryPlaylist? created;
   switch (operation) {
     case 'create':
-      created =
-          (await repository.createPlaylist(body['name'] as String, songIds)).id;
+      created = await repository.createPlaylist(
+        body['name'] as String,
+        songIds,
+      );
     case 'rename':
       await repository.renamePlaylist(id!, body['name'] as String);
     case 'delete':
@@ -138,27 +133,16 @@ Future<Map<String, dynamic>> serveSharedPlaylists(
     default:
       throw const FormatException('Unknown playlist operation');
   }
-  final updated = await repository.getLibraryContentData();
-  final eligible =
-      updated.songs
-          .where(
-            (s) =>
-                !isRemoteMusicPath(s.path) &&
-                p.isWithin(updated.rootPath, s.path),
-          )
-          .toList();
-  final updatedCatalog = {'songs': eligible.map(sharedSongJson).toList()};
-  final updatedRevision = shareDigest(jsonEncode(updatedCatalog));
-  final updatedSongIds = eligible.map((s) => s.id).toSet();
+  SystemLog.info(
+    'Remote playlist mutation committed: operation=$operation; playlist=$id',
+  );
   return {
-    'created': created,
-    'revision': updatedRevision,
-    if (request.uri.queryParameters['revision'] != updatedRevision)
-      ...updatedCatalog,
-    'playlists':
-        updated.playlists
-            .where((p) => !p.isBuiltIn && p.id > 0)
-            .map((p) => sharedPlaylistJson(p, updatedSongIds))
-            .toList(),
+    if (created != null)
+      'created': {
+        'id': created.id,
+        'name': created.name,
+        'priority': created.priority,
+        'criterion': created.sortCriterion.index,
+      },
   };
 }

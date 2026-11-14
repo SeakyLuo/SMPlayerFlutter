@@ -27,6 +27,20 @@ class LibrarySnapshotService {
     return result;
   }
 
+  static Future<void> runIfCurrent(
+    void Function() operation,
+    bool Function() isCurrent,
+  ) {
+    final result = _pending.then<void>((_) async {
+      if (!isCurrent()) return;
+      await Isolate.run(operation);
+    });
+    _pending = result.then<void>((_) {}, onError: (Object _, StackTrace __) {});
+    return result;
+  }
+
+  static Future<void> waitForPendingOperations() => _pending;
+
   Future<LibraryContentData> readContent(String path, String queuePath) {
     final key = (path, queuePath);
     return _loads.putIfAbsent(key, () {

@@ -5,7 +5,6 @@ import 'package:path/path.dart' as p;
 
 import '../library/data/library_models.dart';
 import '../library/data/library_repository.dart';
-import 'music_share_catalog.dart';
 import 'music_share_edit_codec.dart';
 import 'music_share_song_editor.dart';
 
@@ -74,14 +73,7 @@ Future<Map<String, dynamic>> handleSharedBatchEdit(
             (rawUpdates['$id'] as Map).cast<String, dynamic>(),
           ),
       });
-      final updated = await repository.getLibrarySongs(
-        songIds: result.updatedSongIds,
-      );
-      return {
-        'updated': result.updatedSongIds,
-        'failed': result.failedSongIds,
-        'songs': updated.map(sharedSongJson).toList(),
-      };
+      return {'updated': result.updatedSongIds, 'failed': result.failedSongIds};
     }
     if (resource == 'artwork') {
       await withSharedArtwork(
@@ -95,6 +87,5 @@ Future<Map<String, dynamic>> handleSharedBatchEdit(
     request.response.statusCode = HttpStatus.methodNotAllowed;
     return {};
   }
-  final songs = await repository.getLibrarySongs(songIds: ids);
-  return {'songs': songs.map(sharedSongJson).toList()};
+  return {};
 }

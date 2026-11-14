@@ -22,9 +22,7 @@ Future<void> runMusicShareAction(
     showAppNotification(
       context: context,
       message: context.smPlayerI18n.t(
-        error is MusicShareException
-            ? error.messageKey
-            : 'share.connectionFailed',
+        error is MusicShareException ? error.messageKey : error.toString(),
       ),
     );
   }
