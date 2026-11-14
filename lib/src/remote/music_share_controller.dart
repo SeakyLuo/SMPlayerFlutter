@@ -30,7 +30,10 @@ class MusicShareController extends ChangeNotifier
     required this.loadLibrary,
   }) {
     ready = _load();
-    initialConnection = ready.then((_) => checkConnections());
+    initialConnection = ready.then((_) => checkConnections()).whenComplete(() {
+      _initialConnectionDone = true;
+      _notify();
+    });
     startup = ready.then((_) async {
       busy = true;
       try {
@@ -71,6 +74,7 @@ class MusicShareController extends ChangeNotifier
   var port = musicSharePort;
   var busy = false;
   var initialized = false;
+  var _initialConnectionDone = false;
   var _disposed = false;
   Future<void>? _shutdownFuture;
   Future<void> _savePending = Future.value();
@@ -113,6 +117,12 @@ class MusicShareController extends ChangeNotifier
     onNetworkError: _requestConnectionRecovery,
     isCurrent: (peer) => !_disposed && peers.contains(peer),
   );
+  bool get selectedPlaylistsLoaded => _playlistClient.hasLoaded(selectedSource);
+  bool get selectedPlaylistsLoading =>
+      !_initialConnectionDone || _peerSyncs.containsKey(selectedSource);
+  List<LibraryPlaylist> get selectedPlaylists =>
+      _playlistClient.forDevice(selectedSource);
+
   @override
   List<LibraryPlaylist> get remotePlaylists => _playlistClient.playlists;
 

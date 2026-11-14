@@ -26,6 +26,9 @@ class MusicSharePlaylistClient {
   final _requests = <MusicShareTransport, MusicPeer>{};
   final _queues = <String, Future<void>>{};
   final _locations = <int, (String, int)>{};
+  bool hasLoaded(String device) => _lists.containsKey(device);
+  List<LibraryPlaylist> forDevice(String device) => _lists[device] ?? const [];
+
   List<LibraryPlaylist> get playlists =>
       _lists.values.expand((v) => v).toList();
 
@@ -170,6 +173,7 @@ class MusicSharePlaylistClient {
         ),
       );
     }
+    if (result.containsKey('songs')) peer.catalogLoaded = true;
     _lists[device] = lists;
     _signatures[device] = signature;
     changed();

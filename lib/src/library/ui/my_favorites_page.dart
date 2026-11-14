@@ -1,3 +1,4 @@
+import 'package:smplayer_flutter/src/library/ui/library_load_failure.dart';
 import '../../remote/music_source_providers.dart';
 import 'dart:async';
 
@@ -36,13 +37,7 @@ class MyFavoritesPage extends ConsumerWidget {
     return snapshotValue.when(
       skipLoadingOnReload: true,
       loading: () => const _FavoritesPagePanel(child: SmPlayerLoadingState()),
-      error:
-          (_, _) => _FavoritesPagePanel(
-            child: Text(
-              i18n.t('collection.noFavorites'),
-              style: const TextStyle(color: _FavoritesColors.textMuted),
-            ),
-          ),
+      error: (_, _) => const _FavoritesPagePanel(child: LibraryLoadFailure()),
       data: (rawSnapshot) {
         final snapshot = applyLibraryFavoriteOverrides(
           rawSnapshot,
@@ -224,10 +219,4 @@ class _FavoritesPagePanel extends StatelessWidget {
   Widget build(BuildContext context) {
     return Center(child: child);
   }
-}
-
-class _FavoritesColors {
-  const _FavoritesColors._();
-
-  static const textMuted = Color(0xff607085);
 }

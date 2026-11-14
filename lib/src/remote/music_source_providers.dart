@@ -4,6 +4,7 @@ import '../library/data/library_models.dart';
 import '../library/data/library_providers.dart';
 import 'music_share_access.dart';
 import 'music_share_controller.dart';
+import 'music_share_models.dart';
 
 final ChangeNotifierProvider<MusicShareController>
 musicShareProvider = ChangeNotifierProvider<MusicShareController>((ref) {
@@ -11,7 +12,6 @@ musicShareProvider = ChangeNotifierProvider<MusicShareController>((ref) {
     ref.read(libraryRepositoryProvider),
     () {
       ref.invalidate(libraryContentDataProvider);
-      ref.invalidate(shellNavigationDataProvider);
       ref.invalidate(recentPageDataProvider);
       ref.invalidate(librarySongCountProvider);
     },
@@ -45,6 +45,18 @@ final musicShareReadyProvider = FutureProvider<void>((ref) {
   return ref.watch(musicShareProvider.notifier).ready;
 });
 
+final remotePlaylistLoadStateProvider = Provider((ref) {
+  return ref.watch(
+    musicShareProvider.select(
+      (share) => (
+        remote: share.selectedSource != 'local',
+        loading: share.selectedPlaylistsLoading,
+        loaded: share.selectedPlaylistsLoaded,
+      ),
+    ),
+  );
+});
+
 final browsingLibraryContentDataProvider =
     Provider<AsyncValue<LibraryContentData>>(
       (ref) => _browse(ref, includeUnavailable: true),
@@ -65,11 +77,45 @@ AsyncValue<LibraryContentData> _browse(
           share.peers
               .where((peer) => peer.id == share.selectedSource)
               .firstOrNull;
-      return (share.selectedSource, peer?.status, peer?.canWrite);
+      return (
+        share.selectedSource,
+        peer?.status,
+        peer?.canWrite,
+        share.selectedPlaylists,
+        peer?.catalogLoaded,
+        share.selectedPlaylistsLoading,
+      );
     }),
   );
   final share = ref.read(musicShareProvider);
-  return ref.watch(libraryContentDataProvider).whenData((source) {
+  final libraryValue = ref.watch(libraryContentDataProvider);
+  if (share.selectedSource != 'local') {
+    final peer =
+        share.peers
+            .where((peer) => peer.id == share.selectedSource)
+            .firstOrNull;
+    final hasCachedSongs =
+        libraryValue.valueOrNull?.songs.any(share.includes) ?? false;
+    if ((peer == null || !peer.catalogLoaded) && !hasCachedSongs) {
+      if (share.selectedPlaylistsLoading) {
+        return const AsyncLoading();
+      }
+      return AsyncError(
+        const MusicShareException('share.offline'),
+        StackTrace.current,
+      );
+    }
+    if (peer != null &&
+        !peer.catalogPublished &&
+        libraryValue.isLoading &&
+        !hasCachedSongs) {
+      return const AsyncLoading();
+    }
+    if (peer != null && libraryValue.hasValue && !libraryValue.isLoading) {
+      peer.catalogPublished = true;
+    }
+  }
+  return libraryValue.whenData((source) {
     final songs =
         source.songs
             .where(
@@ -89,18 +135,14 @@ AsyncValue<LibraryContentData> _browse(
       recentAlbums: source.recentAlbums,
       recentArtists: source.recentArtists,
       recentSearches: source.recentSearches,
-      playlists:
-          source.playlists
-              .where(
-                (playlist) =>
-                    playlist.isBuiltIn ||
-                    (share.selectedSource == 'local'
-                        ? playlist.remotePath.isEmpty
-                        : playlist.remotePath.isNotEmpty &&
-                            Uri.parse(playlist.remotePath).host ==
-                                share.selectedSource),
-              )
-              .toList(),
+      playlists: [
+        ...source.playlists.where(
+          (playlist) =>
+              playlist.isBuiltIn ||
+              share.selectedSource == 'local' && playlist.remotePath.isEmpty,
+        ),
+        if (share.selectedSource != 'local') ...share.selectedPlaylists,
+      ],
       folders: share.selectedSource == 'local' ? source.folders : const [],
       favoritePlaylistId: source.favoritePlaylistId,
       nowPlaying: source.nowPlaying,

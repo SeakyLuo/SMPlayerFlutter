@@ -1,3 +1,4 @@
+import 'package:smplayer_flutter/src/library/ui/library_load_failure.dart';
 import '../remote/music_source_providers.dart';
 import 'dart:async';
 import 'dart:io';
@@ -228,14 +229,9 @@ class _RecentPageState extends ConsumerState<RecentPage>
     }
 
     return snapshotValue.when(
+      skipLoadingOnReload: true,
       loading: () => const _RecentPagePanel(child: SmPlayerLoadingState()),
-      error:
-          (_, _) => _RecentPagePanel(
-            child: _RecentEmptyState(
-              title: i18n.t('recent.empty'),
-              message: '',
-            ),
-          ),
+      error: (_, _) => const _RecentPagePanel(child: LibraryLoadFailure()),
       data: (snapshot) {
         final songs = applyFavoriteOverridesToSongs(
           snapshot.songs.where(source.includes).toList(),

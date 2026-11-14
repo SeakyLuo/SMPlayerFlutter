@@ -1,3 +1,4 @@
+import 'package:smplayer_flutter/src/library/ui/library_load_failure.dart';
 import '../../remote/music_source_providers.dart';
 import 'dart:async';
 import 'dart:math';
@@ -221,6 +222,7 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
     }
 
     return snapshotValue.when(
+      skipLoadingOnReload: true,
       loading: () {
         final useWorkspaceAppBar = WorkspaceNavigationAppBarScope.of(context);
         _syncAppBarPortal(
@@ -293,13 +295,7 @@ class _ArtistsPageState extends ConsumerState<ArtistsPage> {
           ),
         );
       },
-      error:
-          (_, _) => _ArtistsPagePanel(
-            child: _ArtistsEmptyState(
-              title: i18n.t('collection.artistNotFound'),
-              message: i18n.t('library.scanHelp'),
-            ),
-          ),
+      error: (_, _) => const _ArtistsPagePanel(child: LibraryLoadFailure()),
       data: (rawSnapshot) {
         final libraryData = ref.watch(
           _artistsLibraryDataProvider((

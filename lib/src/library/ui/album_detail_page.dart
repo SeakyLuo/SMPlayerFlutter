@@ -1,3 +1,5 @@
+import '../../remote/music_source_providers.dart';
+import 'package:smplayer_flutter/src/library/ui/library_load_failure.dart';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -73,13 +75,7 @@ class _AlbumDetailPageState extends ConsumerState<AlbumDetailPage> {
       child: snapshotValue.when(
         skipLoadingOnReload: true,
         loading: () => const _AlbumDetailPanel(child: SmPlayerLoadingState()),
-        error:
-            (_, _) => _AlbumDetailPanel(
-              child: _AlbumDetailEmptyState(
-                title: i18n.t('collection.albumNotFound'),
-                message: i18n.t('collection.albumNotFoundCopy'),
-              ),
-            ),
+        error: (_, _) => const _AlbumDetailPanel(child: LibraryLoadFailure()),
         data: (rawSnapshot) {
           final snapshot = applyLibraryFavoriteOverrides(
             rawSnapshot,
@@ -100,6 +96,13 @@ class _AlbumDetailPageState extends ConsumerState<AlbumDetailPage> {
                 ..sort(
                   (left, right) => compareArtistText(left.title, right.title),
                 );
+          final browsingState = ref.watch(browsingLibraryContentDataProvider);
+          if (albumSongs.isEmpty && browsingState.isLoading) {
+            return const _AlbumDetailPanel(child: SmPlayerLoadingState());
+          }
+          if (albumSongs.isEmpty && browsingState.hasError) {
+            return const _AlbumDetailPanel(child: LibraryLoadFailure());
+          }
           if (routeAlbumName.isEmpty || albumSongs.isEmpty) {
             return _AlbumDetailPanel(
               child: _AlbumDetailEmptyState(

@@ -22,18 +22,9 @@ extension _MusicLibraryLayout on _MusicLibraryPageState {
     }
 
     return snapshotValue.when(
+      skipLoadingOnReload: true,
       loading: () => const _LibraryScaffold(child: SmPlayerLoadingState()),
-      error:
-          (_, _) => _LibraryScaffold(
-            child: _EmptyState(
-              title: i18n.t('remoteShare.libraryLoadFailed'),
-              message: i18n.t(
-                ref.watch(musicShareProvider).selectedSource == 'local'
-                    ? 'library.scanHelp'
-                    : 'share.connectHint',
-              ),
-            ),
-          ),
+      error: (_, _) => const _LibraryScaffold(child: LibraryLoadFailure()),
       data: (snapshot) {
         final playlists = applyLibraryPlaylistOverridesToPlaylists(
           snapshot.playlists,

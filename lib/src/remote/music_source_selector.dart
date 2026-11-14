@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../app/undoable_notification.dart';
+import '../platform/system_log.dart';
 import '../i18n/app_i18n.dart';
 import '../library/ui/menu_flyout.dart';
 import 'music_share_dialog.dart';
@@ -17,22 +18,26 @@ Future<void> runMusicShareAction(
 ) async {
   try {
     await action();
-  } catch (error) {
+  } catch (error, stack) {
+    SystemLog.error('Music share action failed', error, stack);
     if (!context.mounted) return;
     showAppNotification(
       context: context,
       message: context.smPlayerI18n.t(
-        error is MusicShareException ? error.messageKey : error.toString(),
+        error is MusicShareException
+            ? error.messageKey
+            : 'share.connectionFailed',
       ),
     );
   }
 }
 
-MenuFlyoutItem buildMusicSourceMenuItem(BuildContext context) {
+MenuFlyoutItem? buildMusicSourceMenuItem(BuildContext context) {
   final share = ProviderScope.containerOf(
     context,
     listen: false,
   ).read(musicShareProvider);
+  if (share.peers.isEmpty && !share.sharing) return null;
   final i18n = context.smPlayerI18n;
   final peer =
       share.peers.where((peer) => peer.id == share.selectedSource).firstOrNull;
@@ -50,7 +55,7 @@ MenuFlyoutItem buildMusicSourceMenuItem(BuildContext context) {
 
   return MenuFlyoutItem(
     key: 'music-source',
-    text: '${i18n.t('share.musicSource')}: $label',
+    text: '${i18n.t('library.title')}: $label',
     icon: FluentIcons.library_24_regular,
     submenu: [
       MenuFlyoutItem(

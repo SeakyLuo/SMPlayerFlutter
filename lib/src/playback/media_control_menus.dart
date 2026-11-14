@@ -177,7 +177,7 @@ Future<void> showMediaControlMoreMenu({
 }
 
 List<MenuFlyoutItem> _buildPlayerMoreMenuItems({
-  required MenuFlyoutItem musicSourceItem,
+  required MenuFlyoutItem? musicSourceItem,
   required SmPlayerI18n i18n,
   required bool isMuted,
   required int volumeValue,
@@ -252,7 +252,7 @@ List<MenuFlyoutItem> _buildPlayerMoreMenuItems({
         disabled: randomPlayDisabled && currentScopeItems.isEmpty,
         submenu: mergedRandomPlaySubmenu,
       ),
-    musicSourceItem,
+    if (musicSourceItem != null) musicSourceItem,
     if ((currentSong != null || alwaysShowQuickPlay) &&
         (isCompact || currentSong != null))
       const MenuFlyoutItem.separator(key: 'play-actions-separator'),

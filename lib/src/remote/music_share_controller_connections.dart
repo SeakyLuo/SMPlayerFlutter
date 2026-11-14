@@ -168,6 +168,11 @@ extension MusicShareConnections on MusicShareController {
     } finally {
       if (identical(_peerSyncs[peer.id], operation)) _peerSyncs.remove(peer.id);
       if (_peerDataEpochs[peer.id] != epoch) peer.catalogRevision = null;
+      if (!_disposed &&
+          peers.contains(peer) &&
+          !_playlistClient.hasLoaded(peer.id)) {
+        _notify();
+      }
     }
   }
 
@@ -242,7 +247,16 @@ extension MusicShareConnections on MusicShareController {
       if (_localChanges.isNotEmpty && _localChangeTimer == null) {
         _localDataChanged(_localChanges.first);
       }
-      if (importCatalog || peer.catalogRevision != revision) {
+      var playlistsFetched = false;
+      if (peer.supportsPlaylists && !_playlistClient.hasLoaded(peer.id)) {
+        stage = 'playlists';
+        peer.catalogRevision = null;
+        await _playlistClient.refresh(peer);
+        if (_disposed || !peers.contains(peer)) return;
+        playlistsFetched = true;
+      }
+      if ((!playlistsFetched && importCatalog) ||
+          peer.catalogRevision != revision) {
         stage = 'catalog';
         final page = await transport.json('/catalog');
         if (_disposed || !peers.contains(peer)) return;
@@ -259,9 +273,11 @@ extension MusicShareConnections on MusicShareController {
         );
         if (_disposed || !peers.contains(peer)) return;
         peer.catalogRevision = revision;
+        peer.catalogLoaded = true;
         onCatalogChanged();
+        _notify();
       }
-      if (peer.supportsPlaylists) {
+      if (peer.supportsPlaylists && !playlistsFetched) {
         stage = 'playlists';
         await _playlistClient.refresh(peer);
       }

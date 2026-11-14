@@ -1,3 +1,4 @@
+import 'package:smplayer_flutter/src/library/ui/library_load_failure.dart';
 import '../../remote/music_source_providers.dart';
 import 'dart:async';
 import 'dart:math';
@@ -221,6 +222,7 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
     }
 
     return snapshotValue.when(
+      skipLoadingOnReload: true,
       loading: () {
         final useWorkspaceAppBar = WorkspaceNavigationAppBarScope.of(context);
         _syncAppBarPortal(
@@ -267,13 +269,7 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
           ),
         );
       },
-      error:
-          (_, _) => _AlbumsPagePanel(
-            child: _AlbumsEmptyState(
-              title: i18n.t('collection.albumNotFound'),
-              message: i18n.t('library.scanHelp'),
-            ),
-          ),
+      error: (_, _) => const _AlbumsPagePanel(child: LibraryLoadFailure()),
       data: (rawSnapshot) {
         final libraryData = ref.watch(
           _albumsLibraryDataProvider((

@@ -38,6 +38,8 @@ class MusicPeer {
   final String token;
   bool canWrite = false;
   bool supportsPlaylists = false;
+  bool catalogLoaded = false;
+  bool catalogPublished = false;
   MusicPeerStatus status = MusicPeerStatus.offline;
   String? catalogRevision;
 

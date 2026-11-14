@@ -3,6 +3,7 @@ import 'package:smplayer_flutter/src/remote/music_source_selector.dart';
 import 'package:smplayer_flutter/src/remote/music_share_models.dart';
 import 'package:smplayer_flutter/src/remote/music_share_access.dart';
 import '../../remote/music_source_providers.dart';
+import '../../remote/music_share_dialog.dart';
 import 'dart:async';
 import 'dart:math';
 
@@ -72,6 +73,7 @@ class _PlaylistsPageState extends ConsumerState<PlaylistsPage> {
   late var _searchDraft = widget.searchQuery.trim();
   late var _searchQuery = widget.searchQuery.trim();
   var _searchFocused = false;
+  Object? _lastPlaylistLoadError;
   var _appBarSearchOpen = false;
   List<int>? _previewPlaylistIds;
   List<int>? _committedPlaylistIds;
@@ -235,17 +237,55 @@ class _PlaylistsPageState extends ConsumerState<PlaylistsPage> {
       return const SizedBox.shrink();
     }
 
+    final remotePlaylists = ref.watch(remotePlaylistLoadStateProvider);
+    if (remotePlaylists.remote && !remotePlaylists.loaded) {
+      if (remotePlaylists.loading) return const SmPlayerLoadingState();
+      return _PlaylistsEmptyState(
+        title: i18n.t('share.connectComputer'),
+        message: i18n.t('share.connectHint'),
+        searching: false,
+        actionLabel: i18n.t('share.connectComputer'),
+        actionIcon: FluentIcons.plug_connected_24_regular,
+        onAction: () => showMusicShareDialog(context),
+      );
+    }
+
     return snapshotValue.when(
       skipLoadingOnReload: true,
       loading: () => const SmPlayerLoadingState(),
-      error:
-          (_, _) => Center(
-            child: Text(
-              i18n.t('playlists.none'),
-              style: const TextStyle(color: _PlaylistsColors.textMuted),
+      error: (error, _) {
+        if (!identical(_lastPlaylistLoadError, error)) {
+          _lastPlaylistLoadError = error;
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (!mounted) return;
+            showAppNotification(
+              context: context,
+              message: i18n.t(
+                error is MusicShareException
+                    ? error.messageKey
+                    : error.toString(),
+              ),
+            );
+          });
+        }
+        return Center(
+          child: PopupDialogActionButton(
+            label: i18n.t(
+              remotePlaylists.remote
+                  ? 'share.connectComputer'
+                  : 'common.settings',
             ),
+            primary: true,
+            onPressed:
+                () =>
+                    remotePlaylists.remote
+                        ? showMusicShareDialog(context)
+                        : context.go('/settings'),
           ),
+        );
+      },
       data: (rawSnapshot) {
+        _lastPlaylistLoadError = null;
         final snapshot = _applyLocalSnapshotOverrides(
           applyLibraryFavoriteOverrides(
             rawSnapshot,

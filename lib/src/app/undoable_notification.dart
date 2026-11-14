@@ -223,10 +223,7 @@ class AppNotificationHost extends StatefulWidget {
 
 class _AppNotificationHostState extends State<AppNotificationHost>
     with WidgetsBindingObserver {
-  final _overlayController = OverlayPortalController(
-    debugLabel: 'AppNotificationHost',
-  );
-  var _showing = false;
+  OverlayEntry? _notificationEntry;
 
   @override
   void initState() {
@@ -241,6 +238,8 @@ class _AppNotificationHostState extends State<AppNotificationHost>
 
   @override
   void dispose() {
+    _notificationEntry?.remove();
+    _notificationEntry?.dispose();
     NotificationDiagnostics.detach();
     _notificationPresentation.removeListener(_handlePresentationChanged);
     WidgetsBinding.instance.removeObserver(this);
@@ -270,58 +269,56 @@ class _AppNotificationHostState extends State<AppNotificationHost>
 
   void _handlePresentationChanged() {
     if (_notificationPresentation.value == null) {
-      _overlayController.hide();
-      _showing = false;
+      _notificationEntry?.remove();
+      _notificationEntry?.dispose();
+      _notificationEntry = null;
       return;
     }
-    if (!_showing) {
-      _overlayController.show();
-      _showing = true;
+    if (_notificationEntry == null) {
+      // Insert above the current dialog route so its operation feedback is visible.
+      final entry = OverlayEntry(builder: _buildNotification);
+      _notificationEntry = entry;
+      Overlay.of(context, rootOverlay: true).insert(entry);
     } else {
-      setState(() {});
+      _notificationEntry!.markNeedsBuild();
     }
   }
 
   @override
-  Widget build(BuildContext context) {
-    return OverlayPortal(
-      controller: _overlayController,
-      overlayLocation: OverlayChildLocation.rootOverlay,
-      overlayChildBuilder: (context) {
-        final presentation = _notificationPresentation.value!;
-        final controller = presentation.controller;
-        controller.recordFirstFrame();
-        return _AppNotificationOverlay(
-          key: ObjectKey(controller),
-          closing: controller.isClosed,
-          onDismissed: controller.removePresentation,
-          message: presentation.message,
-          actions: presentation.actions,
-          bottomAligned: presentation.actions.isNotEmpty,
-          runningActionIndex: controller.runningActionIndex,
-          onHoverChanged: (hovered) {
-            controller.setPaused(_NotificationPause.hover, hovered);
-          },
-          onDismiss: () {
-            controller.close(AppNotificationClosedReason.hide);
-          },
-          onAction: (actionIndex) async {
-            final action = presentation.actions[actionIndex];
-            controller.setRunning(actionIndex);
-            try {
-              await SchedulerBinding.instance.endOfFrame;
-              await Future<void>.sync(action.onPressed);
-            } finally {
-              if (action.closeOnPressed) {
-                controller.close(AppNotificationClosedReason.action);
-              } else {
-                controller.finishAction();
-              }
-            }
-          },
-        );
+  Widget build(BuildContext context) => const SizedBox.shrink();
+
+  Widget _buildNotification(BuildContext context) {
+    final presentation = _notificationPresentation.value!;
+    final controller = presentation.controller;
+    controller.recordFirstFrame();
+    return _AppNotificationOverlay(
+      key: ObjectKey(controller),
+      closing: controller.isClosed,
+      onDismissed: controller.removePresentation,
+      message: presentation.message,
+      actions: presentation.actions,
+      bottomAligned: presentation.actions.isNotEmpty,
+      runningActionIndex: controller.runningActionIndex,
+      onHoverChanged: (hovered) {
+        controller.setPaused(_NotificationPause.hover, hovered);
       },
-      child: const SizedBox.shrink(),
+      onDismiss: () {
+        controller.close(AppNotificationClosedReason.hide);
+      },
+      onAction: (actionIndex) async {
+        final action = presentation.actions[actionIndex];
+        controller.setRunning(actionIndex);
+        try {
+          await SchedulerBinding.instance.endOfFrame;
+          await Future<void>.sync(action.onPressed);
+        } finally {
+          if (action.closeOnPressed) {
+            controller.close(AppNotificationClosedReason.action);
+          } else {
+            controller.finishAction();
+          }
+        }
+      },
     );
   }
 }

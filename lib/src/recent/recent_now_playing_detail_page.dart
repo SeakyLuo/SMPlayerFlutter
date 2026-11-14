@@ -20,13 +20,7 @@ class RecentNowPlayingDetailPage extends ConsumerWidget {
       child: snapshotValue.when(
         skipLoadingOnReload: true,
         loading: () => const _RecentPagePanel(child: SmPlayerLoadingState()),
-        error:
-            (_, _) => _RecentPagePanel(
-              child: _RecentEmptyState(
-                title: i18n.t('recent.empty'),
-                message: '',
-              ),
-            ),
+        error: (_, _) => const _RecentPagePanel(child: LibraryLoadFailure()),
         data: (snapshot) {
           final entry = buildRecentNowPlayingViews(
             snapshot.recentNowPlaying,

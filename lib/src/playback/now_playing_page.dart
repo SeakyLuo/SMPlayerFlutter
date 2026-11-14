@@ -1,3 +1,4 @@
+import 'package:smplayer_flutter/src/library/ui/library_load_failure.dart';
 import 'dart:async';
 
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
@@ -127,13 +128,9 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
     final compact = MediaQuery.sizeOf(context).width <= 720;
 
     return snapshotValue.when(
+      skipLoadingOnReload: true,
       loading: () => const _NowPlayingPagePanel(child: SmPlayerLoadingState()),
-      error:
-          (_, _) => _NowPlayingPagePanel(
-            child: NowPlayingEmptyState(
-              title: i18n.t('nowPlaying.noActiveTrack'),
-            ),
-          ),
+      error: (_, _) => const _NowPlayingPagePanel(child: LibraryLoadFailure()),
       data: (snapshot) {
         final songsById = {for (final song in snapshot.songs) song.id: song};
         final queueOverride = ref.watch(nowPlayingQueueOverrideProvider);
