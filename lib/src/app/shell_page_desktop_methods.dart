@@ -356,6 +356,8 @@ extension _SmPlayerShellDesktopMethods on _SmPlayerShellPageState {
         _settingsController.waitForPendingDisplayModeState(),
         _settingsController.waitForPendingViewState(),
       ]);
+      SystemLog.info('Application quitting');
+      await SystemLog.flush();
       await _desktopFeatureService.quit();
     } finally {
       _pendingQuit = null;
@@ -446,8 +448,13 @@ extension _SmPlayerShellDesktopMethods on _SmPlayerShellPageState {
   }
 
   Future<void> _openExternalAudioFiles(List<String> filePaths) async {
+    SystemLog.info('Opening external audio files: $filePaths');
     final repository = ref.read(libraryRepositoryProvider);
     final openedSongIds = await repository.importExternalAudioFiles(filePaths);
+    SystemLog.info(
+      'External audio import completed: '
+      'requested=${filePaths.length}; imported=${openedSongIds.length}',
+    );
     if (!mounted || openedSongIds.isEmpty) {
       return;
     }

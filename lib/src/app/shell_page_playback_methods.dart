@@ -167,6 +167,11 @@ extension _SmPlayerShellPlaybackMethods on _SmPlayerShellPageState {
 
   Future<void> _loadAudioSong(LibrarySong song, MediaControlState state) async {
     final notifyOnFailure = !_restoringPlaybackTrack && state.isPlaying;
+    final loadTimer = Stopwatch()..start();
+    SystemLog.info(
+      'Loading audio: path=${song.path}; '
+      'autoplay=${state.isPlaying}; progress=${state.progressSeconds}',
+    );
     final loadSerial = _audioLoadSerial + 1;
     _audioLoadSerial = loadSerial;
     _loadingAudioTrackId = song.id;
@@ -189,6 +194,11 @@ extension _SmPlayerShellPlaybackMethods on _SmPlayerShellPageState {
       }
       _loadedAudioTrackId = song.id;
       _loadedAudioPath = song.path;
+      SystemLog.info(
+        'Audio loaded: path=${song.path}; duration=$duration; '
+        'elapsedMs=${loadTimer.elapsedMilliseconds}; '
+        'autoplay=${_mediaControlController.state.isPlaying}',
+      );
       if (duration != null) {
         _persistResolvedAudioDuration(song.id, duration);
       }
@@ -208,11 +218,18 @@ extension _SmPlayerShellPlaybackMethods on _SmPlayerShellPageState {
       _syncingAudioPlayer = false;
       await _applyAudioPlaybackState(playbackState);
     } on PlayerInterruptedException {
+      SystemLog.info('Audio load interrupted: path=${song.path}');
       return;
     } on Object catch (error, stackTrace) {
       if (loadSerial != _audioLoadSerial) {
         return;
       }
+      SystemLog.error(
+        'Audio load failed: path=${song.path}; '
+        'elapsedMs=${loadTimer.elapsedMilliseconds}',
+        error,
+        stackTrace,
+      );
       debugPrint(
         'Simple Melody Player failed to load audio file: ${song.path}\n'
         '$error\n'
@@ -311,6 +328,13 @@ extension _SmPlayerShellPlaybackMethods on _SmPlayerShellPageState {
   }
 
   void _handleAudioPlaybackError(PlayerException error) {
+    SystemLog.error(
+      'Audio backend error: path=${_loadingAudioPath ?? _loadedAudioPath}; '
+      'position=${_audioPlayer.position}; '
+      'processingState=${_audioPlayer.processingState}',
+      error,
+      StackTrace.current,
+    );
     // Source-loading errors are handled by the matching setUrl/setFilePath future.
     if (_loadingAudioTrackId != null) return;
     final state = _mediaControlController.state;
@@ -373,9 +397,9 @@ extension _SmPlayerShellPlaybackMethods on _SmPlayerShellPageState {
     if (permissionDenied) {
       _showAudioFileAccessNotification();
     } else if (failedState.isPlaying &&
-        failedState.mode != PlaybackMode.repeatOne &&
-        _playNextFromCurrentQueue(automatic: true)) {
-      return;
+        failedState.mode != PlaybackMode.repeatOne) {
+      SystemLog.warning('Trying next track after audio backend error: $error');
+      if (_playNextFromCurrentQueue(automatic: true)) return;
     }
     _syncingAudioPlayer = true;
     _mediaControlController.setPlaybackRuntimeFailed(progressSeconds);
@@ -410,7 +434,7 @@ extension _SmPlayerShellPlaybackMethods on _SmPlayerShellPageState {
       // The Windows adapter resets position to zero when it reports completion.
       // Events from the previous source can still arrive while loading a track.
       if (canFinishCurrentTrack) {
-        _finishCurrentAudioTrack();
+        _finishCurrentAudioTrack('backend reported completion');
       }
       return;
     }
@@ -423,7 +447,7 @@ extension _SmPlayerShellPlaybackMethods on _SmPlayerShellPageState {
         duration - _audioPlayer.position <= const Duration(milliseconds: 500) &&
         !state.playing;
     if (reachedEnd) {
-      _finishCurrentAudioTrack();
+      _finishCurrentAudioTrack('playback paused near end');
       return;
     }
 
@@ -474,11 +498,11 @@ extension _SmPlayerShellPlaybackMethods on _SmPlayerShellPageState {
         processingState == ProcessingState.buffering;
   }
 
-  void _finishCurrentAudioTrack() {
-    unawaited(_finishCurrentAudioTrackAsync());
+  void _finishCurrentAudioTrack(String reason) {
+    unawaited(_finishCurrentAudioTrackAsync(reason));
   }
 
-  Future<void> _finishCurrentAudioTrackAsync() async {
+  Future<void> _finishCurrentAudioTrackAsync(String reason) async {
     _stopPlaybackStallTimer();
     final state = _mediaControlController.state;
     final activeTrackId = state.track.id;
@@ -486,6 +510,11 @@ extension _SmPlayerShellPlaybackMethods on _SmPlayerShellPageState {
       return;
     }
     _finishingAudioTrackId = activeTrackId;
+    SystemLog.info(
+      'Audio track finished: reason=$reason; path=$_loadedAudioPath; '
+      'position=${_audioPlayer.position}; duration=${_audioPlayer.duration}; '
+      'lastProgress=${state.progressSeconds}; mode=${state.mode.name}',
+    );
 
     try {
       if (activeTrackId != null) {
@@ -666,13 +695,17 @@ extension _SmPlayerShellPlaybackMethods on _SmPlayerShellPageState {
         return;
       case PlaybackStallRecoveryAction.finishTrack:
         _stalledProgressStartedAt = null;
-        _finishCurrentAudioTrack();
+        _finishCurrentAudioTrack('playback stalled near end');
       case PlaybackStallRecoveryAction.pauseAndRecover:
         _recoverFromStalledPlayback(currentProgressSeconds);
     }
   }
 
   void _recoverFromStalledPlayback(double progressSeconds) {
+    SystemLog.warning(
+      'Audio playback stalled: path=$_loadedAudioPath; '
+      'progress=$progressSeconds; processingState=${_audioPlayer.processingState}',
+    );
     _stopPlaybackStallTimer();
     unawaited(_audioPlayer.pause());
     _syncingAudioPlayer = true;

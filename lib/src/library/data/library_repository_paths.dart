@@ -50,9 +50,7 @@ class LibraryRepositoryPaths {
   static Future<File> _resolveWindowsDatabaseFile(
     WindowsUwpDatabaseResolver windowsUwpDatabaseResolver,
   ) async {
-    final packageDataPath = await const MethodChannel(
-      'smplayer_flutter/desktop_features',
-    ).invokeMethod<String>('getApplicationDataPath');
+    final packageDataPath = await windowsPackageApplicationDataPath;
     final File databaseFile;
     if (packageDataPath != null) {
       databaseFile = File(p.join(packageDataPath, smPlayerDatabaseName));
@@ -86,6 +84,10 @@ class LibraryRepositoryPaths {
     return File(p.join(databaseFile.parent.path, pendingSongDeletesJsonName));
   }
 }
+
+final windowsPackageApplicationDataPath = const MethodChannel(
+  'smplayer_flutter/desktop_features',
+).invokeMethod<String>('getApplicationDataPath');
 
 Future<String> defaultSmPlayerUserDataPath() async {
   if (Platform.isAndroid || Platform.isIOS) {

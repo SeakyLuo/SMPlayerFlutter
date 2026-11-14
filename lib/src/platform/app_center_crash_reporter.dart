@@ -9,6 +9,7 @@ import 'package:path/path.dart' as p;
 import 'package:uuid/uuid.dart';
 
 import '../library/data/library_repository_paths.dart';
+import 'system_log.dart';
 
 const _appSecret = '8e3ac143-15c7-472c-b089-74707d7605c7';
 const _ingestionUrl = 'https://in.appcenter.ms/logs?Api-Version=1.0.0';
@@ -65,6 +66,7 @@ class AppCenterCrashReporter {
     StackTrace stack, {
     required bool fatal,
   }) async {
+    SystemLog.error('Unhandled application error (fatal=$fatal)', error, stack);
     if (!enabled) return;
     final key = '${error.runtimeType}|$error|$stack';
     if (_reportedIssues.contains(key) || _reportedIssues.length >= 200) return;
