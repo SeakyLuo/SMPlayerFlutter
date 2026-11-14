@@ -12,6 +12,7 @@ Map<String, dynamic> sharedSongJson(LibrarySong song) => {
   'artists': song.artists,
   'album': song.album,
   'duration': song.duration,
+  'playCount': song.playCount,
   'lyricsOffsetMs': song.lyricsOffsetMs,
   'favorite': song.favorite,
   'dateAdded': song.dateAdded,
@@ -51,6 +52,9 @@ Future<void> importMusicShareCatalog(
     final updateOffset = db.prepare(
       'UPDATE Music SET LyricsOffsetMs = ? WHERE Id = ?',
     );
+    final updatePlayCount = db.prepare(
+      'UPDATE Music SET PlayCount = ? WHERE Id = ?',
+    );
     final clearArtists = db.prepare(
       'DELETE FROM MusicArtist WHERE MusicId = ?',
     );
@@ -76,6 +80,9 @@ Future<void> importMusicShareCatalog(
         if (song.containsKey('lyricsOffsetMs')) {
           updateOffset.execute([song['lyricsOffsetMs'], id]);
         }
+        if (song.containsKey('playCount')) {
+          updatePlayCount.execute([song['playCount'], id]);
+        }
         if (song.containsKey('favorite')) {
           (song['favorite'] as bool ? liked : unliked).add(id);
         }
@@ -88,6 +95,7 @@ Future<void> importMusicShareCatalog(
     } finally {
       upsert.dispose();
       updateOffset.dispose();
+      updatePlayCount.dispose();
       clearArtists.dispose();
       insertArtist.dispose();
     }

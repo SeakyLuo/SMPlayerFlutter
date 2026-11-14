@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import '../library/data/library_models.dart';
@@ -6,6 +7,8 @@ import 'music_share_models.dart';
 
 abstract class MusicShareAccess {
   String get selectedSource;
+  void localDataChanged(String scope);
+  Stream<String> get remoteDataChanges;
   List<LibraryPlaylist> get remotePlaylists;
   Future<LibraryPlaylist?> playlistOperation(
     String device,

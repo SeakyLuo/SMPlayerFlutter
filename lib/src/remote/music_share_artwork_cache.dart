@@ -6,7 +6,9 @@ import 'music_share_identity.dart';
 import 'music_share_models.dart';
 
 class MusicShareArtworkCache {
-  MusicShareArtworkCache(this.directory);
+  MusicShareArtworkCache(this.directory, {this.onNetworkError});
+
+  final void Function(MusicPeer, Object, StackTrace)? onNetworkError;
 
   final Directory directory;
   final _files = <String, File>{};
@@ -58,6 +60,8 @@ class MusicShareArtworkCache {
       peer.address,
       fingerprint: peer.fingerprint,
       token: peer.token,
+      onNetworkError:
+          (error, stack) => onNetworkError?.call(peer, error, stack),
       maxConnectionsPerHost: 4,
     );
   }
@@ -92,7 +96,9 @@ class MusicShareArtworkCache {
     await directory.create(recursive: true);
     final pending = File('${file.path}.part');
     try {
-      await response.pipe(pending.openWrite());
+      await transport.runNetworkOperation(
+        () => response.pipe(pending.openWrite()),
+      );
       return await pending.rename(file.path);
     } finally {
       if (await pending.exists()) await pending.delete();

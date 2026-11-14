@@ -9,6 +9,7 @@ import '../library/data/library_repository.dart';
 import '../library/data/library_models.dart';
 import '../settings/settings_model.dart';
 import 'music_share_catalog.dart';
+import 'music_share_event_hub.dart';
 import 'music_share_song_editor.dart';
 import 'music_share_batch_editor.dart';
 import 'music_share_preferences.dart';
@@ -53,6 +54,8 @@ class MusicShareServer {
   final _deletedPlaylists = <int, (LibraryPlaylist, DateTime)>{};
   String _catalog = '{"songs":[]}';
   String catalogRevision = '';
+  String _libraryRevision = '';
+  final events = MusicShareEventHub();
 
   late final _files = MusicShareFiles(repository, (snapshot) {
     updateLibrary(snapshot);
@@ -71,6 +74,21 @@ class MusicShareServer {
       'songs': _songs.values.map(sharedSongJson).toList(),
     });
     catalogRevision = shareDigest(_catalog);
+    final sharedIds = _songs.keys.toSet();
+    final revision = shareDigest(
+      jsonEncode([
+        catalogRevision,
+        name(),
+        snapshot.playlists
+            .where((playlist) => !playlist.isBuiltIn && playlist.id > 0)
+            .map((playlist) => sharedPlaylistJson(playlist, sharedIds))
+            .toList(),
+      ]),
+    );
+    if (revision != _libraryRevision) {
+      _libraryRevision = revision;
+      if (running) events.dataChanged('library');
+    }
   }
 
   bool get running => _server != null;
@@ -134,6 +152,7 @@ class MusicShareServer {
     final previous = _server!;
     _server = replacement;
     replacement.listen((request) => unawaited(_handle(request)));
+    await events.close();
     await previous.close(force: true);
     _streams.clear();
   }
@@ -230,12 +249,14 @@ class MusicShareServer {
       // A deadline can abort an active response after its headers have been sent.
       response.deadline = Duration.zero;
     }
+    await events.revoke(hash);
   }
 
   Future<void> stop() async {
     _expiryTimer?.cancel();
     _discovery?.close();
     _discovery = null;
+    await events.close();
     await _server?.close(force: true);
     _server = null;
     await _files.close();
@@ -247,6 +268,7 @@ class MusicShareServer {
   Future<void> _handle(HttpRequest request) async {
     final response = request.response;
     var sendingFile = false;
+    var upgraded = false;
     try {
       if (request.headers.value('origin') != null) {
         response.statusCode = HttpStatus.forbidden;
@@ -325,6 +347,17 @@ class MusicShareServer {
         response.statusCode = HttpStatus.unauthorized;
         return;
       }
+      if (path == '/events' && request.method == 'GET') {
+        final socket = await WebSocketTransformer.upgrade(request);
+        upgraded = true;
+        // A grant can be revoked while the upgrade is awaiting its socket.
+        if (!grants.containsKey(hash)) {
+          await socket.close(WebSocketStatus.policyViolation);
+          return;
+        }
+        events.attach(hash, socket, writeGrants.contains(hash));
+        return;
+      }
       if (request.method != 'GET' &&
           request.method != 'HEAD' &&
           !writeGrants.contains(hash)) {
@@ -350,6 +383,7 @@ class MusicShareServer {
           'revision': catalogRevision,
           'canWrite': writeGrants.contains(hash),
           'playlistSupport': true,
+          'eventsSupport': true,
         });
         return;
       }
@@ -367,6 +401,7 @@ class MusicShareServer {
           _deletedPlaylists,
         );
         if (request.method == 'POST' && response.statusCode == HttpStatus.ok) {
+          events.dataChanged('library');
           onLibraryChanged();
         }
         _json(response, result);
@@ -392,6 +427,7 @@ class MusicShareServer {
           () => grants.containsKey(hash) && writeGrants.contains(hash),
         );
         if (request.method == 'POST' && response.statusCode == HttpStatus.ok) {
+          events.dataChanged('preferences');
           onLibraryChanged();
         }
         _json(response, result);
@@ -410,6 +446,7 @@ class MusicShareServer {
         );
         if (response.statusCode == HttpStatus.ok && request.method != 'GET') {
           updateLibrary(await repository.getLibraryContentData());
+          events.dataChanged('library');
           onLibraryChanged();
         }
         _json(response, result);
@@ -450,6 +487,7 @@ class MusicShareServer {
         );
         if (response.statusCode == HttpStatus.ok && request.method != 'GET') {
           updateLibrary(await repository.getLibraryContentData());
+          events.dataChanged('library');
           onLibraryChanged();
           result.addAll(sharedSongJson(_songs[songId]!));
         }
@@ -505,7 +543,7 @@ class MusicShareServer {
       // A client may disconnect while seeking or while its grant is revoked.
     } finally {
       try {
-        await response.close();
+        if (!upgraded) await response.close();
       } on HttpException {
         // Revocation can close a response while its file stream is finishing.
       } on SocketException {

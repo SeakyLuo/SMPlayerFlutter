@@ -36,6 +36,7 @@ class _SettingsDeviceNameState extends ConsumerState<_SettingsDeviceName> {
       share.name = value;
       try {
         await share.save();
+        share.localDataChanged('library');
       } catch (_) {
         share.name = previous;
         rethrow;

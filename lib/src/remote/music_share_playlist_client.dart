@@ -9,8 +9,10 @@ class MusicSharePlaylistClient {
   MusicSharePlaylistClient(
     this.repository,
     this.changed,
-    this.permissionChanged,
-  );
+    this.permissionChanged, {
+    this.onNetworkError,
+  });
+  final void Function(MusicPeer, Object, StackTrace)? onNetworkError;
   final LibraryRepository repository;
   final void Function() changed;
   final void Function() permissionChanged;
@@ -28,6 +30,8 @@ class MusicSharePlaylistClient {
       peer.address,
       fingerprint: peer.fingerprint,
       token: peer.token,
+      onNetworkError:
+          (error, stack) => onNetworkError?.call(peer, error, stack),
     );
     try {
       return await transport.json(
@@ -168,6 +172,10 @@ class MusicSharePlaylistClient {
     final created = result['created'] as int?;
     if (created == null) return null;
     return _lists[peer.id]!.firstWhere((p) => _locations[p.id]!.$2 == created);
+  }
+
+  void invalidate(String device) {
+    _signatures.remove(device);
   }
 
   void forget(String device) {

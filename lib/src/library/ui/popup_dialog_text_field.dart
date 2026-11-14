@@ -35,6 +35,7 @@ class PopupDialogTextField extends StatelessWidget {
       style: TextStyle(color: colors.textStrong, fontSize: 15, height: 1.2),
       decoration: InputDecoration(
         hintText: placeholder,
+        hintStyle: TextStyle(color: colors.textMuted.withValues(alpha: 0.7)),
         errorText: errorText.isEmpty ? null : errorText,
         filled: true,
         fillColor: enabled ? colors.fieldSurface : colors.fieldDisabledSurface,

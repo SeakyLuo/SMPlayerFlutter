@@ -31,11 +31,21 @@ class _PreferenceSettingsPageState extends State<PreferenceSettingsPage> {
   final _expandedSections = <PreferenceSectionKey>{};
   var _loading = false;
   var _loadStarted = false;
+  StreamSubscription<String>? _remoteChanges;
 
   @override
   void initState() {
     super.initState();
     _source = activeMusicShareAccess?.selectedSource ?? 'local';
+    _remoteChanges = activeMusicShareAccess?.remoteDataChanges.listen((device) {
+      if (device == _source && mounted) {
+        unawaited(
+          _loadPreferenceSnapshot(
+            context.smPlayerI18n.t('common.albumUnknown'),
+          ),
+        );
+      }
+    });
     _snapshot = widget.initialSnapshot ?? PreferenceSettingsSnapshot.defaults();
     if (widget.initialSnapshot == null) {
       _loading = true;
@@ -55,6 +65,7 @@ class _PreferenceSettingsPageState extends State<PreferenceSettingsPage> {
 
   @override
   void dispose() {
+    unawaited(_remoteChanges?.cancel());
     _preferenceScrollController.dispose();
     super.dispose();
   }

@@ -10,11 +10,13 @@ final class LocalLibraryDataSource implements LibraryDataSource {
 
   @override
   Future<LibraryPlaylist> createPlaylist(String name, List<int> songIds) async {
-    return LibraryRepository._playlistService.createPlaylist(
+    final result = await LibraryRepository._playlistService.createPlaylist(
       await repository._resolveDatabaseFile(),
       name,
       songIds,
     );
+    activeMusicShareAccess?.localDataChanged('library');
+    return result;
   }
 
   @override
@@ -23,6 +25,7 @@ final class LocalLibraryDataSource implements LibraryDataSource {
       await repository._resolveDatabaseFile(),
       id,
     );
+    activeMusicShareAccess?.localDataChanged('library');
   }
 
   @override
@@ -31,6 +34,7 @@ final class LocalLibraryDataSource implements LibraryDataSource {
       await repository._resolveDatabaseFile(),
       playlist,
     );
+    activeMusicShareAccess?.localDataChanged('library');
   }
 
   @override
@@ -40,6 +44,7 @@ final class LocalLibraryDataSource implements LibraryDataSource {
       id,
       name,
     );
+    activeMusicShareAccess?.localDataChanged('library');
   }
 
   @override
@@ -48,6 +53,7 @@ final class LocalLibraryDataSource implements LibraryDataSource {
     await LibrarySnapshotService.run(
       () => LibraryRepository._playlistService.reorderPlaylists(file, ids),
     );
+    activeMusicShareAccess?.localDataChanged('library');
   }
 
   @override
@@ -57,6 +63,7 @@ final class LocalLibraryDataSource implements LibraryDataSource {
       id,
       songIds,
     );
+    activeMusicShareAccess?.localDataChanged('library');
   }
 
   @override
@@ -66,6 +73,7 @@ final class LocalLibraryDataSource implements LibraryDataSource {
       id,
       songIds,
     );
+    activeMusicShareAccess?.localDataChanged('library');
   }
 
   @override
@@ -80,6 +88,7 @@ final class LocalLibraryDataSource implements LibraryDataSource {
       songIds,
       criterion,
     );
+    activeMusicShareAccess?.localDataChanged('library');
   }
 
   @override
@@ -92,11 +101,14 @@ final class LocalLibraryDataSource implements LibraryDataSource {
   Future<void> updateProperty(
     LibrarySong song,
     SongPropertiesUpdate update,
-  ) async => LibraryRepository._songPropertiesService.updateSongProperties(
-    await repository._resolveDatabaseFile(),
-    song.id,
-    update,
-  );
+  ) async {
+    await LibraryRepository._songPropertiesService.updateSongProperties(
+      await repository._resolveDatabaseFile(),
+      song.id,
+      update,
+    );
+    activeMusicShareAccess?.localDataChanged('library');
+  }
 
   @override
   Future<List<SongPropertiesSnapshot>> getProperties(
@@ -113,10 +125,13 @@ final class LocalLibraryDataSource implements LibraryDataSource {
     List<LibrarySong> songs,
     Map<int, SongPropertiesUpdate> updates,
   ) async {
-    return LibraryRepository._songPropertiesService.updateSongPropertiesBatch(
-      await repository._resolveDatabaseFile(),
-      updates,
-    );
+    final result = await LibraryRepository._songPropertiesService
+        .updateSongPropertiesBatch(
+          await repository._resolveDatabaseFile(),
+          updates,
+        );
+    activeMusicShareAccess?.localDataChanged('library');
+    return result;
   }
 
   @override
@@ -128,6 +143,7 @@ final class LocalLibraryDataSource implements LibraryDataSource {
       songs.map((s) => s.id).toList(),
       favorite,
     );
+    activeMusicShareAccess?.localDataChanged('library');
   }
 
   @override
@@ -137,6 +153,7 @@ final class LocalLibraryDataSource implements LibraryDataSource {
       song.id,
       count,
     );
+    activeMusicShareAccess?.localDataChanged('library');
   }
 
   @override
@@ -144,6 +161,7 @@ final class LocalLibraryDataSource implements LibraryDataSource {
     final file = await repository._resolveDatabaseFile();
     await repository._lyricsService.saveSongLyrics(file, song.id, text);
     await repository._lyricsSearchService.refreshSongIds(file, [song.id]);
+    activeMusicShareAccess?.localDataChanged('library');
   }
 
   @override
@@ -153,6 +171,7 @@ final class LocalLibraryDataSource implements LibraryDataSource {
       song.id,
       offsetMs,
     );
+    activeMusicShareAccess?.localDataChanged('library');
   }
 
   @override
@@ -178,6 +197,7 @@ final class LocalLibraryDataSource implements LibraryDataSource {
         sourcePath,
       );
     }
+    activeMusicShareAccess?.localDataChanged('library');
   }
 
   @override
@@ -196,6 +216,7 @@ final class LocalLibraryDataSource implements LibraryDataSource {
         sourcePath,
       );
     }
+    activeMusicShareAccess?.localDataChanged('library');
   }
 
   @override
@@ -205,13 +226,14 @@ final class LocalLibraryDataSource implements LibraryDataSource {
     String name,
     String level,
   ) async {
-    return LibraryRepository._preferenceService.addPreferenceItem(
+    await LibraryRepository._preferenceService.addPreferenceItem(
       await repository._resolveDatabaseFile(),
       type,
       itemId,
       name,
       level,
     );
+    activeMusicShareAccess?.localDataChanged('preferences');
   }
 
   @override
@@ -225,21 +247,23 @@ final class LocalLibraryDataSource implements LibraryDataSource {
 
   @override
   Future<void> removePreferenceItem(String type, String itemId) async {
-    return LibraryRepository._preferenceService.removePreferenceItem(
+    await LibraryRepository._preferenceService.removePreferenceItem(
       await repository._resolveDatabaseFile(),
       type,
       itemId,
     );
+    activeMusicShareAccess?.localDataChanged('preferences');
   }
 
   @override
   Future<void> updatePreferenceSettings(
     Map<PreferenceSectionKey, bool> enabled,
   ) async {
-    return LibraryRepository._preferenceService.updatePreferenceSettings(
+    await LibraryRepository._preferenceService.updatePreferenceSettings(
       await repository._resolveDatabaseFile(),
       enabled,
     );
+    activeMusicShareAccess?.localDataChanged('preferences');
   }
 
   @override
@@ -248,28 +272,31 @@ final class LocalLibraryDataSource implements LibraryDataSource {
     bool? isEnabled,
     PreferenceLevel? level,
   }) async {
-    return LibraryRepository._preferenceService.updatePreferenceItem(
+    await LibraryRepository._preferenceService.updatePreferenceItem(
       await repository._resolveDatabaseFile(),
       itemId,
       isEnabled: isEnabled,
       level: level,
     );
+    activeMusicShareAccess?.localDataChanged('preferences');
   }
 
   @override
   Future<void> removePreferenceItemById(int itemId) async {
-    return LibraryRepository._preferenceService.removePreferenceItemById(
+    await LibraryRepository._preferenceService.removePreferenceItemById(
       await repository._resolveDatabaseFile(),
       itemId,
     );
+    activeMusicShareAccess?.localDataChanged('preferences');
   }
 
   @override
   Future<void> clearInvalidPreferenceItems(PreferenceEntityType type) async {
-    return LibraryRepository._preferenceService.clearInvalidPreferenceItems(
+    await LibraryRepository._preferenceService.clearInvalidPreferenceItems(
       await repository._resolveDatabaseFile(),
       type,
     );
+    activeMusicShareAccess?.localDataChanged('preferences');
   }
 
   @override

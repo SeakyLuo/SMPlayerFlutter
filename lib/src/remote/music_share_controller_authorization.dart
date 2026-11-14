@@ -33,6 +33,7 @@ mixin _MusicShareAuthorization {
     _notify();
     try {
       await save();
+      server.events.permissionChanged(hash, enabled);
     } catch (_) {
       previous ? writeGrants.add(hash) : writeGrants.remove(hash);
       rethrow;

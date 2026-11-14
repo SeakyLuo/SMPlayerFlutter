@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:isolate';
@@ -62,11 +63,17 @@ class MusicShareIdentity {
         ..usePrivateKeyBytes(utf8.encode(key));
 }
 
+bool isMusicShareNetworkFailure(Object error) =>
+    error is SocketException ||
+    error is TimeoutException ||
+    error is HttpException;
+
 class MusicShareTransport {
   MusicShareTransport(
     this.address, {
     this.fingerprint,
     this.token,
+    this.onNetworkError,
     int? maxConnectionsPerHost,
   }) {
     _client.connectionTimeout = const Duration(seconds: 5);
@@ -79,13 +86,50 @@ class MusicShareTransport {
     };
   }
 
+  final void Function(Object, StackTrace)? onNetworkError;
+  var _closed = false;
   final String address;
   String? fingerprint;
   final String? token;
   String? observedFingerprint;
   final _client = HttpClient(context: SecurityContext(withTrustedRoots: false));
 
+  Future<T> runNetworkOperation<T>(Future<T> Function() operation) async {
+    try {
+      return await operation();
+    } catch (error, stack) {
+      reportNetworkFailure(error, stack);
+      rethrow;
+    }
+  }
+
+  void reportNetworkFailure(Object error, StackTrace stack) {
+    if (!_closed && isMusicShareNetworkFailure(error)) {
+      onNetworkError?.call(error, stack);
+    }
+  }
+
+  Future<WebSocket> connectEvents() => runNetworkOperation(() async {
+    final uri = Uri.parse(address).resolve('/events').replace(scheme: 'wss');
+    final socket = await WebSocket.connect(
+      uri.toString(),
+      customClient: _client,
+      headers: {HttpHeaders.authorizationHeader: 'Bearer $token'},
+    );
+    socket.pingInterval = const Duration(seconds: 20);
+    return socket;
+  });
+
   Future<HttpClientResponse> open(
+    String path, {
+    String method = 'GET',
+    Object? body,
+    String? range,
+  }) => runNetworkOperation(
+    () => _open(path, method: method, body: body, range: range),
+  );
+
+  Future<HttpClientResponse> _open(
     String path, {
     String method = 'GET',
     Object? body,
@@ -113,8 +157,14 @@ class MusicShareTransport {
     String path, {
     String method = 'GET',
     Object? body,
+  }) => runNetworkOperation(() => _json(path, method: method, body: body));
+
+  Future<Map<String, dynamic>> _json(
+    String path, {
+    String method = 'GET',
+    Object? body,
   }) async {
-    final response = await open(path, method: method, body: body);
+    final response = await _open(path, method: method, body: body);
     if (response.statusCode != 200) {
       await response.drain<void>();
       throw MusicShareException(
@@ -127,6 +177,7 @@ class MusicShareTransport {
             : response.statusCode == 401
             ? 'share.authorizationRequired'
             : 'share.connectionFailed',
+        httpStatusCode: response.statusCode,
       );
     }
     final bytes = await response
@@ -138,5 +189,8 @@ class MusicShareTransport {
     return jsonDecode(utf8.decode(bytes.takeBytes())) as Map<String, dynamic>;
   }
 
-  void close() => _client.close(force: true);
+  void close() {
+    _closed = true;
+    _client.close(force: true);
+  }
 }

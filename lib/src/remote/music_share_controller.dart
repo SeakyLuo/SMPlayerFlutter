@@ -7,6 +7,7 @@ import 'package:path/path.dart' as p;
 
 import '../library/data/library_models.dart';
 import '../library/data/library_repository.dart';
+import '../platform/system_log.dart';
 import 'music_share_access.dart';
 import 'music_share_artwork_cache.dart';
 import 'music_share_catalog.dart';
@@ -17,6 +18,7 @@ import 'music_share_playlist_client.dart';
 
 part 'music_share_controller_authorization.dart';
 part 'music_share_controller_connections.dart';
+part 'music_share_controller_events.dart';
 
 class MusicShareController extends ChangeNotifier
     with _MusicShareAuthorization
@@ -73,17 +75,36 @@ class MusicShareController extends ChangeNotifier
   Future<void> _savePending = Future.value();
   Timer? _connectionTimer;
   var _checking = false;
+  final _events = <String, _MusicShareEventConnection>{};
+  final _peerSyncs = <String, Future<void>>{};
+  final _eventRefreshTimers = <String, Timer>{};
+  final _peerDataEpochs = <String, int>{};
+  Timer? _localChangeTimer;
+  final _localChanges = <String>{};
+  final _remoteDataChanges = StreamController<String>.broadcast();
+  @override
+  Stream<String> get remoteDataChanges => _remoteDataChanges.stream;
+  final _connectionFailures = <String, String>{};
+  final _heartbeatFailures = <String, int>{};
+  final _requestRecoveryPeers = <String>{};
+  final _heartbeatSilence = <String, Stopwatch>{};
   HttpServer? _proxy;
   final _proxySecret = newShareSecret();
   final _proxyTransports = <MusicShareTransport>{};
   late final _artworkCache = MusicShareArtworkCache(
     Directory(p.join(p.dirname(databasePath), 'remote-artwork')),
+    onNetworkError: _requestConnectionRecovery,
   );
 
-  late final _playlistClient = MusicSharePlaylistClient(repository, () {
-    onCatalogChanged();
-    _notify();
-  }, _notify);
+  late final _playlistClient = MusicSharePlaylistClient(
+    repository,
+    () {
+      onCatalogChanged();
+      _notify();
+    },
+    _notify,
+    onNetworkError: _requestConnectionRecovery,
+  );
   @override
   List<LibraryPlaylist> get remotePlaylists => _playlistClient.playlists;
 
@@ -179,10 +200,10 @@ class MusicShareController extends ChangeNotifier
     await _artworkCache.restore();
     initialized = true;
     _notify();
-    _connectionTimer = Timer.periodic(const Duration(seconds: 20), (_) {
-      unawaited(checkConnections());
-    });
   }
+
+  @override
+  void localDataChanged(String scope) => _localDataChanged(scope);
 
   @override
   void _notify() {
@@ -311,6 +332,11 @@ class MusicShareController extends ChangeNotifier
   );
 
   Future<void> forget(MusicPeer peer) async {
+    _disconnectEvents(peer.id);
+    _requestRecoveryPeers.remove(peer.id);
+    _heartbeatSilence.remove(peer.id);
+    _heartbeatFailures.remove(peer.id);
+    _connectionFailures.remove(peer.id);
     _artworkCache.disconnect(peer.id);
     peers.remove(peer);
     _playlistClient.forget(peer.id);
@@ -349,6 +375,10 @@ class MusicShareController extends ChangeNotifier
         final peer = peers.where((peer) => peer.id == id).firstOrNull;
         if (peer != null && peer.address != address) {
           // Discovery is only an address hint. TLS still checks the paired key.
+          SystemLog.info(
+            'Remote device address changed: device=${peer.name}; '
+            'from=${peer.address}; to=$address',
+          );
           peer.address = address;
           addressChanged = true;
         }
@@ -457,6 +487,8 @@ class MusicShareController extends ChangeNotifier
         peer.address,
         fingerprint: peer.fingerprint,
         token: peer.token,
+        onNetworkError:
+            (error, stack) => _requestConnectionRecovery(peer, error, stack),
       );
       _proxyTransports.add(transport);
       final response = await transport.open(
@@ -475,7 +507,12 @@ class MusicShareController extends ChangeNotifier
         if (value != null) request.response.headers.set(header, value);
       }
       streaming = true;
-      await request.response.addStream(response);
+      await request.response.addStream(
+        response.handleError((Object error, StackTrace stack) {
+          transport!.reportNetworkFailure(error, stack);
+          Error.throwWithStackTrace(error, stack);
+        }),
+      );
     } catch (_) {
       if (!streaming) request.response.statusCode = HttpStatus.badGateway;
       // Closing an incomplete stream lets the backend report an interruption.
@@ -606,6 +643,8 @@ class MusicShareController extends ChangeNotifier
       peer.address,
       fingerprint: peer.fingerprint,
       token: peer.token,
+      onNetworkError:
+          (error, stack) => _requestConnectionRecovery(peer, error, stack),
     );
     try {
       final result = await transport.json(endpoint, method: method, body: body);
@@ -621,7 +660,6 @@ class MusicShareController extends ChangeNotifier
           );
           onCatalogChanged();
         }
-        unawaited(checkConnections());
       }
       return result;
     } on MusicShareException catch (error) {
@@ -644,6 +682,8 @@ class MusicShareController extends ChangeNotifier
       peer.address,
       fingerprint: peer.fingerprint,
       token: peer.token,
+      onNetworkError:
+          (error, stack) => _requestConnectionRecovery(peer, error, stack),
     );
     try {
       final json = await transport.json('/songs/$remoteId/lyrics');
@@ -672,6 +712,11 @@ class MusicShareController extends ChangeNotifier
     // Startup may already have failed; shutdown must still release resources.
     await startup.then<void>((_) {}, onError: (Object _, StackTrace __) {});
     _connectionTimer?.cancel();
+    _localChangeTimer?.cancel();
+    for (final device in _events.keys.toList()) {
+      _disconnectEvents(device);
+    }
+    await _remoteDataChanges.close();
     if (initialized) _artworkCache.dispose();
     for (final transport in _proxyTransports) {
       transport.close();

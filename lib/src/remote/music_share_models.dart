@@ -86,8 +86,12 @@ class MusicPairRequest {
 }
 
 class MusicShareException implements Exception {
-  const MusicShareException(this.messageKey);
+  const MusicShareException(this.messageKey, {this.httpStatusCode});
   final String messageKey;
+  final int? httpStatusCode;
   @override
-  String toString() => messageKey;
+  String toString() =>
+      httpStatusCode == null
+          ? messageKey
+          : '$messageKey (HTTP $httpStatusCode)';
 }
