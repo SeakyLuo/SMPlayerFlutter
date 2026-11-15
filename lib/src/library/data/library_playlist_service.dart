@@ -1,8 +1,10 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:sqlite3/sqlite3.dart';
 
 import 'library_models.dart';
+import 'library_snapshot_service.dart';
 
 const _activeState = 1;
 const _inactiveState = 0;
@@ -67,7 +69,10 @@ class LibraryPlaylistService {
         Playlist.Type AS type,
         Playlist.Criterion AS criterion,
         Playlist.Priority AS priority,
-        COUNT(Music.Id) AS songCount
+        COUNT(Music.Id) AS songCount,
+        COALESCE(SUM(Music.Duration),0) AS duration,
+        COALESCE(SUM(Music.PlayCount),0) AS playCount,
+        MIN(CASE WHEN Music.ThumbnailPath <> '' THEN Music.Id END) AS artworkId
       FROM Playlist
       LEFT JOIN PlaylistItem
         ON PlaylistItem.PlaylistId = Playlist.Id
@@ -121,13 +126,30 @@ class LibraryPlaylistService {
       playlistSongIds[playlistId] = songIds;
     }
 
+    final covers = db.select('''WITH Albums AS (
+      SELECT PlaylistItem.PlaylistId AS playlist,Music.Album,MIN(Music.Id) AS artworkId,MIN(Music.ThumbnailPath) AS artwork
+      FROM PlaylistItem INNER JOIN Music ON Music.Id=PlaylistItem.ItemId
+      WHERE PlaylistItem.State=1 AND Music.State=1 AND Music.ThumbnailPath <> ''
+      GROUP BY PlaylistItem.PlaylistId,Music.Album
+    ), Ranked AS (SELECT *,ROW_NUMBER() OVER(PARTITION BY playlist ORDER BY Album COLLATE NOCASE) AS position FROM Albums)
+    SELECT * FROM Ranked WHERE position<=4''');
+    final artwork = <int, Map<int, String>>{};
+    for (final row in covers)
+      artwork.putIfAbsent(row['playlist'] as int, () => {})[row['artworkId']
+              as int] =
+          row['artwork'] as String;
     return playlistRows.map((row) {
       final id = row['id'] as int;
       return LibraryPlaylist(
         id: id,
+        artworkPaths: artwork[id]?.values.toList() ?? const [],
+        artworkSongIds: artwork[id]?.keys.toList() ?? const [],
         name: row['name'] as String,
         priority: row['priority'] as int,
         songCount: row['songCount'] as int,
+        duration: row['duration'] as int,
+        playCount: row['playCount'] as int,
+        artworkSongId: row['artworkId'] as int? ?? 0,
         songIds: playlistSongIds[id] ?? const [],
         sortCriterion: _fromStoredPlaylistSortCriterion(
           row['criterion'] as int,
@@ -141,7 +163,7 @@ class LibraryPlaylistService {
     File databaseFile,
     String name,
     List<int> songIds,
-  ) async {
+  ) => LibrarySnapshotService.run(() {
     final db = sqlite3.open(databaseFile.path);
     try {
       final settings = _readPlaylistSettings(db);
@@ -191,61 +213,60 @@ class LibraryPlaylistService {
     } finally {
       db.dispose();
     }
-  }
+  });
 
-  Future<void> deletePlaylist(File databaseFile, int playlistId) async {
-    if (!databaseFile.existsSync()) {
-      return;
-    }
+  Future<void> deletePlaylist(File databaseFile, int playlistId) =>
+      LibrarySnapshotService.run(() {
+        if (!databaseFile.existsSync()) {
+          return;
+        }
 
-    final db = sqlite3.open(databaseFile.path);
-    try {
-      final settings = _readPlaylistSettings(db);
-      if (playlistId == settings.myFavoritesId ||
-          playlistId == settings.nowPlayingId) {
-        throw StateError('Built-in playlists cannot be deleted.');
-      }
+        final db = sqlite3.open(databaseFile.path);
+        try {
+          final settings = _readPlaylistSettings(db);
+          if (playlistId == settings.myFavoritesId ||
+              playlistId == settings.nowPlayingId) {
+            throw StateError('Built-in playlists cannot be deleted.');
+          }
 
-      db.execute('BEGIN');
-      try {
-        db.execute('UPDATE Playlist SET State = ? WHERE Id = ?', [
-          _inactiveState,
-          playlistId,
-        ]);
-        db.execute('UPDATE PlaylistItem SET State = ? WHERE PlaylistId = ?', [
-          _inactiveState,
-          playlistId,
-        ]);
-        db.execute('COMMIT');
-      } on Object {
-        db.execute('ROLLBACK');
-        rethrow;
-      }
-    } finally {
-      db.dispose();
-    }
-  }
+          db.execute('BEGIN');
+          try {
+            db.execute('UPDATE Playlist SET State = ? WHERE Id = ?', [
+              _inactiveState,
+              playlistId,
+            ]);
+            db.execute(
+              'UPDATE PlaylistItem SET State = ? WHERE PlaylistId = ?',
+              [_inactiveState, playlistId],
+            );
+            db.execute('COMMIT');
+          } on Object {
+            db.execute('ROLLBACK');
+            rethrow;
+          }
+        } finally {
+          db.dispose();
+        }
+      });
 
-  Future<void> restorePlaylist(
-    File databaseFile,
-    LibraryPlaylist playlist,
-  ) async {
-    if (!databaseFile.existsSync()) {
-      return;
-    }
+  Future<void> restorePlaylist(File databaseFile, LibraryPlaylist playlist) =>
+      LibrarySnapshotService.run(() {
+        if (!databaseFile.existsSync()) {
+          return;
+        }
 
-    final db = sqlite3.open(databaseFile.path);
-    try {
-      final settings = _readPlaylistSettings(db);
-      if (playlist.id == settings.myFavoritesId ||
-          playlist.id == settings.nowPlayingId) {
-        throw StateError('Built-in playlists cannot be restored.');
-      }
+        final db = sqlite3.open(databaseFile.path);
+        try {
+          final settings = _readPlaylistSettings(db);
+          if (playlist.id == settings.myFavoritesId ||
+              playlist.id == settings.nowPlayingId) {
+            throw StateError('Built-in playlists cannot be restored.');
+          }
 
-      db.execute('BEGIN');
-      try {
-        db.execute(
-          '''
+          db.execute('BEGIN');
+          try {
+            db.execute(
+              '''
           UPDATE Playlist
           SET Priority = Priority + 1
           WHERE State = ?
@@ -254,17 +275,17 @@ class LibraryPlaylistService {
             AND Name <> ?
             AND Priority >= ?
         ''',
-          [
-            _activeState,
-            settings.myFavoritesId,
-            settings.nowPlayingId,
-            playlist.id,
-            _nowPlayingPlaylistName,
-            playlist.priority,
-          ],
-        );
-        db.execute(
-          '''
+              [
+                _activeState,
+                settings.myFavoritesId,
+                settings.nowPlayingId,
+                playlist.id,
+                _nowPlayingPlaylistName,
+                playlist.priority,
+              ],
+            );
+            db.execute(
+              '''
           UPDATE Playlist
           SET Name = ?,
               Criterion = ?,
@@ -272,63 +293,60 @@ class LibraryPlaylistService {
               State = ?
           WHERE Id = ?
         ''',
-          [
-            _validatePlaylistName(
-              db,
-              playlist.name,
-              currentPlaylistId: playlist.id,
-            ),
-            _toStoredPlaylistSortCriterion(playlist.sortCriterion),
-            playlist.priority,
-            _activeState,
-            playlist.id,
-          ],
-        );
-        db.execute('UPDATE PlaylistItem SET State = ? WHERE PlaylistId = ?', [
-          _inactiveState,
-          playlist.id,
-        ]);
-        _setPlaylistSongsState(db, playlist.id, playlist.songIds, true);
-        db.execute('COMMIT');
-      } on Object {
-        db.execute('ROLLBACK');
-        rethrow;
-      }
-    } finally {
-      db.dispose();
-    }
-  }
+              [
+                _validatePlaylistName(
+                  db,
+                  playlist.name,
+                  currentPlaylistId: playlist.id,
+                ),
+                _toStoredPlaylistSortCriterion(playlist.sortCriterion),
+                playlist.priority,
+                _activeState,
+                playlist.id,
+              ],
+            );
+            db.execute(
+              'UPDATE PlaylistItem SET State = ? WHERE PlaylistId = ?',
+              [_inactiveState, playlist.id],
+            );
+            _setPlaylistSongsState(db, playlist.id, playlist.songIds, true);
+            db.execute('COMMIT');
+          } on Object {
+            db.execute('ROLLBACK');
+            rethrow;
+          }
+        } finally {
+          db.dispose();
+        }
+      });
 
-  Future<void> renamePlaylist(
-    File databaseFile,
-    int playlistId,
-    String name,
-  ) async {
-    if (!databaseFile.existsSync()) {
-      return;
-    }
+  Future<void> renamePlaylist(File databaseFile, int playlistId, String name) =>
+      LibrarySnapshotService.run(() {
+        if (!databaseFile.existsSync()) {
+          return;
+        }
 
-    final db = sqlite3.open(databaseFile.path);
-    try {
-      final settings = _readPlaylistSettings(db);
-      if (playlistId == settings.myFavoritesId ||
-          playlistId == settings.nowPlayingId) {
-        throw StateError('Built-in playlists cannot be renamed.');
-      }
+        final db = sqlite3.open(databaseFile.path);
+        try {
+          final settings = _readPlaylistSettings(db);
+          if (playlistId == settings.myFavoritesId ||
+              playlistId == settings.nowPlayingId) {
+            throw StateError('Built-in playlists cannot be renamed.');
+          }
 
-      final nextName = _validatePlaylistName(
-        db,
-        name,
-        currentPlaylistId: playlistId,
-      );
-      db.execute('UPDATE Playlist SET Name = ? WHERE Id = ?', [
-        nextName,
-        playlistId,
-      ]);
-    } finally {
-      db.dispose();
-    }
-  }
+          final nextName = _validatePlaylistName(
+            db,
+            name,
+            currentPlaylistId: playlistId,
+          );
+          db.execute('UPDATE Playlist SET Name = ? WHERE Id = ?', [
+            nextName,
+            playlistId,
+          ]);
+        } finally {
+          db.dispose();
+        }
+      });
 
   void reorderPlaylists(File databaseFile, List<int> playlistIds) {
     if (!databaseFile.existsSync()) {
@@ -423,22 +441,36 @@ class LibraryPlaylistService {
     }
   }
 
-  Future<void> setSongsFavorite(
+  Future<List<int>> setSongsFavorite(
     File databaseFile,
     List<int> songIds,
     bool favorite,
-  ) async {
+  ) => LibrarySnapshotService.run(() {
     if (!databaseFile.existsSync()) {
-      return;
+      return <int>[];
     }
 
     final db = sqlite3.open(databaseFile.path);
     try {
       final settings = _readPlaylistSettings(db);
-      db.execute('BEGIN');
+      db.execute('BEGIN IMMEDIATE');
       try {
-        _setPlaylistSongsState(db, settings.myFavoritesId, songIds, favorite);
+        final previous =
+            db
+                .select(
+                  'SELECT ItemId FROM PlaylistItem WHERE State = 1 AND PlaylistId = ? AND ItemId IN (SELECT value FROM json_each(?))',
+                  [settings.myFavoritesId, jsonEncode(songIds)],
+                )
+                .map((row) => row['ItemId'] as int)
+                .toSet();
+        final changed =
+            songIds
+                .toSet()
+                .where((id) => previous.contains(id) != favorite)
+                .toList();
+        _setPlaylistSongsState(db, settings.myFavoritesId, changed, favorite);
         db.execute('COMMIT');
+        return changed;
       } on Object {
         db.execute('ROLLBACK');
         rethrow;
@@ -446,7 +478,7 @@ class LibraryPlaylistService {
     } finally {
       db.dispose();
     }
-  }
+  });
 
   void applySharedFavorites(Database db, List<int> liked, List<int> unliked) {
     final settings = _readPlaylistSettings(db);
@@ -458,7 +490,7 @@ class LibraryPlaylistService {
     File databaseFile,
     int playlistId,
     List<int> songIds,
-  ) async {
+  ) => LibrarySnapshotService.run(() {
     if (!databaseFile.existsSync()) {
       return;
     }
@@ -476,13 +508,13 @@ class LibraryPlaylistService {
     } finally {
       db.dispose();
     }
-  }
+  });
 
   Future<void> removeSongsFromPlaylist(
     File databaseFile,
     int playlistId,
     List<int> songIds,
-  ) async {
+  ) => LibrarySnapshotService.run(() {
     if (!databaseFile.existsSync()) {
       return;
     }
@@ -500,14 +532,14 @@ class LibraryPlaylistService {
     } finally {
       db.dispose();
     }
-  }
+  });
 
   Future<void> reorderPlaylistSongs(
     File databaseFile,
     int playlistId,
     List<int> songIds, [
     PlaylistSortCriterion? sortCriterion,
-  ]) async {
+  ]) => LibrarySnapshotService.run(() {
     if (!databaseFile.existsSync()) {
       return;
     }
@@ -549,7 +581,7 @@ class LibraryPlaylistService {
     } finally {
       db.dispose();
     }
-  }
+  });
 
   _PlaylistSettings _readPlaylistSettings(Database db) {
     final rows = db.select('''

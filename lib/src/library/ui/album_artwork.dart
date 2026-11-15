@@ -8,7 +8,8 @@ class AlbumArtwork extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final firstSong = getAlbumArtworkSong(album.songs);
+    final artworkPath =
+        album.artworkPath ?? getAlbumArtworkSong(album.songs).thumbnailPath;
     final brightness = Theme.of(context).brightness;
     return ClipRRect(
       borderRadius: BorderRadius.circular(6),
@@ -20,7 +21,7 @@ class AlbumArtwork extends StatelessWidget {
           decoration: BoxDecoration(
             color: _ArtistsColors.albumArtworkBackground(brightness),
           ),
-          child: SongArtwork(artworkPath: firstSong.thumbnailPath),
+          child: SongArtwork(artworkPath: artworkPath),
         ),
       ),
     );

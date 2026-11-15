@@ -31,6 +31,7 @@ extension _MusicLibraryActions on _MusicLibraryPageState {
   }
 
   void _handleScroll() {
+    _loadVisibleSongWindow();
     final nextOffset = _scrollController.offset;
     final rowHeight =
         _compactLayout ? _compactVirtualRowHeight : _wideVirtualRowHeight;
@@ -45,6 +46,28 @@ extension _MusicLibraryActions on _MusicLibraryPageState {
     }
   }
 
+  Future<void> _loadVisibleSongWindow() async {
+    final query = _pageQuery.withPage(
+      source: ref.read(musicShareProvider).selectedSource,
+    );
+    final rowHeight =
+        _compactLayout ? _compactVirtualRowHeight : _wideVirtualRowHeight;
+    final index = (_scrollController.offset / rowHeight).floor();
+    try {
+      await ref
+          .read(libraryPagedQueryProvider(query).notifier)
+          .loadWindow(index);
+    } catch (error) {
+      if (mounted)
+        showAppNotification(
+          context: context,
+          message: context.smPlayerI18n.t('share.connectionFailed'),
+          actionLabel: context.smPlayerI18n.t('share.retryDirectory'),
+          onAction: _loadVisibleSongWindow,
+        );
+    }
+  }
+
   bool _handleUserScroll(UserScrollNotification notification) {
     if (notification.metrics.axis == Axis.vertical &&
         notification.direction != ScrollDirection.idle &&
@@ -56,24 +79,20 @@ extension _MusicLibraryActions on _MusicLibraryPageState {
     return false;
   }
 
-  String _activeQuickJumpKey(
-    List<LibrarySong> songs,
-    bool compact,
-    SmPlayerI18n i18n,
-  ) {
-    if (_quickJumpPinnedKey case final key?) {
-      return key;
-    }
-    final rowHeight =
-        compact ? _compactVirtualRowHeight : _wideVirtualRowHeight;
-    final index = min(
-      songs.length - 1,
-      max(0, (_scrollOffset / rowHeight).floor()),
-    );
-    return _quickJumpBucket(songs[index], _sortCriterion, i18n);
+  String _activeQuickJumpKey(Map<String, int> offsets, bool compact) {
+    if (_quickJumpPinnedKey case final key?) return key;
+    final height = compact ? _compactVirtualRowHeight : _wideVirtualRowHeight;
+    final index = (_scrollOffset / height).floor();
+    final entries =
+        offsets.entries.where((entry) => entry.value <= index).toList()
+          ..sort((a, b) => b.value.compareTo(a.value));
+    return entries.firstOrNull?.key ?? '#';
   }
 
-  void _selectSongFromPointer(int songId, Iterable<int> orderedSongIds) {
+  Future<void> _selectSongFromPointer(
+    int songId,
+    Iterable<int> orderedSongIds,
+  ) async {
     final keyboard = HardwareKeyboard.instance;
     final extendSelection =
         keyboard.isLogicalKeyPressed(LogicalKeyboardKey.control) ||
@@ -87,6 +106,31 @@ extension _MusicLibraryActions on _MusicLibraryPageState {
         keyboard.isLogicalKeyPressed(LogicalKeyboardKey.shiftLeft) ||
         keyboard.isLogicalKeyPressed(LogicalKeyboardKey.shiftRight);
 
+    final query = _pageQuery.withPage(
+      source: ref.read(musicShareProvider).selectedSource,
+    );
+    if (rangeSelection) {
+      try {
+        orderedSongIds = await _resolveScopeSongIds();
+      } catch (error) {
+        if (mounted)
+          showAppNotification(
+            context: context,
+            message: context.smPlayerI18n.t(
+              error is MusicShareException
+                  ? error.messageKey
+                  : 'share.connectionFailed',
+            ),
+          );
+        return;
+      }
+      if (!mounted ||
+          query !=
+              _pageQuery.withPage(
+                source: ref.read(musicShareProvider).selectedSource,
+              ))
+        return;
+    }
     _updateLibraryState(() {
       if (extendSelection || rangeSelection) {
         _selection.selectWithModifiers(
@@ -101,6 +145,49 @@ extension _MusicLibraryActions on _MusicLibraryPageState {
     });
   }
 
+  Future<List<int>> _resolveScopeSongIds() {
+    final query = _pageQuery.withPage(
+      source: ref.read(musicShareProvider).selectedSource,
+    );
+    if (_scopeRead != null && _scopeReadQuery == query) return _scopeRead!;
+    final source = ref.read(selectedLibraryDataSourceProvider);
+    _scopeReadQuery = query;
+    late Future<List<int>> request;
+    request = source.resolveSongIds(query).whenComplete(() {
+      if (identical(_scopeRead, request)) _scopeRead = null;
+    });
+    _scopeRead = request;
+    return request;
+  }
+
+  Future<void> _selectQueryScope({bool reverse = false}) async {
+    final query = _pageQuery.withPage(
+      source: ref.read(musicShareProvider).selectedSource,
+    );
+    try {
+      final ids = await _resolveScopeSongIds();
+      if (!mounted ||
+          query !=
+              _pageQuery.withPage(
+                source: ref.read(musicShareProvider).selectedSource,
+              ))
+        return;
+      _updateLibraryState(() {
+        if (reverse) {
+          _selection.reverseSelection(ids);
+        } else {
+          _selection.selectAll(ids);
+        }
+      });
+    } catch (error) {
+      if (mounted)
+        showAppNotification(
+          context: context,
+          message: context.smPlayerI18n.t('share.connectionFailed'),
+        );
+    }
+  }
+
   void _toggleSongSelection(int songId) {
     _updateLibraryState(() {
       _selection.toggle(songId);
@@ -113,24 +200,9 @@ extension _MusicLibraryActions on _MusicLibraryPageState {
     List<LibrarySong> sortedSongs,
     List<MultiSelectCommandBarPlaylist> customPlaylists,
   ) {
-    final selectedVisibleSongIds =
-        sortedSongs
-            .map((song) => song.id)
-            .where((songId) => _selection.isSelected(songId))
-            .toList();
-    if (_selection.isSelected(song.id) && selectedVisibleSongIds.length > 1) {
-      final selectedVisibleSongs =
-          sortedSongs
-              .where((song) => selectedVisibleSongIds.contains(song.id))
-              .toList();
-      _updateLibraryState(() {
-        _selection.selectAll(selectedVisibleSongIds);
-      });
-      _showSongSelectionContextMenu(
-        position,
-        selectedVisibleSongs,
-        customPlaylists,
-      );
+    final selectedIds = _selection.selectedItems.toList();
+    if (_selection.isSelected(song.id) && selectedIds.length > 1) {
+      _showSongSelectionContextMenu(position, selectedIds, customPlaylists);
       return Future<void>.value();
     }
 
@@ -182,14 +254,12 @@ extension _MusicLibraryActions on _MusicLibraryPageState {
         onPlayNext: () {
           _playNext(song.id);
         },
-        onAddToNowPlaying: () {
-          unawaited(
-            addSongsToNowPlayingWithUndo(
-              context: context,
-              ref: ref,
-              i18n: i18n,
-              songIds: [song.id],
-            ),
+        onAddToNowPlaying: () async {
+          await addSongsToNowPlayingWithUndo(
+            context: context,
+            ref: ref,
+            i18n: i18n,
+            songIds: [song.id],
           );
         },
         onCreatePlaylist: () async {
@@ -202,15 +272,13 @@ extension _MusicLibraryActions on _MusicLibraryPageState {
             songIds: [song.id],
           );
         },
-        onAddToPlaylist: (playlistId) {
-          unawaited(
-            addSongsToPlaylistWithUndo(
-              context: context,
-              ref: ref,
-              i18n: i18n,
-              playlistId: playlistId,
-              songIds: [song.id],
-            ),
+        onAddToPlaylist: (playlistId) async {
+          await addSongsToPlaylistWithUndo(
+            context: context,
+            ref: ref,
+            i18n: i18n,
+            playlistId: playlistId,
+            songIds: [song.id],
           );
         },
         onRemove: () {
@@ -224,15 +292,13 @@ extension _MusicLibraryActions on _MusicLibraryPageState {
             }
           });
         },
-        onToggleFavorite: () {
-          unawaited(
-            setSongsFavoriteWithUndo(
-              context: context,
-              ref: ref,
-              i18n: i18n,
-              songIds: [song.id],
-              favorite: !song.favorite,
-            ),
+        onToggleFavorite: () async {
+          await setSongsFavoriteWithUndo(
+            context: context,
+            ref: ref,
+            i18n: i18n,
+            songIds: [song.id],
+            favorite: !song.favorite,
           );
         },
         onSetPreference: (level) async {
@@ -307,13 +373,12 @@ extension _MusicLibraryActions on _MusicLibraryPageState {
 
   void _showSongSelectionContextMenu(
     Offset position,
-    List<LibrarySong> selectedSongs,
+    List<int> selectedSongIds,
     List<MultiSelectCommandBarPlaylist> playlists,
   ) {
     final i18n = ref.read(smPlayerI18nProvider).valueOrNull!;
     final snapshot = ref.read(libraryContentDataProvider).value!;
     final libraryPlaylists = _effectiveLibraryPlaylists(snapshot.playlists);
-    final selectedSongIds = selectedSongs.map((song) => song.id).toList();
     final addToItem = buildAddToPlaylistMenuFlyoutItem(
       i18n: i18n,
       songIds: selectedSongIds,
@@ -323,24 +388,13 @@ extension _MusicLibraryActions on _MusicLibraryPageState {
         nowPlayingSongIds: snapshot.nowPlaying.songIds,
         isNowPlayingContext: false,
       ),
-      includeFavorites: selectedSongs.any((song) => !song.favorite),
+      includeFavorites: true,
       onAddToNowPlaying: () {
         addSongsToNowPlaying(ref, selectedSongIds);
       },
-      onToggleFavorite:
-          selectedSongs.any((song) => !song.favorite)
-              ? () {
-                final songsById = {
-                  for (final selectedSong in selectedSongs)
-                    selectedSong.id: selectedSong,
-                };
-                setSongsFavoriteFromControl(
-                  ref,
-                  notFavoriteSongIds(selectedSongIds, songsById),
-                  true,
-                );
-              }
-              : null,
+      onToggleFavorite: () {
+        setSongsFavoriteFromControl(ref, selectedSongIds, true);
+      },
       onCreatePlaylist: () async {
         await createPlaylistWithSongs(
           context: context,
@@ -394,14 +448,12 @@ extension _MusicLibraryActions on _MusicLibraryPageState {
       ),
       includeFavorites: !song.favorite,
       defaultPlaylistName: getNextPlaylistName(song.title, libraryPlaylists),
-      onAddToNowPlaying: () {
-        unawaited(
-          addSongsToNowPlayingWithUndo(
-            context: context,
-            ref: ref,
-            i18n: i18n,
-            songIds: [song.id],
-          ),
+      onAddToNowPlaying: () async {
+        await addSongsToNowPlayingWithUndo(
+          context: context,
+          ref: ref,
+          i18n: i18n,
+          songIds: [song.id],
         );
       },
       onToggleFavorite:
@@ -428,16 +480,14 @@ extension _MusicLibraryActions on _MusicLibraryPageState {
           songIds: [song.id],
         );
       },
-      onAddToPlaylist: (playlistId) {
-        unawaited(
-          addSongsToPlaylistWithUndo(
-            context: context,
-            ref: ref,
-            i18n: i18n,
-            playlistId: playlistId,
-            songIds: [song.id],
-            useSingleSongCall: true,
-          ),
+      onAddToPlaylist: (playlistId) async {
+        await addSongsToPlaylistWithUndo(
+          context: context,
+          ref: ref,
+          i18n: i18n,
+          playlistId: playlistId,
+          songIds: [song.id],
+          useSingleSongCall: true,
         );
       },
     );

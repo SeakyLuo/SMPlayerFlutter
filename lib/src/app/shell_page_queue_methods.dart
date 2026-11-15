@@ -102,7 +102,12 @@ extension _SmPlayerShellQueueMethods on _SmPlayerShellPageState {
       return true;
     }
 
-    return _playQueueIndex(snapshot, playbackSongIds, nextIndex);
+    return _playQueueIndex(
+      snapshot,
+      playbackSongIds,
+      nextIndex,
+      forward: forward,
+    );
   }
 
   bool _shuffleAndPlayNextRound(
@@ -126,19 +131,9 @@ extension _SmPlayerShellQueueMethods on _SmPlayerShellPageState {
     return _playQueueSong(snapshot, nextSongIds, first);
   }
 
-  List<int> _playbackSongIds(LibraryContentData snapshot) {
-    final override = ref.read(nowPlayingQueueOverrideProvider);
-    if (override != null) {
-      return normalizePlaybackQueueSongIds(
-        override,
-        snapshot.songs.map((song) => song.id),
-      );
-    }
-    return normalizePlaybackQueueSongIds(
-      snapshot.nowPlaying.songIds,
-      snapshot.songs.map((song) => song.id),
-    );
-  }
+  List<int> _playbackSongIds(LibraryContentData snapshot) =>
+      (ref.read(nowPlayingQueueOverrideProvider) ?? snapshot.nowPlaying.songIds)
+          .toList();
 
   int _currentQueueIndex(
     LibraryContentData snapshot, [
@@ -154,9 +149,15 @@ extension _SmPlayerShellQueueMethods on _SmPlayerShellPageState {
   bool _playQueueIndex(
     LibraryContentData snapshot,
     List<int> playbackSongIds,
-    int queueIndex,
-  ) {
-    final played = _playQueueSong(snapshot, playbackSongIds, queueIndex);
+    int queueIndex, {
+    bool forward = true,
+  }) {
+    final played = _playQueueSong(
+      snapshot,
+      playbackSongIds,
+      queueIndex,
+      forward: forward,
+    );
     if (!played) {
       return false;
     }
@@ -166,56 +167,108 @@ extension _SmPlayerShellQueueMethods on _SmPlayerShellPageState {
   bool _playQueueSong(
     LibraryContentData snapshot,
     List<int> songIds,
-    int queueIndex,
-  ) {
-    final songsById = {for (final song in snapshot.songs) song.id: song};
-    final songId = songIds[queueIndex];
-    final song = songsById[songId];
-    if (song == null || !canPlayLibrarySong(song)) {
-      return false;
-    }
-
-    final startSeconds = resolveQueuePlaybackStartSeconds(
-      currentTrackId: _mediaControlController.state.track.id,
-      nextTrackId: song.id,
-      currentQueueIndex: _mediaControlController.state.selectedQueueIndex,
-      nextQueueIndex: queueIndex,
-      currentProgressSeconds: _mediaControlController.state.progressSeconds,
-    );
-    playQueueIndex(
-      ref: ref,
-      snapshot: snapshot,
-      i18n: context.smPlayerI18n,
-      songIds: songIds,
-      queueIndex: queueIndex,
-      mediaController: _mediaControlController,
-      progressSeconds: startSeconds,
-    );
-    _settingsController.savePlaybackSettingsImmediate(
-      PlaybackSettingsUpdate(
-        lastMusicIndex: queueIndex,
-        musicProgress: startSeconds,
-      ),
+    int queueIndex, {
+    bool forward = true,
+  }) {
+    final revision = ++_queueLoadRevision;
+    unawaited(
+      _resolveQueueTrack(snapshot, songIds, queueIndex, revision, forward),
     );
     return true;
   }
 
+  Future<void> _resolveQueueTrack(
+    LibraryContentData snapshot,
+    List<int> songIds,
+    int queueIndex,
+    int revision,
+    bool forward,
+  ) async {
+    try {
+      final available = await ref
+          .read(libraryRepositoryProvider)
+          .playableQueueReferences(songIds);
+      if (!mounted || revision != _queueLoadRevision) return;
+      var index = queueIndex;
+      for (
+        var checked = 0;
+        checked < songIds.length && !available.contains(songIds[index]);
+        checked++
+      ) {
+        final next = nextQueueIndexForPlayback(
+          queueLength: songIds.length,
+          currentIndex: index,
+          mode:
+              _mediaControlController.state.mode == PlaybackMode.repeatOne
+                  ? PlaybackMode.once
+                  : _mediaControlController.state.mode,
+          forward: forward,
+          automatic: false,
+        );
+        if (next == null) return;
+        index = next;
+      }
+      if (!available.contains(songIds[index])) return;
+      final startSeconds = resolveQueuePlaybackStartSeconds(
+        currentTrackId: _mediaControlController.state.track.id,
+        nextTrackId: songIds[index],
+        currentQueueIndex: _mediaControlController.state.selectedQueueIndex,
+        nextQueueIndex: index,
+        currentProgressSeconds: _mediaControlController.state.progressSeconds,
+      );
+      final result = await playQueueIndex(
+        ref: ref,
+        snapshot: snapshot,
+        i18n: context.smPlayerI18n,
+        songIds: songIds,
+        queueIndex: index,
+        mediaController: _mediaControlController,
+        progressSeconds: startSeconds,
+      );
+      if (!mounted ||
+          revision != _queueLoadRevision ||
+          result != QueuePlayResult.played)
+        return;
+      _settingsController.savePlaybackSettingsImmediate(
+        PlaybackSettingsUpdate(
+          lastMusicIndex: index,
+          musicProgress: startSeconds,
+        ),
+      );
+    } catch (error) {
+      if (mounted && revision == _queueLoadRevision)
+        showAppNotification(
+          context: context,
+          message: context.smPlayerI18n.t(
+            error is MusicShareException
+                ? error.messageKey
+                : 'song.updateFailed',
+          ),
+        );
+    }
+  }
+
   Future<void> _randomPlayPlaylist(WidgetRef ref, int playlistId) async {
     final i18n = context.smPlayerI18n;
-    final snapshot = ref.read(libraryContentDataProvider).value!;
-    final playlist = snapshot.playlists.firstWhere(
-      (playlist) => playlist.id == playlistId,
+    final playlist = ref
+        .read(currentLibraryPlaylistsProvider)
+        .firstWhere((playlist) => playlist.id == playlistId);
+    final adapter = ref
+        .read(libraryRepositoryProvider)
+        .dataSource(playlist.source);
+    final songs = await adapter.selectSongIds(
+      LibrarySelectionRequest(
+        LibrarySelectionKind.savedPlaylist,
+        playlistId: playlistId,
+      ),
     );
-    final songIds = playlist.songIds.toList()..shuffle(Random());
-    if (songIds.isEmpty) {
-      return;
-    }
+    if (!mounted || songs.isEmpty) return;
     await recordRecentPlaylistPlayback(ref, playlistId);
     replaceNowPlayingQueueAndPlayIndex(
       ref: ref,
-      snapshot: snapshot,
+      snapshot: ref.read(libraryContentDataProvider).requireValue,
       i18n: i18n,
-      songIds: songIds,
+      songIds: songs,
       queueIndex: 0,
       mediaController: _mediaControlController,
     );

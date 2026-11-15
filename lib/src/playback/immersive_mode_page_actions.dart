@@ -26,21 +26,23 @@ extension _ImmersiveModePageActions on _ImmersiveModePageState {
       onToggleDesktopLyrics: shellActions?.onToggleDesktopLyrics,
       alwaysShowQuickPlay: true,
       randomPlayDisabled: queueSongIds.isEmpty && snapshot.songs.isEmpty,
-      randomPlaySubmenu: buildShuffleMenuFlyoutItems(
+      loadRandomPlaySubmenu:
+          (context) => loadSourceShuffleMenu(
+            context,
+            context.smPlayerI18n,
+            _playQueueSongIds,
+            nowPlayingQuickPlayLimit,
+          ),
+      randomPlaySubmenu: buildQueueShuffleMenuFlyoutItems(
         i18n: context.smPlayerI18n,
         songs: queueSongs,
-        librarySongs: snapshot.songs,
-        recentSongs: recentSongs,
-        playlists: _effectivePlaylists(snapshot.playlists),
-        folders: snapshot.folders,
-        randomLimit: nowPlayingQuickPlayLimit,
         onPlaySongs: _playSongIds,
       ),
       onVolumeChange: mediaController.onVolumeChange,
       onToggleMute: mediaController.onToggleMute,
       isCompact: isCompact,
       onQuickPlay: () {
-        unawaited(_quickPlay(snapshot));
+        unawaited(_quickPlay());
       },
       onToggleFavorite:
           currentSong == null
@@ -214,48 +216,38 @@ extension _ImmersiveModePageActions on _ImmersiveModePageState {
     );
   }
 
-  Future<void> _quickPlay(LibraryContentData snapshot) async {
-    final preferences = await ref
-        .read(libraryRepositoryProvider)
-        .getPreferenceSettings(
-          unknownAlbumName: context.smPlayerI18n.t('common.albumUnknown'),
-        );
-    _playQueueSongIds(
-      quickPlaySongIds(
-        songs: snapshot.songs,
-        playlists: _effectivePlaylists(snapshot.playlists),
-        folders: snapshot.folders,
-        preferences: preferences,
-        randomLimit: nowPlayingQuickPlayLimit,
+  Future<void> _quickPlay() async {
+    final songIds = await sourceQuickPlaySongIds(
+      ref: ref,
+      unknownAlbumName: context.smPlayerI18n.t('common.albumUnknown'),
+      randomLimit: nowPlayingQuickPlayLimit,
+    );
+    if (!mounted) return;
+    _playQueueSongIds(songIds);
+  }
+
+  void _playAlbum(LibrarySong currentSong, List<LibrarySong> songs) {
+    unawaited(
+      playSourceGroup(
+        context: context,
+        ref: ref,
+        song: currentSong,
+        artist: false,
+        onPlaySongs: _playQueueSongIds,
       ),
     );
   }
 
-  void _playAlbum(LibrarySong currentSong, List<LibrarySong> songs) {
-    final targetAlbum = displayImmersiveModeAlbum(
-      currentSong,
-      context.smPlayerI18n,
-    );
-    _playSongIds([
-      for (final song in songs)
-        if (displayImmersiveModeAlbum(song, context.smPlayerI18n) ==
-            targetAlbum)
-          song.id,
-    ]);
-  }
-
   void _playArtist(LibrarySong currentSong, List<LibrarySong> songs) {
-    final currentArtists = artists_model.getSongArtists(currentSong);
-    final targetArtists =
-        currentArtists.isEmpty ? [currentSong.artist] : currentArtists;
-    _playSongIds([
-      for (final song in songs)
-        if ((artists_model.getSongArtists(song).isEmpty
-                ? [song.artist]
-                : artists_model.getSongArtists(song))
-            .any(targetArtists.contains))
-          song.id,
-    ]);
+    unawaited(
+      playSourceGroup(
+        context: context,
+        ref: ref,
+        song: currentSong,
+        artist: true,
+        onPlaySongs: _playQueueSongIds,
+      ),
+    );
   }
 
   bool _playNextFromQueue(List<LibrarySong> queueSongs) {

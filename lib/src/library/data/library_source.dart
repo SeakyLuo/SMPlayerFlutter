@@ -1,6 +1,8 @@
 sealed class LibrarySource {
   const LibrarySource();
 
+  String get deviceId;
+
   factory LibrarySource.fromPath(String path) {
     if (!path.startsWith('smplayer-music://')) {
       return const LocalLibrarySource();
@@ -18,6 +20,9 @@ final class LocalLibrarySource extends LibrarySource {
   const LocalLibrarySource();
 
   @override
+  String get deviceId => 'local';
+
+  @override
   bool operator ==(Object other) => other is LocalLibrarySource;
   @override
   int get hashCode => runtimeType.hashCode;
@@ -25,6 +30,7 @@ final class LocalLibrarySource extends LibrarySource {
 
 final class RemoteLibrarySource extends LibrarySource {
   const RemoteLibrarySource(this.deviceId);
+  @override
   final String deviceId;
   String get rootPath => 'smplayer-music://$deviceId/0';
 

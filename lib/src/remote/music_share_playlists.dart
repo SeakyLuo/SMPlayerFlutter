@@ -1,8 +1,10 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'package:path/path.dart' as p;
+import '../library/data/library_queries.dart';
 
 import '../platform/system_log.dart';
-import 'music_share_catalog.dart';
 import 'music_share_models.dart';
 
 import '../library/data/library_models.dart';
@@ -15,6 +17,10 @@ Map<String, dynamic> sharedPlaylistJson(
   'id': playlist.id,
   'name': playlist.name,
   'priority': playlist.priority,
+  'artworkIds': playlist.artworkSongIds,
+  'duration': playlist.duration,
+  'playCount': playlist.playCount,
+  'artworkId': playlist.artworkSongId,
   'criterion': playlist.sortCriterion.index,
   'songs': playlist.songIds.where(songs.contains).toList(),
 };
@@ -22,12 +28,51 @@ Map<String, dynamic> sharedPlaylistJson(
 Future<Map<String, dynamic>> serveSharedPlaylists(
   HttpRequest request,
   LibraryRepository repository,
-  Map<int, LibrarySong> sharedSongs,
   bool Function() canWrite,
   Map<int, (LibraryPlaylist, DateTime)> deletedPlaylists,
 ) async {
-  final localPlaylists = await repository.getLocalPlaylists();
-  final songs = sharedSongs.keys.toSet();
+  if (request.method != 'GET' && request.method != 'POST') {
+    request.response.statusCode = HttpStatus.methodNotAllowed;
+    return {};
+  }
+  Map<String, dynamic>? body;
+  if (request.method == 'POST') {
+    final chunks = <int>[];
+    await for (final chunk in request.timeout(const Duration(seconds: 15))) {
+      chunks.addAll(chunk);
+      if (chunks.length > 1024 * 1024) {
+        request.response.statusCode = HttpStatus.requestEntityTooLarge;
+        return {};
+      }
+    }
+    body = jsonDecode(utf8.decode(chunks)) as Map<String, dynamic>;
+  }
+  final (localPlaylists, context) =
+      await (
+        repository.getLocalPlaylists(),
+        repository.queryLibrary(
+          const LibraryDataQuery(LibraryQueryKind.context),
+        ),
+      ).wait;
+  final listSongIds =
+      {
+        if (body == null)
+          for (final list in localPlaylists.where((list) => !list.isBuiltIn))
+            ...list.songIds,
+        if (body != null) ...[
+          ...(body['songs'] as List).cast<int>(),
+          if (body['operation'] == 'reorder')
+            for (final list in localPlaylists.where(
+              (list) => list.id == body!['id'],
+            ))
+              ...list.songIds,
+        ],
+      }.toList();
+  final references = await repository.songReferences(listSongIds);
+  final songs = {
+    for (final entry in references.entries)
+      if (p.isWithin(context.rootPath, entry.value)) entry.key,
+  };
   deletedPlaylists.removeWhere(
     (_, value) =>
         DateTime.now().difference(value.$2) > const Duration(minutes: 2),
@@ -35,33 +80,15 @@ Future<Map<String, dynamic>> serveSharedPlaylists(
   final playlists =
       localPlaylists.where((p) => !p.isBuiltIn && p.id > 0).toList();
   if (request.method == 'GET') {
-    final eligibleSongs = sharedSongs.values;
-    final catalog = {'songs': eligibleSongs.map(sharedSongJson).toList()};
-    final revision = shareDigest(jsonEncode(catalog));
-    final payload = <String, dynamic>{
-      'revision': revision,
-      if (request.uri.queryParameters['revision'] != revision) ...catalog,
-    };
-    return {
-      ...payload,
-      'playlists': playlists.map((p) => sharedPlaylistJson(p, songs)).toList(),
-    };
+    final lists =
+        playlists
+            .map((playlist) => sharedPlaylistJson(playlist, songs))
+            .toList();
+    return {'revision': shareDigest(jsonEncode(lists)), 'playlists': lists};
   }
-  if (request.method != 'POST') {
-    request.response.statusCode = HttpStatus.methodNotAllowed;
-    return {};
-  }
-  final chunks = <int>[];
-  await for (final chunk in request.timeout(const Duration(seconds: 15))) {
-    chunks.addAll(chunk);
-    if (chunks.length > 1024 * 1024) {
-      request.response.statusCode = HttpStatus.requestEntityTooLarge;
-      return {};
-    }
-  }
-  final body = jsonDecode(utf8.decode(chunks)) as Map<String, dynamic>;
-  final operation = body['operation'] as String;
-  final songIds = (body['songs'] as List).cast<int>();
+  final mutation = body!;
+  final operation = mutation['operation'] as String;
+  final songIds = (mutation['songs'] as List).cast<int>();
   if (!songIds.every(songs.contains)) {
     request.response.statusCode = HttpStatus.badRequest;
     return {};
@@ -70,7 +97,7 @@ Future<Map<String, dynamic>> serveSharedPlaylists(
     request.response.statusCode = HttpStatus.forbidden;
     return {};
   }
-  final id = body['id'] as int?;
+  final id = mutation['id'] as int?;
   if (operation != 'create' &&
       operation != 'order' &&
       operation != 'restore' &&
@@ -82,11 +109,11 @@ Future<Map<String, dynamic>> serveSharedPlaylists(
   switch (operation) {
     case 'create':
       created = await repository.createPlaylist(
-        body['name'] as String,
+        mutation['name'] as String,
         songIds,
       );
     case 'rename':
-      await repository.renamePlaylist(id!, body['name'] as String);
+      await repository.renamePlaylist(id!, mutation['name'] as String);
     case 'delete':
       final original = playlists.firstWhere((p) => p.id == id);
       await repository.deletePlaylist(id!);
@@ -111,12 +138,12 @@ Future<Map<String, dynamic>> serveSharedPlaylists(
       await repository.reorderPlaylistSongs(
         id!,
         merged,
-        body['criterion'] == null
+        mutation['criterion'] == null
             ? null
-            : PlaylistSortCriterion.values[body['criterion'] as int],
+            : PlaylistSortCriterion.values[mutation['criterion'] as int],
       );
     case 'order':
-      final ids = (body['ids'] as List).cast<int>();
+      final ids = (mutation['ids'] as List).cast<int>();
       final allowed = playlists.map((p) => p.id).toSet();
       if (!ids.every(allowed.contains)) {
         throw const FormatException('Invalid playlist');

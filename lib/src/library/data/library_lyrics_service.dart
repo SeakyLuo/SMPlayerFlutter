@@ -17,6 +17,7 @@ import 'package:smplayer_flutter/src/settings/settings_model.dart' as settings;
 part 'library_lyrics_candidate_search.dart';
 part 'library_lyrics_internet.dart';
 part 'library_lyrics_parser.dart';
+part 'library_lyrics_batch.dart';
 
 const _activeState = 1;
 const _id3TagService = Id3TagService();
@@ -193,221 +194,6 @@ class LibraryLyricsService {
     return Uri.parse('$host?q=${Uri.encodeQueryComponent(query)}');
   }
 
-  Future<LyricsBatchResult> batchAddInternetLyrics({
-    required List<LibrarySong> songs,
-    bool overwrite = false,
-    void Function(LyricsBatchProgress progress)? onProgress,
-    void Function(LyricsBatchDetail detail, LyricsBatchProgress progress)?
-    onDetailCompleted,
-    bool Function()? isCanceled,
-    Future<void> Function()? waitIfPaused,
-  }) async {
-    songs = songs.where((song) => !isRemoteMusicPath(song.path)).toList();
-    var saved = 0;
-    var overwritten = 0;
-    var skipped = 0;
-    var missing = 0;
-    var failed = 0;
-    var backedUp = 0;
-    var backupBytes = 0;
-    var lastRequestStartedAt = DateTime.fromMillisecondsSinceEpoch(0);
-    final details = <LyricsBatchDetail>[];
-
-    for (var index = 0; index < songs.length; index += 1) {
-      if (isCanceled?.call() == true) {
-        break;
-      }
-      await waitIfPaused?.call();
-      if (isCanceled?.call() == true) {
-        break;
-      }
-
-      final song = songs[index];
-      LyricsBatchProgress currentProgress() {
-        return LyricsBatchProgress(
-          currentIndex: index + 1,
-          total: songs.length,
-          currentSongTitle: [
-            song.title,
-            song.artist,
-          ].where((part) => part.isNotEmpty).join(' - '),
-          saved: saved,
-          overwritten: overwritten,
-          skipped: skipped,
-          missing: missing,
-          failed: failed,
-          backedUp: backedUp,
-          backupBytes: backupBytes,
-        );
-      }
-
-      void recordDetail(LyricsBatchDetail detail) {
-        details.add(detail);
-        final progress = currentProgress();
-        onProgress?.call(progress);
-        onDetailCompleted?.call(detail, progress);
-      }
-
-      onProgress?.call(currentProgress());
-
-      try {
-        final localLyrics = await _getSongLyricsByPath(song.path);
-        final existingRawLyrics = localLyrics.rawText;
-        if (!overwrite && existingRawLyrics.trim().isNotEmpty) {
-          skipped += 1;
-          recordDetail(
-            LyricsBatchDetail(
-              songId: song.id,
-              title: song.title,
-              artist: song.artist,
-              thumbnailPath: song.thumbnailPath,
-              result: LyricsBatchDetailResult.skipped,
-              reason: LyricsBatchSkipReason.alreadyExists,
-              sourceRawLyrics: existingRawLyrics,
-            ),
-          );
-          continue;
-        }
-
-        final elapsed =
-            DateTime.now().difference(lastRequestStartedAt).inMilliseconds;
-        if (lastRequestStartedAt.millisecondsSinceEpoch > 0 && elapsed < 200) {
-          await Future<void>.delayed(Duration(milliseconds: 200 - elapsed));
-        }
-        if (isCanceled?.call() == true) {
-          break;
-        }
-        if (!overwrite) {
-          final latestLocalLyrics = await _getSongLyricsByPath(song.path);
-          if (latestLocalLyrics.rawText.trim().isNotEmpty) {
-            skipped += 1;
-            recordDetail(
-              LyricsBatchDetail(
-                songId: song.id,
-                title: song.title,
-                artist: song.artist,
-                thumbnailPath: song.thumbnailPath,
-                result: LyricsBatchDetailResult.skipped,
-                reason: LyricsBatchSkipReason.alreadyExists,
-                sourceRawLyrics: latestLocalLyrics.rawText,
-              ),
-            );
-            continue;
-          }
-        }
-        lastRequestStartedAt = DateTime.now();
-        final rawInternetLyrics =
-            _internetLyricsResolver == null
-                ? await _searchInternetLyrics(
-                  _LyricsSongLookup(
-                    id: song.id,
-                    title: song.title,
-                    artist: song.artist,
-                    album: song.album,
-                    path: song.path,
-                  ),
-                )
-                : await _internetLyricsResolver(song);
-        final internetLyrics =
-            _isInvalidInternetLyricsResponse(rawInternetLyrics)
-                ? ''
-                : await _prepareInternetLyrics(rawInternetLyrics);
-        if (isCanceled?.call() == true) {
-          break;
-        }
-
-        if (internetLyrics.trim().isEmpty) {
-          missing += 1;
-          recordDetail(
-            LyricsBatchDetail(
-              songId: song.id,
-              title: song.title,
-              artist: song.artist,
-              thumbnailPath: song.thumbnailPath,
-              result: LyricsBatchDetailResult.missing,
-              sourceRawLyrics: existingRawLyrics,
-            ),
-          );
-          continue;
-        }
-
-        if (overwrite &&
-            _normalizeLyricsForCompare(existingRawLyrics) ==
-                _normalizeLyricsForCompare(internetLyrics)) {
-          skipped += 1;
-          recordDetail(
-            LyricsBatchDetail(
-              songId: song.id,
-              title: song.title,
-              artist: song.artist,
-              thumbnailPath: song.thumbnailPath,
-              result: LyricsBatchDetailResult.skipped,
-              reason: LyricsBatchSkipReason.sameContent,
-              sourceRawLyrics: existingRawLyrics,
-              targetRawLyrics: internetLyrics,
-            ),
-          );
-          continue;
-        }
-
-        if (existingRawLyrics.trim().isNotEmpty) {
-          backedUp += 1;
-          backupBytes += utf8.encode(existingRawLyrics).length;
-        }
-        await _writeLyricsToSongPath(song.path, internetLyrics);
-        if (existingRawLyrics.trim().isEmpty) {
-          saved += 1;
-          recordDetail(
-            LyricsBatchDetail(
-              songId: song.id,
-              title: song.title,
-              artist: song.artist,
-              thumbnailPath: song.thumbnailPath,
-              result: LyricsBatchDetailResult.saved,
-              targetRawLyrics: internetLyrics,
-            ),
-          );
-        } else {
-          overwritten += 1;
-          recordDetail(
-            LyricsBatchDetail(
-              songId: song.id,
-              title: song.title,
-              artist: song.artist,
-              thumbnailPath: song.thumbnailPath,
-              result: LyricsBatchDetailResult.overwritten,
-              sourceRawLyrics: existingRawLyrics,
-              targetRawLyrics: internetLyrics,
-            ),
-          );
-        }
-      } on Object {
-        failed += 1;
-        recordDetail(
-          LyricsBatchDetail(
-            songId: song.id,
-            title: song.title,
-            artist: song.artist,
-            thumbnailPath: song.thumbnailPath,
-            result: LyricsBatchDetailResult.failed,
-          ),
-        );
-      }
-    }
-
-    return LyricsBatchResult(
-      total: songs.length,
-      saved: saved,
-      overwritten: overwritten,
-      skipped: skipped,
-      missing: missing,
-      failed: failed,
-      backedUp: backedUp,
-      backupBytes: backupBytes,
-      details: details,
-    );
-  }
-
   Future<void> autoAddInternetLyricsForPaths(
     File databaseFile,
     List<String> songPaths,
@@ -428,9 +214,9 @@ class LibraryLyricsService {
           Artist AS artist,
           Album AS album
         FROM Music
-        WHERE State = ?
+        WHERE State = ? AND lower(replace(Path, char(92), '/')) IN (SELECT value FROM json_each(?))
       ''',
-        [_activeState],
+        [_activeState, jsonEncode(songPathKeys.toList())],
       );
       for (final row in rows) {
         final path = row['path'] as String;

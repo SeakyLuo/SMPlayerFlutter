@@ -5,8 +5,9 @@ mixin _LibraryRepositoryCollections on _LibraryDataSources {
 
   Future<List<LibraryPlaylist>> getLocalPlaylists() async {
     final file = await _resolveDatabaseFile();
-    return LibrarySnapshotService.run(() {
-      final db = sqlite3.open(file.path);
+    await LibrarySnapshotService.waitForPendingOperations();
+    return Isolate.run(() {
+      final db = sqlite3.open(file.path, mode: OpenMode.readOnly);
       try {
         db.execute('BEGIN');
         final playlists = LibraryRepository._playlistService.readPlaylists(db);

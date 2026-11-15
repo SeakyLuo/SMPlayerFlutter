@@ -10,11 +10,7 @@ extension MusicShareEvents on MusicShareController {
       _localChangeTimer = null;
       try {
         if (scopes.contains('library')) {
-          final snapshot = await repository.getLibraryContentData();
-          if (_disposed || !server.running) return;
-          server.updateLibrary(snapshot);
-        } else if (scopes.contains('playlists')) {
-          server.updatePlaylists(await repository.getLocalPlaylists());
+          server.markCatalogChanged();
         }
         for (final changed in scopes) {
           if (changed == 'library') continue;

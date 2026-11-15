@@ -1,3 +1,4 @@
+import 'source_random_play.dart';
 import 'package:smplayer_flutter/src/remote/music_share_access.dart';
 import 'dart:async';
 import 'dart:io';
@@ -148,6 +149,7 @@ class MediaControl extends StatefulWidget {
     this.currentSong,
     this.nowPlayingSongIds = const [],
     this.librarySongs = const [],
+    this.libraryHasSongs = false,
     this.recentSongs = const [],
     this.playlists = const [],
     this.folders = const [],
@@ -179,6 +181,7 @@ class MediaControl extends StatefulWidget {
   final LibrarySong? currentSong;
   final List<int> nowPlayingSongIds;
   final List<LibrarySong> librarySongs;
+  final bool libraryHasSongs;
   final List<LibrarySong> recentSongs;
   final List<LibraryPlaylist> playlists;
   final List<LibraryFolder> folders;
@@ -335,14 +338,9 @@ class _MediaControlState extends State<MediaControl> {
       _randomPlaySubmenu =
           onPlaySongs == null
               ? null
-              : buildShuffleMenuFlyoutItems(
+              : buildQueueShuffleMenuFlyoutItems(
                 i18n: _mediaControlI18n(context),
                 songs: queueSongs,
-                librarySongs: librarySongs,
-                recentSongs: recentSongs,
-                playlists: playlists,
-                folders: folders,
-                randomLimit: quickPlayDefaultLimit,
                 onPlaySongs: (songIds) {
                   widget.onPlaySongs!(songIds);
                 },
@@ -434,8 +432,18 @@ class _MediaControlState extends State<MediaControl> {
                         currentSong: currentSong,
                         nowPlayingSongIds: nowPlayingSongIds,
                         randomPlaySubmenu: randomPlaySubmenu,
+                        loadRandomPlaySubmenu:
+                            onPlaySongs == null
+                                ? null
+                                : (context) => loadSourceShuffleMenu(
+                                  context,
+                                  _mediaControlI18n(context),
+                                  onPlaySongs!,
+                                  quickPlayDefaultLimit,
+                                ),
                         randomPlayDisabled:
-                            nowPlayingSongIds.isEmpty && librarySongs.isEmpty,
+                            nowPlayingSongIds.isEmpty &&
+                            !widget.libraryHasSongs,
                         onPlayArtist: onPlayArtist,
                         onPlayAlbum: onPlayAlbum,
                         onArtworkError: onArtworkError,
@@ -552,18 +560,22 @@ class _MediaControlState extends State<MediaControl> {
       volumeValue: clampVolumeValue(volume),
       onQuickPlay: onQuickPlay,
       alwaysShowQuickPlay: true,
-      randomPlayDisabled: nowPlayingSongIds.isEmpty && librarySongs.isEmpty,
+      randomPlayDisabled: nowPlayingSongIds.isEmpty && !widget.libraryHasSongs,
+      loadRandomPlaySubmenu:
+          onPlaySongs == null
+              ? null
+              : (context) => loadSourceShuffleMenu(
+                context,
+                i18n,
+                onPlaySongs!,
+                quickPlayDefaultLimit,
+              ),
       randomPlaySubmenu:
           onPlaySongs == null
               ? null
-              : buildShuffleMenuFlyoutItems(
+              : buildQueueShuffleMenuFlyoutItems(
                 i18n: i18n,
                 songs: queueSongs,
-                librarySongs: librarySongs,
-                recentSongs: recentSongs,
-                playlists: playlists,
-                folders: folders,
-                randomLimit: quickPlayDefaultLimit,
                 onPlaySongs: onPlaySongs!,
               ),
       onVolumeChange: onVolumeChange,

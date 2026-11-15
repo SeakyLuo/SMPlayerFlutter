@@ -1,4 +1,5 @@
 import 'dart:math';
+import '../../remote/music_share_models.dart';
 
 import '../../i18n/app_i18n.dart';
 import '../data/library_models.dart';
@@ -25,6 +26,12 @@ class FolderNode {
     required this.criterion,
   });
 
+  int? summaryDirectCount;
+  int? summarySongCount;
+  Map<int, LibrarySong> songRows = const {};
+  List<String>? artworkPaths;
+  int get directCount => summaryDirectCount ?? directSongIds.length;
+  int get songCount => summarySongCount ?? subtreeSongIds.length;
   int id;
   final String relativePath;
   final String path;
@@ -270,7 +277,14 @@ FolderIndex buildFolderIndex(
     node.thumbnailChildPaths =
         node.childPaths.toList()
           ..sort((left, right) => nodes[left]!.id.compareTo(nodes[right]!.id));
-    node.thumbnailDirectSongIds = node.directSongIds.toList()..sort();
+    node.thumbnailDirectSongIds =
+        node.directSongIds.toList()..sort((a, b) {
+          int originalId(LibrarySong song) =>
+              isRemoteMusicPath(song.path)
+                  ? int.parse(Uri.parse(song.path).pathSegments.single)
+                  : song.id;
+          return originalId(songsById[a]!).compareTo(originalId(songsById[b]!));
+        });
     node.childPaths.sort(
       (left, right) => keys.compareText(nodes[left]!.name, nodes[right]!.name),
     );

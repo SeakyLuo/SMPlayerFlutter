@@ -5,7 +5,6 @@ import '../library/data/library_models.dart';
 import '../library/data/library_repository.dart';
 import 'music_share_identity.dart';
 import 'music_share_models.dart';
-import 'music_share_catalog.dart';
 
 class MusicSharePlaylistClient {
   MusicSharePlaylistClient(
@@ -27,7 +26,7 @@ class MusicSharePlaylistClient {
   final _queues = <String, Future<void>>{};
   final _locations = <int, (String, int)>{};
   final _generations = <String, int>{};
-  final _reads = <(MusicPeer, int), Future<bool>>{};
+  final _reads = <(MusicPeer, int), Future<void>>{};
   bool isFresh(String device) => _signatures.containsKey(device);
   bool hasLoaded(String device) => _lists.containsKey(device);
   List<LibraryPlaylist> forDevice(String device) => _lists[device] ?? const [];
@@ -52,7 +51,7 @@ class MusicSharePlaylistClient {
     _requests[transport] = peer;
     try {
       final result = await transport.json(
-        '/playlists?revision=${peer.catalogRevision ?? ''}',
+        '/playlists',
         method: body == null ? 'GET' : 'POST',
         body: body,
       );
@@ -112,7 +111,7 @@ class MusicSharePlaylistClient {
     return operation;
   }
 
-  Future<bool> refresh(MusicPeer peer, {bool Function()? canApply}) {
+  Future<void> refresh(MusicPeer peer, {bool Function()? canApply}) {
     if (canApply != null) {
       return _serial(peer.id, () => _refresh(peer, canApply: canApply));
     }
@@ -126,19 +125,16 @@ class MusicSharePlaylistClient {
     });
   }
 
-  Future<bool> _refresh(MusicPeer peer, {bool Function()? canApply}) async {
+  Future<void> _refresh(MusicPeer peer, {bool Function()? canApply}) async {
     bool current() => isCurrent(peer) && (canApply?.call() ?? true);
     final generation = _generations[peer.id] ?? 0;
     final result = await _request(peer);
-    if (!current()) return false;
+    if (!current()) return;
     await _apply(peer, result, current);
-    if (!current()) return false;
-    peer.catalogRevision = result['revision'] as String;
-    if (result.containsKey('songs')) peer.catalogLoaded = true;
+    if (!current()) return;
     if ((_generations[peer.id] ?? 0) != generation) {
       _signatures.remove(peer.id);
     }
-    return result.containsKey('songs');
   }
 
   Future<void> _apply(
@@ -151,28 +147,20 @@ class MusicSharePlaylistClient {
       jsonEncode([result['revision'], result['playlists']]),
     );
     if (_signatures[device] == signature) return;
-    if (result.containsKey('songs')) {
-      await importMusicShareCatalog(
-        await repository.getDatabasePath(),
-        device,
-        (result['songs'] as List)
-            .map((s) => (s as Map).cast<String, dynamic>())
-            .toList(),
-        isCurrent: current,
-      );
-    }
+    final hostIds =
+        {
+          for (final row in (result['playlists'] as List).cast<Map>())
+            ...(row['songs'] as List).cast<int>(),
+        }.toList();
+    final mappedIds = await repository.cacheRemoteSongReferences(
+      device,
+      hostIds,
+    );
     if (!current()) return;
-    final songs = await repository.getLibrarySongs();
-    if (!current()) return;
-    final localIds = <int, int>{};
-    for (final song in songs) {
-      if (isRemoteMusicPath(song.path)) {
-        final uri = Uri.parse(song.path);
-        if (uri.host == device) {
-          localIds[int.parse(uri.pathSegments.single)] = song.id;
-        }
-      }
-    }
+    final localIds = {
+      for (var index = 0; index < hostIds.length; index++)
+        hostIds[index]: mappedIds[index],
+    };
     final lists = <LibraryPlaylist>[];
     for (final raw in result['playlists'] as List) {
       final json = raw as Map;
@@ -190,6 +178,16 @@ class MusicSharePlaylistClient {
           id: id,
           remotePath: path,
           name: json['name'] as String,
+          artworkPaths: [
+            for (final id in (json['artworkIds'] as List).cast<int>())
+              remoteMusicPath(device, id),
+          ],
+          duration: json['duration'] as int,
+          playCount: json['playCount'] as int,
+          artworkPath:
+              json['artworkId'] == 0
+                  ? ''
+                  : remoteMusicPath(device, json['artworkId'] as int),
           priority: json['priority'] as int,
           songCount: ids.length,
           songIds: ids,
@@ -198,7 +196,6 @@ class MusicSharePlaylistClient {
         ),
       );
     }
-    if (result.containsKey('songs')) peer.catalogLoaded = true;
     _lists[device] = lists;
     _signatures[device] = signature;
     changed();
@@ -259,24 +256,17 @@ class MusicSharePlaylistClient {
     if (playlistId != null && _locations[playlistId]!.$1 != peer.id) {
       throw const MusicShareException('share.sameDeviceSongs');
     }
-    final songs =
-        songIds.isEmpty
-            ? <LibrarySong>[]
-            : await repository.getLibrarySongs(songIds: songIds);
-    if (songs.length != songIds.toSet().length ||
-        songs.any(
-          (s) =>
-              !isRemoteMusicPath(s.path) || Uri.parse(s.path).host != peer.id,
+    final paths = await repository.songReferences(songIds);
+    if (paths.length != songIds.toSet().length ||
+        paths.values.any(
+          (path) => !isRemoteMusicPath(path) || Uri.parse(path).host != peer.id,
         )) {
       throw const MusicShareException('share.sameDeviceSongs');
     }
-    final hostSongs =
-        songs
-            .map((s) => int.parse(Uri.parse(s.path).pathSegments.single))
-            .toList();
     // Preserve the caller's order rather than the repository's song order.
     final byLocal = {
-      for (var i = 0; i < songs.length; i++) songs[i].id: hostSongs[i],
+      for (final entry in paths.entries)
+        entry.key: int.parse(Uri.parse(entry.value).pathSegments.single),
     };
     final baseLists = [...?_lists[peer.id]];
     final result = await _request(

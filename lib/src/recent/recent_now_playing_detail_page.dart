@@ -22,10 +22,31 @@ class RecentNowPlayingDetailPage extends ConsumerWidget {
         loading: () => const _RecentPagePanel(child: SmPlayerLoadingState()),
         error: (_, _) => const _RecentPagePanel(child: LibraryLoadFailure()),
         data: (snapshot) {
-          final entry = buildRecentNowPlayingViews(
-            snapshot.recentNowPlaying,
-            snapshot.songs,
-          ).singleWhere((entry) => entry.id == recordId);
+          final record = snapshot.recentNowPlaying.singleWhere(
+            (entry) => entry.id == recordId,
+          );
+          final query = LibraryDataQuery(
+            LibraryQueryKind.queue,
+            songIds: record.songIds,
+            useSongIds: true,
+            limit: 200,
+          );
+          final pageValue = ref.watch(libraryPagedQueryProvider(query));
+          if (!pageValue.hasValue)
+            return pageValue.hasError
+                ? LibraryLoadFailure(
+                  onRetry:
+                      () => ref.invalidate(libraryPagedQueryProvider(query)),
+                )
+                : const SmPlayerLoadingState();
+          final page = pageValue.requireValue;
+          final entry = RecentNowPlayingView(
+            id: record.id,
+            playlistId: record.playlistId,
+            songs: page.songs,
+            references: record.songIds,
+            createdAt: record.createdAt,
+          );
           final mediaControl = ref.watch(
             mediaControlControllerProvider.select(
               (controller) => (
@@ -45,7 +66,7 @@ class RecentNowPlayingDetailPage extends ConsumerWidget {
             id: entry.playlistId,
             name: title,
             priority: 0,
-            songCount: entry.songs.length,
+            songCount: entry.songIds.length,
             songIds: entry.songIds,
             sortCriterion: PlaylistSortCriterion.title,
             isBuiltIn: true,
@@ -54,6 +75,8 @@ class RecentNowPlayingDetailPage extends ConsumerWidget {
           return HeaderedPlaylistControl(
             key: ValueKey('RecentNowPlayingDetail.$recordId'),
             playlistId: historyPlaylist.id,
+            query: query,
+            page: page,
             routeLocation: GoRouterState.of(context).uri.toString(),
             type: HeaderedPlaylistType.playlist,
             title: title,
@@ -86,8 +109,8 @@ class RecentNowPlayingDetailPage extends ConsumerWidget {
             onAddSongsToPlaylist: (playlistId, songIds) {
               unawaited(addSongsToPlaylist(ref, playlistId, songIds));
             },
-            onToggleFavorite: (songId, favorite) {
-              unawaited(setSongsFavoriteFromControl(ref, [songId], favorite));
+            onToggleFavorite: (songId, favorite) async {
+              await setSongsFavoriteFromControl(ref, [songId], favorite);
             },
             onMoveToMusicOrPlay: (songId) {
               _insertOrPlayRecentNowPlayingSong(ref, snapshot, i18n, songId);

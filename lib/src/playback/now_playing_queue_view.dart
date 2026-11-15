@@ -35,8 +35,16 @@ class NowPlayingQueueView extends StatelessWidget {
     required this.onOpenAlbum,
     required this.onOpenContextMenu,
     this.compactScrollbarTrailingOffset = 0,
+    this.totalCount,
+    this.songAt,
+    this.queueIndexAt,
+    this.onAccessRow,
   });
 
+  final int? totalCount;
+  final LibrarySong? Function(int)? songAt;
+  final int Function(int)? queueIndexAt;
+  final ValueChanged<int>? onAccessRow;
   final List<LibrarySong> queueSongs;
   final List<(int, LibrarySong)> visibleEntries;
   final String searchQuery;
@@ -68,10 +76,10 @@ class NowPlayingQueueView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final i18n = context.smPlayerI18n;
-    if (queueSongs.isEmpty) {
+    if ((totalCount ?? queueSongs.length) == 0) {
       return const SizedBox.shrink();
     }
-    if (visibleEntries.isEmpty) {
+    if (songAt == null && visibleEntries.isEmpty) {
       return NowPlayingEmptyState(
         title: i18n.t('nowPlaying.noQueueMatch', {'query': searchQuery}),
         message: i18n.t('nowPlaying.queueSearchHelp'),
@@ -91,6 +99,24 @@ class NowPlayingQueueView extends StatelessWidget {
     ];
     final playlist = PlaylistControl.reorderable(
       entries: entries,
+      totalCount: totalCount,
+      entryBuilder:
+          songAt == null
+              ? null
+              : (index) {
+                final song = songAt!(index);
+                if (song == null) {
+                  onAccessRow!(index);
+                  return null;
+                }
+                return _entryFor(
+                  queueIndex: queueIndexAt?.call(index) ?? index,
+                  song: song,
+                  selectedQueueIndex: selectedQueueIndex,
+                  i18n: i18n,
+                  compactQueueLayout: compactQueueLayout,
+                );
+              },
       scrollController: scrollController,
       padding: EdgeInsets.fromLTRB(
         0,

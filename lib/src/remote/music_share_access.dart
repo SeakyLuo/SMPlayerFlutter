@@ -2,14 +2,56 @@ import 'dart:async';
 import 'dart:io';
 
 import '../library/data/library_models.dart';
+import '../library/data/library_queries.dart';
 import '../library/data/library_repository.dart';
 import 'music_share_models.dart';
 
 abstract class MusicShareAccess {
   String get selectedSource;
+  Future<List<int>> resolveSongIds(String device, LibraryDataQuery query);
+  Future<ArtistSplitAnalysisResult> analyzeArtists(
+    String device, {
+    void Function(double)? onProgress,
+  });
+  Future<LibraryLyricsSearchPage> searchLyrics(
+    String device,
+    String query,
+    String folderPath, {
+    int offset = 0,
+    MusicLibrarySortCriterion? order,
+  });
   void localDataChanged(String scope);
   Stream<String> get remoteDataChanges;
   List<LibraryPlaylist> get remotePlaylists;
+  Future<LibraryContentData> queryLibraryData(
+    String device,
+    LibraryDataQuery query,
+  );
+  Future<Map<String, dynamic>> directoryOperation(
+    String device,
+    String path,
+    String operation, {
+    String? name,
+    Map<String, dynamic> values = const {},
+  });
+  Future<Map<String, dynamic>> storageDirectoryIndex(String device);
+  Future<Map<String, dynamic>> refreshStorageDirectory(
+    String device,
+    String path,
+    LocalFolderScanCancellation cancellation,
+    void Function(LocalFolderRefreshProgress) onProgress,
+  );
+  Future<List<HiddenStorageItem>> hiddenStorageItems(String device);
+  Future<void> resumeHiddenStorage(String device, HiddenStorageItem item);
+  Future<List<LibraryPlaylist>> readPlaylists(String device);
+  Future<Map<String, dynamic>> randomPlayRequest(
+    String device,
+    Map<String, String> parameters,
+  );
+  Future<List<int>> readRandomSelectionIds(
+    String device,
+    Map<String, String> parameters,
+  );
   Future<LibraryPlaylist?> playlistOperation(
     String device,
     String operation, {
@@ -74,7 +116,7 @@ bool canCreateSourcePlaylist() {
 }
 
 bool canPlayLibrarySong(LibrarySong song) =>
-    !isRemoteMusicPath(song.path) ||
     song.remoteAvailable &&
+    (!isRemoteMusicPath(song.path) ||
         activeMusicShareAccess != null &&
-        activeMusicShareAccess!.isOnline(song.path);
+            activeMusicShareAccess!.isOnline(song.path));

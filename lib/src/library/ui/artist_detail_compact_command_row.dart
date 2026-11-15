@@ -32,7 +32,7 @@ class _ArtistDetailCompactCommandRow extends StatelessWidget {
                   _formatArtistSummary(
                     i18n,
                     artist.albumCount,
-                    artist.songs.length,
+                    artist.songCount,
                   ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,

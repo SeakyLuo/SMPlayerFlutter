@@ -1,3 +1,4 @@
+import '../library/data/library_queries.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
@@ -10,13 +11,15 @@ import 'music_share_models.dart';
 class _FileAction {
   _FileAction(
     this.owner,
-    this.root, {
+    this.root,
+    this.songId, {
     this.deleteId,
     this.deletePath,
     this.relocation,
   });
   final String owner;
   final String root;
+  final int songId;
   final String? deleteId;
   final String? deletePath;
   final SongFileRelocation? relocation;
@@ -34,8 +37,11 @@ class MusicShareFiles {
     HttpRequest request,
     String owner,
     bool Function() canWrite,
+    void Function(int) onChangedSong,
   ) {
-    final result = _pending.then((_) => _handle(request, owner, canWrite));
+    final result = _pending.then(
+      (_) => _handle(request, owner, canWrite, onChangedSong),
+    );
     // A failed action must not block subsequent requests in the queue.
     _pending = result.then<void>((_) {}, onError: (Object _, StackTrace __) {});
     return result;
@@ -65,6 +71,7 @@ class MusicShareFiles {
     HttpRequest request,
     String owner,
     bool Function() canWrite,
+    void Function(int) onChangedSong,
   ) async {
     try {
       Map<String, dynamic> values;
@@ -95,7 +102,9 @@ class MusicShareFiles {
         request.response.statusCode = HttpStatus.methodNotAllowed;
         return {};
       }
-      final snapshot = await repository.getLibraryContentData();
+      final snapshot = await repository.queryLibrary(
+        const LibraryDataQuery(LibraryQueryKind.context),
+      );
       final root = await Directory(snapshot.rootPath).resolveSymbolicLinks();
       if (operation == 'undo' || operation == 'commit') {
         final ticket = values['ticket'] as String;
@@ -127,6 +136,7 @@ class MusicShareFiles {
           _requireWrite(canWrite);
           await repository.commitDeleteSongFromDisk(deleteId);
         }
+        onChangedSong(action.songId);
         action.timer.cancel();
         _actions.remove(ticket);
         _notifyChanged();
@@ -134,9 +144,7 @@ class MusicShareFiles {
       }
       final id = int.parse(values['song'].toString());
       final song =
-          snapshot.songs
-              .where((s) => s.id == id && !isRemoteMusicPath(s.path))
-              .firstOrNull;
+          (await repository.getLibrarySongs(songIds: [id])).firstOrNull;
       if (song == null || !p.isWithin(snapshot.rootPath, song.path)) {
         throw const MusicShareException('share.fileChanged');
       }
@@ -183,6 +191,7 @@ class MusicShareFiles {
           action = _FileAction(
             owner,
             root,
+            id,
             deleteId: pending.id,
             deletePath: song.path,
           );
@@ -230,7 +239,7 @@ class MusicShareFiles {
             targetFolder == null ? 0 : targetFolder.id,
             root,
           );
-          action = _FileAction(owner, root, relocation: result);
+          action = _FileAction(owner, root, id, relocation: result);
         default:
           throw const FormatException('Unknown file operation');
       }
@@ -243,6 +252,7 @@ class MusicShareFiles {
           onError: (Object _, StackTrace __) {},
         );
       });
+      onChangedSong(id);
       _notifyChanged();
       return {'ticket': ticket};
     } on MusicShareException catch (error) {

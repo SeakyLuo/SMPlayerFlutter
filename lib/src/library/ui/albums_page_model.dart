@@ -16,12 +16,29 @@ class AlbumView extends AlbumTileData {
     required super.songs,
     required super.duration,
     required super.artworkSong,
+    super.artworkPath,
+    super.summarySongCount,
+    super.referenceIds,
+    this.rawName,
     required this.artists,
   });
 
   final List<String> artists;
 
-  String get preferenceId => songs.first.album.trim();
+  final String? rawName;
+  String get preferenceId => rawName ?? songs.first.album.trim();
+  AlbumView withSongs(List<LibrarySong> values, {List<int>? ids}) => AlbumView(
+    name: name,
+    rawName: preferenceId,
+    artist: artist,
+    artists: artists,
+    songs: values,
+    referenceIds: ids ?? referenceIds,
+    duration: duration,
+    artworkSong: values.firstOrNull,
+    artworkPath: artworkPath,
+    summarySongCount: songCount,
+  );
 }
 
 List<AlbumView> buildAlbumViews(List<LibrarySong> songs, SmPlayerI18n i18n) {

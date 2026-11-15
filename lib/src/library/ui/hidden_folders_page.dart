@@ -3,6 +3,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/loading_state.dart';
+import '../../app/undoable_notification.dart';
+import '../../remote/music_source_providers.dart';
+import '../../remote/music_share_models.dart';
+import '../data/library_repository.dart';
+import 'library_storage_actions.dart';
+import '../../remote/music_source_selector.dart';
+import 'popup_dialog.dart';
 import '../../i18n/app_i18n.dart';
 import '../data/library_models.dart';
 import '../data/library_providers.dart';
@@ -24,12 +31,41 @@ class _HiddenFoldersPageState extends ConsumerState<HiddenFoldersPage> {
     _itemsFuture = _loadItems();
   }
 
-  Future<List<HiddenStorageItem>> _loadItems() {
-    return ref.read(libraryRepositoryProvider).getHiddenStorageItems();
+  Future<List<HiddenStorageItem>> _loadItems() async {
+    final share = ref.read(musicShareProvider);
+    try {
+      return await LibraryStorageActions(
+        ref,
+      ).hiddenItems(LibrarySource.fromDevice(share.selectedSource));
+    } catch (error) {
+      if (mounted) {
+        showAppNotification(
+          context: context,
+          message: context.smPlayerI18n.t(
+            error is MusicShareException
+                ? error.messageKey
+                : 'share.connectionFailed',
+          ),
+        );
+      }
+      rethrow;
+    }
   }
 
   @override
   Widget build(BuildContext context) {
+    ref.listen(musicShareProvider.select((share) => share.selectedSource), (
+      _,
+      _,
+    ) {
+      setState(() => _itemsFuture = _loadItems());
+    });
+    final share = ref.watch(musicShareProvider);
+    final writable =
+        ref
+            .read(libraryRepositoryProvider)
+            .dataSource(LibrarySource.fromDevice(share.selectedSource))
+            .canWrite;
     final i18nValue = ref.watch(smPlayerI18nProvider);
     final i18n = i18nValue.valueOrNull;
     if (i18n == null) {
@@ -65,7 +101,16 @@ class _HiddenFoldersPageState extends ConsumerState<HiddenFoldersPage> {
                   return const _HiddenStorageLoadingState();
                 }
 
-                final items = snapshot.data ?? const <HiddenStorageItem>[];
+                if (snapshot.hasError) {
+                  return Center(
+                    child: PopupDialogActionButton(
+                      label: i18n.t('share.retryDirectory'),
+                      onPressed:
+                          () => setState(() => _itemsFuture = _loadItems()),
+                    ),
+                  );
+                }
+                final items = snapshot.requireData;
                 if (items.isEmpty) {
                   return Align(
                     alignment: Alignment.topLeft,
@@ -93,7 +138,7 @@ class _HiddenFoldersPageState extends ConsumerState<HiddenFoldersPage> {
                       item: items[index],
                       even: index.isEven,
                       i18n: i18n,
-                      onResume: _resumeItem,
+                      onResume: writable ? _resumeItem : null,
                     );
                   },
                 );
@@ -106,10 +151,12 @@ class _HiddenFoldersPageState extends ConsumerState<HiddenFoldersPage> {
   }
 
   Future<void> _resumeItem(HiddenStorageItem item) async {
-    await ref.read(libraryRepositoryProvider).resumeHiddenStorageItem(item);
-    ref.invalidate(libraryContentDataProvider);
-    setState(() {
-      _itemsFuture = _loadItems();
+    await runMusicShareAction(context, () async {
+      final share = ref.read(musicShareProvider);
+      await LibraryStorageActions(
+        ref,
+      ).resumeHiddenItem(LibrarySource.fromDevice(share.selectedSource), item);
+      if (mounted) setState(() => _itemsFuture = _loadItems());
     });
   }
 }
@@ -159,7 +206,7 @@ class _HiddenStorageItemRow extends StatelessWidget {
   final HiddenStorageItem item;
   final bool even;
   final SmPlayerI18n i18n;
-  final ValueChanged<HiddenStorageItem> onResume;
+  final ValueChanged<HiddenStorageItem>? onResume;
 
   @override
   Widget build(BuildContext context) {
@@ -250,7 +297,7 @@ class _HiddenStorageItemRow extends StatelessWidget {
                       Colors.transparent,
                     ),
                   ),
-                  onPressed: () => onResume(item),
+                  onPressed: onResume == null ? null : () => onResume!(item),
                   child: Text(i18n.t('hiddenFolders.resume')),
                 ),
               ),
@@ -266,53 +313,8 @@ class _HiddenStorageLoadingState extends StatelessWidget {
   const _HiddenStorageLoadingState();
 
   @override
-  Widget build(BuildContext context) {
-    final i18n =
-        context.maybeSmPlayerI18n ??
-        const SmPlayerI18n(locale: smPlayerFallbackLocale, messages: {});
-    final label = i18n.t('nowPlaying.loading');
-    return Align(
-      alignment: Alignment.topLeft,
-      child: SizedBox(
-        width: double.infinity,
-        child: _HiddenStorageStatusCard(
-          child: Semantics(
-            container: true,
-            liveRegion: true,
-            label: label,
-            child: ExcludeSemantics(
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  SizedBox.square(
-                    dimension: 18,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      color: _HiddenFoldersColors.accent,
-                      backgroundColor: _HiddenFoldersColors.accent.withValues(
-                        alpha: 0.18,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Text(
-                    label,
-                    style: TextStyle(
-                      color: _HiddenFoldersColors.textStrongFor(
-                        Theme.of(context).brightness,
-                      ),
-                      fontSize: 20,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
+  Widget build(BuildContext context) =>
+      const SmPlayerLoadingState(compact: true);
 }
 
 class _HiddenStorageStatusCard extends StatelessWidget {
@@ -341,8 +343,6 @@ class _HiddenStorageStatusCard extends StatelessWidget {
 
 class _HiddenFoldersColors {
   const _HiddenFoldersColors._();
-
-  static const accent = Color(0xff0078d7);
 
   static Color panelFor(Brightness brightness) {
     return brightness == Brightness.dark

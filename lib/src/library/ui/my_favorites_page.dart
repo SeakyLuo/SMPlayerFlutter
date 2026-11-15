@@ -19,8 +19,13 @@ class MyFavoritesPage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    if (!TickerMode.valuesOf(context).enabled) return const SizedBox.shrink();
     final i18nValue = ref.watch(smPlayerI18nProvider);
-    final snapshotValue = ref.watch(browsingLibraryContentDataProvider);
+    final snapshotValue = ref.watch(
+      browsingLibraryPageProvider(
+        const LibraryDataQuery(LibraryQueryKind.favorites, limit: 200),
+      ),
+    );
     final favoriteOverrides = ref.watch(libraryFavoriteOverridesProvider);
     final songOverrides = ref.watch(librarySongOverridesProvider);
 
@@ -83,6 +88,11 @@ class MyFavoritesPage extends ConsumerWidget {
           child: HeaderedPlaylistControl(
             key: const ValueKey('HeaderedPlaylist.Favorites'),
             type: HeaderedPlaylistType.favorites,
+            query: const LibraryDataQuery(
+              LibraryQueryKind.favorites,
+              limit: 200,
+            ),
+            page: snapshot,
             routeLocation: '/favorites',
             title: i18n.t('common.myFavorites'),
             songs: songs,
@@ -125,7 +135,11 @@ class MyFavoritesPage extends ConsumerWidget {
               await setSongsFavorite(ref, songIds, false);
             },
             onClear: () async {
-              final songIds = songs.map((song) => song.id).toList();
+              final songIds = await ref
+                  .read(selectedLibraryDataSourceProvider)
+                  .resolveSongIds(
+                    const LibraryDataQuery(LibraryQueryKind.favorites),
+                  );
               await setSongsFavorite(ref, songIds, false);
             },
             onSetPreferred: (level) async {
@@ -139,10 +153,9 @@ class MyFavoritesPage extends ConsumerWidget {
                   );
             },
             onSortSongs: (songIds, sortCriterion) {
-              songIds = mergeVisiblePlaylistOrder(
-                favoritesPlaylist!.songIds,
-                songIds,
-              );
+              if (ref.read(selectedLibraryDataSourceProvider).source.deviceId !=
+                  'local')
+                return;
               unawaited(
                 ref
                     .read(libraryRepositoryProvider)
@@ -159,8 +172,8 @@ class MyFavoritesPage extends ConsumerWidget {
             onAlbumClick: (album) {
               context.go('/albums?album=${Uri.encodeQueryComponent(album)}');
             },
-            onToggleFavorite: (songId, favorite) {
-              unawaited(setSongsFavoriteFromControl(ref, [songId], favorite));
+            onToggleFavorite: (songId, favorite) async {
+              await setSongsFavoriteFromControl(ref, [songId], favorite);
             },
           ),
         );

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:smplayer_flutter/src/library/data/library_models.dart';
 
 import 'playlist_control_item.dart';
+import '../library/ui/library_song_placeholder.dart';
 
 export 'playlist_control_item.dart';
 
@@ -88,6 +89,8 @@ class PlaylistControl extends StatelessWidget {
   const PlaylistControl({
     super.key,
     required this.entries,
+    this.totalCount,
+    this.entryBuilder,
     this.padding = EdgeInsets.zero,
     this.itemShellBuilder,
   }) : scrollController = null,
@@ -96,6 +99,8 @@ class PlaylistControl extends StatelessWidget {
   const PlaylistControl.sliver({
     super.key,
     required this.entries,
+    this.totalCount,
+    this.entryBuilder,
     this.itemShellBuilder,
   }) : padding = EdgeInsets.zero,
        scrollController = null,
@@ -104,6 +109,8 @@ class PlaylistControl extends StatelessWidget {
   const PlaylistControl.reorderable({
     super.key,
     required this.entries,
+    this.totalCount,
+    this.entryBuilder,
     required this.scrollController,
     required this.onReorder,
     this.padding = EdgeInsets.zero,
@@ -111,6 +118,8 @@ class PlaylistControl extends StatelessWidget {
   });
 
   final List<PlaylistControlEntry> entries;
+  final int? totalCount;
+  final PlaylistControlEntry? Function(int index)? entryBuilder;
   final EdgeInsets padding;
   final ScrollController? scrollController;
   final ReorderCallback? onReorder;
@@ -124,10 +133,13 @@ class PlaylistControl extends StatelessWidget {
         scrollController: scrollController,
         padding: padding,
         buildDefaultDragHandles: false,
-        itemCount: entries.length,
+        itemCount: totalCount ?? entries.length,
         onReorderItem: onReorder!,
         itemBuilder: (context, index) {
-          final entry = entries[index];
+          final entry =
+              entryBuilder == null ? entries[index] : entryBuilder!(index);
+          if (entry == null)
+            return LibrarySongPlaceholder(key: ValueKey(index));
           return ReorderableDragStartListener(
             key: entry.key,
             index: index,
@@ -140,20 +152,26 @@ class PlaylistControl extends StatelessWidget {
     return ListView.builder(
       controller: scrollController,
       padding: padding,
-      itemCount: entries.length,
+      itemCount: totalCount ?? entries.length,
       itemBuilder: (context, index) {
-        return _buildEntry(context, index, entries[index]);
+        return _buildAt(context, index);
       },
     );
   }
 
   Widget buildSliver(BuildContext context) {
     return SliverList.builder(
-      itemCount: entries.length,
+      itemCount: totalCount ?? entries.length,
       itemBuilder: (context, index) {
-        return _buildEntry(context, index, entries[index]);
+        return _buildAt(context, index);
       },
     );
+  }
+
+  Widget _buildAt(BuildContext context, int index) {
+    final entry = entryBuilder == null ? entries[index] : entryBuilder!(index);
+    if (entry == null) return const LibrarySongPlaceholder();
+    return _buildEntry(context, index, entry);
   }
 
   Widget _buildEntry(
@@ -207,10 +225,14 @@ class PlaylistControlSliver extends StatelessWidget {
   const PlaylistControlSliver({
     super.key,
     required this.entries,
+    this.totalCount,
+    this.entryBuilder,
     this.itemShellBuilder,
   });
 
   final List<PlaylistControlEntry> entries;
+  final int? totalCount;
+  final PlaylistControlEntry? Function(int index)? entryBuilder;
   final Widget Function(BuildContext context, int index, Widget child)?
   itemShellBuilder;
 
@@ -218,6 +240,8 @@ class PlaylistControlSliver extends StatelessWidget {
   Widget build(BuildContext context) {
     return PlaylistControl.sliver(
       entries: entries,
+      totalCount: totalCount,
+      entryBuilder: entryBuilder,
       itemShellBuilder: itemShellBuilder,
     ).buildSliver(context);
   }

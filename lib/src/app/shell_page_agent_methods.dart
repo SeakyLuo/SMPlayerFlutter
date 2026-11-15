@@ -103,16 +103,14 @@ extension _SmPlayerShellAgentMethods on _SmPlayerShellPageState {
     List<int> songIds,
   ) async {
     // Read independent sources together; no per-song database requests.
-    final (storedSettings, songs) =
+    final (storedSettings, references) =
         await (
           settings.isEmpty
               ? Future<SettingsSnapshot?>.value(null)
               : repository.readSettingsSnapshot(),
-          songIds.isEmpty
-              ? Future.value(<LibrarySong>[])
-              : repository.getLibrarySongs(songIds: songIds),
+          repository.songReferences(songIds),
         ).wait;
-    if (songs.length != songIds.toSet().length) {
+    if (references.length != songIds.toSet().length) {
       throw const FormatException(
         'Only existing active songs can be synchronized',
       );
@@ -127,6 +125,25 @@ extension _SmPlayerShellAgentMethods on _SmPlayerShellPageState {
       _settingsController.restoreSnapshot(
         _settingsController.snapshot.apply(update),
       );
+    }
+    final visible =
+        ref
+            .read(libraryLoadedDataProvider)
+            .requireValue
+            .songs
+            .map((song) => song.id)
+            .toSet();
+    final requested = references.keys.where(visible.contains).toList();
+    final songs =
+        requested.isEmpty
+            ? const <LibrarySong>[]
+            : await repository.getLibrarySongs(songIds: requested);
+    if (!mounted) return;
+    for (final source
+        in references.values
+            .map((path) => LibrarySource.fromPath(path).deviceId)
+            .toSet()) {
+      invalidateLibraryQueries(ref.invalidate, source: source);
     }
     if (songs.isEmpty) return;
     patchLibrarySongOverrides(ref, songs);
@@ -228,7 +245,9 @@ extension _SmPlayerShellAgentMethods on _SmPlayerShellPageState {
       album: updated.album,
       playCount: updated.playCount,
     );
-    patchLibrarySongOverride(ref, updatedSong);
+    if (!isRemoteMusicPath(updatedSong.path)) {
+      patchLibrarySongOverride(ref, updatedSong);
+    }
     _mediaControlController.updateTrackMetadata(
       mediaControlTrackForSong(updatedSong, context.smPlayerI18n),
     );

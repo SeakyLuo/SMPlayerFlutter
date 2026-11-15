@@ -1,29 +1,32 @@
 part of 'headered_playlist_control.dart';
 
 extension _HeaderedPlaylistControlActions on _HeaderedPlaylistControlState {
-  void _playSong(LibrarySong song, List<int> queueSongIds) {
+  Future<void> _playSong(LibrarySong song, List<int> queueSongIds) async {
     if (widget.onMoveToMusicOrPlay != null) {
       widget.onMoveToMusicOrPlay!(song.id);
       return;
     }
 
-    widget.onPlayTrack(song.id, queueSongIds);
+    await runMusicShareAction(context, () async {
+      final ids = await _scopeIds(queueSongIds);
+      if (mounted) widget.onPlayTrack(song.id, ids);
+    });
   }
 
-  void _shuffle(List<int> queueSongIds) {
-    final shuffledSongIds = shuffleSongIds(queueSongIds);
+  Future<void> _shuffle(List<int> queueSongIds) async {
+    final ids = await _scopeIds(queueSongIds);
+    final shuffledSongIds = await sourceShuffleSongIds(ref, ids);
+    if (!mounted || shuffledSongIds.isEmpty) return;
     widget.onRecordPlay?.call();
     widget.onPlayTrack(shuffledSongIds.first, shuffledSongIds);
   }
 
-  void _addSongsToNowPlaying(List<int> songIds) {
-    unawaited(
-      addSongsToNowPlayingWithUndo(
-        context: context,
-        ref: ref,
-        i18n: context.smPlayerI18n,
-        songIds: songIds,
-      ),
+  Future<void> _addSongsToNowPlaying(List<int> songIds) async {
+    await addSongsToNowPlayingWithUndo(
+      context: context,
+      ref: ref,
+      i18n: context.smPlayerI18n,
+      songIds: songIds,
     );
   }
 
@@ -62,6 +65,10 @@ extension _HeaderedPlaylistControlActions on _HeaderedPlaylistControlState {
     PlaylistSortCriterion criterion,
     PlaylistSortCriterion activeSortCriterion,
   ) {
+    if (_effectiveQuery != null) {
+      _changeQuerySort(criterion, criterion == activeSortCriterion);
+      return;
+    }
     final sortedSongs =
         criterion == activeSortCriterion
             ? _currentVisibleSongs().reversed.toList()
@@ -75,6 +82,15 @@ extension _HeaderedPlaylistControlActions on _HeaderedPlaylistControlState {
   }
 
   void _reverseSort() {
+    if (_effectiveQuery != null) {
+      _changeQuerySort(
+        _selectedSortCriterion ??
+            widget.sortCriterion ??
+            PlaylistSortCriterion.title,
+        true,
+      );
+      return;
+    }
     final activeSortCriterion =
         _selectedSortCriterion ??
         widget.sortCriterion ??
@@ -88,11 +104,30 @@ extension _HeaderedPlaylistControlActions on _HeaderedPlaylistControlState {
     widget.onSortSongs?.call(reversedSongIds, activeSortCriterion);
   }
 
+  void _changeQuerySort(PlaylistSortCriterion criterion, bool reverse) {
+    final query = _effectiveQuery!;
+    _updateState(() {
+      _sortQuery = query.withPage(
+        order: MusicLibrarySortCriterion.values.byName(criterion.name),
+        descending: reverse ? !query.descending : false,
+      );
+      _selectedSortCriterion = criterion;
+      _attemptedWindows.clear();
+    });
+    unawaited(
+      runMusicShareAction(context, () async {
+        final ids = await _scopeIds(const []);
+        await widget.onSortSongs?.call(ids, criterion);
+      }),
+    );
+  }
+
   List<LibrarySong> _currentVisibleSongs() {
     return _visibleSongs({for (final song in widget.songs) song.id: song});
   }
 
   List<int> _effectiveSelectedSongIds(List<int> queueSongIds) {
+    if (_effectiveQuery != null) return _selection.selectedItems.toList();
     final queueSongIdSet = queueSongIds.toSet();
     return _selection.selectedItems
         .where((songId) => queueSongIdSet.contains(songId))
@@ -306,7 +341,9 @@ extension _HeaderedPlaylistControlActions on _HeaderedPlaylistControlState {
     );
     if (confirmed) {
       final songsById = {for (final song in widget.songs) song.id: song};
-      final songIds = widget.songs.map((song) => song.id).toList();
+      final songIds = await _scopeIds(
+        widget.songs.map((song) => song.id).toList(),
+      );
       await runMusicShareAction(context, () async {
         await widget.onClear?.call();
         _showUndoRemoveSongs(songIds, originalSongsById: songsById);

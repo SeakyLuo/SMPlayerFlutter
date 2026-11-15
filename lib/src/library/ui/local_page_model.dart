@@ -1,3 +1,5 @@
+import '../../remote/music_share_access.dart';
+import '../../remote/music_share_models.dart';
 import '../../i18n/app_i18n.dart';
 import '../data/library_models.dart';
 import 'artists_page_model.dart' show displayAlbum, getSongArtists;
@@ -104,7 +106,7 @@ bool hasRefreshResultChanges(LocalFolderRefreshResult result) {
   return result.hasChanges;
 }
 
-enum LocalCompactTreeRowType { folder, song }
+enum LocalCompactTreeRowType { folder, song, placeholder }
 
 class LocalCompactTreeRow {
   const LocalCompactTreeRow.folder({
@@ -124,6 +126,16 @@ class LocalCompactTreeRow {
     required int this.songIndex,
   }) : type = LocalCompactTreeRowType.song,
        folder = null,
+       expanded = false,
+       expandable = false;
+
+  const LocalCompactTreeRow.placeholder({
+    required this.key,
+    required this.folder,
+    required this.songIndex,
+    required this.depth,
+  }) : type = LocalCompactTreeRowType.placeholder,
+       song = null,
        expanded = false,
        expandable = false;
 
@@ -161,13 +173,8 @@ List<LocalCompactTreeRow> buildLocalCompactFolderTreeRows({
                   child.name.toLowerCase().contains(normalizedSearchQuery),
             )
             .toList();
-    final nestedSongs =
-        folder.directSongIds
-            .map((songId) => songsById[songId]!)
-            .where((song) => matchesSongSearch(song, searchQuery))
-            .toList();
     final expanded = expandedFolderPaths.contains(folder.relativePath);
-    final expandable = nestedFolders.isNotEmpty || nestedSongs.isNotEmpty;
+    final expandable = nestedFolders.isNotEmpty || folder.directCount > 0;
 
     rows.add(
       LocalCompactTreeRow.folder(
@@ -186,21 +193,24 @@ List<LocalCompactTreeRow> buildLocalCompactFolderTreeRows({
     for (final childFolder in sortFolders(nestedFolders, keys)) {
       appendFolder(childFolder, depth + 1);
     }
-    for (final song in sortSongs(
-      nestedSongs,
-      sortMode,
-      localSortModeFromCriterion(folder.criterion),
-      keys,
-    )) {
+    for (var index = 0; index < folder.directCount; index++) {
+      final song = folder.songRows[index];
       rows.add(
-        LocalCompactTreeRow.song(
-          key: 'song:${folder.relativePath}:${song.id}',
-          song: song,
-          depth: depth + 1,
-          songIndex: songIndex,
-        ),
+        song == null
+            ? LocalCompactTreeRow.placeholder(
+              key: 'song:${folder.path}:$index',
+              folder: folder,
+              songIndex: index,
+              depth: depth + 1,
+            )
+            : LocalCompactTreeRow.song(
+              key: 'song:${song.id}',
+              song: song,
+              depth: depth + 1,
+              songIndex: songIndex,
+            ),
       );
-      songIndex += 1;
+      songIndex++;
     }
   }
 
@@ -244,11 +254,19 @@ bool isLocalMoveTargetFolder({
     return false;
   }
 
+  if (isRemoteMusicPath(targetFolder.path) &&
+      !activeMusicShareAccess!.canWrite(targetFolder.path)) {
+    return false;
+  }
   final targetPathKey = normalizePath(targetFolder.path);
-  final songAlreadyInTarget = payload.songIds.any((songId) {
-    return normalizePath(_fileParentPath(songsById[songId]!.path)) ==
-        targetPathKey;
-  });
+  final parents = {
+    for (final node in nodes.values)
+      for (final id in node.directSongIds) id: normalizePath(node.path),
+  };
+  if (!payload.songIds.every(parents.containsKey)) return false;
+  final songAlreadyInTarget = payload.songIds.any(
+    (songId) => parents[songId] == targetPathKey,
+  );
   if (songAlreadyInTarget) {
     return false;
   }
@@ -257,7 +275,8 @@ bool isLocalMoveTargetFolder({
     for (final node in nodes.values) normalizePath(node.path): node,
   };
   for (final folderPath in payload.folderPaths) {
-    final sourceFolder = nodesByAbsolutePath[normalizePath(folderPath)]!;
+    final sourceFolder = nodesByAbsolutePath[normalizePath(folderPath)];
+    if (sourceFolder == null) return false;
     if (targetFolder.relativePath == sourceFolder.relativePath ||
         targetFolder.relativePath == getParentPath(sourceFolder.relativePath) ||
         targetFolder.relativePath.startsWith('${sourceFolder.relativePath}/')) {
@@ -266,10 +285,4 @@ bool isLocalMoveTargetFolder({
   }
 
   return true;
-}
-
-String _fileParentPath(String filePath) {
-  final normalized = normalizePath(filePath);
-  final separatorIndex = normalized.lastIndexOf('/');
-  return separatorIndex < 0 ? '' : normalized.substring(0, separatorIndex);
 }

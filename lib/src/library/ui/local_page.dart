@@ -1,9 +1,18 @@
+import '../../playback/playlist_control.dart';
+import 'package:flutter/rendering.dart';
+import 'library_scope_access.dart';
+import 'package:path/path.dart' as p;
+import '../data/library_repository.dart';
+import '../../remote/music_source_selector.dart';
+import '../../remote/music_share_download.dart';
 import 'dart:async';
 import '../../remote/music_source_providers.dart';
 import '../../remote/remote_directory_provider.dart';
 import '../../remote/music_share_models.dart';
 import 'local_page_remote.dart';
+import 'library_storage_actions.dart';
 import 'library_load_failure.dart';
+import '../../remote/remote_page_access.dart';
 import 'package:flutter/services.dart';
 
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
@@ -36,7 +45,7 @@ import 'library_page_actions.dart'
         createPlaylistAndSync,
         hideSongFileWithUndo,
         moveSongToFolderWithUndo,
-        requestLocalMoveConflictResolution,
+        runLibraryStorageAction,
         requestDeleteSongFromDisk,
         setSongsFavoriteWithUndo,
         showPlayNextUndoNotification;
@@ -57,6 +66,8 @@ import 'music_dialog.dart';
 import 'local_song_location.dart';
 
 part 'local_page_content.dart';
+part 'local_page_windows.dart';
+part 'local_page_command_bar.dart';
 part 'local_page_context_menus.dart';
 part 'local_page_selection_actions.dart';
 part 'local_page_scan_actions.dart';
@@ -104,12 +115,23 @@ class LocalPage extends ConsumerStatefulWidget {
 }
 
 class _LocalPageState extends ConsumerState<LocalPage> {
+  final _songSliverKey = GlobalKey();
+  LibraryDataQuery? _windowQuery;
+  final _requestedWindows = <String, int>{};
+  final _pendingWindows = <String, int>{};
+  var _windowsScheduled = false;
   var _sortMode = LocalSortMode.title;
   String _source = 'local';
   Map<int, String>? _remoteSongFolders;
-  final _remoteSortModes = <String, LocalSortMode>{};
   final _remoteDataCache = RemoteDirectoryPageDataCache();
   bool get _remote => _source != 'local';
+  bool get _canWriteDirectory =>
+      !_remote ||
+      ref
+          .read(musicShareProvider)
+          .peers
+          .firstWhere((peer) => peer.id == _source)
+          .canWrite;
   final _selectedFolderPaths = <String>{};
   final _selectedSongIds = <int>{};
   var _multiSelect = false;
@@ -119,6 +141,7 @@ class _LocalPageState extends ConsumerState<LocalPage> {
   final _dataCache = LibraryPageDataCache();
   final _treeExpandedFolderPaths = <String>{};
   final _scrollController = ScrollController();
+  var _remoteDirectoryActive = false;
   final _scanProgressNotifier = ValueNotifier<LocalFolderRefreshProgress?>(
     null,
   );
@@ -177,26 +200,77 @@ class _LocalPageState extends ConsumerState<LocalPage> {
 
   @override
   Widget build(BuildContext context) {
+    if (!TickerMode.valuesOf(context).enabled) return const SizedBox.shrink();
     final source = ref.watch(
       musicShareProvider.select((share) => share.selectedSource),
     );
     if (_source != source) {
+      _remoteDirectoryActive = false;
       _source = source;
       _clearMultiSelectStatus();
       _treeExpandedFolderPaths.clear();
       _createdFolderPaths.clear();
-      _remoteSortModes.clear();
       _remoteSongFolders = null;
       _sortMode = LocalSortMode.title;
     }
-    if (_remote && !TickerMode.valuesOf(context).enabled) {
+    if (_remote &&
+        !_remoteDirectoryActive &&
+        !TickerMode.valuesOf(context).enabled) {
       return const SizedBox.shrink();
     }
+    if (_remote) {
+      // Keep an opened directory mounted, including its scroll position and
+      // provider subscription, while hidden folders cover this page.
+      _remoteDirectoryActive = true;
+    }
     final i18nValue = ref.watch(smPlayerI18nProvider);
+    final contextValue = ref.watch(
+      libraryPageQueryProvider(
+        const LibraryDataQuery(LibraryQueryKind.context),
+      ),
+    );
+    if (!contextValue.hasValue)
+      return LocalPageScaffold(
+        child:
+            contextValue.hasError
+                ? LibraryLoadFailure(
+                  onRetry:
+                      () => ref.invalidate(
+                        libraryPageQueryProvider(
+                          const LibraryDataQuery(LibraryQueryKind.context),
+                        ),
+                      ),
+                )
+                : const SmPlayerLoadingState(),
+      );
+    final root =
+        _remote
+            ? '$remoteMusicScheme://$_source'
+            : contextValue.requireValue.rootPath;
+    final current =
+        widget.currentRelativePath.isEmpty
+            ? root
+            : '$root/${widget.currentRelativePath}';
+    final directoryQuery = LibraryDataQuery(
+      LibraryQueryKind.folders,
+      source: _source,
+      directWindows: {current: 0},
+      order: _directoryOrder,
+      descending: _sortMode == LocalSortMode.reverse,
+      text: widget.searchQuery,
+    );
+    _windowQuery = directoryQuery;
     var snapshotValue = ref.watch(
-      _remote ? browsingLibraryContentDataProvider : libraryContentDataProvider,
+      libraryDirectoryWindowsProvider(directoryQuery),
     );
     if (_remote) {
+      final access = RemotePageAccessScope.of(context);
+      if (access.loading || access.failed) {
+        return _buildRemoteDirectoryPlaceholder(
+          context,
+          loading: access.loading,
+        );
+      }
       final directoryProvider = remoteDirectoryProvider(source);
       ref.listen(directoryProvider, (previous, next) {
         if (next.hasError && !identical(previous?.error, next.error)) {
@@ -215,14 +289,10 @@ class _LocalPageState extends ConsumerState<LocalPage> {
         }
       });
       final directory = ref.watch(directoryProvider);
-      if (!directory.hasValue) {
-        return LocalPageScaffold(
-          child:
-              directory.isLoading
-                  ? const SmPlayerLoadingState()
-                  : LibraryLoadFailure(
-                    onRetry: () => ref.invalidate(directoryProvider),
-                  ),
+      if (directory.isLoading || directory.hasError) {
+        return _buildRemoteDirectoryPlaceholder(
+          context,
+          loading: directory.isLoading,
         );
       }
       snapshotValue = snapshotValue.whenData((snapshot) {
@@ -262,8 +332,16 @@ class _LocalPageState extends ConsumerState<LocalPage> {
 
     return snapshotValue.when(
       skipLoadingOnReload: true,
-      loading: () => const LocalPageScaffold(child: SmPlayerLoadingState()),
-      error: (_, _) => const LocalPageScaffold(child: LibraryLoadFailure()),
+      loading:
+          () =>
+              _remote
+                  ? _buildRemoteDirectoryPlaceholder(context, loading: true)
+                  : const LocalPageScaffold(child: SmPlayerLoadingState()),
+      error:
+          (_, _) =>
+              _remote
+                  ? _buildRemoteDirectoryPlaceholder(context, loading: false)
+                  : const LocalPageScaffold(child: LibraryLoadFailure()),
       data: (rawSnapshot) {
         final snapshot = _dataCache.snapshot(
           rawSnapshot,
@@ -277,6 +355,20 @@ class _LocalPageState extends ConsumerState<LocalPage> {
           child: _buildPage(context, snapshot, i18n),
         );
       },
+    );
+  }
+
+  Widget _buildRemoteDirectoryPlaceholder(
+    BuildContext context, {
+    required bool loading,
+  }) {
+    _remoteSongFolders = const {};
+    return _buildPage(
+      context,
+      unavailableRemoteDirectorySnapshot(_source, widget.currentRelativePath),
+      context.smPlayerI18n,
+      contentUnavailable: true,
+      contentLoading: loading,
     );
   }
 }

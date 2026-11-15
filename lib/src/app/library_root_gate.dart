@@ -1,6 +1,6 @@
 part of 'app_router.dart';
 
-Future<LocalFolderRefreshResult> _scanLibraryRootAndReload(
+Future<LocalFolderRefreshResult> _scanLibraryRoot(
   WidgetRef ref,
   String rootPath,
   SettingsController? settingsController, {
@@ -18,12 +18,6 @@ Future<LocalFolderRefreshResult> _scanLibraryRootAndReload(
     AppSettingsUpdate(rootPath: rootPath),
   );
   _invalidateLibraryData(ref);
-  await Future.wait([
-    ref.read(libraryContentDataProvider.future),
-    ref.read(librarySongCountProvider.future),
-    ref.read(recentPageDataProvider.future),
-    ref.read(shellNavigationDataProvider.future),
-  ]);
   return result;
 }
 
@@ -56,7 +50,11 @@ class _LibraryRootGateState extends ConsumerState<_LibraryRootGate> {
       return widget.child;
     }
 
-    final libraryValue = ref.watch(shellNavigationDataProvider);
+    final libraryValue = ref.watch(
+      libraryPageQueryProvider(
+        const LibraryDataQuery(LibraryQueryKind.context),
+      ),
+    );
     final content = libraryValue.when(
       data:
           (library) =>
@@ -206,7 +204,7 @@ class _LibraryRootGateState extends ConsumerState<_LibraryRootGate> {
           canCancel: true,
         ),
       );
-      final result = await _scanLibraryRootAndReload(
+      final result = await _scanLibraryRoot(
         ref,
         rootPath,
         widget.settingsController,

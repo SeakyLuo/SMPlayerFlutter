@@ -1,8 +1,9 @@
+import 'dart:async';
+import '../library/data/library_queries.dart';
 import 'dart:convert';
 import 'dart:io';
 import 'package:path/path.dart' as p;
 import '../library/data/library_repository.dart';
-import '../library/data/library_models.dart';
 import '../settings/settings_model.dart';
 
 String _typeName(PreferenceEntityType type) => switch (type) {
@@ -21,8 +22,6 @@ String _levelName(PreferenceLevel level) => switch (level) {
 Future<Map<String, dynamic>> handleSharedPreferences(
   HttpRequest request,
   LibraryRepository repository,
-  Map<int, LibrarySong> sharedSongs,
-  String root,
   bool Function() canWrite,
 ) async {
   Map<String, dynamic> values;
@@ -51,16 +50,41 @@ Future<Map<String, dynamic>> handleSharedPreferences(
     request.response.statusCode = HttpStatus.methodNotAllowed;
     return {};
   }
-  final snapshot = await repository.getLibraryContentData();
-  final preferences = await repository.getPreferenceSettings(
-    source: 'local',
-    initialize: false,
-    unknownAlbumName: values['unknownAlbumName'] as String? ?? '',
-  );
-  final artists = sharedSongs.values.expand((s) => s.artists).toSet();
-  final albums = sharedSongs.values.map((s) => s.album).toSet();
+  final (snapshot, playlists, preferences) =
+      await (
+        repository.queryLibrary(
+          const LibraryDataQuery(LibraryQueryKind.directoryIndex),
+        ),
+        repository.getLocalPlaylists(),
+        repository.getPreferenceSettings(
+          source: 'local',
+          initialize: false,
+          unknownAlbumName: values['unknownAlbumName'] as String? ?? '',
+        ),
+      ).wait;
+  final root = snapshot.rootPath;
+  final songIds = [
+    for (final item in preferences.songs) int.parse(item.itemId),
+    if (values['type'] == 'song') int.parse(values['itemId'] as String),
+  ];
+  final (selectedSongs, artistIndex, albumIndex) =
+      await (
+        repository.songReferences(songIds),
+        repository.queryLibrary(
+          LibraryDataQuery(LibraryQueryKind.artistIndex, folder: root),
+        ),
+        repository.queryLibrary(
+          LibraryDataQuery(LibraryQueryKind.albumIndex, folder: root),
+        ),
+      ).wait;
+  final sharedSongs = {
+    for (final entry in selectedSongs.entries)
+      if (p.isWithin(root, entry.value)) entry.key: entry.value,
+  };
+  final artists = artistIndex.artistSummaries.map((item) => item.name).toSet();
+  final albums = albumIndex.albumSummaries.map((item) => item.name).toSet();
   final playlistIds =
-      snapshot.playlists
+      playlists
           .where((p) => p.id > 0 && !p.isBuiltIn)
           .map((p) => '${p.id}')
           .toSet();
@@ -130,6 +154,10 @@ Future<Map<String, dynamic>> handleSharedPreferences(
       'enabled': {
         for (final e in preferences.enabled.entries) e.key.name: e.value,
       },
+      'songIds': [
+        for (final item in preferences.songs)
+          if (allowed('song', item.itemId)) int.parse(item.itemId),
+      ],
       'songs': encode(preferences.songs),
       'artists': encode(preferences.artists),
       'albums': encode(preferences.albums),

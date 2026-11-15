@@ -185,6 +185,7 @@ class _RecentPageState extends ConsumerState<RecentPage>
 
   @override
   Widget build(BuildContext context) {
+    if (!TickerMode.valuesOf(context).enabled) return const SizedBox.shrink();
     final i18nValue = ref.watch(smPlayerI18nProvider);
     final snapshotValue = ref.watch(recentPageDataProvider);
     final source = ref.watch(musicShareProvider);
@@ -402,15 +403,13 @@ class _RecentPageState extends ConsumerState<RecentPage>
                                 },
                                 onPlaySong: _playSong,
                                 onPlayNext: _playNext,
-                                onToggleFavorite: (song) {
-                                  unawaited(
-                                    setSongsFavoriteWithUndo(
-                                      context: context,
-                                      ref: ref,
-                                      i18n: i18n,
-                                      songIds: [song.id],
-                                      favorite: !song.favorite,
-                                    ),
+                                onToggleFavorite: (song) async {
+                                  await setSongsFavoriteWithUndo(
+                                    context: context,
+                                    ref: ref,
+                                    i18n: i18n,
+                                    songIds: [song.id],
+                                    favorite: !song.favorite,
                                   );
                                 },
                                 onToggleSelection: _toggleSongSelection,
@@ -462,15 +461,13 @@ class _RecentPageState extends ConsumerState<RecentPage>
                                 onPlaySongs: _playSongIds,
                                 onPlaySong: _playSong,
                                 onPlayNext: _playNext,
-                                onToggleFavorite: (song) {
-                                  unawaited(
-                                    setSongsFavoriteWithUndo(
-                                      context: context,
-                                      ref: ref,
-                                      i18n: i18n,
-                                      songIds: [song.id],
-                                      favorite: !song.favorite,
-                                    ),
+                                onToggleFavorite: (song) async {
+                                  await setSongsFavoriteWithUndo(
+                                    context: context,
+                                    ref: ref,
+                                    i18n: i18n,
+                                    songIds: [song.id],
+                                    favorite: !song.favorite,
                                   );
                                 },
                                 onToggleSongSelection: _toggleSongSelection,
@@ -579,8 +576,8 @@ class _RecentPageState extends ConsumerState<RecentPage>
                         );
                       });
                     },
-                    onAddToNowPlaying: () {
-                      addSongsToNowPlayingWithUndo(
+                    onAddToNowPlaying: () async {
+                      await addSongsToNowPlayingWithUndo(
                         context: context,
                         ref: ref,
                         i18n: i18n,
@@ -635,8 +632,8 @@ class _RecentPageState extends ConsumerState<RecentPage>
                         });
                       }
                     },
-                    onAddToPlaylist: (playlistId) {
-                      addSongsToPlaylistWithUndo(
+                    onAddToPlaylist: (playlistId) async {
+                      await addSongsToPlaylistWithUndo(
                         context: context,
                         ref: ref,
                         i18n: i18n,

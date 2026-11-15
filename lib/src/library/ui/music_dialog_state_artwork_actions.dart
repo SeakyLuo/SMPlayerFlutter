@@ -92,11 +92,9 @@ extension _MusicDialogStateArtworkActions on _MusicDialogState {
       _originalArtworkMissing = deleteArtwork;
       _invalidateArtworkRecommendation();
       final thumbnailPath =
-          isRemoteMusicPath(widget.song.path)
-              ? (await repository.getLibrarySongs(
-                songIds: [widget.song.id],
-              )).single.thumbnailPath
-              : _displayArtworkUrl;
+          (await repository.getLibrarySongs(
+            songIds: [widget.song.id],
+          )).single.thumbnailPath;
       if (!mounted || _dialogSessionKey != sessionKey) return;
       _syncSongMutation(_songWithArtwork(thumbnailPath), i18n);
       _notifySaved();

@@ -21,15 +21,17 @@ class RecentNowPlayingView {
     required this.id,
     required this.playlistId,
     required this.songs,
+    this.references,
     required this.createdAt,
   });
 
+  final List<int>? references;
   final int id;
   final int playlistId;
   final List<LibrarySong> songs;
   final String createdAt;
 
-  List<int> get songIds => songs.map((song) => song.id).toList();
+  List<int> get songIds => references ?? songs.map((song) => song.id).toList();
 }
 
 class RecentAlbumView {
@@ -155,6 +157,7 @@ List<RecentNowPlayingView> buildRecentNowPlayingViews(
         return RecentNowPlayingView(
           id: snapshot.id,
           playlistId: snapshot.playlistId,
+          references: snapshot.songIds,
           songs:
               snapshot.songIds
                   .map((songId) => songsById[songId])

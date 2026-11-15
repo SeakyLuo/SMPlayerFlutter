@@ -1,8 +1,17 @@
+import 'library_sql_functions.dart';
+import 'artist_split_model.dart' as artist_rules;
+import '../../playback/quick_play_model.dart'
+    show quickPlayDatabasePlan, QuickPlayDatabasePlan;
 import 'library_source.dart';
+import 'library_text.dart';
+import 'library_queries.dart';
+import 'library_selection.dart';
 import 'dart:convert';
+import 'dart:isolate';
 import '../../remote/music_share_access.dart';
 import '../../remote/music_share_models.dart';
 import '../../remote/music_share_edit_codec.dart';
+import '../../remote/music_share_scan_codec.dart';
 import 'dart:io';
 
 import 'package:path/path.dart' as p;
@@ -75,6 +84,8 @@ export 'library_lyrics_service.dart'
 part 'library_data_source.dart';
 part 'local_library_data_source.dart';
 part 'remote_library_data_source.dart';
+part 'local_library_storage.dart';
+part 'remote_library_storage.dart';
 
 part 'library_repository_song_editing.dart';
 part 'library_repository_remote_editing.dart';
@@ -84,6 +95,16 @@ part 'library_repository_platform.dart';
 part 'library_repository_local_operations.dart';
 part 'library_repository_collections.dart';
 part 'library_repository_data_transfer.dart';
+part 'library_repository_queries.dart';
+part 'library_source_reading.dart';
+part 'library_selection_queries.dart';
+part 'library_database_selection.dart';
+part 'library_quick_play_query.dart';
+part 'library_task_queries.dart';
+part 'library_collection_queries.dart';
+part 'library_folder_queries.dart';
+part 'library_song_references.dart';
+part 'library_scope_ids.dart';
 
 typedef _LyricsCacheKey =
     ({
@@ -100,7 +121,8 @@ class LibraryRepository
         _LibraryRepositorySongEditing,
         _LibraryRepositoryRemoteEditing,
         _LibraryRepositoryPreferences,
-        _LibraryRepositorySharedFiles {
+        _LibraryRepositorySharedFiles,
+        _LibraryRepositoryQueries {
   const LibraryRepository({
     Future<File> Function()? databaseFileResolver,
     File Function()? nowPlayingFileResolver,
@@ -233,14 +255,6 @@ class LibraryRepository
     return const LibrarySnapshotService().readRecent(content);
   }
 
-  Future<ShellNavigationData> getShellNavigationData() async {
-    final databaseFile = await _resolveDatabaseFile();
-    return const LibrarySnapshotService().readNavigation(
-      databaseFile.path,
-      _resolveNowPlayingFile(databaseFile).path,
-    );
-  }
-
   Future<List<SearchHistoryEntry>> getRecentSearches() async {
     final databaseFile = await _resolveDatabaseFile();
     return _searchHistoryService.getRecentSearches(databaseFile);
@@ -275,24 +289,10 @@ class LibraryRepository
   }
 
   @override
-  Future<List<LibrarySong>> getLibrarySongs({List<int>? songIds}) async {
-    final databaseFile = await _resolveDatabaseFile();
-    return const LibrarySnapshotService().readSongs(
-      databaseFile.path,
-      songIds: songIds,
-    );
-  }
-
-  Future<LibraryContentData> getLibraryContentData() async {
-    final databaseFile = await _resolveDatabaseFile();
-    final snapshot = await const LibrarySnapshotService().readContent(
-      databaseFile.path,
-      _resolveNowPlayingFile(databaseFile).path,
-    );
-    return snapshot.withPlaylists([
-      ...snapshot.playlists,
-      ...?activeMusicShareAccess?.remotePlaylists,
-    ]);
+  Future<List<LibrarySong>> getLibrarySongs({
+    required List<int> songIds,
+  }) async {
+    return resolveSongDetails(songIds);
   }
 
   Future<bool> shouldCheckStartupArtistSplits() async {
@@ -473,21 +473,30 @@ class LibraryRepository
   Future<ArtistSplitAnalysisResult> analyzeArtistSplits({
     void Function(double progress)? onProgress,
   }) async {
-    onProgress?.call(0);
-    final songs = await getLibrarySongs();
-    onProgress?.call(0.08);
-    return _artistSplitService.analyzeExistingLibrary(
-      songs,
-      onProgress:
-          onProgress == null
-              ? null
-              : (progress) => onProgress(0.08 + progress * 0.92),
+    final source = LibrarySource.fromDevice(
+      activeMusicShareAccess?.selectedSource ?? 'local',
     );
+    return dataSource(source).analyzeArtists(onProgress: onProgress);
   }
 
   Future<void> applyArtistSplits(List<ArtistSplitResultItem> splits) async {
-    final databaseFile = await _resolveDatabaseFile();
-    await _artistSplitService.applySplits(databaseFile, splits);
+    if (splits.isEmpty) return;
+    final references = await songReferences(
+      splits.map((split) => split.songId).toList(),
+    );
+    final byId = {for (final split in splits) split.songId: split};
+    final groups = _groupSongReferences(references);
+    for (final source in groups.keys) {
+      _requireWritable(dataSource(source));
+    }
+    await Future.wait(
+      groups.entries.map(
+        (entry) => dataSource(entry.key).applyArtistSplits(
+          entry.value,
+          entry.value.keys.map((id) => byId[id]!).toList(),
+        ),
+      ),
+    );
   }
 
   Future<void> markSongPlayed(int songId) async {
@@ -566,10 +575,46 @@ class LibraryRepository
     );
   }
 
+  Future<LibraryLyricsSearchPage> queryLocalLyrics(
+    String query, {
+    String folderPath = '',
+    int offset = 0,
+    MusicLibrarySortCriterion? order,
+  }) async {
+    final file = await _resolveDatabaseFile();
+    final page = await _lyricsSearchService.searchPage(
+      file,
+      query,
+      folderPath: folderPath,
+      offset: offset,
+      order: order,
+    );
+    final songs =
+        page.matches.isEmpty
+            ? const <LibrarySong>[]
+            : await getLibrarySongs(
+              songIds: page.matches.map((match) => match.songId).toList(),
+            );
+    return LibraryLyricsSearchPage(
+      matches: page.matches,
+      totalCount: page.totalCount,
+      songs: songs,
+    );
+  }
+
   Future<void> indexMissingLocalLyrics({
+    String folderPath = '',
     void Function(LocalLyricsIndexProgress progress)? onProgress,
   }) async {
     final databaseFile = await _resolveDatabaseFile();
+    if (folderPath.isNotEmpty) {
+      await _lyricsSearchService.refreshFolder(
+        databaseFile,
+        folderPath,
+        onlyChanged: true,
+      );
+      return;
+    }
     await _lyricsSearchService.indexMissingSongs(
       databaseFile,
       onProgress: onProgress,
@@ -605,25 +650,13 @@ class LibraryRepository
     bool Function()? isCanceled,
     Future<void> Function()? waitIfPaused,
   }) async {
-    final databaseFile = await _resolveDatabaseFile();
-    final songs = await getLibrarySongs();
-    final result = await _lyricsService.batchAddInternetLyrics(
-      songs: songs,
+    return runInternetLyricsBatch(
       overwrite: overwrite,
       onProgress: onProgress,
       onDetailCompleted: onDetailCompleted,
       isCanceled: isCanceled,
       waitIfPaused: waitIfPaused,
     );
-    final changedSongIds = [
-      for (final detail in result.details)
-        if (detail.result == LyricsBatchDetailResult.saved ||
-            detail.result == LyricsBatchDetailResult.overwritten)
-          detail.songId,
-    ];
-    _invalidateLyricsCache(changedSongIds);
-    await _lyricsSearchService.refreshSongIds(databaseFile, changedSongIds);
-    return result;
   }
 
   @override
@@ -700,11 +733,6 @@ class LibraryRepository
       windowsUwpDatabaseResolver:
           _dataTransferService.resolveWindowsUwpDatabaseFile,
     );
-  }
-
-  void _initializeLibraryDatabaseFile(File databaseFile) {
-    final db = _database.openInitializedLibraryDatabase(databaseFile);
-    db.dispose();
   }
 
   @override

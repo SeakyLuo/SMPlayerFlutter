@@ -54,6 +54,7 @@ class _SettingsDownloadLocationState
     final colors = SettingsPageColors.of(context);
     final enabled = settings.initialized && !settings.saving && !_busy;
     return Column(
+      spacing: 6,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Text(

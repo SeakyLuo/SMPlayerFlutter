@@ -1,24 +1,17 @@
-import 'dart:io';
 import 'dart:isolate';
 
 import 'library_browse_history_service.dart';
-import 'library_database_service.dart';
+import 'package:sqlite3/sqlite3.dart';
 import 'library_models.dart';
 import 'library_playback_history_service.dart';
-import 'library_playlist_service.dart';
 import 'library_read_service.dart';
-import 'library_search_history_service.dart';
 
 class LibrarySnapshotService {
   const LibrarySnapshotService();
 
-  static const _database = LibraryDatabaseService();
   static const _read = LibraryReadService();
-  static const _playlists = LibraryPlaylistService();
   static const _history = LibraryPlaybackHistoryService();
-  static const _search = LibrarySearchHistoryService(database: _database);
   static const _browse = LibraryBrowseHistoryService();
-  static final _loads = <(String, String), Future<LibraryContentData>>{};
   static Future<void> _pending = Future.value();
 
   static Future<T> run<T>(T Function() operation) {
@@ -41,43 +34,46 @@ class LibrarySnapshotService {
 
   static Future<void> waitForPendingOperations() => _pending;
 
-  Future<LibraryContentData> readContent(String path, String queuePath) {
-    final key = (path, queuePath);
-    return _loads.putIfAbsent(key, () {
-      // Share overlapping page loads only; the next load must observe writes.
-      return run(() => _readContent(path, queuePath)).whenComplete(() {
-        _loads.remove(key);
-      });
+  Future<int> readSongCount(String path) async {
+    await waitForPendingOperations();
+    return Isolate.run(() {
+      final db = sqlite3.open(path, mode: OpenMode.readOnly);
+      try {
+        return _read.readLibrarySongCount(db);
+      } finally {
+        db.dispose();
+      }
     });
   }
 
-  Future<int> readSongCount(String path) => run(() {
-    final db = _database.openInitializedLibraryDatabase(File(path));
-    try {
-      return _read.readLibrarySongCount(db);
-    } finally {
-      db.dispose();
-    }
-  });
-
-  Future<List<LibrarySong>> readSongs(String path, {List<int>? songIds}) =>
-      run(() {
-        final db = _database.openInitializedLibraryDatabase(File(path));
-        try {
-          db.execute('BEGIN');
-          final songs = _read.readSongs(db, songIds: songIds);
-          db.execute('COMMIT');
-          return songs;
-        } finally {
-          db.dispose();
-        }
-      });
+  Future<List<LibrarySong>> readSongs(
+    String path, {
+    required List<int> songIds,
+  }) async {
+    await waitForPendingOperations();
+    return Isolate.run(() {
+      final db = sqlite3.open(path, mode: OpenMode.readOnly);
+      try {
+        db.execute('BEGIN');
+        final songs = _read.readSongs(
+          db,
+          songIds: songIds,
+          includeInactive: true,
+        );
+        db.execute('COMMIT');
+        return songs;
+      } finally {
+        db.dispose();
+      }
+    });
+  }
 
   Future<RecentPageData> readRecent(LibraryContentData content) async {
     final path = content.databasePath;
     final songs = content.songs;
-    final recent = await run(() {
-      final db = _database.openInitializedLibraryDatabase(File(path));
+    await waitForPendingOperations();
+    final recent = await Isolate.run(() {
+      final db = sqlite3.open(path, mode: OpenMode.readOnly);
       try {
         return (
           songs: _history.readRecentSongs(db, songs),
@@ -107,54 +103,5 @@ class LibrarySnapshotService {
       hideMultiSelectCommandBarAfterOperation:
           content.hideMultiSelectCommandBarAfterOperation,
     );
-  }
-
-  Future<ShellNavigationData> readNavigation(
-    String path,
-    String queuePath,
-  ) async {
-    final content = await readContent(path, queuePath);
-    return ShellNavigationData(
-      songs: content.songs,
-      playlists: content.playlists,
-      folders: content.folders,
-      recentSearches: content.recentSearches,
-      nowPlaying: content.nowPlaying,
-      rootPath: content.rootPath,
-    );
-  }
-
-  static LibraryContentData _readContent(String path, String queuePath) {
-    final db = _database.openInitializedLibraryDatabase(File(path));
-    try {
-      db.execute('BEGIN');
-      final settings = _read.readLibrarySettings(db);
-      final songs = _read.readSongs(db);
-      final content = LibraryContentData(
-        songs: songs,
-        folders: _read.readFolders(db),
-        playlists: _playlists.readPlaylists(db),
-        nowPlaying: _history.readNowPlaying(
-          db,
-          File(queuePath),
-          settings.nowPlayingId,
-        ),
-        recentSearches: _search.readRecentSearches(db),
-        favoritePlaylistId: settings.myFavoritesId,
-        hasLibrary: songs.isNotEmpty,
-        sortCriterion: settings.sortCriterion,
-        albumsSort: settings.albumsSort,
-        showCount: settings.showCount,
-        hideMultiSelectCommandBarAfterOperation:
-            settings.hideMultiSelectCommandBarAfterOperation,
-        localViewMode: settings.localViewMode,
-        rootPath: settings.rootPath,
-        databasePath: path,
-      );
-      db.execute('COMMIT');
-      return content;
-    } finally {
-      db.dispose();
-    }
   }
 }

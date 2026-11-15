@@ -28,7 +28,7 @@ class LibraryPlaybackHistoryService {
     File nowPlayingFile,
     List<int> songIds, {
     bool recordHistory = false,
-  }) async {
+  }) => LibrarySnapshotService.run(() {
     if (!databaseFile.existsSync()) {
       return;
     }
@@ -50,13 +50,13 @@ class LibraryPlaybackHistoryService {
     } finally {
       db.dispose();
     }
-  }
+  });
 
   Future<void> removeSongFromNowPlaying(
     File databaseFile,
     File nowPlayingFile,
     int songId,
-  ) async {
+  ) => LibrarySnapshotService.run(() {
     if (!databaseFile.existsSync()) {
       return;
     }
@@ -72,7 +72,7 @@ class LibraryPlaybackHistoryService {
     } finally {
       db.dispose();
     }
-  }
+  });
 
   Future<void> removeRecentPlayed(File databaseFile, List<int> songIds) async {
     if (songIds.isEmpty) {

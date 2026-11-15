@@ -1,3 +1,4 @@
+import 'package:smplayer_flutter/src/playback/source_quick_play.dart';
 import '../remote/music_share_access.dart';
 import '../remote/music_share_models.dart';
 import '../remote/music_source_providers.dart';
@@ -52,7 +53,6 @@ import 'package:smplayer_flutter/src/playback/media_control_provider.dart';
 import 'package:smplayer_flutter/src/playback/media_control_track_factory.dart';
 import 'package:smplayer_flutter/src/playback/mini_mode_surface.dart';
 import 'package:smplayer_flutter/src/playback/playback_queue_actions.dart';
-import 'package:smplayer_flutter/src/playback/quick_play_model.dart';
 import 'package:smplayer_flutter/src/remote/ai_agent_remote_controller.dart';
 import 'package:smplayer_flutter/src/remote/ai_agent_settings_codec.dart';
 import 'package:smplayer_flutter/src/settings/settings_controller.dart';
@@ -187,6 +187,7 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage>
   final _playerArtworkErrorResolvingKeys = <String>{};
   String? _releaseNotesDialogVersion;
   var _releaseNotesChecked = false;
+  int _queueLoadRevision = 0;
   ArtistSplitAnalysisResult? _startupArtistSplitResult;
   var _startupArtistSplitChecked = false;
   var _startupArtistSplitApplying = false;
@@ -729,7 +730,8 @@ class _SmPlayerShellPageState extends ConsumerState<SmPlayerShellPage>
     MediaControlState mediaControlState,
     LibraryContentData? snapshot,
   ) {
-    return resolveShellPlayerSong(snapshot, mediaControlState.track.id);
+    return ref.read(librarySongOverridesProvider)[mediaControlState.track.id] ??
+        resolveShellPlayerSong(snapshot, mediaControlState.track.id);
   }
 
   bool _handlePlaybackShortcutKey(KeyEvent event) {

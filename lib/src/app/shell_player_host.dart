@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import '../library/ui/local_song_location.dart';
+import '../playback/source_group_play.dart';
 import '../remote/music_source_providers.dart';
 
 import 'package:flutter/material.dart';
@@ -11,8 +12,6 @@ import 'package:smplayer_flutter/src/app/shell_models.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/data/library_models.dart';
 import 'package:smplayer_flutter/src/library/data/library_providers.dart';
-import 'package:smplayer_flutter/src/library/ui/artists_page_model.dart'
-    as artists_model;
 import 'package:smplayer_flutter/src/library/ui/music_dialog.dart';
 import 'package:smplayer_flutter/src/playback/media_control.dart';
 import 'package:smplayer_flutter/src/playback/media_control_model.dart';
@@ -185,6 +184,9 @@ class ShellPlayerHost extends StatelessWidget {
                   currentSong: currentSong,
                   nowPlayingSongIds: snapshot?.nowPlaying.songIds ?? const [],
                   librarySongs: librarySongs,
+                  libraryHasSongs:
+                      (ref.watch(librarySongCountProvider).valueOrNull ?? 0) >
+                      0,
                   recentSongs: recentSongs,
                   playlists: ref.watch(currentLibraryPlaylistsProvider),
                   folders: snapshot?.folders ?? const [],
@@ -193,38 +195,29 @@ class ShellPlayerHost extends StatelessWidget {
                       currentSong == null || playSongs == null
                           ? null
                           : () {
-                            final currentArtists = artists_model.getSongArtists(
-                              currentSong,
+                            unawaited(
+                              playSourceGroup(
+                                context: context,
+                                ref: ref,
+                                song: currentSong,
+                                artist: true,
+                                onPlaySongs: playSongs,
+                              ),
                             );
-                            final targetArtists =
-                                currentArtists.isEmpty
-                                    ? [currentSong.artist]
-                                    : currentArtists;
-                            playSongs([
-                              for (final song in librarySongs)
-                                if ((artists_model.getSongArtists(song).isEmpty
-                                        ? [song.artist]
-                                        : artists_model.getSongArtists(song))
-                                    .any(targetArtists.contains))
-                                  song.id,
-                            ]);
                           },
                   onPlayAlbum:
                       currentSong == null || playSongs == null
                           ? null
                           : () {
-                            final album =
-                                currentSong.album.isEmpty
-                                    ? i18n.t('common.albumUnknown')
-                                    : currentSong.album;
-                            playSongs([
-                              for (final song in librarySongs)
-                                if ((song.album.isEmpty
-                                        ? i18n.t('common.albumUnknown')
-                                        : song.album) ==
-                                    album)
-                                  song.id,
-                            ]);
+                            unawaited(
+                              playSourceGroup(
+                                context: context,
+                                ref: ref,
+                                song: currentSong,
+                                artist: false,
+                                onPlaySongs: playSongs,
+                              ),
+                            );
                           },
                   disabled: isPlaybackQueueEmpty(snapshot),
                   isPlaying: mediaControlState.isPlaying,

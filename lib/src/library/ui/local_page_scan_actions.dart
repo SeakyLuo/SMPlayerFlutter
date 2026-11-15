@@ -69,16 +69,18 @@ extension _LocalPageScanActions on _LocalPageState {
     });
 
     try {
-      final result = await ref
-          .read(libraryRepositoryProvider)
-          .refreshLocalFolder(
-            folder.path,
-            cancellation: cancellation,
-            onProgress: _setScanProgress,
-            onLibraryCommitted:
-                (result) =>
-                    _reloadCommittedLibrary(previousSnapshot, result, i18n),
-          );
+      final result = await LibraryStorageActions(ref).refreshFolder(
+        folder.path,
+        cancellation: cancellation,
+        onProgress: _setScanProgress,
+        onLibraryCommitted:
+            (result) => _reloadCommittedLibrary(
+              previousSnapshot,
+              result,
+              i18n,
+              source: LibrarySource.fromPath(folder.path).deviceId,
+            ),
+      );
       if (mounted && !_refreshFolderBackgrounded) {
         await finishLocalFolderRefreshProgress(
           progress: _refreshProgress!,
@@ -125,7 +127,9 @@ extension _LocalPageScanActions on _LocalPageState {
         _clearScanOverlay();
         final message = error is StateError ? error.message : error.toString();
         _showMessage(
-          getRefreshFolderErrorMessage(message, i18n),
+          error is MusicShareException
+              ? i18n.t(error.messageKey)
+              : getRefreshFolderErrorMessage(message, i18n),
           autoDismiss: false,
         );
       }
@@ -252,8 +256,9 @@ extension _LocalPageScanActions on _LocalPageState {
   Future<void> _reloadCommittedLibrary(
     LibraryContentData previousSnapshot,
     LocalFolderRefreshResult result,
-    SmPlayerI18n i18n,
-  ) async {
+    SmPlayerI18n i18n, {
+    String source = 'local',
+  }) async {
     if (!result.libraryChanged) return;
     if (!mounted) return;
     final progress = _refreshProgress!;
@@ -268,37 +273,10 @@ extension _LocalPageScanActions on _LocalPageState {
         missingCount: progress.missingCount,
       ),
     );
-    final onlySongMetadataChanged =
-        result.filesUpdated.isNotEmpty && !result.requiresFullReload;
-    final LibraryContentData nextSnapshot;
-    if (onlySongMetadataChanged) {
-      nextSnapshot =
-          await ref.read(libraryRepositoryProvider).getLibraryContentData();
-      final updatedPathKeys =
-          result.filesUpdated
-              .map((path) => normalizePath(path).toLowerCase())
-              .toSet();
-      patchLibrarySongOverrides(
-        ref,
-        nextSnapshot.songs.where(
-          (song) =>
-              updatedPathKeys.contains(normalizePath(song.path).toLowerCase()),
-        ),
-      );
-    } else {
-      ref.invalidate(libraryContentDataProvider);
-      nextSnapshot = await ref.read(libraryContentDataProvider.future);
-    }
-    if (!mounted) return;
+    invalidateLibraryQueries(ref.invalidate, source: source);
     ref.invalidate(recentPageDataProvider);
     ref.invalidate(shellNavigationDataProvider);
     ref.invalidate(librarySongCountProvider);
-    await reconcileNowPlayingQueueWithLibrary(
-      ref: ref,
-      previousSnapshot: previousSnapshot,
-      nextSnapshot: nextSnapshot,
-      i18n: i18n,
-    );
     if (!mounted) return;
     _setScanProgress(
       LocalFolderRefreshProgress(
@@ -407,7 +385,7 @@ extension _LocalPageScanActions on _LocalPageState {
     }
 
     await ref.read(libraryRepositoryProvider).applyArtistSplits(splits);
-    ref.invalidate(libraryContentDataProvider);
+    invalidateLibraryQueries(ref.invalidate);
     if (!mounted) {
       return;
     }
@@ -427,6 +405,7 @@ extension _LocalPageScanActions on _LocalPageState {
         result: LocalFolderRefreshResult(
           libraryChanged: current.result.libraryChanged,
           requiresFullReload: current.result.requiresFullReload,
+          songIdsByPath: current.result.songIdsByPath,
           filesAdded: current.result.filesAdded,
           filesUpdated: current.result.filesUpdated,
           filesRemoved: current.result.filesRemoved,
@@ -459,6 +438,7 @@ extension _LocalPageScanActions on _LocalPageState {
         result: LocalFolderRefreshResult(
           libraryChanged: current.result.libraryChanged,
           requiresFullReload: current.result.requiresFullReload,
+          songIdsByPath: current.result.songIdsByPath,
           filesAdded: current.result.filesAdded,
           filesUpdated: current.result.filesUpdated,
           filesRemoved: current.result.filesRemoved,

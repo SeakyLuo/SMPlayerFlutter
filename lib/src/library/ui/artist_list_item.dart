@@ -261,7 +261,7 @@ class _ArtistListItemState extends State<ArtistListItem>
                                       _formatArtistSummary(
                                         widget.i18n,
                                         widget.artist.albumCount,
-                                        widget.artist.songs.length,
+                                        widget.artist.songCount,
                                       ),
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,

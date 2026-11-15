@@ -1,3 +1,4 @@
+import '../data/library_source.dart';
 import 'package:smplayer_flutter/src/remote/music_share_models.dart';
 import 'package:smplayer_flutter/src/remote/music_share_access.dart';
 import 'package:flutter/material.dart';
@@ -13,17 +14,20 @@ import 'package:smplayer_flutter/src/playback/media_control_provider.dart';
 import 'package:smplayer_flutter/src/playback/playback_queue_actions.dart';
 
 import 'headered_playlist_model.dart';
+import 'library_storage_actions.dart';
 import '../../remote/music_source_selector.dart';
 
 List<int> notFavoriteSongIds(
   List<int> songIds,
   Map<int, LibrarySong> songsById,
 ) {
-  return songIds.where((songId) => !songsById[songId]!.favorite).toList();
+  return songIds
+      .where((songId) => songsById[songId]?.favorite != true)
+      .toList();
 }
 
 bool hasNotFavoriteSongs(List<int> songIds, Map<int, LibrarySong> songsById) {
-  return songIds.any((songId) => !songsById[songId]!.favorite);
+  return songIds.any((songId) => songsById[songId]?.favorite != true);
 }
 
 void showPlayNextUndoNotification({
@@ -43,7 +47,7 @@ void showPlayNextUndoNotification({
 Future<void> addSongsToNowPlaying(WidgetRef ref, List<int> songIds) async {
   final snapshot = await _readLibraryContentData(ref);
   final nextSongIds = [...currentNowPlayingSongIds(ref, snapshot), ...songIds];
-  setNowPlayingQueue(ref, nextSongIds);
+  await setNowPlayingQueue(ref, nextSongIds);
 }
 
 Future<void> addSongsToNowPlayingWithUndo({
@@ -56,11 +60,11 @@ Future<void> addSongsToNowPlayingWithUndo({
     return;
   }
   final snapshot = await _readLibraryContentData(ref);
-  final songsById = {for (final song in snapshot.songs) song.id: song};
+  final songsById = await _notificationSongMap(ref, snapshot, songIds);
   final currentSongIds = currentNowPlayingSongIds(ref, snapshot);
   final insertedIndex = currentSongIds.length;
   final queueAfterAdd = [...currentSongIds, ...songIds];
-  setNowPlayingQueue(ref, queueAfterAdd);
+  await setNowPlayingQueue(ref, queueAfterAdd);
   if (!context.mounted) {
     return;
   }
@@ -79,7 +83,7 @@ Future<void> addSongsToNowPlayingWithUndo({
         final restoredSongIds =
             currentSongIds.toList()
               ..removeRange(insertedIndex, insertedIndex + songIds.length);
-        setNowPlayingQueue(ref, restoredSongIds);
+        await setNowPlayingQueue(ref, restoredSongIds);
       } catch (error) {
         if (context.mounted) {
           showAppNotification(
@@ -94,6 +98,18 @@ Future<void> addSongsToNowPlayingWithUndo({
       }
     },
   );
+}
+
+Future<Map<int, LibrarySong>> _notificationSongMap(
+  WidgetRef ref,
+  LibraryContentData snapshot,
+  List<int> songIds,
+) async {
+  if (songIds.length != 1) return const {};
+  final songs = await ref
+      .read(libraryRepositoryProvider)
+      .getLibrarySongs(songIds: songIds);
+  return {for (final song in songs) song.id: song};
 }
 
 Future<LibraryContentData> _readLibraryContentData(WidgetRef ref) async {
@@ -131,7 +147,7 @@ Future<void> addSongsToPlaylistWithUndo({
       return;
     }
     final snapshot = await _readLibraryContentData(ref);
-    final songsById = {for (final song in snapshot.songs) song.id: song};
+    final songsById = await _notificationSongMap(ref, snapshot, songIds);
     final playlist = _playlistForMutation(ref, snapshot, playlistId);
     if (useSingleSongCall && songIds.length == 1) {
       if (playlistId == snapshot.favoritePlaylistId) {
@@ -204,8 +220,12 @@ LibraryPlaylist _playlistForMutation(
   LibraryContentData snapshot,
   int playlistId,
 ) {
+  final playlists =
+      playlistId < 0
+          ? activeMusicShareAccess!.remotePlaylists
+          : snapshot.playlists;
   return ref.read(libraryPlaylistOverridesProvider)[playlistId] ??
-      snapshot.playlists.firstWhere((playlist) => playlist.id == playlistId);
+      playlists.firstWhere((playlist) => playlist.id == playlistId);
 }
 
 void _patchPlaylistSongsAdded(
@@ -245,20 +265,45 @@ void _patchPlaylistMutation(WidgetRef ref, LibraryPlaylist playlist) {
   patchLibraryPlaylistOverride(ref, playlist);
 }
 
-Future<void> setSongsFavorite(
+Future<List<int>> setSongsFavorite(
   WidgetRef ref,
   List<int> songIds,
   bool favorite,
 ) async {
-  await ref.read(libraryRepositoryProvider).setSongsFavorite(songIds, favorite);
-  ref.invalidate(libraryContentDataProvider);
-  await ref.read(libraryContentDataProvider.future);
+  final snapshot = await _readLibraryContentData(ref);
+  final changed = await ref
+      .read(libraryRepositoryProvider)
+      .setSongsFavorite(songIds, favorite);
+  final changedIds = songIds.toSet();
+  final overrides = ref.read(librarySongOverridesProvider);
+  patchLibrarySongOverrides(
+    ref,
+    snapshot.songs
+        .where((song) => changedIds.contains(song.id))
+        .map(
+          (song) => (overrides[song.id] ?? song).copyWith(favorite: favorite),
+        ),
+  );
+  patchLibraryFavoriteOverrides(ref, songIds, favorite);
+  if (changed.isNotEmpty) {
+    final paths = await ref
+        .read(libraryRepositoryProvider)
+        .songReferences(changed);
+    final sources =
+        paths.values
+            .map((path) => LibrarySource.fromPath(path).deviceId)
+            .toSet();
+    for (final source in sources)
+      ref.invalidate(
+        libraryQueryInvalidationProvider((LibraryQueryKind.favorites, source)),
+      );
+  }
   final mediaController = ref.read(mediaControlControllerProvider);
   if (songIds.contains(mediaController.state.track.id) &&
       mediaController.state.track.favorite != favorite) {
     mediaController.onToggleFavorite();
   }
-  invalidateLibraryMutationData(ref);
+  return changed;
 }
 
 Future<void> setSongsFavoriteFromControl(
@@ -287,8 +332,16 @@ Future<void> setSongsFavoriteWithUndo({
       return;
     }
     final snapshot = await _readLibraryContentData(ref);
-    final songsById = {for (final song in snapshot.songs) song.id: song};
-    await setSongsFavorite(ref, songIds, favorite);
+    songIds = await setSongsFavorite(ref, songIds, favorite);
+    if (songIds.isEmpty) {
+      if (context.mounted)
+        showAppNotification(
+          context: context,
+          message: i18n.t('notification.operationDone'),
+        );
+      return;
+    }
+    final songsById = await _notificationSongMap(ref, snapshot, songIds);
     if (!context.mounted) {
       return;
     }
@@ -452,60 +505,28 @@ Future<void> requestDeleteSongFromDisk({
   required SmPlayerI18n i18n,
   required LibrarySong song,
 }) async {
-  late final PendingSongDelete pendingDelete;
+  final storage = LibraryStorageActions(ref);
+  late final LibraryStorageChange change;
   final confirmed = await showPopupConfirmDialog(
     context: context,
     title: i18n.t('playlists.delete'),
     message: i18n.t('context.deleteSongConfirm', {'title': song.title}),
     confirmLabel: i18n.t('playlists.delete'),
     onConfirm: () async {
-      pendingDelete = await ref
-          .read(libraryRepositoryProvider)
-          .beginDeleteSongFromDisk(song.id);
-      ref.invalidate(libraryContentDataProvider);
+      change = await storage.delete(song);
     },
   );
-
-  if (!confirmed) {
-    return;
-  }
-
+  if (!confirmed) return;
   if (!context.mounted) {
-    await ref
-        .read(libraryRepositoryProvider)
-        .commitDeleteSongFromDisk(pendingDelete.id);
+    await change.commit();
     return;
   }
-
-  final closedReason = await showUndoableNotification(
-    context: context,
-    i18n: i18n,
-    message: i18n.t('notification.deletedFromDisk', {'title': song.title}),
-    onUndo: () async {
-      try {
-        await ref
-            .read(libraryRepositoryProvider)
-            .undoDeleteSongFromDisk(pendingDelete.id);
-        ref.invalidate(libraryContentDataProvider);
-      } catch (error) {
-        if (context.mounted) {
-          showAppNotification(
-            context: context,
-            message: context.smPlayerI18n.t(
-              error is MusicShareException
-                  ? error.messageKey
-                  : 'song.updateFailed',
-            ),
-          );
-        }
-      }
-    },
+  await _finishLibraryStorageChange(
+    context,
+    i18n,
+    change,
+    i18n.t('notification.deletedFromDisk', {'title': song.title}),
   );
-  if (closedReason != AppNotificationClosedReason.action) {
-    await ref
-        .read(libraryRepositoryProvider)
-        .commitDeleteSongFromDisk(pendingDelete.id);
-  }
 }
 
 Future<void> hideSongFileWithUndo({
@@ -513,45 +534,34 @@ Future<void> hideSongFileWithUndo({
   required WidgetRef ref,
   required SmPlayerI18n i18n,
   required LibrarySong song,
-}) async {
-  await ref.read(libraryRepositoryProvider).hideSong(song.id);
-  ref.invalidate(libraryContentDataProvider);
+}) => runLibraryStorageAction(context, () async {
+  final change = await LibraryStorageActions(ref).hide(song);
   if (!context.mounted) {
+    await change.commit();
     return;
   }
-  showUndoableNotification(
-    context: context,
-    i18n: i18n,
-    message: i18n.t('notification.hiddenStorageItem', {'name': song.title}),
-    onUndo: () async {
-      try {
-        await ref.read(libraryRepositoryProvider).unhideSong(song.id);
-        ref.invalidate(libraryContentDataProvider);
-      } catch (error) {
-        if (context.mounted) {
-          showAppNotification(
-            context: context,
-            message: context.smPlayerI18n.t(
-              error is MusicShareException
-                  ? error.messageKey
-                  : 'song.updateFailed',
-            ),
-          );
-        }
-      }
-    },
+  await _finishLibraryStorageChange(
+    context,
+    i18n,
+    change,
+    i18n.t('notification.hiddenStorageItem', {'name': song.title}),
   );
-}
+});
 
 Future<void> moveSongToFolder(
   WidgetRef ref,
   int songId,
   String folderPath,
 ) async {
-  await ref
-      .read(libraryRepositoryProvider)
-      .moveSongToFolder(songId, folderPath);
-  ref.invalidate(libraryContentDataProvider);
+  final context = ref.context;
+  final storage = LibraryStorageActions(ref);
+  final song =
+      (await ref
+          .read(libraryRepositoryProvider)
+          .getLibrarySongs(songIds: [songId])).single;
+  if (!context.mounted) return;
+  final change = await storage.move(context, song, folderPath);
+  await change.commit();
 }
 
 Future<void> moveSongToFolderWithUndo({
@@ -560,46 +570,63 @@ Future<void> moveSongToFolderWithUndo({
   required SmPlayerI18n i18n,
   required LibrarySong song,
   required String folderPath,
-}) async {
-  final result = await ref
-      .read(libraryRepositoryProvider)
-      .moveSongToFolder(
-        song.id,
-        folderPath,
-        resolveConflict:
-            (sourcePath, targetPath) => requestLocalMoveConflictResolution(
-              context: context,
-              i18n: i18n,
-              sourcePath: sourcePath,
-              targetPath: targetPath,
-            ),
-      );
-  ref.invalidate(libraryContentDataProvider);
-  if (!context.mounted || result.itemCount == 0) {
+}) => runLibraryStorageAction(context, () async {
+  final change = await LibraryStorageActions(
+    ref,
+  ).move(context, song, folderPath);
+  if (!context.mounted) {
+    await change.commit();
     return;
   }
-  showUndoableNotification(
+  await _finishLibraryStorageChange(
+    context,
+    i18n,
+    change,
+    i18n.t('notification.movedSong', {'title': song.title}),
+  );
+});
+
+Future<void> _finishLibraryStorageChange(
+  BuildContext context,
+  SmPlayerI18n i18n,
+  LibraryStorageChange change,
+  String message,
+) async {
+  if (!context.mounted || change.count == 0) {
+    await change.commit();
+    return;
+  }
+  final reason = await showUndoableNotification(
     context: context,
     i18n: i18n,
-    message: i18n.t('notification.movedSong', {'title': song.title}),
-    onUndo: () async {
-      try {
-        await ref.read(libraryRepositoryProvider).undoMoveLocalItems(result);
-        ref.invalidate(libraryContentDataProvider);
-      } catch (error) {
-        if (context.mounted) {
-          showAppNotification(
-            context: context,
-            message: context.smPlayerI18n.t(
-              error is MusicShareException
-                  ? error.messageKey
-                  : 'song.updateFailed',
-            ),
-          );
-        }
-      }
-    },
+    message: message,
+    onUndo: () => runLibraryStorageAction(context, change.undo),
   );
+  if (reason != AppNotificationClosedReason.action) {
+    if (context.mounted) {
+      await runLibraryStorageAction(context, change.commit);
+    } else {
+      await change.commit();
+    }
+  }
+}
+
+Future<void> runLibraryStorageAction(
+  BuildContext context,
+  Future<void> Function() action,
+) async {
+  try {
+    await action();
+  } catch (error) {
+    if (context.mounted) {
+      showAppNotification(
+        context: context,
+        message: context.smPlayerI18n.t(
+          error is MusicShareException ? error.messageKey : 'song.updateFailed',
+        ),
+      );
+    }
+  }
 }
 
 Future<LocalMoveConflictResolution> requestLocalMoveConflictResolution({

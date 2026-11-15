@@ -81,8 +81,8 @@ extension _HeaderedPlaylistControlSongMenu on _HeaderedPlaylistControlState {
         onPlayNext: () {
           _playNextSong(song.id);
         },
-        onAddToNowPlaying: () {
-          _addSongsToNowPlaying([song.id]);
+        onAddToNowPlaying: () async {
+          await _addSongsToNowPlaying([song.id]);
         },
         onCreatePlaylist: () {
           unawaited(
@@ -91,15 +91,13 @@ extension _HeaderedPlaylistControlSongMenu on _HeaderedPlaylistControlState {
             ], defaultSourceName: song.title),
           );
         },
-        onAddToPlaylist: (playlistId) {
-          unawaited(
-            addSongsToPlaylistWithUndo(
-              context: context,
-              ref: ref,
-              i18n: i18n,
-              playlistId: playlistId,
-              songIds: [song.id],
-            ),
+        onAddToPlaylist: (playlistId) async {
+          await addSongsToPlaylistWithUndo(
+            context: context,
+            ref: ref,
+            i18n: i18n,
+            playlistId: playlistId,
+            songIds: [song.id],
           );
         },
         onRemove: () {

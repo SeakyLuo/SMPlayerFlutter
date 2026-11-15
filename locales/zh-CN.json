@@ -1128,5 +1128,8 @@
   "recent.clearBrowsesMessage": "将清空最近浏览记录，音乐库内容会保留。",
   "song.replaceLyrics": "替换",
   "settings.lyricsBatchStop": "停止添加",
-  "settings.lyricsBatchContinue": "继续添加"
+  "settings.lyricsBatchContinue": "继续添加",
+  "share.download": "下载到本地",
+  "share.downloadComplete": "已下载 {count} 首歌曲",
+  "share.downloadSaveFailed": "无法保存下载文件，请检查目录权限和可用空间。"
 }

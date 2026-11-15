@@ -25,9 +25,6 @@ class _ArtistListArtworkState extends State<ArtistListArtwork> {
   @override
   Widget build(BuildContext context) {
     final revealPlay = widget.revealPlay || _hovered || _playFocused;
-    final song = widget.artist.songs.firstWhere(
-      (song) => song.id == widget.artist.artworkSongId,
-    );
     return MouseRegion(
       onEnter: (_) {
         setState(() {
@@ -61,9 +58,9 @@ class _ArtistListArtworkState extends State<ArtistListArtwork> {
                 ColoredBox(
                   color: _ArtistsColors.artistArtworkBackground(
                     widget.brightness,
-                    hasArtwork: song.thumbnailPath.isNotEmpty,
+                    hasArtwork: widget.artist.artworkPath.isNotEmpty,
                   ),
-                  child: SongArtwork(artworkPath: song.thumbnailPath),
+                  child: SongArtwork(artworkPath: widget.artist.artworkPath),
                 ),
                 IgnorePointer(
                   ignoring: !revealPlay,

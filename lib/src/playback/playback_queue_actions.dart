@@ -1,3 +1,5 @@
+import 'dart:async';
+import '../remote/music_share_models.dart';
 import 'package:flutter/foundation.dart';
 import '../remote/music_share_access.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -10,6 +12,9 @@ import 'package:smplayer_flutter/src/playback/media_control_provider.dart';
 import 'package:smplayer_flutter/src/playback/media_control_track_factory.dart';
 
 var _replaceQueueRevision = 0;
+var _playMetadataRevision = 0;
+
+enum QueuePlayResult { played, unavailable, superseded, failed }
 
 List<int> currentNowPlayingSongIds(WidgetRef ref, LibraryContentData snapshot) {
   return effectiveNowPlayingSongIds(ref, snapshot.nowPlaying.songIds);
@@ -27,79 +32,6 @@ Future<void> setNowPlayingQueue(WidgetRef ref, List<int> songIds) {
   final nextSongIds = songIds.toList();
   ref.read(nowPlayingQueueOverrideProvider.notifier).state = nextSongIds;
   return ref.read(libraryRepositoryProvider).replaceNowPlaying(nextSongIds);
-}
-
-Future<void> reconcileNowPlayingQueueWithLibrary({
-  required WidgetRef ref,
-  required LibraryContentData previousSnapshot,
-  required LibraryContentData nextSnapshot,
-  required SmPlayerI18n i18n,
-}) async {
-  final currentSongIds = currentNowPlayingSongIds(ref, previousSnapshot);
-  final nextSongIds = normalizePlaybackQueueSongIds(
-    currentSongIds,
-    nextSnapshot.songs.map((song) => song.id),
-  );
-  if (listEquals(currentSongIds, nextSongIds)) {
-    return;
-  }
-
-  final mediaController = ref.read(mediaControlControllerProvider);
-  final mediaState = mediaController.state;
-  final trackId = mediaState.track.id;
-  final persistQueue = setNowPlayingQueue(ref, nextSongIds);
-  if (trackId == null) {
-    await persistQueue;
-    return;
-  }
-
-  if (nextSongIds.contains(trackId)) {
-    syncMediaControlForQueueChange(
-      mediaController: mediaController,
-      currentSongIds: currentSongIds,
-      nextSongIds: nextSongIds,
-    );
-    await persistQueue;
-    return;
-  }
-
-  if (nextSongIds.isEmpty) {
-    mediaController.clearTrack();
-    await persistQueue;
-    return;
-  }
-
-  final selectedIndex = mediaState.selectedQueueIndex;
-  final removedTrackIndex =
-      selectedIndex != null &&
-              selectedIndex < currentSongIds.length &&
-              currentSongIds[selectedIndex] == trackId
-          ? selectedIndex
-          : currentSongIds.indexOf(trackId);
-  final nextSongIdSet = nextSongIds.toSet();
-  final nextTrackIndex = currentSongIds.indexWhere(
-    nextSongIdSet.contains,
-    removedTrackIndex + 1,
-  );
-  final replacementIndex =
-      nextTrackIndex >= 0
-          ? matchingQueueIndexByOccurrence(
-            currentSongIds[nextTrackIndex],
-            currentSongIds,
-            nextTrackIndex,
-            nextSongIds,
-          )!
-          : nextSongIds.length - 1;
-  playQueueIndexFromSongs(
-    ref: ref,
-    songs: nextSnapshot.songs,
-    i18n: i18n,
-    songIds: nextSongIds,
-    queueIndex: replacementIndex,
-    mediaController: mediaController,
-    autoplay: mediaState.isPlaying,
-  );
-  await persistQueue;
 }
 
 void syncMediaControlForQueueChange({
@@ -245,7 +177,7 @@ Future<void> replaceNowPlayingQueueAndPlayIndexFromSongs({
   );
 }
 
-void playQueueIndex({
+Future<QueuePlayResult> playQueueIndex({
   required WidgetRef ref,
   required LibraryContentData snapshot,
   required SmPlayerI18n i18n,
@@ -255,7 +187,7 @@ void playQueueIndex({
   double progressSeconds = 0,
   bool autoplay = true,
 }) {
-  playQueueIndexFromSongs(
+  return playQueueIndexFromSongs(
     ref: ref,
     songs: snapshot.songs,
     i18n: i18n,
@@ -267,7 +199,7 @@ void playQueueIndex({
   );
 }
 
-void playQueueIndexFromSongs({
+Future<QueuePlayResult> playQueueIndexFromSongs({
   required WidgetRef ref,
   required List<LibrarySong> songs,
   required SmPlayerI18n i18n,
@@ -276,27 +208,55 @@ void playQueueIndexFromSongs({
   MediaControlController? mediaController,
   double progressSeconds = 0,
   bool autoplay = true,
-}) {
-  final songsById = {for (final song in songs) song.id: song};
-  final song = songsById[songIds[queueIndex]]!;
-  if (!canPlayLibrarySong(song)) {
-    showAppNotification(
-      context: ref.context,
-      message: i18n.t(
-        song.remoteAvailable ? 'share.offline' : 'share.songRemoved',
-      ),
-    );
-    return;
-  }
+}) async {
+  final revision = ++_playMetadataRevision;
+  final context = ref.context;
+  final container = ProviderScope.containerOf(context, listen: false);
   final MediaControlController controller =
-      mediaController ?? ref.read(mediaControlControllerProvider);
-  controller.playTrack(
-    mediaControlTrackForSong(song, i18n),
-    durationSeconds: song.duration.toDouble(),
-    queueIndex: queueIndex,
-    progressSeconds: progressSeconds,
-    autoplay: autoplay,
-  );
+      mediaController ?? container.read(mediaControlControllerProvider);
+  try {
+    final ids = [
+      songIds[queueIndex],
+      if (queueIndex + 1 < songIds.length) songIds[queueIndex + 1],
+    ];
+    final loaded = await container
+        .read(libraryRepositoryProvider)
+        .getLibrarySongs(songIds: ids);
+    if (revision != _playMetadataRevision || !context.mounted)
+      return QueuePlayResult.superseded;
+    await container.read(libraryLoadedDataProvider.notifier).addSongs(loaded);
+    final song =
+        loaded.where((song) => song.id == songIds[queueIndex]).firstOrNull;
+    if (song == null || !canPlayLibrarySong(song)) {
+      showAppNotification(
+        context: context,
+        message: i18n.t(
+          song?.remoteAvailable == false
+              ? 'share.songRemoved'
+              : 'share.offline',
+        ),
+      );
+      return QueuePlayResult.unavailable;
+    }
+    controller.playTrack(
+      mediaControlTrackForSong(song, i18n),
+      durationSeconds: song.duration.toDouble(),
+      queueIndex: queueIndex,
+      progressSeconds: progressSeconds,
+      autoplay: autoplay,
+    );
+    return QueuePlayResult.played;
+  } catch (error) {
+    if (revision == _playMetadataRevision && context.mounted) {
+      showAppNotification(
+        context: context,
+        message: i18n.t(
+          error is MusicShareException ? error.messageKey : 'song.updateFailed',
+        ),
+      );
+    }
+    return QueuePlayResult.failed;
+  }
 }
 
 int currentQueueIndexForPlaybackOccurrence(
@@ -380,11 +340,14 @@ int? nextPlayableQueueIndex({
   required bool forward,
   required bool automatic,
 }) {
+  final known = songs.map((song) => song.id).toSet();
   final playable = songs.where(canPlayLibrarySong).map((s) => s.id).toSet();
   var index = currentIndex;
   final effectiveMode =
       mode == PlaybackMode.repeatOne &&
-              (currentIndex < 0 || !playable.contains(songIds[currentIndex]))
+              (currentIndex < 0 ||
+                  (known.contains(songIds[currentIndex]) &&
+                      !playable.contains(songIds[currentIndex])))
           ? PlaybackMode.once
           : mode;
   for (var checked = 0; checked < songIds.length; checked++) {
@@ -396,7 +359,8 @@ int? nextPlayableQueueIndex({
       automatic: automatic,
     );
     if (next == null) return null;
-    if (playable.contains(songIds[next])) return next;
+    if (!known.contains(songIds[next]) || playable.contains(songIds[next]))
+      return next;
     index = next;
   }
   return null;

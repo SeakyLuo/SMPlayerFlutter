@@ -64,8 +64,8 @@ extension _RecentPageMenus on _RecentPageState {
         onPlayNext: () {
           _playNext(song.id);
         },
-        onAddToNowPlaying: () {
-          addSongsToNowPlayingWithUndo(
+        onAddToNowPlaying: () async {
+          await addSongsToNowPlayingWithUndo(
             context: context,
             ref: ref,
             i18n: i18n,
@@ -83,8 +83,8 @@ extension _RecentPageMenus on _RecentPageState {
             songIds: [song.id],
           );
         },
-        onAddToPlaylist: (playlistId) {
-          addSongsToPlaylistWithUndo(
+        onAddToPlaylist: (playlistId) async {
+          await addSongsToPlaylistWithUndo(
             context: context,
             ref: ref,
             i18n: i18n,
@@ -101,15 +101,13 @@ extension _RecentPageMenus on _RecentPageState {
             _selectedSongIds.add(song.id);
           });
         },
-        onToggleFavorite: () {
-          unawaited(
-            setSongsFavoriteWithUndo(
-              context: context,
-              ref: ref,
-              i18n: i18n,
-              songIds: [song.id],
-              favorite: !song.favorite,
-            ),
+        onToggleFavorite: () async {
+          await setSongsFavoriteWithUndo(
+            context: context,
+            ref: ref,
+            i18n: i18n,
+            songIds: [song.id],
+            favorite: !song.favorite,
           );
         },
         onSetPreference: (level) async {
@@ -194,16 +192,16 @@ extension _RecentPageMenus on _RecentPageState {
         isNowPlayingContext: false,
       ),
       includeFavorites: hasNotFavoriteSongs(songIds, songsById),
-      onAddToNowPlaying: () {
-        addSongsToNowPlayingWithUndo(
+      onAddToNowPlaying: () async {
+        await addSongsToNowPlayingWithUndo(
           context: context,
           ref: ref,
           i18n: i18n,
           songIds: songIds,
         );
       },
-      onToggleFavorite: () {
-        setSongsFavoriteWithUndo(
+      onToggleFavorite: () async {
+        await setSongsFavoriteWithUndo(
           context: context,
           ref: ref,
           i18n: i18n,
@@ -223,8 +221,8 @@ extension _RecentPageMenus on _RecentPageState {
           songIds: songIds,
         );
       },
-      onAddToPlaylist: (playlistId) {
-        addSongsToPlaylistWithUndo(
+      onAddToPlaylist: (playlistId) async {
+        await addSongsToPlaylistWithUndo(
           context: context,
           ref: ref,
           i18n: i18n,
@@ -269,8 +267,8 @@ extension _RecentPageMenus on _RecentPageState {
         isNowPlayingContext: false,
       ),
       includeFavorites: favoriteSongIds.isNotEmpty,
-      onAddToNowPlaying: () {
-        addSongsToNowPlayingWithUndo(
+      onAddToNowPlaying: () async {
+        await addSongsToNowPlayingWithUndo(
           context: context,
           ref: ref,
           i18n: i18n,
@@ -300,8 +298,8 @@ extension _RecentPageMenus on _RecentPageState {
           songIds: songIds,
         );
       },
-      onAddToPlaylist: (playlistId) {
-        addSongsToPlaylistWithUndo(
+      onAddToPlaylist: (playlistId) async {
+        await addSongsToPlaylistWithUndo(
           context: context,
           ref: ref,
           i18n: i18n,

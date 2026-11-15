@@ -196,6 +196,13 @@ class FolderUpdateResultDialogState extends State<FolderUpdateResultDialog> {
       for (final song in widget.songs)
         normalizePath(song.path).toLowerCase(): song,
     };
+    final songsById = {for (final song in widget.songs) song.id: song};
+    for (final entry in widget.result.songIdsByPath.entries) {
+      final song = songsById[entry.value];
+      if (song != null) {
+        songsByPathKey[normalizePath(entry.key).toLowerCase()] = song;
+      }
+    }
     return switch (_activeTab) {
       FolderUpdateResultTab.added => FolderUpdateResultFileSection(
         folderPath: widget.folder.path,

@@ -2,7 +2,13 @@ import '../../remote/music_source_providers.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'library_models.dart';
+import 'library_queries.dart';
+export 'library_queries.dart';
+export 'library_selection.dart';
 import 'library_repository.dart';
+part 'library_query_providers.dart';
+part 'library_paged_queries.dart';
+part 'library_directory_windows.dart';
 
 final libraryRepositoryProvider = Provider<LibraryRepository>((ref) {
   return const LibraryRepository();
@@ -12,9 +18,18 @@ final libraryDatabaseInitializationProvider = FutureProvider<void>((ref) {
   return ref.watch(libraryRepositoryProvider).initializeLibraryDatabase();
 });
 
-final recentPageDataProvider = FutureProvider<RecentPageData>((ref) async {
+final recentPageDataProvider = FutureProvider.autoDispose<RecentPageData>((
+  ref,
+) async {
   final repository = ref.watch(libraryRepositoryProvider);
-  final content = await ref.watch(libraryContentDataProvider.future);
+  final source = ref.watch(
+    musicShareProvider.select((share) => share.selectedSource),
+  );
+  final content = await ref.watch(
+    libraryPageQueryProvider(
+      LibraryDataQuery(LibraryQueryKind.recent, source: source),
+    ).future,
+  );
   return repository.getRecentPageData(content);
 });
 
@@ -304,13 +319,6 @@ final librarySongCountProvider = FutureProvider<int>((ref) {
   return ref.watch(libraryRepositoryProvider).getLibrarySongCount();
 });
 
-final libraryContentDataProvider = FutureProvider<LibraryContentData>((
-  ref,
-) async {
-  ref.watch(libraryDataRevisionProvider);
-  return ref.watch(libraryRepositoryProvider).getLibraryContentData();
-});
-
 final libraryFavoriteOverridesProvider = StateProvider<Map<int, bool>>((ref) {
   return const {};
 });
@@ -375,6 +383,18 @@ void patchLibrarySongOverrides(WidgetRef ref, Iterable<LibrarySong> songs) {
 }
 
 void patchLibraryPlaylistOverride(WidgetRef ref, LibraryPlaylist playlist) {
+  ref.invalidate(
+    libraryPlaylistQueryInvalidationProvider((
+      playlist.source.deviceId,
+      playlist.id,
+    )),
+  );
+  ref.invalidate(
+    libraryQueryInvalidationProvider((
+      LibraryQueryKind.playlistIndex,
+      playlist.source.deviceId,
+    )),
+  );
   if (playlist.remotePath.isNotEmpty) return;
   final overrideNotifier = ref.read(libraryPlaylistOverridesProvider.notifier);
   final deletedNotifier = ref.read(libraryDeletedPlaylistIdsProvider.notifier);
@@ -454,6 +474,22 @@ LibraryContentData applyLibraryFavoriteOverrides(
   );
   return LibraryContentData(
     songs: songs,
+    totalSongCount: snapshot.totalSongCount,
+    totalDuration: snapshot.totalDuration,
+    pageOffset: snapshot.pageOffset,
+    anchorIndex: snapshot.anchorIndex,
+    anchorShift: snapshot.anchorShift,
+    anchorRevision: snapshot.anchorRevision,
+    songRows: {
+      for (final entry in snapshot.songRows.entries)
+        entry.key: songs.firstWhere((song) => song.id == entry.value.id),
+    },
+    quickJumpOffsets: snapshot.quickJumpOffsets,
+    artistSummaries: snapshot.artistSummaries,
+    albumSummaries: snapshot.albumSummaries,
+    folderSummaries: snapshot.folderSummaries,
+    songFolderPaths: snapshot.songFolderPaths,
+    folderSongRows: snapshot.folderSongRows,
     recentSongs: recentSongs,
     recentPlaylists: snapshot.recentPlaylists,
     recentAlbums: snapshot.recentAlbums,

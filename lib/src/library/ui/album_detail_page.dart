@@ -55,14 +55,28 @@ class _AlbumDetailPageState extends ConsumerState<AlbumDetailPage> {
 
   @override
   Widget build(BuildContext context) {
+    if (!TickerMode.valuesOf(context).enabled) return const SizedBox.shrink();
     final i18nValue = ref.watch(smPlayerI18nProvider);
-    final snapshotValue = ref.watch(libraryContentDataProvider);
+    final snapshotValue = ref.watch(
+      browsingLibraryPageProvider(
+        LibraryDataQuery(
+          LibraryQueryKind.album,
+          limit: 200,
+          album:
+              widget.albumName == context.smPlayerI18n.t('common.albumUnknown')
+                  ? ''
+                  : widget.albumName,
+        ),
+      ),
+    );
     final favoriteOverrides = ref.watch(libraryFavoriteOverridesProvider);
     final songOverrides = ref.watch(librarySongOverridesProvider);
 
     if ((i18nValue.isLoading && !i18nValue.hasValue) ||
         (snapshotValue.isLoading && !snapshotValue.hasValue)) {
-      return const _AlbumDetailPanel(child: SmPlayerLoadingState());
+      return const _AlbumDetailPanel(
+        child: SmPlayerLoadingState(layout: SmPlayerLoadingLayout.detail),
+      );
     }
 
     final i18n = i18nValue.valueOrNull;
@@ -74,7 +88,10 @@ class _AlbumDetailPageState extends ConsumerState<AlbumDetailPage> {
       i18n: i18n,
       child: snapshotValue.when(
         skipLoadingOnReload: true,
-        loading: () => const _AlbumDetailPanel(child: SmPlayerLoadingState()),
+        loading:
+            () => const _AlbumDetailPanel(
+              child: SmPlayerLoadingState(layout: SmPlayerLoadingLayout.detail),
+            ),
         error: (_, _) => const _AlbumDetailPanel(child: LibraryLoadFailure()),
         data: (rawSnapshot) {
           final snapshot = applyLibraryFavoriteOverrides(
@@ -96,11 +113,12 @@ class _AlbumDetailPageState extends ConsumerState<AlbumDetailPage> {
                 ..sort(
                   (left, right) => compareArtistText(left.title, right.title),
                 );
-          final browsingState = ref.watch(browsingLibraryContentDataProvider);
-          if (albumSongs.isEmpty && browsingState.isLoading) {
-            return const _AlbumDetailPanel(child: SmPlayerLoadingState());
+          if (albumSongs.isEmpty && snapshotValue.isLoading) {
+            return const _AlbumDetailPanel(
+              child: SmPlayerLoadingState(layout: SmPlayerLoadingLayout.detail),
+            );
           }
-          if (albumSongs.isEmpty && browsingState.hasError) {
+          if (albumSongs.isEmpty && snapshotValue.hasError) {
             return const _AlbumDetailPanel(child: LibraryLoadFailure());
           }
           if (routeAlbumName.isEmpty || albumSongs.isEmpty) {
@@ -136,6 +154,12 @@ class _AlbumDetailPageState extends ConsumerState<AlbumDetailPage> {
             children: [
               HeaderedPlaylistControl(
                 type: HeaderedPlaylistType.album,
+                query: LibraryDataQuery(
+                  LibraryQueryKind.album,
+                  limit: 200,
+                  album: preferenceAlbumId,
+                ),
+                page: snapshot,
                 routeLocation: GoRouterState.of(context).uri.toString(),
                 title: routeAlbumName,
                 songs: albumSongs,
@@ -171,10 +195,8 @@ class _AlbumDetailPageState extends ConsumerState<AlbumDetailPage> {
                 onAddSongsToPlaylist: (playlistId, songIds) {
                   unawaited(addSongsToPlaylist(ref, playlistId, songIds));
                 },
-                onToggleFavorite: (songId, favorite) {
-                  unawaited(
-                    setSongsFavoriteFromControl(ref, [songId], favorite),
-                  );
+                onToggleFavorite: (songId, favorite) async {
+                  await setSongsFavoriteFromControl(ref, [songId], favorite);
                 },
                 onRecordPlay: () {
                   unawaited(recordRecentAlbumPlayback(ref, routeAlbumName));
@@ -218,9 +240,6 @@ class _AlbumDetailPageState extends ConsumerState<AlbumDetailPage> {
                     setState(() {
                       _showArtworkDialog = false;
                     });
-                  },
-                  onSaved: () {
-                    ref.invalidate(libraryContentDataProvider);
                   },
                 ),
             ],

@@ -43,6 +43,7 @@ extension _LocalPageFileActions on _LocalPageState {
     required List<String> folderPaths,
     required String targetFolderPath,
   }) async {
+    late final LibraryStorageChange change;
     _updateLocalPageState(() {
       _localOperationTitle = context.smPlayerI18n.t('context.moveToFolder');
       _refreshProgress = const LocalFolderRefreshProgress(
@@ -52,39 +53,20 @@ extension _LocalPageFileActions on _LocalPageState {
       );
     });
     try {
-      final result = await ref
-          .read(libraryRepositoryProvider)
-          .moveLocalItemsToFolder(
-            songIds,
-            folderPaths,
-            targetFolderPath,
-            resolveConflict:
-                (sourcePath, targetPath) => requestLocalMoveConflictResolution(
-                  context: context,
-                  i18n: context.smPlayerI18n,
-                  sourcePath: sourcePath,
-                  targetPath: targetPath,
-                ),
-          );
-      if (!mounted) {
-        return;
-      }
-      ref.invalidate(libraryContentDataProvider);
-      if (result.itemCount > 0) {
-        showUndoableNotification(
-          context: context,
-          i18n: context.smPlayerI18n,
-          message: context.smPlayerI18n.t('notification.movedLocalItems', {
-            'count': result.itemCount,
-          }),
-          onUndo: () async {
-            await ref
-                .read(libraryRepositoryProvider)
-                .undoMoveLocalItems(result);
-            ref.invalidate(libraryContentDataProvider);
-          },
+      change = await LibraryStorageActions(
+        ref,
+      ).moveItems(context, songIds, folderPaths, targetFolderPath);
+    } catch (error) {
+      if (mounted) {
+        _showMessage(
+          context.smPlayerI18n.t(
+            error is MusicShareException
+                ? error.messageKey
+                : 'song.updateFailed',
+          ),
         );
       }
+      return;
     } finally {
       if (mounted) {
         _updateLocalPageState(() {
@@ -93,6 +75,16 @@ extension _LocalPageFileActions on _LocalPageState {
         });
       }
     }
+    if (!mounted || change.count == 0) {
+      await change.commit();
+      return;
+    }
+    await _showStorageChangeUndo(
+      change,
+      context.smPlayerI18n.t('notification.movedLocalItems', {
+        'count': change.count,
+      }),
+    );
   }
 
   Future<void> _requestDeleteLocalItems({
@@ -100,7 +92,8 @@ extension _LocalPageFileActions on _LocalPageState {
     required List<String> folderPaths,
     required SmPlayerI18n i18n,
   }) async {
-    late final PendingLocalItemsDelete pendingDelete;
+    final storage = LibraryStorageActions(ref);
+    late final LibraryStorageChange change;
     final confirmed = await showSmPlayerConfirmDialog(
       context: context,
       i18n: i18n,
@@ -111,17 +104,15 @@ extension _LocalPageFileActions on _LocalPageState {
       ),
       confirmText: i18n.t('context.deleteFromDisk'),
       onConfirm: () async {
-        pendingDelete = await ref
-            .read(libraryRepositoryProvider)
-            .beginDeleteLocalItems(songIds, folderPaths);
+        change = await storage.deleteItems(songIds, folderPaths);
       },
     );
     if (!confirmed) {
       return;
     }
 
-    await _showPendingLocalItemsDeleteUndo(
-      pendingDelete.id,
+    await _showStorageChangeUndo(
+      change,
       i18n.t('notification.deletedLocalItems', {
         'count': songIds.length + folderPaths.length,
       }),
@@ -137,7 +128,8 @@ extension _LocalPageFileActions on _LocalPageState {
     FolderNode folder,
     SmPlayerI18n i18n,
   ) async {
-    late final PendingLocalItemsDelete pendingDelete;
+    final storage = LibraryStorageActions(ref);
+    late final LibraryStorageChange change;
     final confirmed = await showSmPlayerConfirmDialog(
       context: context,
       i18n: i18n,
@@ -145,48 +137,39 @@ extension _LocalPageFileActions on _LocalPageState {
       message: i18n.t('local.deleteFolderConfirm', {'name': folder.name}),
       confirmText: i18n.t('local.deleteFolder'),
       onConfirm: () async {
-        pendingDelete = await ref
-            .read(libraryRepositoryProvider)
-            .beginDeleteLocalItems(const [], [folder.path]);
+        change = await storage.deleteItems(const [], [folder.path]);
       },
     );
     if (!confirmed) {
       return;
     }
 
-    await _showPendingLocalItemsDeleteUndo(
-      pendingDelete.id,
+    await _showStorageChangeUndo(
+      change,
       i18n.t('notification.deletedLocalItems', {'count': 1}),
     );
   }
 
-  Future<void> _showPendingLocalItemsDeleteUndo(
-    String deleteId,
+  Future<void> _showStorageChangeUndo(
+    LibraryStorageChange change,
     String message,
   ) async {
-    ref.invalidate(libraryContentDataProvider);
     if (!mounted) {
-      await ref
-          .read(libraryRepositoryProvider)
-          .commitDeleteLocalItems(deleteId);
+      await change.commit();
       return;
     }
-
-    final closedReason = await showUndoableNotification(
+    final reason = await showUndoableNotification(
       context: context,
       i18n: context.smPlayerI18n,
       message: message,
-      onUndo: () async {
-        await ref
-            .read(libraryRepositoryProvider)
-            .undoDeleteLocalItems(deleteId);
-        ref.invalidate(libraryContentDataProvider);
-      },
+      onUndo: () => runLibraryStorageAction(context, change.undo),
     );
-    if (closedReason != AppNotificationClosedReason.action) {
-      await ref
-          .read(libraryRepositoryProvider)
-          .commitDeleteLocalItems(deleteId);
+    if (reason != AppNotificationClosedReason.action) {
+      if (mounted) {
+        await runLibraryStorageAction(context, change.commit);
+      } else {
+        await change.commit();
+      }
     }
   }
 

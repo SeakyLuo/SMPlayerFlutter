@@ -22,7 +22,6 @@ String _searchWorkspaceTitle(Uri uri, SmPlayerI18n i18n) {
 }
 
 String _workspaceTitle({
-  String? sourceDeviceName,
   required String path,
   required LibraryContentData? snapshot,
   required SmPlayerI18n i18n,
@@ -56,7 +55,6 @@ String _workspaceTitle({
   }
 
   if (path.startsWith('/local')) {
-    if (sourceDeviceName != null) return sourceDeviceName;
     return snapshot != null && snapshot.rootPath.isEmpty
         ? i18n.t('common.local')
         : '';

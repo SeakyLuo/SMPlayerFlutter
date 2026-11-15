@@ -509,6 +509,7 @@ class LibraryDatabaseService {
     });
     _addColumnsIfMissing(db, 'Music', {
       'RemoteAvailable': 'INTEGER NOT NULL DEFAULT 1',
+      'RemoteDetailsLoaded': 'INTEGER NOT NULL DEFAULT 1',
       'Path': "TEXT DEFAULT ''",
       'Name': "TEXT DEFAULT ''",
       'Artist': "TEXT DEFAULT ''",

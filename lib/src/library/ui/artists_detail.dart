@@ -1,6 +1,6 @@
 part of 'artists_page.dart';
 
-class _ArtistsDetail extends StatelessWidget {
+class _ArtistsDetail extends ConsumerWidget {
   const _ArtistsDetail({
     required this.selectedArtist,
     required this.scrollController,
@@ -60,7 +60,7 @@ class _ArtistsDetail extends StatelessWidget {
   final bool compactHeaderInAppBar;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final artist = selectedArtist;
     if (artist == null) {
       final brightness = Theme.of(context).brightness;
@@ -78,14 +78,40 @@ class _ArtistsDetail extends StatelessWidget {
       );
     }
 
-    final albums = buildAlbumGroups(artist.songs, i18n);
+    final value = ref.watch(
+      browsingLibraryPageProvider(
+        LibraryDataQuery(
+          LibraryQueryKind.albumIndex,
+          artists: [artist.sourceName],
+        ),
+      ),
+    );
+    if (!value.hasValue) {
+      return value.hasError
+          ? const LibraryLoadFailure()
+          : const SmPlayerLoadingState(layout: SmPlayerLoadingLayout.detail);
+    }
+    final albums = [
+      for (final item in value.requireValue.albumSummaries)
+        AlbumGroup(
+          name: item.name.isEmpty ? i18n.t('common.albumUnknown') : item.name,
+          sourceName: item.name,
+          songs: const [],
+          duration: item.duration,
+          summarySongCount: item.songCount,
+          artworkPath: item.artworkPath,
+        ),
+    ];
     final brightness = Theme.of(context).brightness;
     final responsive = MediaQuery.sizeOf(context).width <= 860;
     final albumListTopPadding = compact ? 14.0 : 22.0;
     final albumHeights =
         albums
             .map(
-              (album) => getEstimatedArtistAlbumHeight(album, compact: compact),
+              (album) => getEstimatedArtistAlbumHeight(
+                album,
+                compact: MediaQuery.sizeOf(context).width <= 720,
+              ),
             )
             .toList();
     final headerHeight = compact ? 40.0 : 108.0;
@@ -175,6 +201,7 @@ class _ArtistsDetail extends StatelessWidget {
                         for (final album in renderedAlbums)
                           _ArtistAlbumSliverSection(
                             album: album,
+                            artistName: artist.sourceName,
                             responsive: responsive,
                             multiSelect: multiSelect,
                             selectedSongIds: selectedSongIds,

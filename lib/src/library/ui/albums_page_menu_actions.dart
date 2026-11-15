@@ -6,6 +6,8 @@ extension _AlbumsPageMenuActions on _AlbumsPageState {
     AlbumView album,
     List<MultiSelectCommandBarPlaylist> playlists,
   ) async {
+    album = await _loadAlbumSummary(album);
+    if (!mounted) return;
     final i18n = context.smPlayerI18n;
     final snapshot = ref.read(libraryContentDataProvider).value!;
     final preferenceLevel = await ref
@@ -23,20 +25,14 @@ extension _AlbumsPageMenuActions on _AlbumsPageState {
         nowPlayingSongIds: snapshot.nowPlaying.songIds,
         isNowPlayingContext: false,
       ),
-      includeFavorites: album.songs.any((song) => !song.favorite),
+      includeFavorites: album.songIds.isNotEmpty,
       onAddToNowPlaying: () {
         _addSongsToNowPlayingWithUndo(album.songIds);
       },
       onToggleFavorite:
-          album.songs.any((song) => !song.favorite)
+          album.songIds.isNotEmpty
               ? () {
-                _setSongsFavoriteWithUndo(
-                  album.songs
-                      .where((song) => !song.favorite)
-                      .map((song) => song.id)
-                      .toList(),
-                  true,
-                );
+                _setSongsFavoriteWithUndo(album.songIds, true);
               }
               : null,
       onCreatePlaylist: () async {
@@ -49,8 +45,8 @@ extension _AlbumsPageMenuActions on _AlbumsPageState {
           songIds: album.songIds,
         );
       },
-      onAddToPlaylist: (playlistId) {
-        _addSongsToPlaylistWithUndo(playlistId, album.songIds);
+      onAddToPlaylist: (playlistId) async {
+        await _addSongsToPlaylistWithUndo(playlistId, album.songIds);
       },
     );
     await showMenuFlyout(
@@ -123,13 +119,15 @@ extension _AlbumsPageMenuActions on _AlbumsPageState {
     );
   }
 
-  void _showAlbumAddToMenu(
+  Future<void> _showAlbumAddToMenu(
     Offset position,
     AlbumView album,
     List<MultiSelectCommandBarPlaylist> playlists,
     LibraryContentData snapshot,
     SmPlayerI18n i18n,
-  ) {
+  ) async {
+    album = await _loadAlbumSummary(album);
+    if (!mounted) return;
     final addToItem = buildAddToPlaylistMenuFlyoutItem(
       i18n: i18n,
       songIds: album.songIds,
@@ -139,20 +137,14 @@ extension _AlbumsPageMenuActions on _AlbumsPageState {
         nowPlayingSongIds: snapshot.nowPlaying.songIds,
         isNowPlayingContext: false,
       ),
-      includeFavorites: album.songs.any((song) => !song.favorite),
+      includeFavorites: album.songIds.isNotEmpty,
       onAddToNowPlaying: () {
         _addSongsToNowPlayingWithUndo(album.songIds);
       },
       onToggleFavorite:
-          album.songs.any((song) => !song.favorite)
+          album.songIds.isNotEmpty
               ? () {
-                _setSongsFavoriteWithUndo(
-                  album.songs
-                      .where((song) => !song.favorite)
-                      .map((song) => song.id)
-                      .toList(),
-                  true,
-                );
+                _setSongsFavoriteWithUndo(album.songIds, true);
               }
               : null,
       onCreatePlaylist: () {
@@ -165,8 +157,8 @@ extension _AlbumsPageMenuActions on _AlbumsPageState {
           songIds: album.songIds,
         );
       },
-      onAddToPlaylist: (playlistId) {
-        _addSongsToPlaylistWithUndo(playlistId, album.songIds);
+      onAddToPlaylist: (playlistId) async {
+        await _addSongsToPlaylistWithUndo(playlistId, album.songIds);
       },
     );
     if (addToItem == null) {

@@ -200,11 +200,11 @@ class _ShellNavigationContent extends ConsumerWidget {
       playlistOrder,
     );
     return MainNavigationView(
-      sourceDeviceName:
-          share.peers
-              .where((peer) => peer.id == share.selectedSource)
-              .firstOrNull
-              ?.name,
+      playlistSource: share.selectedSource,
+      onPlaylistsVisibilityChanged: (visible) {
+        ref.read(libraryPlaylistSidebarVisibleProvider.notifier).state =
+            visible;
+      },
       isPaneOpen: layout.isNavigationPaneVisible,
       showTitlebar:
           !Platform.isAndroid &&

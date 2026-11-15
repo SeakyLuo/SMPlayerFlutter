@@ -511,7 +511,7 @@ class _AppNotificationOverlay extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final mediaQuery = MediaQuery.of(context);
-    final width = math.min(680.0, mediaQuery.size.width - 40.0);
+    final width = math.min(480.0, mediaQuery.size.width - 40.0);
     final colors = AppNotificationThemeColors.of(context);
     final notification = DecoratedBox(
       decoration: BoxDecoration(
@@ -559,7 +559,7 @@ class _AppNotificationOverlay extends StatelessWidget {
             ),
           ),
           child: Padding(
-            padding: EdgeInsets.fromLTRB(22, 15, actions.isEmpty ? 22 : 12, 15),
+            padding: EdgeInsets.fromLTRB(16, 8, actions.isEmpty ? 16 : 10, 8),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [

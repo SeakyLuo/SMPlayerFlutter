@@ -80,7 +80,7 @@ class _ArtistDetailHeader extends StatelessWidget {
                               _formatArtistSummary(
                                 i18n,
                                 artist.albumCount,
-                                artist.songs.length,
+                                artist.songCount,
                               ),
                               textScaler: TextScaler.noScaling,
                               style: TextStyle(

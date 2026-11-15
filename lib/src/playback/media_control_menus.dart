@@ -78,6 +78,7 @@ Future<void> showMediaControlMoreMenu({
   required VoidCallback onQuickPlay,
   bool alwaysShowQuickPlay = false,
   List<MenuFlyoutItem>? randomPlaySubmenu,
+  Future<List<MenuFlyoutItem>> Function(BuildContext)? loadRandomPlaySubmenu,
   bool randomPlayDisabled = false,
   required ValueChanged<int> onVolumeChange,
   required VoidCallback onToggleMute,
@@ -122,6 +123,7 @@ Future<void> showMediaControlMoreMenu({
       onQuickPlay: onQuickPlay,
       alwaysShowQuickPlay: alwaysShowQuickPlay,
       randomPlaySubmenu: randomPlaySubmenu,
+      loadRandomPlaySubmenu: loadRandomPlaySubmenu,
       randomPlayDisabled: randomPlayDisabled,
       onVolumeChange: onVolumeChange,
       onToggleMute: onToggleMute,
@@ -186,6 +188,7 @@ List<MenuFlyoutItem> _buildPlayerMoreMenuItems({
   required VoidCallback onQuickPlay,
   bool alwaysShowQuickPlay = false,
   List<MenuFlyoutItem>? randomPlaySubmenu,
+  Future<List<MenuFlyoutItem>> Function(BuildContext)? loadRandomPlaySubmenu,
   bool randomPlayDisabled = false,
   required ValueChanged<int> onVolumeChange,
   required VoidCallback onToggleMute,
@@ -244,13 +247,35 @@ List<MenuFlyoutItem> _buildPlayerMoreMenuItems({
         icon: _playIcon,
         onPressed: onQuickPlay,
       ),
-    if (mergedRandomPlaySubmenu.isNotEmpty)
+    if (mergedRandomPlaySubmenu.isNotEmpty || loadRandomPlaySubmenu != null)
       MenuFlyoutItem(
         key: 'random-play',
         text: i18n.t('nowPlaying.randomPlay'),
         useShuffleIcon: true,
-        disabled: randomPlayDisabled && currentScopeItems.isEmpty,
+        disabled:
+            loadRandomPlaySubmenu == null &&
+            randomPlayDisabled &&
+            currentScopeItems.isEmpty,
         submenu: mergedRandomPlaySubmenu,
+        loadSubmenu:
+            loadRandomPlaySubmenu == null
+                ? null
+                : (context) async {
+                  final remoteItems = await loadRandomPlaySubmenu(context);
+                  return [
+                    ...currentScopeItems,
+                    if (currentScopeItems.isNotEmpty &&
+                        (remoteItems.isNotEmpty ||
+                            randomPlaySubmenu?.isNotEmpty == true))
+                      const MenuFlyoutItem.separator(
+                        key: 'random-current-separator',
+                      ),
+                    ...remoteItems,
+                    ...?randomPlaySubmenu?.where(
+                      (item) => item.key == 'now-playing',
+                    ),
+                  ];
+                },
       ),
     if (musicSourceItem != null) musicSourceItem,
     if ((currentSong != null || alwaysShowQuickPlay) &&

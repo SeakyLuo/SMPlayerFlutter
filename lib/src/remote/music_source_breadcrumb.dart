@@ -24,51 +24,50 @@ class MusicSourceBreadcrumb extends ConsumerWidget {
             : share.peers
                 .firstWhere((peer) => peer.id == share.selectedSource)
                 .name;
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Builder(
-          builder:
-              (anchor) => ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 160),
-                child: BreadcrumbSegmentSurface(
-                  child: GestureDetector(
-                    behavior: HitTestBehavior.opaque,
-                    onTap: () {
-                      final menu =
-                          buildMusicSourceMenuItem(
-                            context,
-                            onSelectSource: (source) async {
-                              if (source == share.selectedSource) return;
-                              await share.selectSource(source);
-                              if (context.mounted) context.go('/local');
-                            },
-                          )!;
-                      showMenuFlyout(anchor, items: menu.submenu);
-                    },
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Flexible(
-                          child: BreadcrumbLabel(
-                            label: label,
-                            compact: compact,
-                          ),
-                        ),
-                        const SizedBox(width: 6),
-                        const Icon(
-                          FluentIcons.chevron_down_16_regular,
-                          size: 12,
-                        ),
-                      ],
+    return Builder(
+      builder:
+          (anchor) => BreadcrumbSegmentSurface(
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () {
+                final sources = {
+                  'local',
+                  ...share.peers.map((peer) => peer.id),
+                };
+                final menu =
+                    buildMusicSourceMenuItem(
+                      context,
+                      onSelectSource: (source) async {
+                        if (source == share.selectedSource) return;
+                        final router = GoRouter.of(context);
+                        await share.selectSource(source);
+                        router.go('/local');
+                      },
+                    )!;
+                showMenuFlyout(
+                  anchor,
+                  items:
+                      menu.submenu
+                          .where((item) => sources.contains(item.key))
+                          .toList(),
+                );
+              },
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  BreadcrumbLabel(label: label, compact: compact),
+                  SizedBox(
+                    width: 22,
+                    height: compact ? 36 : 32,
+                    child: const Icon(
+                      FluentIcons.chevron_right_16_regular,
+                      size: 14,
                     ),
                   ),
-                ),
+                ],
               ),
-        ),
-        const Icon(FluentIcons.chevron_right_16_regular, size: 16),
-        const SizedBox(width: 4),
-      ],
+            ),
+          ),
     );
   }
 }

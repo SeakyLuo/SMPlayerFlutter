@@ -8,7 +8,13 @@ extension _ArtistsPageActions on _ArtistsPageState {
     }
 
     final snapshot =
-        ref.read(browsingAvailableLibraryContentDataProvider).value!;
+        ref
+            .read(
+              browsingLibraryPageProvider(
+                const LibraryDataQuery(LibraryQueryKind.artistIndex),
+              ),
+            )
+            .value!;
     final i18n = ref.read(smPlayerI18nProvider).valueOrNull!;
     final artistGroups = _readArtistGroups(snapshot, i18n);
     final suggestions = searchArtists(artistGroups, query);
@@ -63,7 +69,13 @@ extension _ArtistsPageActions on _ArtistsPageState {
       _artistSearchFocused = false;
     });
     final snapshot =
-        ref.read(browsingAvailableLibraryContentDataProvider).value!;
+        ref
+            .read(
+              browsingLibraryPageProvider(
+                const LibraryDataQuery(LibraryQueryKind.artistIndex),
+              ),
+            )
+            .value!;
     final i18n = ref.read(smPlayerI18nProvider).valueOrNull!;
     final artistGroups = _readArtistGroups(snapshot, i18n);
     final exactMatches =

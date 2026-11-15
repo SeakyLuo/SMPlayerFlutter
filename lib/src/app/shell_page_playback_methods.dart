@@ -624,8 +624,8 @@ extension _SmPlayerShellPlaybackMethods on _SmPlayerShellPageState {
     await _settingsController.updateSettings(
       AppSettingsUpdate(rootPath: selectedRootPath),
     );
+    invalidateLibraryQueries(ref.invalidate);
     ref
-      ..invalidate(libraryContentDataProvider)
       ..invalidate(librarySongCountProvider)
       ..invalidate(recentPageDataProvider)
       ..invalidate(shellNavigationDataProvider)

@@ -4,8 +4,10 @@ extension _LocalPageContent on _LocalPageState {
   Widget _buildPage(
     BuildContext context,
     LibraryContentData snapshot,
-    SmPlayerI18n i18n,
-  ) {
+    SmPlayerI18n i18n, {
+    bool contentUnavailable = false,
+    bool contentLoading = false,
+  }) {
     if (snapshot.rootPath.isEmpty) {
       return LocalPageScaffold(
         child: Stack(
@@ -41,11 +43,7 @@ extension _LocalPageContent on _LocalPageState {
       songFolderPaths: _remoteSongFolders,
       rootName:
           _remote
-              ? ref
-                  .read(musicShareProvider)
-                  .peers
-                  .firstWhere((peer) => peer.id == _source)
-                  .name
+              ? ref.read(remoteDirectoryProvider(_source)).requireValue.rootName
               : null,
     );
     final nodes = folderIndex.nodes;
@@ -65,19 +63,14 @@ extension _LocalPageContent on _LocalPageState {
       );
     }
 
-    if (_remote) {
-      for (final entry in _remoteSortModes.entries) {
-        nodes[entry.key]?.criterion = entry.value.index;
-      }
-      currentNode.criterion =
-          (_remoteSortModes[widget.currentRelativePath] ?? LocalSortMode.title)
-              .index;
-    }
     final currentSortMode = localSortModeFromCriterion(currentNode.criterion);
     if (_sortMode != currentSortMode &&
         _sortMode != LocalSortMode.reverse &&
         !_multiSelect) {
       _sortMode = currentSortMode;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _updateLocalPageState(() {});
+      });
     }
 
     final currentSongs = sortSongs(
@@ -121,7 +114,7 @@ extension _LocalPageContent on _LocalPageState {
             .map((row) => row.song!.id)
             .toList();
     final showLocalSectionHeaders =
-        childFolders.isNotEmpty && currentSongs.isNotEmpty;
+        childFolders.isNotEmpty && currentNode.directCount > 0;
     final visibleSongIds = currentSongs.map((song) => song.id).toList();
     final folderQueueSongIds =
         currentNode.directSongIds
@@ -129,10 +122,7 @@ extension _LocalPageContent on _LocalPageState {
             .where((song) => matchesSongSearch(song, widget.searchQuery))
             .map((song) => song.id)
             .toList();
-    final currentNodeDirectSongIdSet = currentNode.directSongIds.toSet();
-    final hasSubfolderSongs = currentNode.subtreeSongIds.any(
-      (songId) => !currentNodeDirectSongIdSet.contains(songId),
-    );
+    final hasSubfolderSongs = currentNode.songCount > currentNode.directCount;
     final customPlaylists =
         snapshot.playlists
             .where((playlist) => !playlist.isBuiltIn)
@@ -167,29 +157,29 @@ extension _LocalPageContent on _LocalPageState {
             isCompactLayout
                 ? localCompactFolderTreeFolderPaths
                 : childFolders.map((folder) => folder.relativePath).toList();
-        final selectableSongIds =
-            isCompactLayout
-                ? [...localCompactFolderTreeSongIds, ...visibleSongIds]
-                : visibleSongIds;
         final selectableFolderPathSet = selectableFolderPaths.toSet();
-        final selectableSongIdSet = selectableSongIds.toSet();
         final effectiveSelectedFolderPaths =
             _selectedFolderPaths
                 .where(selectableFolderPathSet.contains)
                 .toList();
-        final effectiveSelectedSongIds =
-            _selectedSongIds.where(selectableSongIdSet.contains).toList();
+        final effectiveSelectedSongIds = _selectedSongIds.toList();
         final selectedFolderAbsolutePaths =
             effectiveSelectedFolderPaths
                 .map((folderPath) => nodes[folderPath]!.path)
                 .toList();
         final selectedQueueSongIds =
-            {
-              ...effectiveSelectedSongIds,
-              ...effectiveSelectedFolderPaths.expand(
-                (folderPath) => nodes[folderPath]!.subtreeSongIds,
-              ),
-            }.toList();
+            selectedFolderAbsolutePaths.isEmpty
+                ? effectiveSelectedSongIds
+                : watchLibraryScopeIds(
+                      ref,
+                      LibraryDataQuery(
+                        LibraryQueryKind.songs,
+                        source: _source,
+                        songIds: effectiveSelectedSongIds,
+                        recursiveFolders: selectedFolderAbsolutePaths,
+                      ),
+                    ).valueOrNull ??
+                    const <int>[];
         final selectedLocalItemCount =
             effectiveSelectedFolderPaths.length +
             effectiveSelectedSongIds.length;
@@ -235,14 +225,19 @@ extension _LocalPageContent on _LocalPageState {
                         rootPath: snapshot.rootPath,
                         currentRelativePath: widget.currentRelativePath,
                         onHiddenFoldersListButtonClick:
-                            _remote
-                                ? null
-                                : () => context.go('/hidden-folders'),
-                        onCurrentFolderClick: _scrollCurrentFolderToTop,
+                            () => context.push<void>('/hidden-folders'),
+                        onCurrentFolderClick:
+                            contentUnavailable
+                                ? () {
+                                  RemotePageAccessScope.of(context).retry();
+                                  ref.invalidate(
+                                    remoteDirectoryProvider(_source),
+                                  );
+                                }
+                                : _scrollCurrentFolderToTop,
                         onOpenFolder: _openFolder,
                         onWillAcceptDrop:
                             (targetRelativePath, payload) =>
-                                !_remote &&
                                 isLocalMoveTargetFolder(
                                   payload: payload,
                                   targetFolder: nodes[targetRelativePath]!,
@@ -277,122 +272,36 @@ extension _LocalPageContent on _LocalPageState {
                       left: isCompactLayout ? 8 : 12,
                       right: trailingAlignmentInset,
                     ),
-                    child: CommandBar(
-                      contentSizing: CommandBarContentSizing.intrinsic,
-                      overflowReserve: isCompactLayout ? 44 : 0,
-                      overflowLabel: i18n.t('player.more'),
-                      overflowItems:
-                          isCompactLayout && !_remote
-                              ? [
-                                MenuFlyoutItem(
-                                  key: 'hidden-folders',
-                                  text: i18n.t('local.viewHiddenFolders'),
-                                  icon:
-                                      FluentIcons.folder_prohibited_20_regular,
-                                  onPressed:
-                                      () => context.go('/hidden-folders'),
-                                ),
-                              ]
-                              : const [],
-                      content: Text(
-                        formatFolderCardStats(
-                          i18n,
-                          childFolders.length,
-                          currentSongs.length,
-                        ),
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: colors.textMuted,
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                          fontVariations: const [FontVariation.weight(650)],
-                        ),
-                      ),
-                      children: [
-                        CommandBarButton(
-                          iconWidget: const ShuffleIcon(),
-                          useShuffleIcon: true,
-                          label: i18n.t('nowPlaying.randomPlay'),
-                          overflowSubmenu:
-                              visibleSongIds.isNotEmpty && hasSubfolderSongs
-                                  ? _localShuffleMenuItems(
-                                    currentNode,
-                                    visibleSongIds,
-                                    i18n,
-                                  )
-                                  : const [],
-                          onPressedWithContext:
-                              (buttonContext) => _playShuffledFromToolbar(
-                                buttonContext,
-                                currentNode,
-                                visibleSongIds,
-                                hasSubfolderSongs,
-                                i18n,
-                              ),
-                        ),
-                        if (!_remote)
-                          CommandBarButton(
-                            icon: FluentIcons.arrow_sync_24_regular,
-                            label:
-                                isCompactLayout
-                                    ? i18n.t('local.updateFolderShort')
-                                    : i18n.t('local.updateFolder'),
-                            loading: _refreshFolderRunning,
-                            loadingProgress: _refreshButtonProgressNotifier,
-                            canOverflow: !_refreshFolderRunning,
-                            onPressed:
-                                () =>
-                                    _refreshFolderRunning
-                                        ? _showRefreshFolderTask()
-                                        : _refreshFolder(currentNode, i18n),
-                          ),
-                        CommandBarButton(
-                          icon: FluentIcons.arrow_sort_24_regular,
-                          label: i18n.t('common.sort'),
-                          overflowSubmenu: _localSortMenuItems(
-                            currentNode,
-                            i18n,
-                          ),
-                          onPressedWithContext:
-                              (context) =>
-                                  _showSortMenu(context, i18n, currentNode),
-                        ),
-                        if (!_remote)
-                          CommandBarButton(
-                            icon: FluentIcons.add_24_regular,
-                            label: i18n.t('local.newFolder'),
-                            onPressed:
-                                () => _createFolder(
-                                  parent: currentNode,
-                                  nodes: nodes,
-                                  rootPath: snapshot.rootPath,
-                                  i18n: i18n,
-                                ),
-                          ),
-                        CommandBarButton(
-                          icon: FluentIcons.multiselect_ltr_24_regular,
-                          label: i18n.t('albums.multiSelect'),
-                          active: _multiSelect,
-                          activeMatchesHover: true,
-                          tooltip:
-                              _multiSelect
-                                  ? i18n.t('common.exitMultiSelectTooltip')
-                                  : null,
-                          onPressed: _toggleMultiSelect,
-                        ),
-                      ],
+                    child: _buildDirectoryCommandBar(
+                      context,
+                      i18n,
+                      currentNode,
+                      snapshot,
+                      nodes,
+                      colors,
+                      isCompactLayout,
+                      contentUnavailable,
+                      childFolders.length,
+                      currentNode.directCount,
+                      visibleSongIds,
+                      hasSubfolderSongs,
                     ),
                   ),
                   SizedBox(height: isCompactLayout ? 8 : 16),
                   Expanded(
                     child: LocalPageContentPanel(
                       scrollController: _scrollController,
-                      scrollable: true,
+                      scrollable: false,
                       compact: isCompactLayout,
                       bottomPadding:
                           _multiSelect ? multiSelectCommandBarScrollSpacer : 28,
                       child:
-                          childFolders.isEmpty && currentSongs.isEmpty
+                          contentUnavailable
+                              ? (contentLoading
+                                  ? const SmPlayerLoadingState()
+                                  : const SizedBox.shrink())
+                              : childFolders.isEmpty &&
+                                  currentNode.directCount == 0
                               ? buildLocalPageEmptyContent(
                                 i18n: i18n,
                                 snapshot: snapshot,
@@ -400,7 +309,16 @@ extension _LocalPageContent on _LocalPageState {
                                 onOpenSettings: () => context.go('/settings'),
                               )
                               : LocalContentView(
+                                songSliverKey: _songSliverKey,
                                 locatedSongId: _locatedSongId,
+                                songRows: currentNode.songRows,
+                                totalSongs: currentNode.directCount,
+                                onAccessSong:
+                                    (index) => _accessFolderSong(
+                                      currentNode.path,
+                                      index,
+                                    ),
+                                onAccessFolderSong: _accessFolderSong,
                                 childFolders: childFolders,
                                 currentSongs: currentSongs,
                                 nodes: nodes,
@@ -459,9 +377,9 @@ extension _LocalPageContent on _LocalPageState {
                                     }),
                                 onPlayFolder: (folder) => _playShuffled(folder),
                                 onAddFolder:
-                                    (folder, position) => _showAddToMenu(
+                                    (folder, position) async => _showAddToMenu(
                                       position: position,
-                                      songIds: folder.subtreeSongIds,
+                                      songIds: await _folderScopeIds(folder),
                                       defaultPlaylistName: folder.name,
                                       playlists: customPlaylists,
                                       snapshot: snapshot,
@@ -495,7 +413,11 @@ extension _LocalPageContent on _LocalPageState {
                                     targetFolderPath: targetFolderPath,
                                   );
                                 },
-                                onPlayTrack: _playTrack,
+                                onPlayTrack:
+                                    (id, _) => _playDirectorySong(
+                                      songsById[id]!,
+                                      snapshot,
+                                    ),
                                 onPlaySong: _playSongImmediately,
                                 onTogglePlayPause:
                                     () =>
@@ -547,7 +469,7 @@ extension _LocalPageContent on _LocalPageState {
                 ],
               ),
               MultiSelectCommandBar(
-                visible: _multiSelect,
+                visible: _multiSelect && !contentUnavailable,
                 bottomInset: multiSelectCommandBarShellBottomInset,
                 horizontalBleed: isCompactLayout ? 12 : 24,
                 selectedCount: selectedLocalItemCount,
@@ -637,7 +559,7 @@ extension _LocalPageContent on _LocalPageState {
                           });
                         },
                 onRemove:
-                    _remote
+                    !_canWriteDirectory
                         ? null
                         : () => _requestDeleteLocalItems(
                           songIds: effectiveSelectedSongIds,
@@ -646,7 +568,7 @@ extension _LocalPageContent on _LocalPageState {
                         ),
                 removeLabel: i18n.t('context.deleteFromDisk'),
                 extraActions: [
-                  if (!_remote)
+                  if (_canWriteDirectory)
                     MultiSelectCommandBarExtraAction(
                       key: 'move-to-folder',
                       text: i18n.t('context.moveToFolder'),
@@ -670,36 +592,23 @@ extension _LocalPageContent on _LocalPageState {
                     ),
                 ],
                 onSelectAll:
-                    () => _updateLocalPageState(() {
-                      _selectedFolderPaths
-                        ..clear()
-                        ..addAll(selectableFolderPaths);
-                      _selectedSongIds
-                        ..clear()
-                        ..addAll(selectableSongIds);
-                    }),
+                    () => unawaited(
+                      _selectDirectoryScope(
+                        currentNode,
+                        selectableFolderPaths,
+                        nodes,
+                        reverse: false,
+                      ),
+                    ),
                 onReverseSelection:
-                    () => _updateLocalPageState(() {
-                      final nextFolderPaths =
-                          selectableFolderPaths
-                              .where(
-                                (folderPath) =>
-                                    !_selectedFolderPaths.contains(folderPath),
-                              )
-                              .toSet();
-                      final nextSongIds =
-                          selectableSongIds
-                              .where(
-                                (songId) => !_selectedSongIds.contains(songId),
-                              )
-                              .toSet();
-                      _selectedFolderPaths
-                        ..clear()
-                        ..addAll(nextFolderPaths);
-                      _selectedSongIds
-                        ..clear()
-                        ..addAll(nextSongIds);
-                    }),
+                    () => unawaited(
+                      _selectDirectoryScope(
+                        currentNode,
+                        selectableFolderPaths,
+                        nodes,
+                        reverse: true,
+                      ),
+                    ),
                 onClearSelection:
                     () => _updateLocalPageState(() {
                       _selectedFolderPaths.clear();

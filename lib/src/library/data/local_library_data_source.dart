@@ -1,12 +1,27 @@
 part of 'library_repository.dart';
 
-final class LocalLibraryDataSource implements LibraryDataSource {
+final class LocalLibraryDataSource
+    with _LocalLibraryStorage, _LocalLibraryReading
+    implements LibraryDataSource {
   const LocalLibraryDataSource(this.repository);
+  @override
   final LibraryRepository repository;
   @override
   LocalLibrarySource get source => const LocalLibrarySource();
   @override
   bool get canWrite => true;
+
+  @override
+  Future<void> applyArtistSplits(
+    Map<int, String> songs,
+    List<ArtistSplitResultItem> splits,
+  ) async {
+    await LibraryRepository._artistSplitService.applySplits(
+      await repository._resolveDatabaseFile(),
+      splits,
+    );
+    activeMusicShareAccess?.localDataChanged('library');
+  }
 
   @override
   Future<LibraryPlaylist> createPlaylist(String name, List<int> songIds) async {
@@ -112,17 +127,17 @@ final class LocalLibraryDataSource implements LibraryDataSource {
 
   @override
   Future<List<SongPropertiesSnapshot>> getProperties(
-    List<LibrarySong> songs,
+    Map<int, String> songs,
   ) async {
     return LibraryRepository._songPropertiesService.getSongPropertiesBatch(
       await repository._resolveDatabaseFile(),
-      songs.map((s) => s.id).toList(),
+      songs.keys.toList(),
     );
   }
 
   @override
   Future<BatchSongPropertiesUpdateResult> updateProperties(
-    List<LibrarySong> songs,
+    Map<int, String> songs,
     Map<int, SongPropertiesUpdate> updates,
   ) async {
     final result = await LibraryRepository._songPropertiesService
@@ -135,15 +150,15 @@ final class LocalLibraryDataSource implements LibraryDataSource {
   }
 
   @override
-  Future<void> setFavorites(List<LibrarySong> songs, bool favorite) async {
+  Future<List<int>> setFavorites(Map<int, String> songs, bool favorite) async {
     final file = await repository._resolveDatabaseFile();
-    repository._initializeLibraryDatabaseFile(file);
-    await LibraryRepository._playlistService.setSongsFavorite(
+    final changed = await LibraryRepository._playlistService.setSongsFavorite(
       file,
-      songs.map((s) => s.id).toList(),
+      songs.keys.toList(),
       favorite,
     );
     activeMusicShareAccess?.localDataChanged('library');
+    return changed;
   }
 
   @override
@@ -175,25 +190,25 @@ final class LocalLibraryDataSource implements LibraryDataSource {
   }
 
   @override
-  Future<void> writeArtwork(List<LibrarySong> songs, String? sourcePath) async {
+  Future<void> writeArtwork(Map<int, String> songs, String? sourcePath) async {
     final file = await repository._resolveDatabaseFile();
     if (songs.length == 1) {
       if (sourcePath == null) {
         await repository._artworkService.deleteSongArtwork(
           file,
-          songs.single.id,
+          songs.keys.single,
         );
       } else {
         await repository._artworkService.saveSongArtwork(
           file,
-          songs.single.id,
+          songs.keys.single,
           sourcePath,
         );
       }
     } else {
       await repository._artworkService.updateSongsArtwork(
         file,
-        songs.map((s) => s.id).toList(),
+        songs.keys.toList(),
         sourcePath,
       );
     }
@@ -201,11 +216,7 @@ final class LocalLibraryDataSource implements LibraryDataSource {
   }
 
   @override
-  Future<void> writeAlbumArtwork(
-    String album,
-    List<LibrarySong> songs,
-    String? sourcePath,
-  ) async {
+  Future<void> writeAlbumArtwork(String album, String? sourcePath) async {
     final file = await repository._resolveDatabaseFile();
     if (sourcePath == null) {
       await repository._artworkService.deleteAlbumArtwork(file, album);

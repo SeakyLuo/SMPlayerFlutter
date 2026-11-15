@@ -1,3 +1,4 @@
+import '../../app/loading_state.dart';
 import 'dart:async';
 import '../../remote/music_share_models.dart';
 
@@ -68,7 +69,6 @@ Future<bool> showBatchSongPropertiesDialog({
               songId: result.beforeSongs[songId]!,
           };
           _applySongOverrides(container, restoredSongs, i18n);
-          _invalidateSongMetadata(container);
         } catch (error) {
           if (context.mounted) {
             showAppNotification(
@@ -265,7 +265,7 @@ class _BatchSongPropertiesDialogState
       ),
       child:
           _loading
-              ? const Center(child: CircularProgressIndicator())
+              ? const SmPlayerLoadingState(layout: SmPlayerLoadingLayout.form)
               : SingleChildScrollView(
                 padding: EdgeInsets.fromLTRB(
                   mobile ? 12 : 28,
@@ -482,7 +482,6 @@ class _BatchSongPropertiesDialogState
           ),
       };
       _applySongOverrides(container, afterSongs, i18n);
-      _invalidateSongMetadata(container);
       if (mounted) {
         Navigator.of(context).pop(
           _BatchSongPropertiesCommit(
@@ -653,8 +652,7 @@ void _applySongOverrides(
   final notifier = container.read(librarySongOverridesProvider.notifier);
   notifier.state = {
     ...notifier.state,
-    for (final song in songs.values)
-      if (!isRemoteMusicPath(song.path)) song.id: song,
+    for (final song in songs.values) song.id: song,
   };
   final mediaController = container.read(mediaControlControllerProvider);
   final currentSong = songs[mediaController.state.track.id];
@@ -663,10 +661,4 @@ void _applySongOverrides(
       mediaControlTrackForSong(currentSong, i18n),
     );
   }
-}
-
-void _invalidateSongMetadata(ProviderContainer container) {
-  container.invalidate(libraryContentDataProvider);
-  container.invalidate(recentPageDataProvider);
-  container.invalidate(shellNavigationDataProvider);
 }

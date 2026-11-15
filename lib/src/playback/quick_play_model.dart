@@ -15,6 +15,7 @@ List<int> quickPlaySongIds({
   required List<LibraryFolder> folders,
   required PreferenceSettingsSnapshot preferences,
   int randomLimit = quickPlayDefaultLimit,
+  Map<int, String>? songFolderPaths,
 }) {
   songs =
       songs
@@ -30,7 +31,6 @@ List<int> quickPlaySongIds({
       playlists
           .where((p) => playlistBelongsToSource(p, preferences.source))
           .toList();
-  if (preferences.source != 'local') folders = const [];
   final songsById = {for (final song in songs) song.id: song};
   final playlistsById = {
     for (final playlist in playlists) playlist.id: playlist,
@@ -116,7 +116,13 @@ List<int> quickPlaySongIds({
           }
           return _randomItems(
             songs
-                .where((song) => _isSongDirectlyInFolder(song, folder.path))
+                .where(
+                  (song) => _isSongDirectlyInFolder(
+                    song,
+                    folder.path,
+                    songFolderPaths,
+                  ),
+                )
                 .toList(),
             _randomPreferredItemCount(item.level),
           );
@@ -179,6 +185,7 @@ List<int> quickPlaySongIds({
     folders,
     preferences,
     PreferenceLevel.dislike,
+    songFolderPaths,
   );
   _removeDislikedSongs(
     selectedSongs,
@@ -187,6 +194,7 @@ List<int> quickPlaySongIds({
     folders,
     preferences,
     PreferenceLevel.doNotAppear,
+    songFolderPaths,
   );
 
   return _randomItems(
@@ -250,6 +258,7 @@ void _removeDislikedSongs(
   List<LibraryFolder> folders,
   PreferenceSettingsSnapshot preferences,
   PreferenceLevel level,
+  Map<int, String>? songFolderPaths,
 ) {
   final items = [
     ...preferences.songs,
@@ -315,7 +324,8 @@ void _removeDislikedSongs(
             albums.contains(canonicalAlbumName(song)) ||
             playlistSongIds.contains(song.id) ||
             folderPaths.any(
-              (folderPath) => _isSongInFolder(song, folderPath),
+              (folderPath) =>
+                  _isSongInFolder(song, folderPath, songFolderPaths),
             ))) {
       selectedSongs.remove(song.id);
     }
@@ -406,17 +416,92 @@ List<String> _songArtists(LibrarySong song) {
   return songArtists(song);
 }
 
-bool _isSongInFolder(LibrarySong song, String folderPath) {
-  return _getFileParentPath(song.path) == folderPath ||
-      song.path.startsWith('$folderPath\\') ||
-      song.path.startsWith('$folderPath/');
+bool _isSongInFolder(
+  LibrarySong song,
+  String folderPath,
+  Map<int, String>? songFolderPaths,
+) {
+  final parent = songFolderPaths?[song.id] ?? _getFileParentPath(song.path);
+  return parent == folderPath ||
+      parent.startsWith('$folderPath\\') ||
+      parent.startsWith('$folderPath/');
 }
 
-bool _isSongDirectlyInFolder(LibrarySong song, String folderPath) {
-  return _getFileParentPath(song.path) == folderPath;
+bool _isSongDirectlyInFolder(
+  LibrarySong song,
+  String folderPath,
+  Map<int, String>? songFolderPaths,
+) {
+  return (songFolderPaths?[song.id] ?? _getFileParentPath(song.path)) ==
+      folderPath;
 }
 
 String _getFileParentPath(String path) {
   final separatorIndex = max(path.lastIndexOf('\\'), path.lastIndexOf('/'));
   return separatorIndex > -1 ? path.substring(0, separatorIndex) : '';
+}
+
+class QuickPlayDatabasePlan {
+  const QuickPlayDatabasePlan(this.choices, this.builtins, this.exclusions);
+  final Map<String, List<Map<String, Object>>> choices;
+  final Map<String, int> builtins;
+  final Map<String, Map<String, List<String>>> exclusions;
+}
+
+QuickPlayDatabasePlan quickPlayDatabasePlan(
+  PreferenceSettingsSnapshot preferences,
+) {
+  final groups = {
+    'songs': (PreferenceSectionKey.songs, preferences.songs),
+    'artists': (PreferenceSectionKey.artists, preferences.artists),
+    'albums': (PreferenceSectionKey.albums, preferences.albums),
+    'playlists': (PreferenceSectionKey.playlists, preferences.playlists),
+    'folders': (PreferenceSectionKey.folders, preferences.folders),
+  };
+  return QuickPlayDatabasePlan(
+    {
+      for (final entry in groups.entries)
+        entry.key: [
+          if (preferences.enabled[entry.value.$1] == true)
+            for (final item in _enabledPreferenceItems(entry.value.$2))
+              {
+                'key': item.itemId,
+                'count':
+                    entry.key == 'songs'
+                        ? 1
+                        : {'artists', 'albums'}.contains(entry.key)
+                        ? min(
+                          _randomPreferredItemCount(item.level),
+                          _randomPreferenceItems,
+                        )
+                        : _randomPreferredItemCount(item.level),
+              },
+        ],
+    },
+    {
+      for (final type in [
+        PreferenceEntityType.recentAdded,
+        PreferenceEntityType.myFavorites,
+        PreferenceEntityType.mostPlayed,
+        PreferenceEntityType.leastPlayed,
+      ])
+        type.name: _enabledBuiltinPreferenceCount(
+          preferences.others.where((item) => item.type == type).firstOrNull,
+        ),
+    },
+    {
+      for (final level in [
+        PreferenceLevel.dislike,
+        PreferenceLevel.doNotAppear,
+      ])
+        level.name: {
+          for (final entry in groups.entries)
+            entry.key: [
+              for (final item in entry.value.$2)
+                if (item.isEnabled && item.isValid && item.level == level)
+                  item.itemId,
+            ],
+        },
+    },
+  );
 }

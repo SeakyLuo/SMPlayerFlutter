@@ -6,7 +6,27 @@ extension _HeaderedPlaylistControlLayout on _HeaderedPlaylistControlState {
     final compact = MediaQuery.sizeOf(context).width <= 720;
     final collapseDistance = compact ? 136.0 : 210.0;
     final collapseProgress = (_scrollTop / collapseDistance).clamp(0.0, 1.0);
-    final songsById = {for (final song in widget.songs) song.id: song};
+    final page = _page;
+    final anchor = (_effectiveQuery, page?.anchorRevision ?? 0);
+    if (_lastAnchor != anchor && page != null) {
+      _lastAnchor = anchor;
+      if (page.anchorShift != 0)
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted && _scrollController.hasClients) {
+            final rowHeight = PlaylistControlItemMetrics.rowHeight(
+              MediaQuery.sizeOf(context).width,
+            );
+            _scrollController.jumpTo(
+              (_scrollController.offset + page.anchorShift * rowHeight).clamp(
+                0,
+                _scrollController.position.maxScrollExtent,
+              ),
+            );
+          }
+        });
+    }
+    final songs = page?.songs ?? widget.songs;
+    final songsById = {for (final song in songs) song.id: song};
     final visibleSongs = _visibleSongs(songsById);
     final queueSongIds = visibleSongs.map((song) => song.id).toList();
     final activeSortCriterion =
@@ -90,7 +110,7 @@ extension _HeaderedPlaylistControlLayout on _HeaderedPlaylistControlState {
                     child: _HeaderHero(
                       type: widget.type,
                       title: widget.title,
-                      info: getHeaderPlaylistInfo(headerSongs, i18n),
+                      info: _headerInfo(i18n, headerSongs),
                       artworkUrls: headerArtworkUrls,
                       coverColor: _headerCoverColor,
                       collapseProgress: 0,
@@ -112,7 +132,7 @@ extension _HeaderedPlaylistControlLayout on _HeaderedPlaylistControlState {
                       topInset: MediaQuery.paddingOf(context).top,
                       type: widget.type,
                       title: widget.title,
-                      info: getHeaderPlaylistInfo(headerSongs, i18n),
+                      info: _headerInfo(i18n, headerSongs),
                       artworkUrls: headerArtworkUrls,
                       coverColor: _headerCoverColor,
                       windowDragCallbacks: windowDragCallbacks,
@@ -128,6 +148,28 @@ extension _HeaderedPlaylistControlLayout on _HeaderedPlaylistControlState {
                   ),
                 _HeaderedPlaylistListSliver(
                   showAlbum: widget.showAlbum,
+                  totalCount: page?.totalSongCount,
+                  entryBuilder:
+                      page == null
+                          ? null
+                          : (index) {
+                            final song = page.songRows[index];
+                            if (song == null) {
+                              _requestWindow(index);
+                              return null;
+                            }
+                            return _playlistControlEntryFor(
+                              context: context,
+                              i18n: i18n,
+                              song: song,
+                              queueSongIds: queueSongIds,
+                              nowPlayingSongIds: nowPlayingSongIds,
+                              index: index,
+                              customPlaylists: customPlaylists,
+                              currentPlaylistName: currentPlaylistName,
+                              currentSavedPlaylist: currentSavedPlaylist,
+                            );
+                          },
                   bottomPadding:
                       _selection.multiSelect
                           ? multiSelectCommandBarScrollSpacer
@@ -167,8 +209,10 @@ extension _HeaderedPlaylistControlLayout on _HeaderedPlaylistControlState {
                 widget.type != HeaderedPlaylistType.favorites,
             currentPlaylistName: currentPlaylistName,
             excludePlaylistName: currentSavedPlaylist?.name,
-            onAddToNowPlaying: () {
-              _addSongsToNowPlaying(_effectiveSelectedSongIds(queueSongIds));
+            onAddToNowPlaying: () async {
+              await _addSongsToNowPlaying(
+                _effectiveSelectedSongIds(queueSongIds),
+              );
               _hideSelectionAfterOperation(
                 hideMultiSelectCommandBarAfterOperation,
               );
@@ -213,16 +257,14 @@ extension _HeaderedPlaylistControlLayout on _HeaderedPlaylistControlState {
                 hideMultiSelectCommandBarAfterOperation,
               );
             },
-            onAddToPlaylist: (playlistId) {
+            onAddToPlaylist: (playlistId) async {
               final selectedSongIds = _effectiveSelectedSongIds(queueSongIds);
-              unawaited(
-                addSongsToPlaylistWithUndo(
-                  context: context,
-                  ref: ref,
-                  i18n: i18n,
-                  playlistId: playlistId,
-                  songIds: selectedSongIds,
-                ),
+              await addSongsToPlaylistWithUndo(
+                context: context,
+                ref: ref,
+                i18n: i18n,
+                playlistId: playlistId,
+                songIds: selectedSongIds,
               );
               _hideSelectionAfterOperation(
                 hideMultiSelectCommandBarAfterOperation,
@@ -243,14 +285,10 @@ extension _HeaderedPlaylistControlLayout on _HeaderedPlaylistControlState {
                     }
                     : null,
             onSelectAll: () {
-              _updateState(() {
-                _selection.selectAll(queueSongIds);
-              });
+              unawaited(_selectScope(queueSongIds, reverse: false));
             },
             onReverseSelection: () {
-              _updateState(() {
-                _selection.reverseSelection(queueSongIds);
-              });
+              unawaited(_selectScope(queueSongIds, reverse: true));
             },
             onClearSelection: () {
               _updateState(() {
@@ -361,8 +399,8 @@ extension _HeaderedPlaylistControlLayout on _HeaderedPlaylistControlState {
           includeFavorites: widget.type != HeaderedPlaylistType.favorites,
           favoritesDisabled: song.favorite,
           favoritesSelected: song.favorite,
-          onAddToNowPlaying: () {
-            _addSongsToNowPlaying([song.id]);
+          onAddToNowPlaying: () async {
+            await _addSongsToNowPlaying([song.id]);
           },
           onToggleFavorite:
               widget.onToggleFavorite == null
@@ -381,15 +419,13 @@ extension _HeaderedPlaylistControlLayout on _HeaderedPlaylistControlState {
           onCreatePlaylist: () {
             unawaited(_createPlaylistFromSongs(i18n, [song.id]));
           },
-          onAddToPlaylist: (playlistId) {
-            unawaited(
-              addSongsToPlaylistWithUndo(
-                context: context,
-                ref: ref,
-                i18n: i18n,
-                playlistId: playlistId,
-                songIds: [song.id],
-              ),
+          onAddToPlaylist: (playlistId) async {
+            await addSongsToPlaylistWithUndo(
+              context: context,
+              ref: ref,
+              i18n: i18n,
+              playlistId: playlistId,
+              songIds: [song.id],
             );
           },
         );

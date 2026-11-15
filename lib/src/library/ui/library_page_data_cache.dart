@@ -74,6 +74,19 @@ class LibraryPageDataCache {
         rootName,
       );
       final nodes = index.nodes;
+      for (final summary in snapshot.folderSummaries) {
+        final path =
+            summary.path == snapshot.rootPath
+                ? ''
+                : summary.path.substring(snapshot.rootPath.length + 1);
+        final node = nodes[path];
+        if (node != null) {
+          node.summaryDirectCount = summary.directCount;
+          node.summarySongCount = summary.songCount;
+          node.artworkPaths = summary.artworkPaths;
+          node.songRows = snapshot.folderSongRows[summary.path] ?? const {};
+        }
+      }
       for (final path in created) {
         final folder = nodes.putIfAbsent(
           path,

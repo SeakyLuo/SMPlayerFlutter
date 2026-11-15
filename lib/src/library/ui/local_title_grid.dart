@@ -3,12 +3,15 @@ import 'dart:async';
 import 'package:flutter/gestures.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/rendering.dart';
 import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 
 import '../../i18n/app_i18n.dart';
-import '../../remote/music_source_breadcrumb.dart';
 import '../../remote/music_share_models.dart';
+import '../../remote/music_source_breadcrumb.dart';
+import '../../remote/music_source_providers.dart';
+import '../../remote/remote_directory_provider.dart';
 import 'local_folder_model.dart';
 import 'breadcrumb_segment.dart';
 import 'local_page_quick_jump.dart';
@@ -99,7 +102,7 @@ class LocalTitleGrid extends StatelessWidget {
   }
 }
 
-class FolderChainListView extends StatefulWidget {
+class FolderChainListView extends ConsumerStatefulWidget {
   const FolderChainListView({
     super.key,
     required this.nodes,
@@ -129,10 +132,11 @@ class FolderChainListView extends StatefulWidget {
   onAcceptDrop;
 
   @override
-  State<FolderChainListView> createState() => _FolderChainListViewState();
+  ConsumerState<FolderChainListView> createState() =>
+      _FolderChainListViewState();
 }
 
-class _FolderChainListViewState extends State<FolderChainListView> {
+class _FolderChainListViewState extends ConsumerState<FolderChainListView> {
   String? _openedPath;
   final _scrollController = ScrollController();
   var _draggingChain = false;
@@ -169,6 +173,18 @@ class _FolderChainListViewState extends State<FolderChainListView> {
 
   @override
   Widget build(BuildContext context) {
+    final hasSources = ref.watch(
+      musicShareProvider.select((share) => share.peers.isNotEmpty),
+    );
+    final remote = widget.rootPath.startsWith('$remoteMusicScheme://');
+    final rootName =
+        remote
+            ? ref
+                .watch(remoteDirectoryProvider(Uri.parse(widget.rootPath).host))
+                .asData
+                ?.value
+                .rootName
+            : null;
     final folderChain = buildFolderChain(
       widget.currentRelativePath,
       widget.nodes,
@@ -220,79 +236,75 @@ class _FolderChainListViewState extends State<FolderChainListView> {
                   widget.compact
                       ? const EdgeInsets.symmetric(horizontal: 2)
                       : const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-              child: Row(
-                children: [
-                  MusicSourceBreadcrumb(compact: widget.compact),
-                  Expanded(
-                    child: Listener(
-                      onPointerSignal: _scrollFolderChainFromWheel,
-                      onPointerDown: _startFolderChainDrag,
-                      onPointerMove: _updateFolderChainDrag,
-                      onPointerUp: _stopFolderChainDrag,
-                      onPointerCancel: _stopFolderChainDrag,
-                      child: GestureDetector(
-                        behavior: HitTestBehavior.translucent,
-                        onTap: () {
-                          if (_chainDragged) {
-                            _chainDragged = false;
-                          }
+              child: Listener(
+                onPointerSignal: _scrollFolderChainFromWheel,
+                onPointerDown: _startFolderChainDrag,
+                onPointerMove: _updateFolderChainDrag,
+                onPointerUp: _stopFolderChainDrag,
+                onPointerCancel: _stopFolderChainDrag,
+                child: GestureDetector(
+                  behavior: HitTestBehavior.translucent,
+                  onTap: () {
+                    if (_chainDragged) {
+                      _chainDragged = false;
+                    }
+                  },
+                  child: ListView.separated(
+                    controller: _scrollController,
+                    scrollDirection: Axis.horizontal,
+                    itemCount: folderChain.length + (hasSources ? 1 : 0),
+                    separatorBuilder: (_, _) => const SizedBox(width: 2),
+                    itemBuilder: (context, index) {
+                      if (hasSources && index == 0) {
+                        return MusicSourceBreadcrumb(compact: widget.compact);
+                      }
+                      final folderIndex = index - (hasSources ? 1 : 0);
+                      final sourceItem = folderChain[folderIndex];
+                      final item =
+                          folderIndex == 0 && remote
+                              ? FolderChainItem(
+                                name:
+                                    rootName ??
+                                    widget.i18n.t('local.libraryRoot'),
+                                path: sourceItem.path,
+                                isLastItem: sourceItem.isLastItem,
+                                isCurrentItem: sourceItem.isCurrentItem,
+                                children: sourceItem.children,
+                              )
+                              : sourceItem;
+                      return _FolderChainItem(
+                        item: item,
+                        i18n: widget.i18n,
+                        isOpen: _openedPath == item.path,
+                        compact: widget.compact,
+                        onOpenFolder: (path) {
+                          _closeChildFlyout();
+                          widget.onOpenFolder(path);
                         },
-                        child: ListView.separated(
-                          controller: _scrollController,
-                          scrollDirection: Axis.horizontal,
-                          itemCount: folderChain.length,
-                          separatorBuilder: (_, _) => const SizedBox(width: 2),
-                          itemBuilder: (context, index) {
-                            final sourceItem = folderChain[index];
-                            final item =
-                                index == 0 &&
-                                        widget.rootPath.startsWith(
-                                          '$remoteMusicScheme://',
-                                        )
-                                    ? FolderChainItem(
-                                      name: widget.i18n.t('library.title'),
-                                      path: sourceItem.path,
-                                      isLastItem: sourceItem.isLastItem,
-                                      isCurrentItem: sourceItem.isCurrentItem,
-                                      children: sourceItem.children,
-                                    )
-                                    : sourceItem;
-                            return _FolderChainItem(
-                              item: item,
-                              i18n: widget.i18n,
-                              isOpen: _openedPath == item.path,
-                              compact: widget.compact,
-                              onOpenFolder: (path) {
-                                _closeChildFlyout();
-                                widget.onOpenFolder(path);
-                              },
-                              onCurrentFolderClick: () {
-                                _closeChildFlyout();
-                                widget.onCurrentFolderClick?.call();
-                              },
-                              shouldIgnoreTap: _consumeFolderChainDragTap,
-                              onOpenFolderMenu: widget.onOpenFolderMenu,
-                              onWillAcceptDrop: widget.onWillAcceptDrop,
-                              onAcceptDrop:
-                                  widget.onAcceptDrop == null
-                                      ? null
-                                      : (targetRelativePath, payload) {
-                                        _closeChildFlyout();
-                                        widget.onAcceptDrop!(
-                                          targetRelativePath,
-                                          payload,
-                                        );
-                                      },
-                              onToggleChildren: (buttonContext) {
-                                _toggleChildFlyout(item, buttonContext);
-                              },
-                            );
-                          },
-                        ),
-                      ),
-                    ),
+                        onCurrentFolderClick: () {
+                          _closeChildFlyout();
+                          widget.onCurrentFolderClick?.call();
+                        },
+                        shouldIgnoreTap: _consumeFolderChainDragTap,
+                        onOpenFolderMenu: widget.onOpenFolderMenu,
+                        onWillAcceptDrop: widget.onWillAcceptDrop,
+                        onAcceptDrop:
+                            widget.onAcceptDrop == null
+                                ? null
+                                : (targetRelativePath, payload) {
+                                  _closeChildFlyout();
+                                  widget.onAcceptDrop!(
+                                    targetRelativePath,
+                                    payload,
+                                  );
+                                },
+                        onToggleChildren: (buttonContext) {
+                          _toggleChildFlyout(item, buttonContext);
+                        },
+                      );
+                    },
                   ),
-                ],
+                ),
               ),
             ),
           ),

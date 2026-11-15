@@ -1,4 +1,6 @@
+import '../../remote/music_share_access.dart';
 import '../../remote/music_share_models.dart';
+import 'local_page_model.dart';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -220,7 +222,10 @@ class DraggableLocalFolderCard extends StatelessWidget {
       onWillAcceptDrop: onWillAcceptDrop,
       onAcceptDrop: onAcceptDrop,
     );
-    if (isRemoteMusicPath(folder.path)) return card;
+    if (isRemoteMusicPath(folder.path) &&
+        !activeMusicShareAccess!.canWrite(folder.path)) {
+      return card;
+    }
     return Draggable<LocalItemsDragPayload>(
       data: dragPayload,
       feedback: Material(
@@ -239,36 +244,10 @@ bool isMoveTargetFolder({
   required Map<String, FolderNode> nodes,
   required Map<int, LibrarySong> songsById,
 }) {
-  if (payload.songIds.isEmpty && payload.folderPaths.isEmpty) {
-    return false;
-  }
-
-  final targetPathKey = normalizePath(targetFolder.path);
-  final songAlreadyInTarget = payload.songIds.any((songId) {
-    final songPath = songsById[songId]!.path;
-    return normalizePath(fileParentPath(songPath)) == targetPathKey;
-  });
-  if (songAlreadyInTarget) {
-    return false;
-  }
-
-  final nodesByAbsolutePath = {
-    for (final node in nodes.values) normalizePath(node.path): node,
-  };
-  for (final folderPath in payload.folderPaths) {
-    final sourceFolder = nodesByAbsolutePath[normalizePath(folderPath)]!;
-    if (targetFolder.relativePath == sourceFolder.relativePath ||
-        targetFolder.relativePath == getParentPath(sourceFolder.relativePath) ||
-        targetFolder.relativePath.startsWith('${sourceFolder.relativePath}/')) {
-      return false;
-    }
-  }
-
-  return true;
-}
-
-String fileParentPath(String filePath) {
-  final normalized = normalizePath(filePath);
-  final separatorIndex = normalized.lastIndexOf('/');
-  return separatorIndex < 0 ? '' : normalized.substring(0, separatorIndex);
+  return isLocalMoveTargetFolder(
+    payload: payload,
+    targetFolder: targetFolder,
+    nodes: nodes,
+    songsById: songsById,
+  );
 }
