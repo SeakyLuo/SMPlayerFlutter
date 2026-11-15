@@ -8,7 +8,7 @@ class LibraryDatabaseService {
   const LibraryDatabaseService();
 
   // Increment when changing tables, columns, indexes, or the lyrics FTS schema.
-  static const schemaVersion = 6;
+  static const schemaVersion = 7;
 
   Database openInitializedLibraryDatabase(File databaseFile) {
     databaseFile.parent.createSync(recursive: true);
