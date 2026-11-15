@@ -111,12 +111,16 @@ bool isLocalPathUnderRoot(String path, String rootPath) {
       normalizedPath.startsWith('$normalizedRootPath/');
 }
 
-FolderNode createFolderNode(String relativePath, String rootPath) {
+FolderNode createFolderNode(
+  String relativePath,
+  String rootPath, {
+  String? name,
+}) {
   return FolderNode(
     id: 0,
     relativePath: relativePath,
     path: _getFolderAbsolutePath(relativePath, rootPath),
-    name: _getFolderDisplayName(relativePath, rootPath),
+    name: name ?? _getFolderDisplayName(relativePath, rootPath),
     childPaths: [],
     directSongIds: [],
     subtreeSongIds: [],
@@ -181,6 +185,8 @@ FolderIndex buildFolderIndex(
   List<LibraryFolder> folders,
   String rootPath, [
   LocalSortKeys? sortKeys,
+  Map<int, String>? songFolderPaths,
+  String? rootName,
 ]) {
   final nodes = <String, FolderNode>{};
   final keys = sortKeys ?? LocalSortKeys();
@@ -192,7 +198,7 @@ FolderIndex buildFolderIndex(
           .toList();
   final songsById = {for (final song in localSongs) song.id: song};
 
-  nodes[''] = createFolderNode('', rootPath);
+  nodes[''] = createFolderNode('', rootPath, name: rootName);
 
   for (final folder in localFolders) {
     final relativePath = _getFolderRelativePath(folder.path, rootPath);
@@ -221,7 +227,10 @@ FolderIndex buildFolderIndex(
   }
 
   for (final song in localSongs) {
-    final relativeFolderPath = getSongFolderRelativePath(song.path, rootPath);
+    final relativeFolderPath =
+        songFolderPaths == null
+            ? getSongFolderRelativePath(song.path, rootPath)
+            : songFolderPaths[song.id]!;
     final segments =
         relativeFolderPath.isEmpty ? <String>[] : relativeFolderPath.split('/');
     final ancestorPaths = <String>[''];

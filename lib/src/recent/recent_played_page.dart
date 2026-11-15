@@ -225,9 +225,9 @@ class _RecentPlayedPage extends ConsumerWidget {
     );
     final confirmed = await showPopupConfirmDialog(
       context: context,
-      title: i18n.t('common.confirm'),
-      message: i18n.t('recent.clearPlayedConfirm'),
-      confirmLabel: i18n.t('common.confirm'),
+      title: i18n.t('recent.clearPlayedConfirm'),
+      message: i18n.t('recent.clearPlayedMessage'),
+      confirmLabel: i18n.t('common.clear'),
       destructive: false,
     );
     if (!confirmed) {

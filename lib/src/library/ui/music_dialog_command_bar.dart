@@ -82,42 +82,51 @@ class _MusicDialogCommandBarState extends State<_MusicDialogCommandBar> {
                         mainAxisSize: MainAxisSize.min,
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          Align(
-                            alignment: Alignment.centerRight,
-                            child: SizedBox(
-                              width: constraints.maxWidth,
-                              height: rowHeight,
-                              child: OverflowBox(
-                                minWidth: 0,
-                                maxWidth: double.infinity,
-                                minHeight: rowHeight,
-                                maxHeight: rowHeight,
-                                alignment: Alignment.centerRight,
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    for (final child
-                                        in overflow.visibleChildren)
-                                      _asMusicDialogCommandBarChild(child),
-                                    if (showBusy)
-                                      const _MusicDialogSaveProgress(),
-                                    if (overflowMenuItems.isNotEmpty)
-                                      Padding(
-                                        padding: const EdgeInsets.symmetric(
-                                          vertical: 4,
-                                        ),
-                                        child: _MusicDialogMoreCommandButton(
-                                          label: context.smPlayerI18n.t(
-                                            'player.more',
+                          Row(
+                            children: [
+                              for (final child in overflow.visibleChildren)
+                                if (child is _LyricsTimestampToggle) child,
+                              Expanded(
+                                child: SizedBox(
+                                  height: rowHeight,
+                                  child: OverflowBox(
+                                    minWidth: 0,
+                                    maxWidth: double.infinity,
+                                    minHeight: rowHeight,
+                                    maxHeight: rowHeight,
+                                    alignment: Alignment.centerRight,
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        for (final child
+                                            in overflow.visibleChildren)
+                                          if (child is! _LyricsTimestampToggle)
+                                            _asMusicDialogCommandBarChild(
+                                              child,
+                                            ),
+                                        if (showBusy)
+                                          const _MusicDialogSaveProgress(),
+                                        if (overflowMenuItems.isNotEmpty)
+                                          Padding(
+                                            padding: const EdgeInsets.symmetric(
+                                              vertical: 4,
+                                            ),
+                                            child:
+                                                _MusicDialogMoreCommandButton(
+                                                  label: context.smPlayerI18n.t(
+                                                    'player.more',
+                                                  ),
+                                                  items: overflowMenuItems,
+                                                ),
                                           ),
-                                          items: overflowMenuItems,
-                                        ),
-                                      ),
-                                  ],
+                                      ],
+                                    ),
+                                  ),
                                 ),
                               ),
-                            ),
+                            ],
                           ),
                         ],
                       ),

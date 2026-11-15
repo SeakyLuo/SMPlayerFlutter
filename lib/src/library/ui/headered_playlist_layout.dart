@@ -24,7 +24,9 @@ extension _HeaderedPlaylistControlLayout on _HeaderedPlaylistControlState {
           ),
         ) ??
         true;
-    final playlists = _effectivePlaylists(widget.playlists);
+    final playlists = _effectivePlaylists(
+      ref.watch(currentLibraryPlaylistsProvider),
+    );
     final customPlaylists =
         playlists
             .where(

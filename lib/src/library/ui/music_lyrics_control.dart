@@ -56,6 +56,14 @@ class MusicLyricsControl extends StatelessWidget {
             return _MusicDialogCommandBar(
               showBusy: false,
               children: [
+                if (state.lyricsCanToggleTimestamps)
+                  _LyricsTimestampToggle(
+                    value: state.showLyricsTimestamps,
+                    onChanged:
+                        loading || operationRunning || searching
+                            ? null
+                            : onToggleTimestamps,
+                  ),
                 if (!readOnly && state.dirty)
                   _MusicDialogCommandButton(
                     iconWidget: const _MusicDialogResetIcon(),
@@ -100,14 +108,6 @@ class MusicLyricsControl extends StatelessWidget {
                     onPressed: onSave,
                   ),
                 ],
-                if (state.lyricsCanToggleTimestamps)
-                  _LyricsTimestampToggle(
-                    value: state.showLyricsTimestamps,
-                    onChanged:
-                        loading || operationRunning || searching
-                            ? null
-                            : onToggleTimestamps,
-                  ),
               ],
             );
           },

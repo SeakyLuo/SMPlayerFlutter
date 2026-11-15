@@ -56,7 +56,7 @@ class _SettingsMusicSharingState extends ConsumerState<_SettingsMusicSharing> {
             value: share.port,
             enabled: !share.busy,
             editTooltip: i18n.t('common.edit'),
-            confirmTooltip: i18n.t('common.confirm'),
+            confirmTooltip: i18n.t('settings.saveChanges'),
             cancelTooltip: i18n.t('common.cancel'),
             onEditingChanged:
                 (editing) => setState(() => _editingPort = editing),

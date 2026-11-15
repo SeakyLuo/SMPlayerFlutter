@@ -83,6 +83,7 @@ class MusicShareServer {
     String relative(String path) =>
         p.relative(path, from: _rootPath).split(p.separator).join('/');
     final directories = jsonEncode({
+      'catalog': _songs.values.map(sharedSongJson).toList(),
       'folders': [
         '',
         ...snapshot.folders

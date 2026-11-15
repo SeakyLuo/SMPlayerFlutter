@@ -1,4 +1,5 @@
 import '../data/library_source.dart';
+import 'library_load_failure.dart';
 import 'package:smplayer_flutter/src/remote/music_source_selector.dart';
 import 'package:smplayer_flutter/src/remote/music_share_models.dart';
 import 'package:smplayer_flutter/src/remote/music_share_access.dart';
@@ -263,26 +264,12 @@ class _PlaylistsPageState extends ConsumerState<PlaylistsPage> {
               message: i18n.t(
                 error is MusicShareException
                     ? error.messageKey
-                    : error.toString(),
+                    : 'share.connectionFailed',
               ),
             );
           });
         }
-        return Center(
-          child: PopupDialogActionButton(
-            label: i18n.t(
-              remotePlaylists.remote
-                  ? 'share.connectComputer'
-                  : 'common.settings',
-            ),
-            primary: true,
-            onPressed:
-                () =>
-                    remotePlaylists.remote
-                        ? showMusicShareDialog(context)
-                        : context.go('/settings'),
-          ),
-        );
+        return const LibraryLoadFailure();
       },
       data: (rawSnapshot) {
         _lastPlaylistLoadError = null;

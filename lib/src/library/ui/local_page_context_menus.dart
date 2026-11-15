@@ -66,9 +66,12 @@ extension _LocalPageContextMenus on _LocalPageState {
     required LibraryContentData snapshot,
     required SmPlayerI18n i18n,
   }) async {
-    final preferenceLevel = await ref
-        .read(libraryRepositoryProvider)
-        .getPreferenceLevel('folder', '${folder.id}');
+    final preferenceLevel =
+        _remote
+            ? null
+            : await ref
+                .read(libraryRepositoryProvider)
+                .getPreferenceLevel('folder', '${folder.id}');
     if (!mounted) {
       return;
     }
@@ -131,51 +134,57 @@ extension _LocalPageContextMenus on _LocalPageState {
           icon: FluentIcons.multiselect_ltr_20_regular,
           onPressed: () => _selectFolder(folder),
         ),
-        if (moveToFolderItem != null) moveToFolderItem,
-        _buildFolderPreferenceMenuItem(i18n, folder, preferenceLevel),
-        MenuFlyoutItem(
-          key: 'show-in-explorer',
-          text: i18n.t('context.reveal'),
-          pendingText: i18n.t('context.openingLocal'),
-          icon: FluentIcons.folder_open_20_regular,
-          onPressed: () => _revealFolder(folder),
-        ),
-        MenuFlyoutItem(
-          key: 'new-folder',
-          text: i18n.t('local.newFolder'),
-          icon: FluentIcons.add_20_regular,
-          onPressed:
-              () => _createFolder(
-                parent: folder,
-                nodes: nodes,
-                rootPath: snapshot.rootPath,
-                i18n: i18n,
-              ),
-        ),
-        MenuFlyoutItem(
-          key: 'delete-folder',
-          text: i18n.t('local.deleteFolder'),
-          icon: FluentIcons.delete_20_regular,
-          onPressed: () => _requestDeleteFolder(folder, i18n),
-        ),
-        MenuFlyoutItem(
-          key: 'refresh-folder',
-          text: i18n.t('local.updateFolder'),
-          icon: FluentIcons.arrow_sync_20_regular,
-          onPressed: () => _refreshFolder(folder, i18n),
-        ),
-        MenuFlyoutItem(
-          key: 'rename-folder',
-          text: i18n.t('local.renameFolder'),
-          icon: FluentIcons.rename_20_regular,
-          onPressed:
-              () => _renameFolder(
-                folder: folder,
-                nodes: nodes,
-                rootPath: snapshot.rootPath,
-                i18n: i18n,
-              ),
-        ),
+        if (!_remote && moveToFolderItem != null) moveToFolderItem,
+        if (!_remote)
+          _buildFolderPreferenceMenuItem(i18n, folder, preferenceLevel),
+        if (!_remote)
+          MenuFlyoutItem(
+            key: 'show-in-explorer',
+            text: i18n.t('context.reveal'),
+            pendingText: i18n.t('context.openingLocal'),
+            icon: FluentIcons.folder_open_20_regular,
+            onPressed: () => _revealFolder(folder),
+          ),
+        if (!_remote)
+          MenuFlyoutItem(
+            key: 'new-folder',
+            text: i18n.t('local.newFolder'),
+            icon: FluentIcons.add_20_regular,
+            onPressed:
+                () => _createFolder(
+                  parent: folder,
+                  nodes: nodes,
+                  rootPath: snapshot.rootPath,
+                  i18n: i18n,
+                ),
+          ),
+        if (!_remote)
+          MenuFlyoutItem(
+            key: 'delete-folder',
+            text: i18n.t('local.deleteFolder'),
+            icon: FluentIcons.delete_20_regular,
+            onPressed: () => _requestDeleteFolder(folder, i18n),
+          ),
+        if (!_remote)
+          MenuFlyoutItem(
+            key: 'refresh-folder',
+            text: i18n.t('local.updateFolder'),
+            icon: FluentIcons.arrow_sync_20_regular,
+            onPressed: () => _refreshFolder(folder, i18n),
+          ),
+        if (!_remote)
+          MenuFlyoutItem(
+            key: 'rename-folder',
+            text: i18n.t('local.renameFolder'),
+            icon: FluentIcons.rename_20_regular,
+            onPressed:
+                () => _renameFolder(
+                  folder: folder,
+                  nodes: nodes,
+                  rootPath: snapshot.rootPath,
+                  i18n: i18n,
+                ),
+          ),
         _buildFolderSortMenuItem(i18n, folder),
         MenuFlyoutItem(
           key: 'search-directory',
@@ -183,12 +192,13 @@ extension _LocalPageContextMenus on _LocalPageState {
           icon: FluentIcons.search_20_regular,
           onPressed: () => _searchDirectory(folder, i18n),
         ),
-        MenuFlyoutItem(
-          key: 'hide-folder',
-          text: i18n.t('local.hideFolder'),
-          icon: FluentIcons.eye_off_20_regular,
-          onPressed: () => _hideFolder(folder),
-        ),
+        if (!_remote)
+          MenuFlyoutItem(
+            key: 'hide-folder',
+            text: i18n.t('local.hideFolder'),
+            icon: FluentIcons.eye_off_20_regular,
+            onPressed: () => _hideFolder(folder),
+          ),
       ],
     );
   }
@@ -202,9 +212,12 @@ extension _LocalPageContextMenus on _LocalPageState {
     required LibraryContentData snapshot,
     required SmPlayerI18n i18n,
   }) async {
-    final preferenceLevel = await ref
-        .read(libraryRepositoryProvider)
-        .getPreferenceLevel('folder', '${folder.id}');
+    final preferenceLevel =
+        _remote
+            ? null
+            : await ref
+                .read(libraryRepositoryProvider)
+                .getPreferenceLevel('folder', '${folder.id}');
     if (!mounted) {
       return;
     }
@@ -261,20 +274,22 @@ extension _LocalPageContextMenus on _LocalPageState {
           onPressed: () => _playShuffled(folder),
         ),
         if (addToItem != null) addToItem,
-        if (moveToFolderItem != null) moveToFolderItem,
-        _buildFolderPreferenceMenuItem(
-          i18n,
-          folder,
-          preferenceLevel,
-          key: 'chain-folder-preference',
-        ),
-        MenuFlyoutItem(
-          key: 'chain-show-in-explorer',
-          text: i18n.t('context.reveal'),
-          pendingText: i18n.t('context.openingLocal'),
-          icon: FluentIcons.folder_open_20_regular,
-          onPressed: () => _revealFolder(folder),
-        ),
+        if (!_remote && moveToFolderItem != null) moveToFolderItem,
+        if (!_remote)
+          _buildFolderPreferenceMenuItem(
+            i18n,
+            folder,
+            preferenceLevel,
+            key: 'chain-folder-preference',
+          ),
+        if (!_remote)
+          MenuFlyoutItem(
+            key: 'chain-show-in-explorer',
+            text: i18n.t('context.reveal'),
+            pendingText: i18n.t('context.openingLocal'),
+            icon: FluentIcons.folder_open_20_regular,
+            onPressed: () => _revealFolder(folder),
+          ),
         MenuFlyoutItem(
           key: 'chain-search-directory',
           text: i18n.t('local.searchDirectory'),
@@ -504,6 +519,12 @@ extension _LocalPageContextMenus on _LocalPageState {
     _updateLocalPageState(() {
       _sortMode = sortMode;
     });
+    if (_remote) {
+      if (sortMode != LocalSortMode.reverse) {
+        _remoteSortModes[folder.relativePath] = sortMode;
+      }
+      return;
+    }
     if (sortMode != LocalSortMode.reverse) {
       await ref
           .read(libraryRepositoryProvider)
@@ -521,6 +542,18 @@ extension _LocalPageContextMenus on _LocalPageState {
       return;
     }
 
+    if (_remote) {
+      _updateLocalPageState(() {
+        if (sortMode != LocalSortMode.reverse) {
+          _remoteSortModes[folder.relativePath] = sortMode;
+          folder.criterion = sortMode.index;
+        }
+        if (folder.relativePath == widget.currentRelativePath) {
+          _sortMode = sortMode;
+        }
+      });
+      return;
+    }
     if (sortMode != LocalSortMode.reverse) {
       await ref
           .read(libraryRepositoryProvider)

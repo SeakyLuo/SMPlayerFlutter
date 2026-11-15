@@ -17,7 +17,9 @@ extension _HeaderedPlaylistControlSongMenu on _HeaderedPlaylistControlState {
       return;
     }
     final folders = _menuFolders(snapshot.folders);
-    final playlists = _effectivePlaylists(snapshot.playlists);
+    final playlists = _effectivePlaylists(
+      ref.read(currentLibraryPlaylistsProvider),
+    );
     final currentSavedPlaylist =
         widget.type == HeaderedPlaylistType.playlist
             ? playlists.firstWhere(
@@ -46,7 +48,12 @@ extension _HeaderedPlaylistControlSongMenu on _HeaderedPlaylistControlState {
         songPath: song.path,
         playlists:
             playlists
-                .where((playlist) => !playlist.isBuiltIn)
+                .where(
+                  (playlist) =>
+                      !playlist.isBuiltIn &&
+                      playlist.source == song.source &&
+                      canEditPlaylist(playlist),
+                )
                 .map(
                   (playlist) => MultiSelectCommandBarPlaylist(
                     id: playlist.id,

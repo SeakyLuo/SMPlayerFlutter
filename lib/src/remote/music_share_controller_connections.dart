@@ -28,11 +28,7 @@ extension MusicShareConnections on MusicShareController {
       await Future.wait(
         targets.map((peer) async {
           try {
-            await syncPeer(
-              peer,
-              heartbeat: true,
-              importCatalog: peer.status != MusicPeerStatus.online,
-            );
+            await syncPeer(peer, heartbeat: true);
           } catch (_) {
             if (peer.status != MusicPeerStatus.unauthorized &&
                 (_heartbeatFailures[peer.id] ?? 0) > 0) {
@@ -141,7 +137,6 @@ extension MusicShareConnections on MusicShareController {
 
   Future<void> syncPeer(
     MusicPeer peer, {
-    bool importCatalog = true,
     bool heartbeat = false,
     bool rememberConnection = false,
   }) async {
@@ -158,7 +153,6 @@ extension MusicShareConnections on MusicShareController {
     final epoch = _peerDataEpochs[peer.id];
     final operation = _syncPeer(
       peer,
-      importCatalog: importCatalog,
       heartbeat: heartbeat,
       rememberConnection: rememberConnection,
     );
@@ -167,7 +161,10 @@ extension MusicShareConnections on MusicShareController {
       await operation;
     } finally {
       if (identical(_peerSyncs[peer.id], operation)) _peerSyncs.remove(peer.id);
-      if (_peerDataEpochs[peer.id] != epoch) peer.catalogRevision = null;
+      if (_peerDataEpochs[peer.id] != epoch &&
+          _pendingCatalogPeers.contains(peer.id)) {
+        peer.catalogRevision = null;
+      }
       if (!_disposed &&
           peers.contains(peer) &&
           !_playlistClient.hasLoaded(peer.id)) {
@@ -178,7 +175,6 @@ extension MusicShareConnections on MusicShareController {
 
   Future<void> _syncPeer(
     MusicPeer peer, {
-    required bool importCatalog,
     required bool heartbeat,
     required bool rememberConnection,
   }) async {
@@ -202,6 +198,7 @@ extension MusicShareConnections on MusicShareController {
         _notify();
       }
       final revision = status['revision'] as String;
+      if (peer.catalogRevision != revision) _invalidatePeerData(peer);
       final recovering = _requestRecoveryPeers.contains(peer.id);
       if (_disposed || !peers.contains(peer)) return;
       reachable = true;
@@ -234,52 +231,16 @@ extension MusicShareConnections on MusicShareController {
         );
         _notify();
       }
-      unawaited(
-        _connectEvents(peer).catchError((Object error, StackTrace stack) {
-          SystemLog.error(
-            'Remote notification channel connection failed: device=${peer.name}',
-            error,
-            stack,
-          );
-        }),
-      );
-      _retryPendingPeerData(peer);
-      if (_localChanges.isNotEmpty && _localChangeTimer == null) {
-        _localDataChanged(_localChanges.first);
-      }
-      var playlistsFetched = false;
-      if (peer.supportsPlaylists && !_playlistClient.hasLoaded(peer.id)) {
-        stage = 'playlists';
-        peer.catalogRevision = null;
-        await _playlistClient.refresh(peer);
-        if (_disposed || !peers.contains(peer)) return;
-        playlistsFetched = true;
-      }
-      if ((!playlistsFetched && importCatalog) ||
-          peer.catalogRevision != revision) {
-        stage = 'catalog';
-        final page = await transport.json('/catalog');
-        if (_disposed || !peers.contains(peer)) return;
-        final songs =
-            (page['songs'] as List)
-                .map((item) => (item as Map).cast<String, dynamic>())
-                .toList();
-        stage = 'catalog-import';
-        await importMusicShareCatalog(
-          databasePath,
-          peer.id,
-          songs,
-          isCurrent: () => !_disposed && peers.contains(peer),
+      final subscribing = !_events.containsKey(peer.id);
+      try {
+        await _connectEvents(peer);
+        if (subscribing) peer.catalogRevision = null;
+      } catch (error, stack) {
+        SystemLog.error(
+          'Remote notification channel connection failed: device=${peer.name}',
+          error,
+          stack,
         );
-        if (_disposed || !peers.contains(peer)) return;
-        peer.catalogRevision = revision;
-        peer.catalogLoaded = true;
-        onCatalogChanged();
-        _notify();
-      }
-      if (peer.supportsPlaylists && !playlistsFetched) {
-        stage = 'playlists';
-        await _playlistClient.refresh(peer);
       }
       if (_disposed || !peers.contains(peer)) return;
       stage = 'save';
@@ -292,7 +253,7 @@ extension MusicShareConnections on MusicShareController {
           recovered ||
           rememberConnection) {
         SystemLog.info(
-          'Remote synchronization completed: device=${peer.name}; '
+          'Remote connection check completed: device=${peer.name}; '
           'address=${peer.address}; elapsedMs=${elapsed.elapsedMilliseconds}; '
           'manual=$rememberConnection; recovered=$recovered',
         );

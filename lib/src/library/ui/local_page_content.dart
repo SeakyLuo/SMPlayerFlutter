@@ -38,6 +38,15 @@ extension _LocalPageContent on _LocalPageState {
     final folderIndex = _dataCache.folders(
       snapshot,
       created: _createdFolderPaths,
+      songFolderPaths: _remoteSongFolders,
+      rootName:
+          _remote
+              ? ref
+                  .read(musicShareProvider)
+                  .peers
+                  .firstWhere((peer) => peer.id == _source)
+                  .name
+              : null,
     );
     final nodes = folderIndex.nodes;
     final songsById = folderIndex.songsById;
@@ -56,6 +65,14 @@ extension _LocalPageContent on _LocalPageState {
       );
     }
 
+    if (_remote) {
+      for (final entry in _remoteSortModes.entries) {
+        nodes[entry.key]?.criterion = entry.value.index;
+      }
+      currentNode.criterion =
+          (_remoteSortModes[widget.currentRelativePath] ?? LocalSortMode.title)
+              .index;
+    }
     final currentSortMode = localSortModeFromCriterion(currentNode.criterion);
     if (_sortMode != currentSortMode &&
         _sortMode != LocalSortMode.reverse &&
@@ -218,11 +235,14 @@ extension _LocalPageContent on _LocalPageState {
                         rootPath: snapshot.rootPath,
                         currentRelativePath: widget.currentRelativePath,
                         onHiddenFoldersListButtonClick:
-                            () => context.go('/hidden-folders'),
+                            _remote
+                                ? null
+                                : () => context.go('/hidden-folders'),
                         onCurrentFolderClick: _scrollCurrentFolderToTop,
                         onOpenFolder: _openFolder,
                         onWillAcceptDrop:
                             (targetRelativePath, payload) =>
+                                !_remote &&
                                 isLocalMoveTargetFolder(
                                   payload: payload,
                                   targetFolder: nodes[targetRelativePath]!,
@@ -262,7 +282,7 @@ extension _LocalPageContent on _LocalPageState {
                       overflowReserve: isCompactLayout ? 44 : 0,
                       overflowLabel: i18n.t('player.more'),
                       overflowItems:
-                          isCompactLayout
+                          isCompactLayout && !_remote
                               ? [
                                 MenuFlyoutItem(
                                   key: 'hidden-folders',
@@ -310,21 +330,22 @@ extension _LocalPageContent on _LocalPageState {
                                 i18n,
                               ),
                         ),
-                        CommandBarButton(
-                          icon: FluentIcons.arrow_sync_24_regular,
-                          label:
-                              isCompactLayout
-                                  ? i18n.t('local.updateFolderShort')
-                                  : i18n.t('local.updateFolder'),
-                          loading: _refreshFolderRunning,
-                          loadingProgress: _refreshButtonProgressNotifier,
-                          canOverflow: !_refreshFolderRunning,
-                          onPressed:
-                              () =>
-                                  _refreshFolderRunning
-                                      ? _showRefreshFolderTask()
-                                      : _refreshFolder(currentNode, i18n),
-                        ),
+                        if (!_remote)
+                          CommandBarButton(
+                            icon: FluentIcons.arrow_sync_24_regular,
+                            label:
+                                isCompactLayout
+                                    ? i18n.t('local.updateFolderShort')
+                                    : i18n.t('local.updateFolder'),
+                            loading: _refreshFolderRunning,
+                            loadingProgress: _refreshButtonProgressNotifier,
+                            canOverflow: !_refreshFolderRunning,
+                            onPressed:
+                                () =>
+                                    _refreshFolderRunning
+                                        ? _showRefreshFolderTask()
+                                        : _refreshFolder(currentNode, i18n),
+                          ),
                         CommandBarButton(
                           icon: FluentIcons.arrow_sort_24_regular,
                           label: i18n.t('common.sort'),
@@ -336,17 +357,18 @@ extension _LocalPageContent on _LocalPageState {
                               (context) =>
                                   _showSortMenu(context, i18n, currentNode),
                         ),
-                        CommandBarButton(
-                          icon: FluentIcons.add_24_regular,
-                          label: i18n.t('local.newFolder'),
-                          onPressed:
-                              () => _createFolder(
-                                parent: currentNode,
-                                nodes: nodes,
-                                rootPath: snapshot.rootPath,
-                                i18n: i18n,
-                              ),
-                        ),
+                        if (!_remote)
+                          CommandBarButton(
+                            icon: FluentIcons.add_24_regular,
+                            label: i18n.t('local.newFolder'),
+                            onPressed:
+                                () => _createFolder(
+                                  parent: currentNode,
+                                  nodes: nodes,
+                                  rootPath: snapshot.rootPath,
+                                  i18n: i18n,
+                                ),
+                          ),
                         CommandBarButton(
                           icon: FluentIcons.multiselect_ltr_24_regular,
                           label: i18n.t('albums.multiSelect'),
@@ -615,33 +637,37 @@ extension _LocalPageContent on _LocalPageState {
                           });
                         },
                 onRemove:
-                    () => _requestDeleteLocalItems(
-                      songIds: effectiveSelectedSongIds,
-                      folderPaths: selectedFolderAbsolutePaths,
-                      i18n: i18n,
-                    ),
-                removeLabel: i18n.t('context.deleteFromDisk'),
-                extraActions: [
-                  MultiSelectCommandBarExtraAction(
-                    key: 'move-to-folder',
-                    text: i18n.t('context.moveToFolder'),
-                    icon: FluentIcons.folder_20_regular,
-                    disabled:
-                        selectedLocalItemCount == 0 ||
-                        selectedMoveToFolderMenuItems.isEmpty,
-                    onPressed: () {},
-                    onPressedWithContext:
-                        (buttonContext) => _showSelectedMoveToFolderMenu(
-                          buttonContext: buttonContext,
-                          nodes: nodes,
-                          songsById: songsById,
+                    _remote
+                        ? null
+                        : () => _requestDeleteLocalItems(
                           songIds: effectiveSelectedSongIds,
                           folderPaths: selectedFolderAbsolutePaths,
                           i18n: i18n,
-                          hideMultiSelectCommandBarAfterOperation:
-                              snapshot.hideMultiSelectCommandBarAfterOperation,
                         ),
-                  ),
+                removeLabel: i18n.t('context.deleteFromDisk'),
+                extraActions: [
+                  if (!_remote)
+                    MultiSelectCommandBarExtraAction(
+                      key: 'move-to-folder',
+                      text: i18n.t('context.moveToFolder'),
+                      icon: FluentIcons.folder_20_regular,
+                      disabled:
+                          selectedLocalItemCount == 0 ||
+                          selectedMoveToFolderMenuItems.isEmpty,
+                      onPressed: () {},
+                      onPressedWithContext:
+                          (buttonContext) => _showSelectedMoveToFolderMenu(
+                            buttonContext: buttonContext,
+                            nodes: nodes,
+                            songsById: songsById,
+                            songIds: effectiveSelectedSongIds,
+                            folderPaths: selectedFolderAbsolutePaths,
+                            i18n: i18n,
+                            hideMultiSelectCommandBarAfterOperation:
+                                snapshot
+                                    .hideMultiSelectCommandBarAfterOperation,
+                          ),
+                    ),
                 ],
                 onSelectAll:
                     () => _updateLocalPageState(() {

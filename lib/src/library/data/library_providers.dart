@@ -1,4 +1,3 @@
-import '../../remote/music_share_access.dart';
 import '../../remote/music_source_providers.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -173,16 +172,11 @@ Future<void> recordRecentArtistPlayback(WidgetRef ref, String artist) async {
 final shellNavigationDataProvider = FutureProvider<ShellNavigationData>((
   ref,
 ) async {
-  final selectedSource = ref.watch(
-    musicShareProvider.select((share) => share.selectedSource),
-  );
+  final playlists = ref.watch(currentLibraryPlaylistsProvider);
   final content = await ref.watch(libraryContentDataProvider.future);
   return ShellNavigationData(
     songs: content.songs,
-    playlists:
-        content.playlists
-            .where((p) => playlistBelongsToSource(p, selectedSource))
-            .toList(),
+    playlists: playlists,
     folders: content.folders,
     recentSearches: content.recentSearches,
     nowPlaying: content.nowPlaying,

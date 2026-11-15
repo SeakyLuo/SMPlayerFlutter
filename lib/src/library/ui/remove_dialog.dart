@@ -9,7 +9,7 @@ class RemoveDialog extends StatelessWidget {
     required this.message,
     required this.onCancel,
     required this.onConfirm,
-    this.confirmText,
+    required this.confirmText,
     this.pendingText,
     this.content,
     this.destructive = true,
@@ -20,7 +20,7 @@ class RemoveDialog extends StatelessWidget {
   final String message;
   final VoidCallback onCancel;
   final VoidCallback onConfirm;
-  final String? confirmText;
+  final String confirmText;
   final String? pendingText;
   final Widget? content;
   final bool destructive;
@@ -29,10 +29,7 @@ class RemoveDialog extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final i18n = context.smPlayerI18n;
-    final actionLabel =
-        submitting
-            ? pendingText ?? confirmText ?? i18n.t('common.confirm')
-            : confirmText ?? i18n.t('common.confirm');
+    final actionLabel = submitting ? pendingText ?? confirmText : confirmText;
     return PopupDialog(
       navLabel: title,
       navChildren: [Expanded(child: PopupDialogTitle(title))],

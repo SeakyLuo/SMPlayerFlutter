@@ -102,7 +102,7 @@ class _SettingsDeviceNameState extends ConsumerState<_SettingsDeviceName> {
               dimension: 42,
               child: _SettingsIconButton(
                 icon: FluentIcons.checkmark_20_regular,
-                tooltip: i18n.t('common.confirm'),
+                tooltip: i18n.t('settings.saveChanges'),
                 onPressed: _saving ? null : () => unawaited(_save()),
               ),
             ),

@@ -111,10 +111,25 @@ class MusicShareTransport {
 
   Future<WebSocket> connectEvents() => runNetworkOperation(() async {
     final uri = Uri.parse(address).resolve('/events').replace(scheme: 'wss');
-    final socket = await WebSocket.connect(
+    var expired = false;
+    final handshake = WebSocket.connect(
       uri.toString(),
       customClient: _client,
       headers: {HttpHeaders.authorizationHeader: 'Bearer $token'},
+    ).then((socket) {
+      if (expired) {
+        unawaited(socket.close());
+        throw TimeoutException('Remote event subscription timed out');
+      }
+      return socket;
+    });
+    final socket = await handshake.timeout(
+      const Duration(seconds: 10),
+      onTimeout: () {
+        expired = true;
+        _client.close(force: true);
+        throw TimeoutException('Remote event subscription timed out');
+      },
     );
     socket.pingInterval = const Duration(seconds: 20);
     return socket;

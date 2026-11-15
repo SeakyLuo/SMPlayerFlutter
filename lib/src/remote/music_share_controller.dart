@@ -20,6 +20,7 @@ import 'music_share_playlist_client.dart';
 part 'music_share_controller_authorization.dart';
 part 'music_share_controller_connections.dart';
 part 'music_share_controller_events.dart';
+part 'music_share_controller_page_data.dart';
 
 class MusicShareController extends ChangeNotifier
     with _MusicShareAuthorization
@@ -84,8 +85,6 @@ class MusicShareController extends ChangeNotifier
   final _editingRequests = <(String, String, String)>{};
   final _peerTransports = <MusicShareTransport, MusicPeer>{};
   final _peerSyncs = <String, Future<void>>{};
-  final _eventRefreshTimers = <String, Timer>{};
-  final _refreshingPeers = <MusicPeer>{};
   final _pendingPlaylistPeers = <String>{};
   final _pendingCatalogPeers = <String>{};
   final _pendingSongIds = <String, Set<int>>{};
@@ -281,19 +280,7 @@ class MusicShareController extends ChangeNotifier
   Future<void> selectSource(String source) async {
     await ready;
     final peer = peers.where((peer) => peer.id == source).firstOrNull;
-    if (peer != null) {
-      final dataReady =
-          peer.status == MusicPeerStatus.online &&
-          peer.catalogLoaded &&
-          !_pendingCatalogPeers.contains(peer.id) &&
-          !_pendingPlaylistPeers.contains(peer.id) &&
-          (_pendingSongIds[peer.id]?.isEmpty ?? true) &&
-          (!peer.supportsPlaylists || _playlistClient.hasLoaded(peer.id));
-      if (!dataReady) {
-        await syncPeer(peer, importCatalog: false, rememberConnection: true);
-      }
-      lastConnectedPeerId = peer.id;
-    }
+    if (peer != null) lastConnectedPeerId = peer.id;
     final previous = selectedSource;
     selectedSource = source;
     try {
@@ -483,6 +470,7 @@ class MusicShareController extends ChangeNotifier
         peers.removeWhere((item) => item.id == peer.id);
         peers.add(peer);
         await save();
+        await syncPeer(peer, rememberConnection: true);
         await selectSource(peer.id);
         return peer;
       }

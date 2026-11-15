@@ -392,7 +392,15 @@ Future<void> _showGroupContextMenuForArtistsPage(
   final snapshot = state.ref.read(libraryContentDataProvider).value!;
   final songIds = songs.map((song) => song.id).toList();
   final customLibraryPlaylists =
-      snapshot.playlists.where((playlist) => !playlist.isBuiltIn).toList();
+      state.ref
+          .read(currentLibraryPlaylistsProvider)
+          .where(
+            (playlist) =>
+                !playlist.isBuiltIn &&
+                playlist.source == songs.first.source &&
+                canEditPlaylist(playlist),
+          )
+          .toList();
   final customPlaylists =
       customLibraryPlaylists
           .map(
@@ -694,10 +702,10 @@ Future<void> _requestSongContextPlaylistForArtistsPage(
   final name = await showSmPlayerInputDialog(
     context: context,
     i18n: i18n,
-    title: i18n.t('playlists.newName'),
+    title: i18n.t('playlists.createNew'),
     defaultValue: song.title,
     placeholder: i18n.t('playlists.namePlaceholder'),
-    confirmText: i18n.t('common.confirm'),
+    confirmText: i18n.t('playlists.create'),
   );
   if (name == null || !context.mounted) {
     return;
@@ -718,7 +726,10 @@ Future<void> _showSongAddToMenuForArtistsPage(
 ) async {
   final snapshot = state.ref.read(libraryContentDataProvider).value!;
   final customLibraryPlaylists =
-      snapshot.playlists.where((playlist) => !playlist.isBuiltIn).toList();
+      state.ref
+          .read(currentLibraryPlaylistsProvider)
+          .where((playlist) => !playlist.isBuiltIn && canEditPlaylist(playlist))
+          .toList();
   final i18n = state.context.smPlayerI18n;
   final playlists =
       customLibraryPlaylists

@@ -1,4 +1,5 @@
 import 'dart:ui' show ImageFilter;
+import '../remote/remote_page_access.dart';
 
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
@@ -16,8 +17,11 @@ import 'package:smplayer_flutter/src/library/ui/headered_playlist_app_bar_portal
 import 'package:smplayer_flutter/src/library/ui/library_page_data_cache.dart';
 import 'package:smplayer_flutter/src/library/ui/local_title_grid.dart';
 import 'package:smplayer_flutter/src/remote/music_source_providers.dart';
+import '../remote/remote_directory_provider.dart';
+import '../library/ui/local_page_remote.dart';
 
 part 'shell_workspace_app_bar_title.dart';
+part 'shell_workspace_titles.dart';
 
 class SmPlayerShellWorkspaceKeys {
   const SmPlayerShellWorkspaceKeys._();
@@ -77,7 +81,14 @@ class _SmPlayerWorkspaceState extends ConsumerState<SmPlayerWorkspace> {
     final snapshot = ref.watch(libraryContentDataProvider).valueOrNull;
     final browsingSnapshot =
         ref.watch(browsingAvailableLibraryContentDataProvider).valueOrNull;
+    final share = ref.watch(musicShareProvider);
     final title = _workspaceTitle(
+      sourceDeviceName:
+          share.selectedSource == 'local'
+              ? null
+              : share.peers
+                  .firstWhere((peer) => peer.id == share.selectedSource)
+                  .name,
       path: widget.currentPath,
       snapshot: snapshot,
       i18n: i18n,
@@ -102,14 +113,30 @@ class _SmPlayerWorkspaceState extends ConsumerState<SmPlayerWorkspace> {
       routePath: currentRoutePath,
       routeLocation: widget.currentLocation,
     );
+    var pathSnapshot = share.selectedSource == 'local' ? snapshot : null;
+    if (currentRoutePath == '/local' &&
+        share.selectedSource != 'local' &&
+        TickerMode.valuesOf(context).enabled) {
+      final directory = ref.watch(
+        remoteDirectoryProvider(share.selectedSource),
+      );
+      pathSnapshot =
+          directory.hasValue && browsingSnapshot != null
+              ? remoteDirectorySnapshot(
+                browsingSnapshot,
+                directory.value!,
+                share.selectedSource,
+              )
+              : null;
+    }
     final localTitleContent =
         currentRoutePath == '/local' &&
-                snapshot != null &&
-                snapshot.rootPath.isNotEmpty
+                pathSnapshot != null &&
+                pathSnapshot.rootPath.isNotEmpty
             ? LocalTitleGrid(
-              nodes: _localDataCache.folders(snapshot).nodes,
+              nodes: _localDataCache.folders(pathSnapshot).nodes,
               i18n: i18n,
-              rootPath: snapshot.rootPath,
+              rootPath: pathSnapshot.rootPath,
               currentRelativePath: currentUri.queryParameters['path'] ?? '',
               compact: widget.showNavigationAppBar,
               onHiddenFoldersListButtonClick: () {
@@ -146,7 +173,11 @@ class _SmPlayerWorkspaceState extends ConsumerState<SmPlayerWorkspace> {
       localTitleContent: localTitleContent,
       headeredPlaylistAppBar: headeredPlaylistAppBar,
       navigationAppBarTopInset: widget.navigationAppBarTopInset,
-      child: widget.child ?? const SizedBox.shrink(),
+      child: RemotePageAccess(
+        device: share.selectedSource,
+        location: widget.currentLocation,
+        child: widget.child ?? const SizedBox.shrink(),
+      ),
     );
     final workspace = DecoratedBox(
       decoration: _workspaceDecoration(shellColors: shellColors),
@@ -708,83 +739,4 @@ String? _synchronousWorkspaceAppBarTitle({
     '/search' => _searchWorkspaceTitle(uri, i18n),
     _ => null,
   };
-}
-
-int _albumCount(LibraryContentData snapshot, SmPlayerI18n i18n) {
-  return {
-    for (final song in snapshot.songs)
-      song.album.isEmpty ? i18n.t('common.albumUnknown') : song.album,
-  }.length;
-}
-
-String _searchWorkspaceTitle(Uri uri, SmPlayerI18n i18n) {
-  final query = uri.queryParameters['query']?.trim() ?? '';
-  final folder = uri.queryParameters['folder'] ?? '';
-  if (query.isNotEmpty && folder.isNotEmpty) {
-    return i18n.t('search.directoryResultOf', {
-      'query': query,
-      'folder': folder.split('/').last,
-    });
-  }
-  return query.isNotEmpty
-      ? i18n.t('search.resultOf', {'query': query})
-      : i18n.t('search.resultTitle');
-}
-
-String _workspaceTitle({
-  required String path,
-  required LibraryContentData? snapshot,
-  required SmPlayerI18n i18n,
-}) {
-  if (path.startsWith('/artists')) {
-    return '';
-  }
-
-  if (path.startsWith('/albums')) {
-    return '';
-  }
-
-  if (path.startsWith('/now-playing')) {
-    return '';
-  }
-
-  if (path.startsWith('/hidden-folders')) {
-    return i18n.t('local.hiddenFolders');
-  }
-
-  if (path.startsWith('/recent')) {
-    final hasRecentContent =
-        snapshot != null &&
-        (snapshot.songs.isNotEmpty ||
-            snapshot.recentSongs.isNotEmpty ||
-            snapshot.recentPlaylists.isNotEmpty ||
-            snapshot.recentAlbums.isNotEmpty ||
-            snapshot.recentArtists.isNotEmpty ||
-            snapshot.recentSearches.isNotEmpty);
-    return hasRecentContent ? '' : i18n.t('common.recent');
-  }
-
-  if (path.startsWith('/local')) {
-    return snapshot != null && snapshot.rootPath.isEmpty
-        ? i18n.t('common.local')
-        : '';
-  }
-
-  if (path.startsWith('/playlists')) {
-    return '';
-  }
-
-  if (path.startsWith('/favorites')) {
-    return '';
-  }
-
-  if (path.startsWith('/search')) {
-    return '';
-  }
-
-  if (path.startsWith('/settings')) {
-    return i18n.t('common.settings');
-  }
-
-  return '';
 }

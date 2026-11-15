@@ -273,7 +273,8 @@ extension _MusicDialogStateLyricsActions on _MusicDialogState {
         context: context,
         title: i18n.t('song.replaceUnsavedLyricsTitle'),
         message: i18n.t('song.replaceUnsavedLyricsMessage'),
-        confirmLabel: i18n.t('common.confirm'),
+        confirmLabel: i18n.t('song.replaceLyrics'),
+        cancelLabel: i18n.t('song.continueEditing'),
         i18n: i18n,
       );
       if (!mounted ||

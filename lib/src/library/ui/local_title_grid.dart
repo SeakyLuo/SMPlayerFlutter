@@ -7,7 +7,10 @@ import 'package:flutter/rendering.dart';
 import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 
 import '../../i18n/app_i18n.dart';
+import '../../remote/music_source_breadcrumb.dart';
+import '../../remote/music_share_models.dart';
 import 'local_folder_model.dart';
+import 'breadcrumb_segment.dart';
 import 'local_page_quick_jump.dart';
 import 'menu_flyout.dart';
 
@@ -33,7 +36,7 @@ class LocalTitleGrid extends StatelessWidget {
   final SmPlayerI18n i18n;
   final String rootPath;
   final String currentRelativePath;
-  final VoidCallback onHiddenFoldersListButtonClick;
+  final VoidCallback? onHiddenFoldersListButtonClick;
   final ValueChanged<String> onOpenFolder;
   final bool compact;
   final VoidCallback? onCurrentFolderClick;
@@ -76,7 +79,7 @@ class LocalTitleGrid extends StatelessWidget {
               onAcceptDrop: onAcceptDrop,
             ),
           ),
-          if (!compact) ...[
+          if (!compact && onHiddenFoldersListButtonClick != null) ...[
             const SizedBox(width: 12),
             SizedBox.square(
               key: const ValueKey('LocalTitleGrid.HiddenFoldersButton'),
@@ -217,59 +220,79 @@ class _FolderChainListViewState extends State<FolderChainListView> {
                   widget.compact
                       ? const EdgeInsets.symmetric(horizontal: 2)
                       : const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-              child: Listener(
-                onPointerSignal: _scrollFolderChainFromWheel,
-                onPointerDown: _startFolderChainDrag,
-                onPointerMove: _updateFolderChainDrag,
-                onPointerUp: _stopFolderChainDrag,
-                onPointerCancel: _stopFolderChainDrag,
-                child: GestureDetector(
-                  behavior: HitTestBehavior.translucent,
-                  onTap: () {
-                    if (_chainDragged) {
-                      _chainDragged = false;
-                    }
-                  },
-                  child: ListView.separated(
-                    controller: _scrollController,
-                    scrollDirection: Axis.horizontal,
-                    itemCount: folderChain.length,
-                    separatorBuilder: (_, _) => const SizedBox(width: 2),
-                    itemBuilder: (context, index) {
-                      final item = folderChain[index];
-                      return _FolderChainItem(
-                        item: item,
-                        i18n: widget.i18n,
-                        isOpen: _openedPath == item.path,
-                        compact: widget.compact,
-                        onOpenFolder: (path) {
-                          _closeChildFlyout();
-                          widget.onOpenFolder(path);
+              child: Row(
+                children: [
+                  MusicSourceBreadcrumb(compact: widget.compact),
+                  Expanded(
+                    child: Listener(
+                      onPointerSignal: _scrollFolderChainFromWheel,
+                      onPointerDown: _startFolderChainDrag,
+                      onPointerMove: _updateFolderChainDrag,
+                      onPointerUp: _stopFolderChainDrag,
+                      onPointerCancel: _stopFolderChainDrag,
+                      child: GestureDetector(
+                        behavior: HitTestBehavior.translucent,
+                        onTap: () {
+                          if (_chainDragged) {
+                            _chainDragged = false;
+                          }
                         },
-                        onCurrentFolderClick: () {
-                          _closeChildFlyout();
-                          widget.onCurrentFolderClick?.call();
-                        },
-                        shouldIgnoreTap: _consumeFolderChainDragTap,
-                        onOpenFolderMenu: widget.onOpenFolderMenu,
-                        onWillAcceptDrop: widget.onWillAcceptDrop,
-                        onAcceptDrop:
-                            widget.onAcceptDrop == null
-                                ? null
-                                : (targetRelativePath, payload) {
-                                  _closeChildFlyout();
-                                  widget.onAcceptDrop!(
-                                    targetRelativePath,
-                                    payload,
-                                  );
-                                },
-                        onToggleChildren: (buttonContext) {
-                          _toggleChildFlyout(item, buttonContext);
-                        },
-                      );
-                    },
+                        child: ListView.separated(
+                          controller: _scrollController,
+                          scrollDirection: Axis.horizontal,
+                          itemCount: folderChain.length,
+                          separatorBuilder: (_, _) => const SizedBox(width: 2),
+                          itemBuilder: (context, index) {
+                            final sourceItem = folderChain[index];
+                            final item =
+                                index == 0 &&
+                                        widget.rootPath.startsWith(
+                                          '$remoteMusicScheme://',
+                                        )
+                                    ? FolderChainItem(
+                                      name: widget.i18n.t('library.title'),
+                                      path: sourceItem.path,
+                                      isLastItem: sourceItem.isLastItem,
+                                      isCurrentItem: sourceItem.isCurrentItem,
+                                      children: sourceItem.children,
+                                    )
+                                    : sourceItem;
+                            return _FolderChainItem(
+                              item: item,
+                              i18n: widget.i18n,
+                              isOpen: _openedPath == item.path,
+                              compact: widget.compact,
+                              onOpenFolder: (path) {
+                                _closeChildFlyout();
+                                widget.onOpenFolder(path);
+                              },
+                              onCurrentFolderClick: () {
+                                _closeChildFlyout();
+                                widget.onCurrentFolderClick?.call();
+                              },
+                              shouldIgnoreTap: _consumeFolderChainDragTap,
+                              onOpenFolderMenu: widget.onOpenFolderMenu,
+                              onWillAcceptDrop: widget.onWillAcceptDrop,
+                              onAcceptDrop:
+                                  widget.onAcceptDrop == null
+                                      ? null
+                                      : (targetRelativePath, payload) {
+                                        _closeChildFlyout();
+                                        widget.onAcceptDrop!(
+                                          targetRelativePath,
+                                          payload,
+                                        );
+                                      },
+                              onToggleChildren: (buttonContext) {
+                                _toggleChildFlyout(item, buttonContext);
+                              },
+                            );
+                          },
+                        ),
+                      ),
+                    ),
                   ),
-                ),
+                ],
               ),
             ),
           ),
@@ -497,31 +520,10 @@ class _FolderChainItemState extends State<_FolderChainItem> {
                               widget.onOpenFolder(widget.item.path);
                             }
                           },
-                  child: ConstrainedBox(
-                    constraints: BoxConstraints(
-                      minHeight: widget.compact ? 36 : 32,
-                    ),
-                    child: Padding(
-                      padding:
-                          widget.compact
-                              ? const EdgeInsets.symmetric(horizontal: 6)
-                              : const EdgeInsets.fromLTRB(10, 0, 8, 0),
-                      child: Align(
-                        alignment: Alignment.center,
-                        child: Text(
-                          widget.item.name,
-                          key: _labelKey,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            color: colors.textStrong,
-                            fontSize: widget.compact ? 14 : 13,
-                            fontWeight: FontWeight.w600,
-                            height: 1,
-                          ),
-                        ),
-                      ),
-                    ),
+                  child: BreadcrumbLabel(
+                    label: widget.item.name,
+                    compact: widget.compact,
+                    labelKey: _labelKey,
                   ),
                 ),
               ),
@@ -572,25 +574,10 @@ class _FolderChainItemState extends State<_FolderChainItem> {
           ],
         );
 
-        return MouseRegion(
-          cursor: SystemMouseCursors.click,
-          onEnter: (_) {
-            setState(() {
-              _hovered = true;
-            });
-          },
-          onExit: (_) {
-            setState(() {
-              _hovered = false;
-            });
-          },
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              color: active ? colors.surfaceControlHover : Colors.transparent,
-              borderRadius: BorderRadius.circular(localFolderChainRadius),
-            ),
-            child: segmentContent,
-          ),
+        return BreadcrumbSegmentSurface(
+          active: widget.isOpen,
+          onHoverChanged: (value) => setState(() => _hovered = value),
+          child: segmentContent,
         );
       },
     );

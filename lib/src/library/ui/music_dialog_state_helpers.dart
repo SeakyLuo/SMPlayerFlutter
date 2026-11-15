@@ -54,9 +54,10 @@ extension _MusicDialogStateHelpers on _MusicDialogState {
     try {
       final confirmed = await showPopupConfirmDialog(
         context: context,
-        title: i18n.t('common.confirm'),
-        message: i18n.t('song.discardLyricsConfirm'),
-        confirmLabel: i18n.t('common.confirm'),
+        title: i18n.t('song.discardLyricsConfirm'),
+        message: i18n.t('song.discardLyricsMessage'),
+        confirmLabel: i18n.t('song.discard'),
+        cancelLabel: i18n.t('song.continueEditing'),
         i18n: i18n,
       );
       if (mounted && confirmed) {

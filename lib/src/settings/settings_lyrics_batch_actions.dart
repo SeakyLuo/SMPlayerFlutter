@@ -129,7 +129,8 @@ extension _SettingsLyricsBatchActions on _SettingsPageState {
       i18n: i18n,
       title: i18n.t('settings.lyricsBatchCancelConfirmTitle'),
       message: i18n.t('settings.lyricsBatchCancelConfirmMessage'),
-      confirmText: i18n.t('common.confirm'),
+      confirmText: i18n.t('settings.lyricsBatchStop'),
+      cancelText: i18n.t('settings.lyricsBatchContinue'),
     );
     if (!mounted) {
       return;

@@ -13,7 +13,7 @@ class _LyricsTimestampToggle extends StatelessWidget {
       key: const ValueKey('MusicDialog.LyricsTimestampToggle'),
       height: 48,
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12),
+        padding: const EdgeInsets.only(right: 12),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -21,6 +21,12 @@ class _LyricsTimestampToggle extends StatelessWidget {
               key: const ValueKey('MusicDialog.LyricsTimestampCheckboxBox'),
               dimension: 18,
               child: Checkbox(
+                activeColor: colors.accent,
+                checkColor: Colors.white,
+                side: BorderSide(color: colors.textMuted, width: 1.5),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(4),
+                ),
                 materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
                 visualDensity: const VisualDensity(
                   horizontal: -4,

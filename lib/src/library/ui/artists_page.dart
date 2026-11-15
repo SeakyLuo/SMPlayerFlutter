@@ -1,5 +1,6 @@
 import 'package:smplayer_flutter/src/library/ui/library_load_failure.dart';
 import '../../remote/music_source_providers.dart';
+import '../../remote/music_share_access.dart' show canEditPlaylist;
 import 'dart:async';
 import 'dart:math';
 import 'dart:ui' show ColorFilter, ImageFilter, lerpDouble;

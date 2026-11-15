@@ -596,7 +596,7 @@ class _ConfirmSettingsDialog extends StatelessWidget {
     required this.message,
     required this.onCancel,
     required this.onConfirm,
-    this.confirmText,
+    required this.confirmText,
     this.busy = false,
     this.progress,
     this.content,
@@ -606,7 +606,7 @@ class _ConfirmSettingsDialog extends StatelessWidget {
   final String message;
   final VoidCallback onCancel;
   final VoidCallback onConfirm;
-  final String? confirmText;
+  final String confirmText;
   final bool busy;
   final double? progress;
   final Widget? content;

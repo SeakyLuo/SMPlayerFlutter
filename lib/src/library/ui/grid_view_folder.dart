@@ -1,3 +1,4 @@
+import '../../remote/music_share_models.dart';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -219,6 +220,7 @@ class DraggableLocalFolderCard extends StatelessWidget {
       onWillAcceptDrop: onWillAcceptDrop,
       onAcceptDrop: onAcceptDrop,
     );
+    if (isRemoteMusicPath(folder.path)) return card;
     return Draggable<LocalItemsDragPayload>(
       data: dragPayload,
       feedback: Material(

@@ -167,9 +167,8 @@ class _PageSearchFieldState extends State<PageSearchField> {
                 ),
               ),
               if (_controller.text.isNotEmpty)
-                SizedBox(
-                  width: 30,
-                  height: widget.height,
+                SizedBox.square(
+                  dimension: 30,
                   child: _PageSearchIconButton(
                     tooltip: widget.clearTooltip,
                     icon: FluentIcons.dismiss_16_regular,

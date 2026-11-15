@@ -2,6 +2,7 @@ part of 'artists_page.dart';
 
 class _ArtistsSearchBox extends StatefulWidget {
   const _ArtistsSearchBox({
+    this.trailing,
     required this.artistSearch,
     required this.i18n,
     required this.searchFocused,
@@ -15,6 +16,7 @@ class _ArtistsSearchBox extends StatefulWidget {
     required this.onClearRecentSearches,
   });
 
+  final Widget? trailing;
   final String artistSearch;
   final SmPlayerI18n i18n;
   final bool searchFocused;
@@ -92,21 +94,31 @@ class _ArtistsSearchBoxState extends State<_ArtistsSearchBox> {
                   ),
         );
       },
-      child: SizedBox(
-        height: 40,
-        child: PageSearchField(
-          value: widget.artistSearch,
-          hintText: widget.i18n.t('artists.searchArtistsPlaceholder'),
-          focused: widget.searchFocused,
-          onChanged: widget.onChanged,
-          onFocusChanged: widget.onFocusChanged,
-          onSubmitted: widget.onSubmitted,
-          onClear: () {
-            widget.onChanged('');
-          },
-          searchTooltip: widget.i18n.t('common.search'),
-          clearTooltip: widget.i18n.t('common.clear'),
-        ),
+      child: Row(
+        children: [
+          Expanded(
+            child: SizedBox(
+              height: 40,
+              child: PageSearchField(
+                value: widget.artistSearch,
+                hintText: widget.i18n.t('artists.searchArtistsPlaceholder'),
+                focused: widget.searchFocused,
+                onChanged: widget.onChanged,
+                onFocusChanged: widget.onFocusChanged,
+                onSubmitted: widget.onSubmitted,
+                onClear: () {
+                  widget.onChanged('');
+                },
+                searchTooltip: widget.i18n.t('common.search'),
+                clearTooltip: widget.i18n.t('common.clear'),
+              ),
+            ),
+          ),
+          if (widget.trailing != null) ...[
+            const SizedBox(width: 8),
+            widget.trailing!,
+          ],
+        ],
       ),
     );
   }

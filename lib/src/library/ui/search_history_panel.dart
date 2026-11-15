@@ -52,6 +52,10 @@ class SearchHistoryPanel<TValue> extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    return TextFieldTapRegion(child: _buildPanel(context));
+  }
+
+  Widget _buildPanel(BuildContext context) {
     final colors = _PageSearchColors.resolve(context, appBar: false);
     const radius = 14.0;
     if (useElectronPanelStyle) {

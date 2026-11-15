@@ -51,7 +51,7 @@ class _LibraryRootGateState extends ConsumerState<_LibraryRootGate> {
   @override
   Widget build(BuildContext context) {
     final share = ref.watch(musicShareProvider);
-    if ((share.selectedSource != 'local' && widget.path != '/local') ||
+    if (share.selectedSource != 'local' ||
         !_isLibraryRootGatedRoute(widget.path)) {
       return widget.child;
     }

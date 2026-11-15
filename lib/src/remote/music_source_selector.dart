@@ -31,7 +31,10 @@ Future<void> runMusicShareAction(
   }
 }
 
-MenuFlyoutItem? buildMusicSourceMenuItem(BuildContext context) {
+MenuFlyoutItem? buildMusicSourceMenuItem(
+  BuildContext context, {
+  Future<void> Function(String source)? onSelectSource,
+}) {
   final share = ProviderScope.containerOf(
     context,
     listen: false,
@@ -42,8 +45,13 @@ MenuFlyoutItem? buildMusicSourceMenuItem(BuildContext context) {
       share.peers.where((peer) => peer.id == share.selectedSource).firstOrNull;
   final label = peer?.name ?? i18n.t('share.localSource');
 
-  Future<void> selectSource(String source) =>
-      runMusicShareAction(context, () => share.selectSource(source));
+  Future<void> selectSource(String source) => runMusicShareAction(
+    context,
+    () =>
+        onSelectSource != null
+            ? onSelectSource(source)
+            : share.selectSource(source),
+  );
 
   return MenuFlyoutItem(
     key: 'music-source',

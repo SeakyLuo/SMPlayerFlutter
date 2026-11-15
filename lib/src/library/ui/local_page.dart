@@ -1,4 +1,9 @@
 import 'dart:async';
+import '../../remote/music_source_providers.dart';
+import '../../remote/remote_directory_provider.dart';
+import '../../remote/music_share_models.dart';
+import 'local_page_remote.dart';
+import 'library_load_failure.dart';
 import 'package:flutter/services.dart';
 
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
@@ -100,6 +105,11 @@ class LocalPage extends ConsumerStatefulWidget {
 
 class _LocalPageState extends ConsumerState<LocalPage> {
   var _sortMode = LocalSortMode.title;
+  String _source = 'local';
+  Map<int, String>? _remoteSongFolders;
+  final _remoteSortModes = <String, LocalSortMode>{};
+  final _remoteDataCache = RemoteDirectoryPageDataCache();
+  bool get _remote => _source != 'local';
   final _selectedFolderPaths = <String>{};
   final _selectedSongIds = <int>{};
   var _multiSelect = false;
@@ -167,8 +177,60 @@ class _LocalPageState extends ConsumerState<LocalPage> {
 
   @override
   Widget build(BuildContext context) {
+    final source = ref.watch(
+      musicShareProvider.select((share) => share.selectedSource),
+    );
+    if (_source != source) {
+      _source = source;
+      _clearMultiSelectStatus();
+      _treeExpandedFolderPaths.clear();
+      _createdFolderPaths.clear();
+      _remoteSortModes.clear();
+      _remoteSongFolders = null;
+      _sortMode = LocalSortMode.title;
+    }
+    if (_remote && !TickerMode.valuesOf(context).enabled) {
+      return const SizedBox.shrink();
+    }
     final i18nValue = ref.watch(smPlayerI18nProvider);
-    final snapshotValue = ref.watch(libraryContentDataProvider);
+    var snapshotValue = ref.watch(
+      _remote ? browsingLibraryContentDataProvider : libraryContentDataProvider,
+    );
+    if (_remote) {
+      final directoryProvider = remoteDirectoryProvider(source);
+      ref.listen(directoryProvider, (previous, next) {
+        if (next.hasError && !identical(previous?.error, next.error)) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) {
+              final error = next.error;
+              _showMessage(
+                context.smPlayerI18n.t(
+                  error is MusicShareException
+                      ? error.messageKey
+                      : 'share.connectionFailed',
+                ),
+              );
+            }
+          });
+        }
+      });
+      final directory = ref.watch(directoryProvider);
+      if (!directory.hasValue) {
+        return LocalPageScaffold(
+          child:
+              directory.isLoading
+                  ? const SmPlayerLoadingState()
+                  : LibraryLoadFailure(
+                    onRetry: () => ref.invalidate(directoryProvider),
+                  ),
+        );
+      }
+      snapshotValue = snapshotValue.whenData((snapshot) {
+        final data = _remoteDataCache.read(snapshot, directory.value!, source);
+        _remoteSongFolders = data.songFolders;
+        return data.snapshot;
+      });
+    }
     ref.watch(recentSearchesProvider);
     final songOverrides = ref.watch(librarySongOverridesProvider);
     final songLocation = ref.watch(localSongLocationProvider);
@@ -199,8 +261,9 @@ class _LocalPageState extends ConsumerState<LocalPage> {
     }
 
     return snapshotValue.when(
+      skipLoadingOnReload: true,
       loading: () => const LocalPageScaffold(child: SmPlayerLoadingState()),
-      error: (_, _) => const LocalPageScaffold(child: SmPlayerLoadingState()),
+      error: (_, _) => const LocalPageScaffold(child: LibraryLoadFailure()),
       data: (rawSnapshot) {
         final snapshot = _dataCache.snapshot(
           rawSnapshot,

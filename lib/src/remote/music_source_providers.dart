@@ -44,6 +44,25 @@ final musicShareReadyProvider = FutureProvider<void>((ref) {
   return ref.watch(musicShareProvider.notifier).ready;
 });
 
+final currentLibraryPlaylistsProvider = Provider<List<LibraryPlaylist>>((ref) {
+  final selection = ref.watch(
+    musicShareProvider.select(
+      (share) => (share.selectedSource, share.selectedPlaylists),
+    ),
+  );
+  final localPlaylists = ref.watch(
+    libraryContentDataProvider.select((value) => value.valueOrNull?.playlists),
+  );
+  return [
+    ...?localPlaylists?.where(
+      (playlist) =>
+          playlist.isBuiltIn ||
+          selection.$1 == 'local' && playlist.remotePath.isEmpty,
+    ),
+    if (selection.$1 != 'local') ...selection.$2,
+  ];
+});
+
 final remotePlaylistLoadStateProvider = Provider((ref) {
   return ref.watch(
     musicShareProvider.select(
@@ -88,6 +107,7 @@ AsyncValue<LibraryContentData> _browse(
   );
   final share = ref.read(musicShareProvider);
   final libraryValue = ref.watch(libraryContentDataProvider);
+  final playlists = ref.watch(currentLibraryPlaylistsProvider);
   if (share.selectedSource != 'local') {
     final peer =
         share.peers
@@ -134,14 +154,7 @@ AsyncValue<LibraryContentData> _browse(
       recentAlbums: source.recentAlbums,
       recentArtists: source.recentArtists,
       recentSearches: source.recentSearches,
-      playlists: [
-        ...source.playlists.where(
-          (playlist) =>
-              playlist.isBuiltIn ||
-              share.selectedSource == 'local' && playlist.remotePath.isEmpty,
-        ),
-        if (share.selectedSource != 'local') ...share.selectedPlaylists,
-      ],
+      playlists: playlists,
       folders: share.selectedSource == 'local' ? source.folders : const [],
       favoritePlaylistId: source.favoritePlaylistId,
       nowPlaying: source.nowPlaying,

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import '../library/ui/local_song_location.dart';
+import '../remote/music_source_providers.dart';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -185,7 +186,7 @@ class ShellPlayerHost extends StatelessWidget {
                   nowPlayingSongIds: snapshot?.nowPlaying.songIds ?? const [],
                   librarySongs: librarySongs,
                   recentSongs: recentSongs,
-                  playlists: snapshot?.playlists ?? const [],
+                  playlists: ref.watch(currentLibraryPlaylistsProvider),
                   folders: snapshot?.folders ?? const [],
                   onPlaySongs: playSongs,
                   onPlayArtist:

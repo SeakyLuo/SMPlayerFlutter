@@ -26,6 +26,9 @@ class MusicSharePlaylistClient {
   final _requests = <MusicShareTransport, MusicPeer>{};
   final _queues = <String, Future<void>>{};
   final _locations = <int, (String, int)>{};
+  final _generations = <String, int>{};
+  final _reads = <(MusicPeer, int), Future<bool>>{};
+  bool isFresh(String device) => _signatures.containsKey(device);
   bool hasLoaded(String device) => _lists.containsKey(device);
   List<LibraryPlaylist> forDevice(String device) => _lists[device] ?? const [];
 
@@ -109,18 +112,40 @@ class MusicSharePlaylistClient {
     return operation;
   }
 
-  Future<void> refresh(MusicPeer peer) =>
-      _serial(peer.id, () => _refresh(peer));
-
-  Future<void> _refresh(MusicPeer peer) async {
-    final result = await _request(peer);
-    if (!isCurrent(peer)) return;
-    await _apply(peer, result);
-    if (!isCurrent(peer)) return;
-    peer.catalogRevision = result['revision'] as String;
+  Future<bool> refresh(MusicPeer peer, {bool Function()? canApply}) {
+    if (canApply != null) {
+      return _serial(peer.id, () => _refresh(peer, canApply: canApply));
+    }
+    final key = (peer, _generations[peer.id] ?? 0);
+    return _reads.putIfAbsent(key, () async {
+      try {
+        return await _serial(peer.id, () => _refresh(peer));
+      } finally {
+        _reads.remove(key);
+      }
+    });
   }
 
-  Future<void> _apply(MusicPeer peer, Map<String, dynamic> result) async {
+  Future<bool> _refresh(MusicPeer peer, {bool Function()? canApply}) async {
+    bool current() => isCurrent(peer) && (canApply?.call() ?? true);
+    final generation = _generations[peer.id] ?? 0;
+    final result = await _request(peer);
+    if (!current()) return false;
+    await _apply(peer, result, current);
+    if (!current()) return false;
+    peer.catalogRevision = result['revision'] as String;
+    if (result.containsKey('songs')) peer.catalogLoaded = true;
+    if ((_generations[peer.id] ?? 0) != generation) {
+      _signatures.remove(peer.id);
+    }
+    return result.containsKey('songs');
+  }
+
+  Future<void> _apply(
+    MusicPeer peer,
+    Map<String, dynamic> result,
+    bool Function() current,
+  ) async {
     final device = peer.id;
     final signature = shareDigest(
       jsonEncode([result['revision'], result['playlists']]),
@@ -133,12 +158,12 @@ class MusicSharePlaylistClient {
         (result['songs'] as List)
             .map((s) => (s as Map).cast<String, dynamic>())
             .toList(),
-        isCurrent: () => isCurrent(peer),
+        isCurrent: current,
       );
     }
-    if (!isCurrent(peer)) return;
+    if (!current()) return;
     final songs = await repository.getLibrarySongs();
-    if (!isCurrent(peer)) return;
+    if (!current()) return;
     final localIds = <int, int>{};
     for (final song in songs) {
       if (isRemoteMusicPath(song.path)) {
@@ -192,6 +217,7 @@ class MusicSharePlaylistClient {
     if (!_submitting.add(peer)) {
       throw const MusicShareException('song.processingRequest');
     }
+    invalidate(peer.id);
     try {
       return await _serial(
         peer.id,
@@ -357,6 +383,7 @@ class MusicSharePlaylistClient {
   }
 
   void invalidate(String device) {
+    _generations.update(device, (value) => value + 1, ifAbsent: () => 1);
     _signatures.remove(device);
   }
 
@@ -369,6 +396,7 @@ class MusicSharePlaylistClient {
       transport.close();
     }
     _lists.remove(device);
+    _generations.remove(device);
     _signatures.remove(device);
     _locations.removeWhere((_, value) => value.$1 == device);
     changed();

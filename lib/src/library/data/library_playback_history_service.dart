@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:sqlite3/sqlite3.dart';
 
 import 'library_models.dart';
+import 'library_snapshot_service.dart';
 import 'library_time_codec.dart';
 
 const _activeState = 1;
@@ -150,34 +151,39 @@ class LibraryPlaybackHistoryService {
     }
   }
 
-  Future<void> markSongPlayed(File databaseFile, int songId) async {
-    if (!databaseFile.existsSync()) {
-      return;
-    }
+  Future<void> markSongPlayed(File databaseFile, int songId) =>
+      LibrarySnapshotService.run(() {
+        if (!databaseFile.existsSync()) {
+          return;
+        }
 
-    final db = sqlite3.open(databaseFile.path);
-    try {
-      db.execute('BEGIN');
-      try {
-        db.execute(
-          '''
+        final db = sqlite3.open(databaseFile.path);
+        try {
+          db.execute('BEGIN');
+          try {
+            db.execute(
+              '''
           UPDATE Music
           SET PlayCount = PlayCount + 1
           WHERE Id = ?
             AND State = ?
         ''',
-          [songId, _activeState],
-        );
-        _recordRecentItemPlayed(db, songId.toString(), _recentRecordTypeSong);
-        db.execute('COMMIT');
-      } on Object {
-        db.execute('ROLLBACK');
-        rethrow;
-      }
-    } finally {
-      db.dispose();
-    }
-  }
+              [songId, _activeState],
+            );
+            _recordRecentItemPlayed(
+              db,
+              songId.toString(),
+              _recentRecordTypeSong,
+            );
+            db.execute('COMMIT');
+          } on Object {
+            db.execute('ROLLBACK');
+            rethrow;
+          }
+        } finally {
+          db.dispose();
+        }
+      });
 
   Future<RecentPlaylistPlayback> recordPlaylistPlayed(
     File databaseFile,

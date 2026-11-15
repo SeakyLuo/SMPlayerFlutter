@@ -129,6 +129,7 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
 
     return snapshotValue.when(
       skipLoadingOnReload: true,
+      skipError: true,
       loading: () => const _NowPlayingPagePanel(child: SmPlayerLoadingState()),
       error: (_, _) => const _NowPlayingPagePanel(child: LibraryLoadFailure()),
       data: (snapshot) {

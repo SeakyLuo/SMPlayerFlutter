@@ -682,7 +682,7 @@ Future<String?> requestPlaylistName({
     context: context,
     title: i18n.t('playlists.createNew'),
     initialValue: defaultName,
-    confirmLabel: i18n.t('common.confirm'),
+    confirmLabel: i18n.t('playlists.create'),
     placeholder: i18n.t('playlists.namePlaceholder'),
     validate: (name) => validatePlaylistName(name, playlists, '', i18n),
   );

@@ -74,9 +74,9 @@ class _RecentSearchesPage extends ConsumerWidget {
     final recentSearches = ref.read(recentSearchesProvider.notifier);
     final confirmed = await showPopupConfirmDialog(
       context: context,
-      title: i18n.t('common.confirm'),
-      message: i18n.t('recent.clearSearchesConfirm'),
-      confirmLabel: i18n.t('common.confirm'),
+      title: i18n.t('recent.clearSearchesConfirm'),
+      message: i18n.t('recent.clearSearchesMessage'),
+      confirmLabel: i18n.t('common.clear'),
       destructive: false,
     );
     if (!confirmed) {

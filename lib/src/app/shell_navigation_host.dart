@@ -193,15 +193,12 @@ class _ShellNavigationContent extends ConsumerWidget {
         ref.watch(recentSearchesProvider).valueOrNull ??
         snapshot?.recentSearches ??
         const <SearchHistoryEntry>[];
-    final playlists =
-        snapshot == null
-            ? const <LibraryPlaylist>[]
-            : applyLibraryPlaylistOverridesToPlaylists(
-              snapshot.playlists,
-              playlistOverrides,
-              deletedPlaylistIds,
-              playlistOrder,
-            );
+    final playlists = applyLibraryPlaylistOverridesToPlaylists(
+      ref.watch(currentLibraryPlaylistsProvider),
+      playlistOverrides,
+      deletedPlaylistIds,
+      playlistOrder,
+    );
     return MainNavigationView(
       sourceDeviceName:
           share.peers

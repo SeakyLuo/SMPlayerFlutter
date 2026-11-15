@@ -36,6 +36,7 @@ extension _MusicDialogStateLoadActions on _MusicDialogState {
     _lyricsSearchPickerOpen = false;
     _lyricsSearchCandidates = const [];
     _requestedModes.clear();
+    _failedModes.clear();
 
     await _loadMode(_mode, repository, songId, generation);
   }
@@ -67,6 +68,7 @@ extension _MusicDialogStateLoadActions on _MusicDialogState {
     if (!_isActiveLoad(songId, generation) || !_requestedModes.add(mode)) {
       return;
     }
+    _failedModes.remove(mode);
     if (isRemoteMusicPath(widget.song.path)) {
       switch (mode) {
         case SongDialogMode.properties:
@@ -115,6 +117,7 @@ extension _MusicDialogStateLoadActions on _MusicDialogState {
     } catch (_) {
       if (_isActiveLoad(songId, generation)) {
         _requestedModes.remove(SongDialogMode.properties);
+        _failedModes.add(SongDialogMode.properties);
         ref
             .read(
               musicDialogPropertiesStateProvider(_dialogSessionKey).notifier,
@@ -160,6 +163,7 @@ extension _MusicDialogStateLoadActions on _MusicDialogState {
     } catch (_) {
       if (_isActiveLoad(songId, generation)) {
         _requestedModes.remove(SongDialogMode.lyrics);
+        _failedModes.add(SongDialogMode.lyrics);
         ref
             .read(musicDialogLyricsStateProvider(_dialogSessionKey).notifier)
             .loaded(showLyricsTimestamps: true);
@@ -227,6 +231,7 @@ extension _MusicDialogStateLoadActions on _MusicDialogState {
     } catch (_) {
       if (_isActiveLoad(songId, generation)) {
         _requestedModes.remove(SongDialogMode.albumArt);
+        _failedModes.add(SongDialogMode.albumArt);
         ref
             .read(musicDialogArtworkStateProvider(_dialogSessionKey).notifier)
             .loaded();

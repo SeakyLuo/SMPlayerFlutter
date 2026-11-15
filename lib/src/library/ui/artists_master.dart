@@ -95,30 +95,23 @@ class _ArtistsMaster extends StatelessWidget {
           child: Column(
             children: [
               if (showSearch) ...[
-                Row(
-                  children: [
-                    Expanded(
-                      child: _ArtistsSearchBox(
-                        artistSearch: artistSearch,
-                        i18n: i18n,
-                        searchFocused: searchFocused,
-                        searchSuggestions: searchSuggestions,
-                        searchHistoryEntries: searchHistoryEntries,
-                        onChanged: onSearchChanged,
-                        onFocusChanged: onSearchFocusChanged,
-                        onSubmitted: onSearchSubmitted,
-                        onSelectSearchSuggestion: onSelectSearchSuggestion,
-                        onRemoveRecentSearch: onRemoveRecentSearch,
-                        onClearRecentSearches: onClearRecentSearches,
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    _ArtistsSortButton(
-                      i18n: i18n,
-                      sortCriterion: sortCriterion,
-                      onChangeArtistSort: onChangeArtistSort,
-                    ),
-                  ],
+                _ArtistsSearchBox(
+                  artistSearch: artistSearch,
+                  i18n: i18n,
+                  searchFocused: searchFocused,
+                  searchSuggestions: searchSuggestions,
+                  searchHistoryEntries: searchHistoryEntries,
+                  onChanged: onSearchChanged,
+                  onFocusChanged: onSearchFocusChanged,
+                  onSubmitted: onSearchSubmitted,
+                  onSelectSearchSuggestion: onSelectSearchSuggestion,
+                  onRemoveRecentSearch: onRemoveRecentSearch,
+                  onClearRecentSearches: onClearRecentSearches,
+                  trailing: _ArtistsSortButton(
+                    i18n: i18n,
+                    sortCriterion: sortCriterion,
+                    onChangeArtistSort: onChangeArtistSort,
+                  ),
                 ),
                 const SizedBox(height: 14),
               ],

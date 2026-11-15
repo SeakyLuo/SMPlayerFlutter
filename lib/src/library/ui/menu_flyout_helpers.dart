@@ -180,10 +180,10 @@ MenuFlyoutItem? buildAddToPlaylistMenuFlyoutItem({
           final name = await showSmPlayerInputDialog(
             context: context,
             i18n: i18n,
-            title: i18n.t('playlists.newName'),
+            title: i18n.t('playlists.createNew'),
             defaultValue: defaultPlaylistName ?? i18n.t('playlists.newName'),
             placeholder: i18n.t('playlists.namePlaceholder'),
-            confirmText: i18n.t('common.confirm'),
+            confirmText: i18n.t('playlists.create'),
           );
           if (name != null) {
             onCreatePlaylistWithName(name);

@@ -1,4 +1,3 @@
-import 'dart:async';
 import '../../remote/music_share_access.dart';
 import '../../remote/music_share_models.dart';
 import 'dart:io';
@@ -212,45 +211,26 @@ class _RemoteArtwork extends StatefulWidget {
 }
 
 class _RemoteArtworkState extends State<_RemoteArtwork> {
-  late Future<File?> _file;
-  late StreamSubscription<String> _changes;
-  var _failed = false;
+  Future<File?>? _file;
+  String? _requestedPath;
 
   @override
-  void initState() {
-    super.initState();
-    _file = _load(widget.path);
-    _changes = activeMusicShareAccess!.remoteDataChanges.listen((device) {
-      if (!mounted || !_failed || Uri.parse(widget.path).host != device) return;
-      setState(() {
-        _failed = false;
-        _file = _load(widget.path);
-      });
-    });
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _loadVisibleArtwork();
   }
 
-  Future<File?> _load(String path) async {
-    try {
-      return await activeMusicShareAccess!.artwork(path);
-    } catch (_) {
-      if (mounted && widget.path == path) _failed = true;
-      rethrow;
+  void _loadVisibleArtwork() {
+    if (TickerMode.valuesOf(context).enabled && _requestedPath != widget.path) {
+      _requestedPath = widget.path;
+      _file = activeMusicShareAccess!.artwork(widget.path);
     }
   }
 
   @override
   void didUpdateWidget(covariant _RemoteArtwork oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.path != widget.path) {
-      _failed = false;
-      _file = _load(widget.path);
-    }
-  }
-
-  @override
-  void dispose() {
-    unawaited(_changes.cancel());
-    super.dispose();
+    _loadVisibleArtwork();
   }
 
   @override

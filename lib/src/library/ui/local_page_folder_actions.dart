@@ -22,6 +22,7 @@ extension _LocalPageFolderActions on _LocalPageState {
     final repository = ref.read(libraryRepositoryProvider);
     final name = await _requestFolderName(
       i18n: i18n,
+      confirmText: i18n.t('playlists.create'),
       defaultName: _nextFolderName(parent.relativePath, nodes, i18n),
       validate: (value) {
         return _folderNameValidationError(
@@ -57,7 +58,8 @@ extension _LocalPageFolderActions on _LocalPageState {
   }) async {
     final name = await _requestFolderName(
       i18n: i18n,
-      title: i18n.t('local.renameFolderPrompt'),
+      title: i18n.t('local.renameFolder'),
+      confirmText: i18n.t('playlists.rename'),
       defaultName: folder.name,
       validate: (value) {
         return _folderNameValidationError(
@@ -111,6 +113,16 @@ extension _LocalPageFolderActions on _LocalPageState {
       return;
     }
     if (!mounted) {
+      return;
+    }
+
+    if (_remote) {
+      context.go(
+        Uri(
+          path: '/local',
+          queryParameters: {'path': folder.relativePath, 'query': result.query},
+        ).toString(),
+      );
       return;
     }
 
@@ -257,6 +269,7 @@ extension _LocalPageFolderActions on _LocalPageState {
   }
 
   Future<String?> _requestFolderName({
+    required String confirmText,
     required SmPlayerI18n i18n,
     required String defaultName,
     required String Function(String value) validate,
@@ -268,7 +281,7 @@ extension _LocalPageFolderActions on _LocalPageState {
       title: title ?? i18n.t('local.createFolderTitle'),
       defaultValue: defaultName,
       placeholder: i18n.t('local.newFolderPrompt'),
-      confirmText: i18n.t('common.confirm'),
+      confirmText: confirmText,
       validate: validate,
     );
     return result;

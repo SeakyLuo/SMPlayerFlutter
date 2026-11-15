@@ -7,6 +7,7 @@ import 'package:sqlite3/sqlite3.dart';
 import 'id3_tag_service.dart';
 import 'library_artist_tag_normalizer.dart' as artist_tags;
 import 'library_models.dart';
+import 'library_snapshot_service.dart';
 
 const _activeState = 1;
 const _inactiveState = 0;
@@ -19,7 +20,7 @@ class LibrarySongPropertiesService {
     File databaseFile,
     int songId,
     int durationSeconds,
-  ) async {
+  ) => LibrarySnapshotService.run(() {
     if (!databaseFile.existsSync()) {
       return;
     }
@@ -38,7 +39,7 @@ class LibrarySongPropertiesService {
     } finally {
       db.dispose();
     }
-  }
+  });
 
   Future<SongPropertiesSnapshot> getSongProperties(
     File databaseFile,

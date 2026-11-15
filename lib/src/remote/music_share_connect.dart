@@ -12,6 +12,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../app/undoable_notification.dart';
 import '../i18n/app_i18n.dart';
 import 'music_share_identity.dart';
+import 'music_share_controller.dart';
 import 'music_share_pair_identity.dart';
 import 'music_share_models.dart';
 import 'music_share_peers.dart';
@@ -66,6 +67,7 @@ class _MusicShareConnectState extends ConsumerState<MusicShareConnect> {
         final share = ref.read(musicShareProvider);
         if (share.selectedSource != peer.id ||
             peer.status != MusicPeerStatus.online) {
+          await share.syncPeer(peer, rememberConnection: true);
           await share.selectSource(peer.id);
         }
         if (!mounted) return;

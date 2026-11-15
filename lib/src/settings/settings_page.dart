@@ -413,6 +413,7 @@ class _SettingsPageState extends State<SettingsPage> {
             if (_showImportDataDialog)
               _ConfirmSettingsDialog(
                 title: i18n.t('settings.importData'),
+                confirmText: i18n.t('common.confirm'),
                 message: i18n.t('settings.importDataConfirm'),
                 content: Column(
                   mainAxisSize: MainAxisSize.min,

@@ -1,6 +1,6 @@
 part of 'settings_page.dart';
 
-class PreferenceSettingsPage extends StatefulWidget {
+class PreferenceSettingsPage extends ConsumerStatefulWidget {
   const PreferenceSettingsPage({
     super.key,
     required this.onClose,
@@ -13,10 +13,12 @@ class PreferenceSettingsPage extends StatefulWidget {
   final PreferenceSettingsSnapshot? initialSnapshot;
 
   @override
-  State<PreferenceSettingsPage> createState() => _PreferenceSettingsPageState();
+  ConsumerState<PreferenceSettingsPage> createState() =>
+      _PreferenceSettingsPageState();
 }
 
-class _PreferenceSettingsPageState extends State<PreferenceSettingsPage> {
+class _PreferenceSettingsPageState
+    extends ConsumerState<PreferenceSettingsPage> {
   static const _preferenceSectionLimits = {
     PreferenceSectionKey.songs: 100,
     PreferenceSectionKey.artists: 50,
@@ -31,21 +33,13 @@ class _PreferenceSettingsPageState extends State<PreferenceSettingsPage> {
   final _expandedSections = <PreferenceSectionKey>{};
   var _loading = false;
   var _loadStarted = false;
-  StreamSubscription<String>? _remoteChanges;
+  var _loadingRequest = false;
+  var _loadFailed = false;
 
   @override
   void initState() {
     super.initState();
     _source = activeMusicShareAccess?.selectedSource ?? 'local';
-    _remoteChanges = activeMusicShareAccess?.remoteDataChanges.listen((device) {
-      if (device == _source && mounted) {
-        unawaited(
-          _loadPreferenceSnapshot(
-            context.smPlayerI18n.t('common.albumUnknown'),
-          ),
-        );
-      }
-    });
     _snapshot = widget.initialSnapshot ?? PreferenceSettingsSnapshot.defaults();
     if (widget.initialSnapshot == null) {
       _loading = true;
@@ -65,7 +59,6 @@ class _PreferenceSettingsPageState extends State<PreferenceSettingsPage> {
 
   @override
   void dispose() {
-    unawaited(_remoteChanges?.cancel());
     _preferenceScrollController.dispose();
     super.dispose();
   }
@@ -91,6 +84,18 @@ class _PreferenceSettingsPageState extends State<PreferenceSettingsPage> {
         child:
             _loading
                 ? _PreferenceLoading(message: i18n.t('preferences.loading'))
+                : _loadFailed
+                ? Center(
+                  child: PopupDialogActionButton(
+                    label: i18n.t('share.retryDirectory'),
+                    onPressed:
+                        () => unawaited(
+                          _loadPreferenceSnapshot(
+                            i18n.t('common.albumUnknown'),
+                          ),
+                        ),
+                  ),
+                )
                 : _buildPreferencePage(i18n),
       ),
     );
@@ -175,6 +180,12 @@ class _PreferenceSettingsPageState extends State<PreferenceSettingsPage> {
   }
 
   Future<void> _loadPreferenceSnapshot(String unknownAlbumName) async {
+    if (_loadingRequest) return;
+    _loadingRequest = true;
+    setState(() {
+      _loading = true;
+      _loadFailed = false;
+    });
     try {
       final snapshot = await widget.libraryRepository.getPreferenceSettings(
         unknownAlbumName: unknownAlbumName,
@@ -195,7 +206,12 @@ class _PreferenceSettingsPageState extends State<PreferenceSettingsPage> {
         context: context,
         message: context.smPlayerI18n.t('preferences.loadFailed'),
       );
-      widget.onClose();
+      setState(() {
+        _loading = false;
+        _loadFailed = true;
+      });
+    } finally {
+      _loadingRequest = false;
     }
   }
 

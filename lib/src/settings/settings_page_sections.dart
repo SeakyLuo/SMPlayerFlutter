@@ -255,6 +255,106 @@ extension _SettingsPageSections on _SettingsPageState {
             ),
           ],
         ),
+      SettingsCard(
+        title: i18n.t('settings.others'),
+        children: [
+          SelectSettingRow<NotificationSendMode>(
+            label: i18n.t('settings.notificationSend'),
+            value: _snapshot.notificationSend,
+            options:
+                NotificationSendMode.values
+                    .map(
+                      (mode) => SelectSettingOption(
+                        value: mode,
+                        label: _notificationSendLabel(i18n, mode),
+                      ),
+                    )
+                    .toList(),
+            onChange: (value) {
+              _updateSettings(
+                AppSettingsUpdate(
+                  notificationSend: value,
+                  showNotifications: value != NotificationSendMode.never,
+                ),
+              );
+            },
+          ),
+          ToggleSettingRow(
+            label: i18n.t('settings.quitOnClose'),
+            checked: _snapshot.quitOnClose,
+            onChange: (checked) {
+              _updateSettings(AppSettingsUpdate(quitOnClose: checked));
+            },
+          ),
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: [
+              SettingsActionButton(
+                onClick: () {
+                  setState(() {
+                    _showReleaseNotes = true;
+                  });
+                },
+                child: Text(i18n.t('settings.releaseNotes')),
+              ),
+              SettingsActionButton(
+                disabled: _isDataTransferBusy,
+                tooltip: i18n.t('settings.importDataHint'),
+                onClick: () {
+                  setState(() {
+                    _showImportDataDialog = true;
+                    _restoreImportedQueue = true;
+                  });
+                },
+                child: Text(i18n.t('settings.importData')),
+              ),
+              SettingsActionButton(
+                disabled: _isDataTransferBusy,
+                loading: _isExportingData,
+                tooltip: i18n.t('settings.exportDataHint'),
+                onClick: () {
+                  unawaited(_exportData());
+                },
+                child: Text(i18n.t('settings.exportData')),
+              ),
+              _FeedbackActionButton(
+                showOptions: _showFeedbackOptions,
+                onToggle: () {
+                  setState(() {
+                    _showFeedbackOptions = !_showFeedbackOptions;
+                  });
+                },
+                onDismiss: () {
+                  setState(() {
+                    _showFeedbackOptions = false;
+                  });
+                },
+                onSelected: (label) {
+                  setState(() {
+                    _showFeedbackOptions = false;
+                  });
+                  if (label == i18n.t('settings.viaEmail')) {
+                    widget.onSendFeedbackEmail?.call();
+                  } else {
+                    widget.onOpenFeedbackInBrowser?.call();
+                  }
+                },
+              ),
+              SettingsActionButton(
+                onClick: widget.onOpenPrivacyPolicy,
+                child: Text(i18n.t('settings.privacyPolicy')),
+              ),
+              SettingsActionButton(
+                onClick: () {
+                  widget.onRevealSystemLogs?.call();
+                },
+                child: Text(i18n.t('settings.systemLog')),
+              ),
+            ],
+          ),
+        ],
+      ),
     ];
   }
 
@@ -398,7 +498,7 @@ extension _SettingsPageSections on _SettingsPageState {
             value: _snapshot.aiAgentPort,
             enabled: !_updatingAiAgent && !aiAgentRemoteController.isBusy,
             editTooltip: i18n.t('common.edit'),
-            confirmTooltip: i18n.t('common.confirm'),
+            confirmTooltip: i18n.t('settings.saveChanges'),
             cancelTooltip: i18n.t('common.cancel'),
             onConfirm: (port) => _setAiAgentPort(port, i18n),
             onInvalid: () {
@@ -445,108 +545,7 @@ extension _SettingsPageSections on _SettingsPageState {
             ],
           ),
           const _SettingsMusicSharing(),
-          const SizedBox(height: 20),
           const _SettingsDownloadLocation(),
-        ],
-      ),
-      SettingsCard(
-        title: i18n.t('settings.others'),
-        children: [
-          SelectSettingRow<NotificationSendMode>(
-            label: i18n.t('settings.notificationSend'),
-            value: _snapshot.notificationSend,
-            options:
-                NotificationSendMode.values
-                    .map(
-                      (mode) => SelectSettingOption(
-                        value: mode,
-                        label: _notificationSendLabel(i18n, mode),
-                      ),
-                    )
-                    .toList(),
-            onChange: (value) {
-              _updateSettings(
-                AppSettingsUpdate(
-                  notificationSend: value,
-                  showNotifications: value != NotificationSendMode.never,
-                ),
-              );
-            },
-          ),
-          ToggleSettingRow(
-            label: i18n.t('settings.quitOnClose'),
-            checked: _snapshot.quitOnClose,
-            onChange: (checked) {
-              _updateSettings(AppSettingsUpdate(quitOnClose: checked));
-            },
-          ),
-          Wrap(
-            spacing: 10,
-            runSpacing: 10,
-            children: [
-              SettingsActionButton(
-                onClick: () {
-                  setState(() {
-                    _showReleaseNotes = true;
-                  });
-                },
-                child: Text(i18n.t('settings.releaseNotes')),
-              ),
-              SettingsActionButton(
-                disabled: _isDataTransferBusy,
-                tooltip: i18n.t('settings.importDataHint'),
-                onClick: () {
-                  setState(() {
-                    _showImportDataDialog = true;
-                    _restoreImportedQueue = true;
-                  });
-                },
-                child: Text(i18n.t('settings.importData')),
-              ),
-              SettingsActionButton(
-                disabled: _isDataTransferBusy,
-                loading: _isExportingData,
-                tooltip: i18n.t('settings.exportDataHint'),
-                onClick: () {
-                  unawaited(_exportData());
-                },
-                child: Text(i18n.t('settings.exportData')),
-              ),
-              _FeedbackActionButton(
-                showOptions: _showFeedbackOptions,
-                onToggle: () {
-                  setState(() {
-                    _showFeedbackOptions = !_showFeedbackOptions;
-                  });
-                },
-                onDismiss: () {
-                  setState(() {
-                    _showFeedbackOptions = false;
-                  });
-                },
-                onSelected: (label) {
-                  setState(() {
-                    _showFeedbackOptions = false;
-                  });
-                  if (label == i18n.t('settings.viaEmail')) {
-                    widget.onSendFeedbackEmail?.call();
-                  } else {
-                    widget.onOpenFeedbackInBrowser?.call();
-                  }
-                },
-              ),
-              SettingsActionButton(
-                onClick: widget.onOpenPrivacyPolicy,
-                child: Text(i18n.t('settings.privacyPolicy')),
-              ),
-              SettingsActionButton(
-                onClick: () {
-                  widget.onRevealSystemLogs?.call();
-                },
-                child: Text(i18n.t('settings.systemLog')),
-              ),
-            ],
-          ),
         ],
       ),
     ];

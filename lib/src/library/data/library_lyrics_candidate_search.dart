@@ -7,7 +7,7 @@ extension LibraryLyricsCandidateSearch on LibraryLyricsService {
     File databaseFile,
     int songId,
   ) async {
-    final song = _getLyricsSongLookup(databaseFile, songId);
+    final song = await _getLyricsSongLookup(databaseFile, songId);
     final resolver = _internetLyricsResolver;
     if (resolver != null) {
       final rawLyrics = await resolver(

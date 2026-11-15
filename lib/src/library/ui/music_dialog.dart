@@ -167,6 +167,7 @@ class _MusicDialogState extends ConsumerState<MusicDialog> {
   var _lyricsSearchCandidates = const <InternetLyricsCandidate>[];
   var _loadGeneration = 0;
   final _requestedModes = <SongDialogMode>{};
+  final _failedModes = <SongDialogMode>{};
   int? _scheduledBrowseSongId;
   var _dependenciesInitialized = false;
   final _shortcutFocusNode = FocusNode(debugLabel: 'MusicDialogShortcuts');

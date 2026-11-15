@@ -74,9 +74,9 @@ class _RecentBrowsesPage extends StatelessWidget {
   Future<void> _confirmClearHistory(BuildContext context) async {
     final confirmed = await showPopupConfirmDialog(
       context: context,
-      title: i18n.t('common.confirm'),
-      message: i18n.t('recent.clearBrowsesConfirm'),
-      confirmLabel: i18n.t('common.confirm'),
+      title: i18n.t('recent.clearBrowsesConfirm'),
+      message: i18n.t('recent.clearBrowsesMessage'),
+      confirmLabel: i18n.t('common.clear'),
       destructive: false,
     );
     if (!confirmed) {

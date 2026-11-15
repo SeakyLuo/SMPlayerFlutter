@@ -16,6 +16,9 @@ extension _MusicDialogStateTabBuilders on _MusicDialogState {
             ),
           ),
         );
+        if (_failedModes.contains(SongDialogMode.properties)) {
+          return _loadRetry(SongDialogMode.properties);
+        }
         return MusicInfoControl(
           readOnly: !_canEditSong,
           sessionKey: _dialogSessionKey,
@@ -67,6 +70,9 @@ extension _MusicDialogStateTabBuilders on _MusicDialogState {
             ),
           ),
         );
+        if (_failedModes.contains(SongDialogMode.lyrics)) {
+          return _loadRetry(SongDialogMode.lyrics);
+        }
         return MusicLyricsControl(
           readOnly: !_canEditSong,
           sessionKey: _dialogSessionKey,
@@ -98,6 +104,9 @@ extension _MusicDialogStateTabBuilders on _MusicDialogState {
             ),
           ),
         );
+        if (_failedModes.contains(SongDialogMode.albumArt)) {
+          return _loadRetry(SongDialogMode.albumArt);
+        }
         return MusicAlbumArtControl(
           readOnly: !_canEditSong,
           song: widget.song,
@@ -120,4 +129,19 @@ extension _MusicDialogStateTabBuilders on _MusicDialogState {
       },
     );
   }
+
+  Widget _loadRetry(SongDialogMode mode) => Center(
+    child: PopupDialogActionButton(
+      label: context.smPlayerI18n.t('share.retryDirectory'),
+      onPressed:
+          () => unawaited(
+            _loadMode(
+              mode,
+              ref.read(libraryRepositoryProvider),
+              widget.song.id,
+              _loadGeneration,
+            ),
+          ),
+    ),
+  );
 }

@@ -59,7 +59,7 @@ extension _SearchPageContent on _SearchPageState {
               _searchPageHorizontalInset,
               22,
             ),
-            child: _SearchEmptyState(message: i18n.t('search.noResult')),
+            child: const LibraryLoadFailure(),
           ),
         );
       },

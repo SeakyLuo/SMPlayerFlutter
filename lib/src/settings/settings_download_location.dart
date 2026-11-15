@@ -81,6 +81,9 @@ class _SettingsDownloadLocationState
                     activeColor: colors.accent,
                     contentPadding: EdgeInsets.zero,
                     dense: true,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
                     title: Text(
                       i18n.t(
                         location == MusicShareDownloadLocation.library

@@ -2,6 +2,7 @@ import '../../remote/music_share_access.dart';
 import '../../remote/music_share_models.dart';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:isolate';
 import 'dart:math' as math;
 
 import 'package:http/http.dart' as http;
@@ -54,7 +55,7 @@ class LibraryLyricsService {
     int songId, {
     settings.LyricsRequestMode mode = settings.LyricsRequestMode.auto,
   }) async {
-    final song = _getLyricsSongLookup(databaseFile, songId);
+    final song = await _getLyricsSongLookup(databaseFile, songId);
     if (isRemoteMusicPath(song.path)) {
       return activeMusicShareAccess!.lyrics(song.path);
     }
@@ -161,7 +162,7 @@ class LibraryLyricsService {
     File databaseFile,
     int songId,
   ) async {
-    final song = _getLyricsSongLookup(databaseFile, songId);
+    final song = await _getLyricsSongLookup(databaseFile, songId);
     final rawLyrics = await _searchInternetLyrics(song);
     final internetLyrics = await _prepareInternetLyrics(rawLyrics);
     return _createLyricsSnapshot(
@@ -171,7 +172,7 @@ class LibraryLyricsService {
   }
 
   Future<Uri> getLyricsSearchUri(File databaseFile, int songId) async {
-    final song = _getLyricsSongLookup(databaseFile, songId);
+    final song = await _getLyricsSongLookup(databaseFile, songId);
     final settingsSnapshot = await _settingsSnapshotResolver();
     final preferredLanguage =
         settingsSnapshot?.preferredLanguage ??
@@ -515,7 +516,15 @@ class LibraryLyricsService {
     }
   }
 
-  _LyricsSongLookup _getLyricsSongLookup(File databaseFile, int songId) {
+  Future<_LyricsSongLookup> _getLyricsSongLookup(
+    File databaseFile,
+    int songId,
+  ) => Isolate.run(() => _readLyricsSongLookup(databaseFile, songId));
+
+  static _LyricsSongLookup _readLyricsSongLookup(
+    File databaseFile,
+    int songId,
+  ) {
     final db = sqlite3.open(databaseFile.path);
     try {
       final rows = db.select(

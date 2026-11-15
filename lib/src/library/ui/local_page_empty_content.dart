@@ -2,6 +2,7 @@ import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/widgets.dart';
 
 import '../../i18n/app_i18n.dart';
+import '../../remote/music_share_models.dart';
 import '../data/library_models.dart';
 import 'local_page_shell.dart';
 
@@ -11,6 +12,12 @@ Widget buildLocalPageEmptyContent({
   required String searchQuery,
   required VoidCallback onOpenSettings,
 }) {
+  if (snapshot.songs.isEmpty && isRemoteMusicPath(snapshot.rootPath)) {
+    return LocalPageEmptyState(
+      title: i18n.t('share.emptyLibrary'),
+      message: '',
+    );
+  }
   if (snapshot.songs.isEmpty) {
     return LocalPageEmptyState(
       title: i18n.t('local.noSongsScanned'),
