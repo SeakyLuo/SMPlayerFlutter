@@ -69,23 +69,21 @@ extension _MusicDialogStateLoadActions on _MusicDialogState {
       return;
     }
     _failedModes.remove(mode);
-    if (isRemoteMusicPath(widget.song.path)) {
-      switch (mode) {
-        case SongDialogMode.properties:
-          ref
-              .read(
-                musicDialogPropertiesStateProvider(_dialogSessionKey).notifier,
-              )
-              .reset();
-        case SongDialogMode.lyrics:
-          ref
-              .read(musicDialogLyricsStateProvider(_dialogSessionKey).notifier)
-              .reset();
-        case SongDialogMode.albumArt:
-          ref
-              .read(musicDialogArtworkStateProvider(_dialogSessionKey).notifier)
-              .reset();
-      }
+    switch (mode) {
+      case SongDialogMode.properties:
+        ref
+            .read(
+              musicDialogPropertiesStateProvider(_dialogSessionKey).notifier,
+            )
+            .reset();
+      case SongDialogMode.lyrics:
+        ref
+            .read(musicDialogLyricsStateProvider(_dialogSessionKey).notifier)
+            .reset();
+      case SongDialogMode.albumArt:
+        ref
+            .read(musicDialogArtworkStateProvider(_dialogSessionKey).notifier)
+            .reset();
     }
     await switch (mode) {
       SongDialogMode.properties => _loadProperties(
@@ -209,6 +207,7 @@ extension _MusicDialogStateLoadActions on _MusicDialogState {
     int songId,
     int generation,
   ) async {
+    final i18n = context.smPlayerI18n;
     try {
       final artwork = await repository.getSongArtworkSnapshot(songId);
       if (!_isActiveLoad(songId, generation)) {
@@ -224,20 +223,22 @@ extension _MusicDialogStateLoadActions on _MusicDialogState {
       ref
           .read(musicDialogArtworkStateProvider(_dialogSessionKey).notifier)
           .loaded();
-      if (!isRemoteMusicPath(widget.song.path)) {
-        await _resolveDisplayArtwork(repository, songId, generation);
-        await _loadArtworkRecommendation(dependencyChanged: true);
-      }
-    } catch (_) {
+      await _resolveDisplayArtwork(repository, songId, generation);
+      await _loadArtworkRecommendation(dependencyChanged: true);
+    } catch (error) {
       if (_isActiveLoad(songId, generation)) {
         _requestedModes.remove(SongDialogMode.albumArt);
         _failedModes.add(SongDialogMode.albumArt);
         ref
             .read(musicDialogArtworkStateProvider(_dialogSessionKey).notifier)
             .loaded();
-        if (isRemoteMusicPath(widget.song.path)) {
-          _showMessage(context.smPlayerI18n.t('share.connectionFailed'));
-        }
+        _showMessage(
+          i18n.t(
+            error is MusicShareException
+                ? error.messageKey
+                : 'song.updateFailed',
+          ),
+        );
       }
     }
   }

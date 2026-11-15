@@ -1,3 +1,7 @@
+import '../data/library_queries.dart';
+import '../data/library_search_matching.dart';
+export '../data/library_search_matching.dart'
+    show evaluateString, getEditDistance;
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/data/library_models.dart';
 import 'package:smplayer_flutter/src/library/ui/album_tile.dart';
@@ -5,6 +9,8 @@ import 'package:smplayer_flutter/src/library/ui/artists_page_model.dart'
     show compareLocaleText;
 import 'package:smplayer_flutter/src/library/ui/song_display_helpers.dart';
 import 'package:smplayer_flutter/src/settings/settings_model.dart';
+
+part 'search_folder_results.dart';
 
 enum SearchResultType { artists, albums, songs, lyrics, playlists, folders }
 
@@ -30,10 +36,29 @@ class SearchResult {
     required this.albumCount,
     required this.songIds,
     this.sourceId,
+    this.scope,
     this.sourcePath,
     this.localFolderRelativePath,
   });
 
+  SearchResult withIds(List<int> ids) => SearchResult(
+    title: title,
+    subtitle: subtitle,
+    artworkUrl: artworkUrl,
+    path: path,
+    score: score,
+    songCount: songCount,
+    playCount: playCount,
+    duration: duration,
+    albumCount: albumCount,
+    songIds: ids,
+    sourceId: sourceId,
+    sourcePath: sourcePath,
+    localFolderRelativePath: localFolderRelativePath,
+    scope: scope,
+  );
+
+  final LibraryDataQuery? scope;
   final String title;
   final String subtitle;
   final String artworkUrl;
@@ -54,12 +79,14 @@ AlbumTileData getSearchAlbumTileData(
   Map<int, LibrarySong> songsById,
   SmPlayerI18n i18n,
 ) {
-  final songs = card.songIds.map((songId) => songsById[songId]!).toList();
   return AlbumTileData(
     name: card.title,
-    artist: getSearchAlbumArtistLabel(songs, i18n),
-    songs: songs,
-    duration: songs.fold(0, (total, song) => total + song.duration),
+    artist: card.subtitle,
+    songs: const [],
+    duration: card.duration,
+    artworkPath: card.artworkUrl,
+    summarySongCount: card.songCount,
+    referenceIds: card.songIds,
   );
 }
 
@@ -85,16 +112,30 @@ class SearchResults {
     required this.lyrics,
     required this.playlists,
     required this.folders,
+    this.totalSongs,
+    this.songRows = const {},
+    this.totalLyrics,
+    this.lyricsRows = const {},
   });
 
   const SearchResults.empty()
-    : artists = const [],
+    : totalLyrics = 0,
+      lyricsRows = const {},
+      totalSongs = 0,
+      songRows = const {},
+      artists = const [],
       albums = const [],
       songs = const [],
       lyrics = const [],
       playlists = const [],
       folders = const [];
 
+  final int? totalLyrics;
+  int get lyricsCount => totalLyrics ?? lyrics.length;
+  final Map<int, SearchLyricsResult> lyricsRows;
+  final int? totalSongs;
+  int get songCount => totalSongs ?? songs.length;
+  final Map<int, LibrarySong> songRows;
   final List<SearchResult> artists;
   final List<SearchResult> albums;
   final List<LibrarySong> songs;
@@ -203,8 +244,9 @@ SearchResults buildSearchResults(
   String normalizedQuery,
   SmPlayerI18n i18n,
   int favoritePlaylistId,
-  int nowPlayingPlaylistId,
-) {
+  int nowPlayingPlaylistId, {
+  Map<int, String>? songFolderPaths,
+}) {
   if (normalizedQuery.isEmpty) {
     return const SearchResults.empty();
   }
@@ -305,6 +347,7 @@ SearchResults buildSearchResults(
       rootPath,
       normalizedQuery,
       i18n,
+      songFolderPaths,
     ),
   );
 }
@@ -634,105 +677,6 @@ List<SearchResult> _buildAlbumResults(
   return results;
 }
 
-List<SearchResult> _buildFolderResults(
-  List<LibrarySong> songs,
-  List<LibraryFolder> folders,
-  List<LibrarySong> matchedSongs,
-  String rootPath,
-  String normalizedQuery,
-  SmPlayerI18n i18n,
-) {
-  final matchedFolderPaths =
-      matchedSongs.map((song) => getFolderPath(song.path)).toSet();
-  final candidateFolderPaths = <String>{};
-  final folderByPath = {for (final folder in folders) folder.path: folder};
-
-  for (final folder in folders) {
-    final folderName = getPathLabel(folder.path);
-    if (evaluateString(folderName, normalizedQuery) > 0 ||
-        evaluateString(folder.path, normalizedQuery) > 0) {
-      candidateFolderPaths.add(folder.path);
-    }
-  }
-  candidateFolderPaths.addAll(matchedFolderPaths);
-
-  final normalizedCandidateFolderPathByPath = {
-    for (final folderPath in candidateFolderPaths)
-      normalizeFolderPath(folderPath): folderPath,
-  };
-  final songsByFolder = <String, List<LibrarySong>>{};
-  for (final song in songs) {
-    var currentFolderPath = normalizeFolderPath(getFolderPath(song.path));
-    while (currentFolderPath.isNotEmpty) {
-      final candidateFolderPath =
-          normalizedCandidateFolderPathByPath[currentFolderPath];
-      if (candidateFolderPath != null) {
-        final folderSongs =
-            songsByFolder[candidateFolderPath] ?? <LibrarySong>[];
-        folderSongs.add(song);
-        songsByFolder[candidateFolderPath] = folderSongs;
-      }
-      currentFolderPath = getParentFolderPath(currentFolderPath);
-    }
-  }
-
-  final results =
-      candidateFolderPaths
-          .map((folderPath) {
-            final folderSongs =
-                songsByFolder[folderPath] ?? const <LibrarySong>[];
-            final folderName = getPathLabel(folderPath);
-            return SearchResult(
-              score: [
-                evaluateString(folderName, normalizedQuery),
-                evaluateString(folderPath, normalizedQuery),
-                matchedFolderPaths.contains(folderPath) ? 1 : 0,
-              ].reduce((left, right) => left > right ? left : right),
-              title:
-                  folderName.isEmpty ? i18n.t('local.libraryRoot') : folderName,
-              subtitle: i18n.t('cards.songCount', {
-                'count': folderSongs.length,
-              }),
-              artworkUrl:
-                  folderSongs
-                      .where((song) => song.thumbnailPath.isNotEmpty)
-                      .map((song) => song.thumbnailPath)
-                      .firstOrNull ??
-                  '',
-              path: '/local',
-              localFolderRelativePath: getRelativeFolderPath(
-                folderPath,
-                rootPath,
-              ),
-              songCount: folderSongs.length,
-              playCount: folderSongs.fold(
-                0,
-                (total, song) => total + song.playCount,
-              ),
-              duration: folderSongs.fold(
-                0,
-                (total, song) => total + song.duration,
-              ),
-              albumCount: 0,
-              songIds: folderSongs.map((song) => song.id).toList(),
-              sourceId: folderByPath[folderPath]?.id.toString(),
-              sourcePath: folderPath,
-            );
-          })
-          .where(
-            (result) =>
-                result.score > 0 && folderByPath.containsKey(result.sourcePath),
-          )
-          .toList()
-        ..sort(
-          (left, right) => _compareMany([
-            right.score.compareTo(left.score),
-            (left.sourcePath ?? '').compareTo(right.sourcePath ?? ''),
-          ]),
-        );
-  return results;
-}
-
 int matchSong(LibrarySong song, String normalizedQuery, SmPlayerI18n i18n) {
   final artists = _searchSongArtists(song, i18n);
   final artistScore = artists
@@ -749,44 +693,6 @@ int matchSong(LibrarySong song, String normalizedQuery, SmPlayerI18n i18n) {
       : baseScore + (song.playCount / 10).clamp(0, 10).floor();
 }
 
-int evaluateString(String value, String normalizedQuery, [int offset = 0]) {
-  if (value.isEmpty) {
-    return 0;
-  }
-
-  final normalizedValue = value.toLowerCase();
-  if (value == normalizedQuery) {
-    return 100 + offset;
-  }
-  if (normalizedValue == normalizedQuery) {
-    return 95 + offset;
-  }
-  if (value.startsWith(normalizedQuery)) {
-    return 90 + offset;
-  }
-  if (normalizedValue.startsWith(normalizedQuery)) {
-    return 85 + offset;
-  }
-  if (value.contains(normalizedQuery)) {
-    return 80 + offset;
-  }
-  if (normalizedValue.contains(normalizedQuery)) {
-    return 75 + offset;
-  }
-  if (normalizedQuery.contains(normalizedValue)) {
-    return 70 + offset;
-  }
-
-  final editDistance = getEditDistance(normalizedValue, normalizedQuery);
-  final ratio =
-      (editDistance * 100) ~/
-      [
-        normalizedValue.length,
-        normalizedQuery.length,
-      ].reduce((left, right) => left > right ? left : right);
-  return ratio <= 60 ? 70 - ratio + offset : 0;
-}
-
 List<String> _searchSongArtists(LibrarySong song, [SmPlayerI18n? i18n]) {
   final artists = songArtists(song);
   return artists.isEmpty
@@ -796,35 +702,6 @@ List<String> _searchSongArtists(LibrarySong song, [SmPlayerI18n? i18n]) {
 
 String _searchPrimaryArtist(LibrarySong song) {
   return _searchSongArtists(song).first;
-}
-
-int getEditDistance(String target, String given) {
-  final dp = List.generate(
-    target.length + 1,
-    (rowIndex) => List.generate(
-      given.length + 1,
-      (columnIndex) =>
-          rowIndex == 0
-              ? columnIndex
-              : columnIndex == 0
-              ? rowIndex
-              : 0,
-    ),
-  );
-
-  for (var rowIndex = 1; rowIndex <= target.length; rowIndex += 1) {
-    for (var columnIndex = 1; columnIndex <= given.length; columnIndex += 1) {
-      final replaceCost =
-          target[rowIndex - 1] == given[columnIndex - 1] ? 0 : 1;
-      dp[rowIndex][columnIndex] = [
-        dp[rowIndex - 1][columnIndex] + 1,
-        dp[rowIndex][columnIndex - 1] + 1,
-        dp[rowIndex - 1][columnIndex - 1] + replaceCost,
-      ].reduce((left, right) => left < right ? left : right);
-    }
-  }
-
-  return dp[target.length][given.length];
 }
 
 String getFolderPath(String filePath) {

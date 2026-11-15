@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 import 'dart:isolate';
 
@@ -113,7 +114,7 @@ class LibrarySongPropertiesService {
     File databaseFile,
     List<int> songIds,
   ) async {
-    final selectedSongIds = songIds.toSet();
+    final selection = jsonEncode(songIds);
     final db = sqlite3.open(databaseFile.path);
     try {
       final songRows = db.select(
@@ -127,32 +128,26 @@ class LibrarySongPropertiesService {
           Duration AS duration,
           PlayCount AS playCount
         FROM Music
-        WHERE State = ?
+        WHERE State = ? AND Id IN (SELECT value FROM json_each(?))
       ''',
-        [_activeState],
+        [_activeState, selection],
       );
       final artistRows = db.select(
         '''
         SELECT MusicId AS musicId, Name AS name
         FROM MusicArtist
-        WHERE State = ?
+        WHERE State = ? AND MusicId IN (SELECT value FROM json_each(?))
         ORDER BY MusicId, Priority, Id
       ''',
-        [_activeState],
+        [_activeState, selection],
       );
       final artistsBySongId = <int, List<String>>{};
       for (final row in artistRows) {
         final songId = row['musicId'] as int;
-        if (selectedSongIds.contains(songId)) {
-          (artistsBySongId[songId] ??= []).add(row['name'] as String);
-        }
+        (artistsBySongId[songId] ??= []).add(row['name'] as String);
       }
-      final selectedRows = [
-        for (final row in songRows)
-          if (selectedSongIds.contains(row['id'] as int)) row,
-      ];
       final snapshots = <SongPropertiesSnapshot>[];
-      for (final row in selectedRows) {
+      for (final row in songRows) {
         final songId = row['id'] as int;
         final file = File(row['path'] as String);
         final stats = await file.stat();
@@ -282,32 +277,33 @@ class LibrarySongPropertiesService {
     File databaseFile,
     Map<int, SongPropertiesUpdate> updates,
   ) async {
+    final selection = jsonEncode(updates.keys.toList());
     final db = sqlite3.open(databaseFile.path);
     try {
       final songRows = db.select(
         '''
         SELECT Id AS id, Path AS path
         FROM Music
-        WHERE State = ?
+        WHERE State = ? AND Id IN (SELECT value FROM json_each(?))
       ''',
-        [_activeState],
+        [_activeState, selection],
       );
       final pathBySongId = {
-        for (final row in songRows)
-          if (updates.containsKey(row['id'] as int))
-            row['id'] as int: row['path'] as String,
+        for (final row in songRows) row['id'] as int: row['path'] as String,
       };
-      final existingArtistRows = db.select('''
+      final existingArtistRows = db.select(
+        '''
         SELECT Id AS id, MusicId AS musicId, Name AS name
         FROM MusicArtist
+        WHERE MusicId IN (SELECT value FROM json_each(?))
         ORDER BY MusicId, Id
-      ''');
+      ''',
+        [selection],
+      );
       final artistRowsBySongId = <int, List<Row>>{};
       for (final row in existingArtistRows) {
         final songId = row['musicId'] as int;
-        if (updates.containsKey(songId)) {
-          (artistRowsBySongId[songId] ??= []).add(row);
-        }
+        (artistRowsBySongId[songId] ??= []).add(row);
       }
 
       final updatedSongIds = <int>[];

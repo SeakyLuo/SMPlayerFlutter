@@ -1,3 +1,6 @@
+import 'source_group_play.dart';
+import 'source_random_play.dart';
+import 'package:smplayer_flutter/src/playback/source_quick_play.dart';
 import 'dart:async';
 import 'dart:math';
 
@@ -31,7 +34,6 @@ import 'package:smplayer_flutter/src/playback/immersive_mode_stage.dart';
 import 'package:smplayer_flutter/src/playback/immersive_mode_queue.dart';
 import 'package:smplayer_flutter/src/playback/immersive_mode_theme.dart';
 import 'package:smplayer_flutter/src/playback/playback_queue_actions.dart';
-import 'package:smplayer_flutter/src/playback/quick_play_model.dart';
 import 'package:smplayer_flutter/src/settings/settings_controller.dart';
 import 'package:smplayer_flutter/src/settings/settings_model.dart'
     show NightMode;
@@ -366,7 +368,7 @@ class _ImmersiveModePageState extends ConsumerState<ImmersiveModePage>
               onToggleFavorite: _toggleSongsFavorite,
               onCreatePlaylist: _createPlaylist,
               onQuickPlay: () {
-                unawaited(_quickPlay(snapshot));
+                unawaited(_quickPlay());
               },
               onRandomPlay: () {
                 _playSongIds(snapshot.songs.map((song) => song.id).toList());
@@ -475,7 +477,7 @@ class _ImmersiveModePageState extends ConsumerState<ImmersiveModePage>
                 _togglePlayPauseFromQueue(queueSongs);
               },
               onQuickPlay: () {
-                unawaited(_quickPlay(snapshot));
+                unawaited(_quickPlay());
               },
               onToggleShuffle: _toggleShufflePlayback,
               onToggleFavorite:

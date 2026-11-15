@@ -1,3 +1,5 @@
+import 'library_scope_access.dart';
+import '../../playback/source_group_play.dart';
 import 'package:smplayer_flutter/src/library/ui/library_load_failure.dart';
 import '../../remote/music_source_providers.dart';
 import 'dart:async';
@@ -20,7 +22,6 @@ import 'package:go_router/go_router.dart';
 
 import '../../app/loading_state.dart';
 import '../../app/smplayer_auto_hide_scrollbar.dart';
-import '../../app/undoable_notification.dart';
 import '../../app/workspace_app_bar_portal.dart';
 import '../../i18n/app_i18n.dart';
 import '../../playback/playback_queue_actions.dart';
@@ -79,6 +80,7 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
   var _albumQuickJumpJumping = false;
   AlbumView? _albumArtPreview;
   Timer? _processingTimer;
+  String? _selectionSource;
   final _selection = PageSelectionController<String>.stored('albums');
   final _albumGridScrollController = ScrollController();
   final _appBarPortalOwner = Object();
@@ -206,19 +208,32 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
 
   @override
   Widget build(BuildContext context) {
+    final selectionSource =
+        ref.watch(selectedLibraryDataSourceProvider).source.deviceId;
+    if (_selectionSource != selectionSource) {
+      _selectionSource = selectionSource;
+      _selection.cancel();
+    }
+    if (!TickerMode.valuesOf(context).enabled) return const SizedBox.shrink();
     final i18nValue = ref.watch(smPlayerI18nProvider);
     final snapshotValue = ref.watch(
-      browsingAvailableLibraryContentDataProvider,
+      browsingLibraryPageProvider(
+        const LibraryDataQuery(LibraryQueryKind.albumIndex),
+      ),
     );
     final songOverrides = ref.watch(librarySongOverridesProvider);
 
     if (i18nValue.isLoading) {
-      return const _AlbumsPagePanel(child: SmPlayerLoadingState());
+      return const _AlbumsPagePanel(
+        child: SmPlayerLoadingState(layout: SmPlayerLoadingLayout.grid),
+      );
     }
 
     final i18n = i18nValue.valueOrNull;
     if (i18n == null) {
-      return const _AlbumsPagePanel(child: SmPlayerLoadingState());
+      return const _AlbumsPagePanel(
+        child: SmPlayerLoadingState(layout: SmPlayerLoadingLayout.grid),
+      );
     }
 
     return snapshotValue.when(
@@ -263,14 +278,42 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
                   onChangeAlbumSort: _changeAlbumSort,
                   onToggleMultiSelect: _toggleMultiSelect,
                 ),
-              const _AlbumsProgress(key: ValueKey('Albums.Progress')),
-              const Expanded(child: SmPlayerLoadingState(compact: true)),
+              const Expanded(
+                child: SmPlayerLoadingState(layout: SmPlayerLoadingLayout.grid),
+              ),
             ],
           ),
         );
       },
       error: (_, _) => const _AlbumsPagePanel(child: LibraryLoadFailure()),
-      data: (rawSnapshot) {
+      data: (rawPage) {
+        final selectedNames =
+            rawPage.albumSummaries
+                .where(
+                  (album) => _selection.isSelected(
+                    album.name.isEmpty
+                        ? i18n.t('common.albumUnknown')
+                        : album.name,
+                  ),
+                )
+                .map((album) => album.name)
+                .toList();
+        final selectedData =
+            selectedNames.isEmpty
+                ? null
+                : watchLibraryScopeIds(
+                  ref,
+                  LibraryDataQuery(
+                    LibraryQueryKind.album,
+                    source:
+                        ref
+                            .read(selectedLibraryDataSourceProvider)
+                            .source
+                            .deviceId,
+                    albumNames: selectedNames,
+                  ),
+                );
+        final rawSnapshot = rawPage;
         final libraryData = ref.watch(
           _albumsLibraryDataProvider((
             snapshot: rawSnapshot,
@@ -309,8 +352,7 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
             visibleAlbums
                 .where((album) => _selection.isSelected(album.name))
                 .toList();
-        final selectedSongIds =
-            selectedAlbums.expand((album) => album.songIds).toList();
+        final selectedSongIds = selectedData?.valueOrNull ?? const <int>[];
         final songsById = libraryData.songsById;
         final albumSearchSuggestions = ref.watch(
           _albumSearchSuggestionsProvider((
@@ -375,12 +417,12 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
                     onChangeAlbumSort: _changeAlbumSort,
                     onToggleMultiSelect: _toggleMultiSelect,
                   ),
-                if (_processing)
-                  const _AlbumsProgress(key: ValueKey('Albums.Progress')),
                 Expanded(
                   child:
                       _processing
-                          ? const SmPlayerLoadingState(compact: true)
+                          ? const SmPlayerLoadingState(
+                            layout: SmPlayerLoadingLayout.grid,
+                          )
                           : LayoutBuilder(
                             builder: (context, constraints) {
                               return Align(
@@ -526,13 +568,7 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
                                           _openAlbum(album.name);
                                         },
                                         onPlayAlbum: () {
-                                          unawaited(
-                                            recordRecentAlbumPlayback(
-                                              ref,
-                                              album.name,
-                                            ),
-                                          );
-                                          _playSongIds(album.songIds);
+                                          unawaited(_playAlbumSummary(album));
                                         },
                                         onAddAlbum: (position) {
                                           _showAlbumAddToMenu(
@@ -569,6 +605,8 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
                     bottomInset: multiSelectCommandBarShellBottomInset,
                     horizontalBleed: 24,
                     selectedCount: selectedAlbums.length,
+                    loading: selectedData?.isLoading ?? false,
+                    enabled: !(selectedData?.hasError ?? false),
                     playlists: customPlaylists,
                     addToSongIds: selectedSongIds,
                     nowPlayingSongIds: snapshot.nowPlaying.songIds,
@@ -591,10 +629,7 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
                         selectedSongIds.isEmpty
                             ? null
                             : () {
-                              _setSongsFavoriteWithUndo(
-                                notFavoriteSongIds(selectedSongIds, songsById),
-                                true,
-                              );
+                              _setSongsFavoriteWithUndo(selectedSongIds, true);
                               _hideSelectionAfterOperation(
                                 snapshot
                                     .hideMultiSelectCommandBarAfterOperation,
@@ -632,8 +667,11 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
                                     .hideMultiSelectCommandBarAfterOperation,
                               );
                             },
-                    onAddToPlaylist: (playlistId) {
-                      _addSongsToPlaylistWithUndo(playlistId, selectedSongIds);
+                    onAddToPlaylist: (playlistId) async {
+                      await _addSongsToPlaylistWithUndo(
+                        playlistId,
+                        selectedSongIds,
+                      );
                       _hideSelectionAfterOperation(
                         snapshot.hideMultiSelectCommandBarAfterOperation,
                       );
@@ -668,9 +706,6 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
                         setState(() {
                           _albumArtPreview = null;
                         });
-                      },
-                      onSaved: () {
-                        ref.invalidate(libraryContentDataProvider);
                       },
                     ),
                 ],

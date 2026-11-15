@@ -1,9 +1,11 @@
 part of 'local_page.dart';
 
 extension _LocalPagePlaybackActions on _LocalPageState {
-  void _playShuffled(FolderNode folder) {
-    _playShuffledSongIds(folder.subtreeSongIds);
-  }
+  Future<void> _playShuffled(FolderNode folder) =>
+      runMusicShareAction(context, () async {
+        final ids = await _folderScopeIds(folder);
+        if (mounted) _playShuffledSongIds(ids);
+      });
 
   void _playShuffledFromToolbar(
     BuildContext buttonContext,
@@ -12,7 +14,7 @@ extension _LocalPagePlaybackActions on _LocalPageState {
     bool hasSubfolderSongs,
     SmPlayerI18n i18n,
   ) {
-    if (queueSongIds.isNotEmpty && hasSubfolderSongs) {
+    if (currentNode.directCount > 0 && hasSubfolderSongs) {
       showMenuFlyout(
         buttonContext,
         items: _localShuffleMenuItems(currentNode, queueSongIds, i18n),
@@ -20,9 +22,7 @@ extension _LocalPagePlaybackActions on _LocalPageState {
       return;
     }
 
-    _playShuffledSongIds(
-      queueSongIds.isNotEmpty ? queueSongIds : currentNode.subtreeSongIds,
-    );
+    unawaited(_playShuffled(currentNode));
   }
 
   List<MenuFlyoutItem> _localShuffleMenuItems(
@@ -35,13 +35,16 @@ extension _LocalPagePlaybackActions on _LocalPageState {
         key: 'toolbar-shuffle-current',
         text: i18n.t('local.scopeCurrent'),
         useShuffleIcon: true,
-        onPressed: () => _playShuffledSongIds(queueSongIds),
+        onPressed: () async {
+          final ids = await _folderScopeIds(currentNode, recursive: false);
+          if (mounted) _playShuffledSongIds(ids);
+        },
       ),
       MenuFlyoutItem(
         key: 'toolbar-shuffle-subtree',
         text: i18n.t('local.scopeSubtree'),
         icon: FluentIcons.folder_20_regular,
-        onPressed: () => _playShuffledSongIds(currentNode.subtreeSongIds),
+        onPressed: () => _playShuffled(currentNode),
       ),
     ];
   }

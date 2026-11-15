@@ -66,39 +66,38 @@ extension _LocalPageContextMenus on _LocalPageState {
     required LibraryContentData snapshot,
     required SmPlayerI18n i18n,
   }) async {
-    final preferenceLevel =
-        _remote
-            ? null
-            : await ref
-                .read(libraryRepositoryProvider)
-                .getPreferenceLevel('folder', '${folder.id}');
+    final preferenceLevel = await ref
+        .read(libraryRepositoryProvider)
+        .getPreferenceLevel('folder', '${folder.id}', source: _source);
     if (!mounted) {
       return;
     }
+    final folderIds = await _folderScopeIds(folder);
+    if (!mounted) return;
     final addToItem = buildAddToPlaylistMenuFlyoutItem(
       i18n: i18n,
-      songIds: folder.subtreeSongIds,
+      songIds: folderIds,
       playlists: playlists,
       includeNowPlaying: shouldShowNowPlayingAddToTarget(
-        songIds: folder.subtreeSongIds,
+        songIds: folderIds,
         nowPlayingSongIds: snapshot.nowPlaying.songIds,
         isNowPlayingContext: false,
       ),
-      includeFavorites: _hasNotFavoriteSongs(folder.subtreeSongIds, songsById),
-      onAddToNowPlaying: () {
-        _addSongsToNowPlaying(folder.subtreeSongIds);
+      includeFavorites: _hasNotFavoriteSongs(folderIds, songsById),
+      onAddToNowPlaying: () async {
+        await _addSongsToNowPlaying(folderIds);
       },
-      onToggleFavorite: () {
-        _toggleSongsFavorite(
-          _notFavoriteSongIds(folder.subtreeSongIds, songsById),
+      onToggleFavorite: () async {
+        await _toggleSongsFavorite(
+          _notFavoriteSongIds(folderIds, songsById),
           true,
         );
       },
       onCreatePlaylist: () {
-        _createPlaylist(folder.name, folder.subtreeSongIds, snapshot, i18n);
+        _createPlaylist(folder.name, folderIds, snapshot, i18n);
       },
-      onAddToPlaylist: (playlistId) {
-        _addSongsToPlaylist(playlistId, folder.subtreeSongIds);
+      onAddToPlaylist: (playlistId) async {
+        await _addSongsToPlaylist(playlistId, folderIds);
       },
     );
     final moveToFolderItem = buildLocalMoveToFolderMenuItem(
@@ -128,14 +127,29 @@ extension _LocalPageContextMenus on _LocalPageState {
           onPressed: () => _playShuffled(folder),
         ),
         if (addToItem != null) addToItem,
+        if (_remote)
+          MenuFlyoutItem(
+            key: 'download-folder',
+            text: i18n.t('share.download'),
+            icon: FluentIcons.arrow_download_20_regular,
+            onPressed:
+                () => runMusicShareAction(
+                  context,
+                  () => downloadRemoteMusic(
+                    context,
+                    Uri.parse(folder.path).host,
+                    folder: folder.relativePath,
+                  ),
+                ),
+          ),
         MenuFlyoutItem(
           key: 'select-folder',
           text: i18n.t('context.select'),
           icon: FluentIcons.multiselect_ltr_20_regular,
           onPressed: () => _selectFolder(folder),
         ),
-        if (!_remote && moveToFolderItem != null) moveToFolderItem,
-        if (!_remote)
+        if (moveToFolderItem != null) moveToFolderItem,
+        if (_canWriteDirectory)
           _buildFolderPreferenceMenuItem(i18n, folder, preferenceLevel),
         if (!_remote)
           MenuFlyoutItem(
@@ -145,46 +159,46 @@ extension _LocalPageContextMenus on _LocalPageState {
             icon: FluentIcons.folder_open_20_regular,
             onPressed: () => _revealFolder(folder),
           ),
-        if (!_remote)
-          MenuFlyoutItem(
-            key: 'new-folder',
-            text: i18n.t('local.newFolder'),
-            icon: FluentIcons.add_20_regular,
-            onPressed:
-                () => _createFolder(
-                  parent: folder,
-                  nodes: nodes,
-                  rootPath: snapshot.rootPath,
-                  i18n: i18n,
-                ),
-          ),
-        if (!_remote)
-          MenuFlyoutItem(
-            key: 'delete-folder',
-            text: i18n.t('local.deleteFolder'),
-            icon: FluentIcons.delete_20_regular,
-            onPressed: () => _requestDeleteFolder(folder, i18n),
-          ),
-        if (!_remote)
-          MenuFlyoutItem(
-            key: 'refresh-folder',
-            text: i18n.t('local.updateFolder'),
-            icon: FluentIcons.arrow_sync_20_regular,
-            onPressed: () => _refreshFolder(folder, i18n),
-          ),
-        if (!_remote)
-          MenuFlyoutItem(
-            key: 'rename-folder',
-            text: i18n.t('local.renameFolder'),
-            icon: FluentIcons.rename_20_regular,
-            onPressed:
-                () => _renameFolder(
-                  folder: folder,
-                  nodes: nodes,
-                  rootPath: snapshot.rootPath,
-                  i18n: i18n,
-                ),
-          ),
+        MenuFlyoutItem(
+          key: 'new-folder',
+          disabled: !_canWriteDirectory,
+          text: i18n.t('local.newFolder'),
+          icon: FluentIcons.add_20_regular,
+          onPressed:
+              () => _createFolder(
+                parent: folder,
+                nodes: nodes,
+                rootPath: snapshot.rootPath,
+                i18n: i18n,
+              ),
+        ),
+        MenuFlyoutItem(
+          key: 'delete-folder',
+          disabled: !_canWriteDirectory,
+          text: i18n.t('local.deleteFolder'),
+          icon: FluentIcons.delete_20_regular,
+          onPressed: () => _requestDeleteFolder(folder, i18n),
+        ),
+        MenuFlyoutItem(
+          key: 'refresh-folder',
+          disabled: !_canWriteDirectory,
+          text: i18n.t('local.updateFolder'),
+          icon: FluentIcons.arrow_sync_20_regular,
+          onPressed: () => _refreshFolder(folder, i18n),
+        ),
+        MenuFlyoutItem(
+          key: 'rename-folder',
+          disabled: !_canWriteDirectory,
+          text: i18n.t('local.renameFolder'),
+          icon: FluentIcons.rename_20_regular,
+          onPressed:
+              () => _renameFolder(
+                folder: folder,
+                nodes: nodes,
+                rootPath: snapshot.rootPath,
+                i18n: i18n,
+              ),
+        ),
         _buildFolderSortMenuItem(i18n, folder),
         MenuFlyoutItem(
           key: 'search-directory',
@@ -192,13 +206,13 @@ extension _LocalPageContextMenus on _LocalPageState {
           icon: FluentIcons.search_20_regular,
           onPressed: () => _searchDirectory(folder, i18n),
         ),
-        if (!_remote)
-          MenuFlyoutItem(
-            key: 'hide-folder',
-            text: i18n.t('local.hideFolder'),
-            icon: FluentIcons.eye_off_20_regular,
-            onPressed: () => _hideFolder(folder),
-          ),
+        MenuFlyoutItem(
+          key: 'hide-folder',
+          disabled: !_canWriteDirectory,
+          text: i18n.t('local.hideFolder'),
+          icon: FluentIcons.eye_off_20_regular,
+          onPressed: () => _hideFolder(folder),
+        ),
       ],
     );
   }
@@ -212,39 +226,38 @@ extension _LocalPageContextMenus on _LocalPageState {
     required LibraryContentData snapshot,
     required SmPlayerI18n i18n,
   }) async {
-    final preferenceLevel =
-        _remote
-            ? null
-            : await ref
-                .read(libraryRepositoryProvider)
-                .getPreferenceLevel('folder', '${folder.id}');
+    final preferenceLevel = await ref
+        .read(libraryRepositoryProvider)
+        .getPreferenceLevel('folder', '${folder.id}', source: _source);
     if (!mounted) {
       return;
     }
+    final folderIds = await _folderScopeIds(folder);
+    if (!mounted) return;
     final addToItem = buildAddToPlaylistMenuFlyoutItem(
       i18n: i18n,
-      songIds: folder.subtreeSongIds,
+      songIds: folderIds,
       playlists: playlists,
       includeNowPlaying: shouldShowNowPlayingAddToTarget(
-        songIds: folder.subtreeSongIds,
+        songIds: folderIds,
         nowPlayingSongIds: snapshot.nowPlaying.songIds,
         isNowPlayingContext: false,
       ),
-      includeFavorites: _hasNotFavoriteSongs(folder.subtreeSongIds, songsById),
-      onAddToNowPlaying: () {
-        _addSongsToNowPlaying(folder.subtreeSongIds);
+      includeFavorites: _hasNotFavoriteSongs(folderIds, songsById),
+      onAddToNowPlaying: () async {
+        await _addSongsToNowPlaying(folderIds);
       },
-      onToggleFavorite: () {
-        _toggleSongsFavorite(
-          _notFavoriteSongIds(folder.subtreeSongIds, songsById),
+      onToggleFavorite: () async {
+        await _toggleSongsFavorite(
+          _notFavoriteSongIds(folderIds, songsById),
           true,
         );
       },
       onCreatePlaylist: () {
-        _createPlaylist(folder.name, folder.subtreeSongIds, snapshot, i18n);
+        _createPlaylist(folder.name, folderIds, snapshot, i18n);
       },
-      onAddToPlaylist: (playlistId) {
-        _addSongsToPlaylist(playlistId, folder.subtreeSongIds);
+      onAddToPlaylist: (playlistId) async {
+        await _addSongsToPlaylist(playlistId, folderIds);
       },
     );
     final moveToFolderItem = buildLocalMoveToFolderMenuItem(
@@ -274,8 +287,8 @@ extension _LocalPageContextMenus on _LocalPageState {
           onPressed: () => _playShuffled(folder),
         ),
         if (addToItem != null) addToItem,
-        if (!_remote && moveToFolderItem != null) moveToFolderItem,
-        if (!_remote)
+        if (moveToFolderItem != null) moveToFolderItem,
+        if (_canWriteDirectory)
           _buildFolderPreferenceMenuItem(
             i18n,
             folder,
@@ -339,7 +352,7 @@ extension _LocalPageContextMenus on _LocalPageState {
         showMusicProperties: showMusicProperties,
         showDelete: showDelete,
         showHideFile: true,
-        onPlay: () => _playTrack(song.id, queueSongIds),
+        onPlay: () => _playDirectorySong(song, snapshot),
         onTogglePlayPause:
             ref.read(mediaControlControllerProvider).onTogglePlayPause,
         onPlayNext: () => _playNext(song.id),
@@ -352,13 +365,13 @@ extension _LocalPageContextMenus on _LocalPageState {
             i18n,
           );
         },
-        onAddToPlaylist: (playlistId) {
-          _addSongsToPlaylist(playlistId, [song.id]);
+        onAddToPlaylist: (playlistId) async {
+          await _addSongsToPlaylist(playlistId, [song.id]);
         },
         onRemove: () => _showMessage(i18n.t('context.removeFromList')),
         onSelect: () => _selectSong(song.id),
-        onToggleFavorite: () {
-          _toggleSongsFavorite([song.id], !song.favorite);
+        onToggleFavorite: () async {
+          await _toggleSongsFavorite([song.id], !song.favorite);
         },
         onSetPreference: (level) async {
           await ref
@@ -440,6 +453,7 @@ extension _LocalPageContextMenus on _LocalPageState {
     final folderSortMode = localSortModeFromCriterion(folder.criterion);
     return MenuFlyoutItem(
       key: 'folder-sort',
+      disabled: !_canWriteDirectory,
       text: i18n.t('common.sort'),
       icon: FluentIcons.arrow_sort_20_regular,
       submenu: [
@@ -496,12 +510,22 @@ extension _LocalPageContextMenus on _LocalPageState {
               : () async {
                 await ref
                     .read(libraryRepositoryProvider)
-                    .removePreferenceItem('folder', '${folder.id}');
+                    .removePreferenceItem(
+                      'folder',
+                      '${folder.id}',
+                      source: _source,
+                    );
               },
       onSetPreference: (level) async {
         await ref
             .read(libraryRepositoryProvider)
-            .addPreferenceItem('folder', '${folder.id}', folder.name, level);
+            .addPreferenceItem(
+              'folder',
+              '${folder.id}',
+              folder.name,
+              level,
+              source: _source,
+            );
       },
     );
   }
@@ -519,16 +543,12 @@ extension _LocalPageContextMenus on _LocalPageState {
     _updateLocalPageState(() {
       _sortMode = sortMode;
     });
-    if (_remote) {
-      if (sortMode != LocalSortMode.reverse) {
-        _remoteSortModes[folder.relativePath] = sortMode;
-      }
-      return;
-    }
     if (sortMode != LocalSortMode.reverse) {
-      await ref
-          .read(libraryRepositoryProvider)
-          .updateLocalFolderSort(folder.path, sortMode);
+      await runLibraryStorageAction(
+        context,
+        () =>
+            LibraryStorageActions(ref).updateFolderSort(folder.path, sortMode),
+      );
     }
   }
 
@@ -542,27 +562,15 @@ extension _LocalPageContextMenus on _LocalPageState {
       return;
     }
 
-    if (_remote) {
-      _updateLocalPageState(() {
-        if (sortMode != LocalSortMode.reverse) {
-          _remoteSortModes[folder.relativePath] = sortMode;
-          folder.criterion = sortMode.index;
-        }
-        if (folder.relativePath == widget.currentRelativePath) {
-          _sortMode = sortMode;
-        }
-      });
-      return;
-    }
     if (sortMode != LocalSortMode.reverse) {
-      await ref
-          .read(libraryRepositoryProvider)
-          .updateLocalFolderSort(folder.path, sortMode);
+      await runLibraryStorageAction(
+        context,
+        () =>
+            LibraryStorageActions(ref).updateFolderSort(folder.path, sortMode),
+      );
     }
-    if (folder.relativePath == widget.currentRelativePath) {
-      _updateLocalPageState(() {
-        _sortMode = sortMode;
-      });
+    if (mounted && folder.relativePath == widget.currentRelativePath) {
+      _updateLocalPageState(() => _sortMode = sortMode);
     }
   }
 }

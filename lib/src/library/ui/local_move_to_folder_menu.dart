@@ -4,6 +4,8 @@ import 'package:flutter/foundation.dart';
 import '../../i18n/app_i18n.dart';
 import '../data/library_models.dart';
 import 'local_folder_model.dart';
+import '../../remote/music_share_access.dart';
+import '../../remote/music_share_models.dart';
 import 'menu_flyout.dart';
 import 'menu_flyout_helpers.dart';
 
@@ -32,6 +34,9 @@ MenuFlyoutItem? buildLocalMoveToFolderMenuItem({
     key: key,
     text: i18n.t('context.moveToFolder'),
     icon: FluentIcons.folder_20_regular,
+    disabled:
+        isRemoteMusicPath(nodes['']!.path) &&
+        !activeMusicShareAccess!.canWrite('${nodes['']!.path}/0'),
     submenu: moveItems,
   );
 }
@@ -47,14 +52,12 @@ List<MenuFlyoutItem> buildLocalMoveToFolderMenuItems({
   final nodesByAbsolutePath = {
     for (final node in nodes.values) normalizePath(node.path): node,
   };
-  final songParentPaths =
-      songIds
-          .map(
-            (songId) => normalizePath(
-              getLocalAbsoluteParentPath(songsById[songId]!.path),
-            ),
-          )
-          .toSet();
+  final selectedSongs = songIds.toSet();
+  final songParentPaths = {
+    for (final node in nodes.values)
+      if (node.directSongIds.any(selectedSongs.contains))
+        normalizePath(node.path),
+  };
   final sourceFolders =
       folderPaths
           .map((folderPath) => nodesByAbsolutePath[normalizePath(folderPath)]!)
@@ -68,6 +71,7 @@ List<MenuFlyoutItem> buildLocalMoveToFolderMenuItems({
     return sourceFolders.every(
       (sourceFolder) =>
           folder.relativePath != sourceFolder.relativePath &&
+          !folder.relativePath.startsWith('${sourceFolder.relativePath}/') &&
           folder.relativePath != getParentPath(sourceFolder.relativePath),
     );
   }

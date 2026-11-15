@@ -56,6 +56,7 @@ class _SettingsDownloadLocationState
     return Material(
       type: MaterialType.transparency,
       child: Column(
+        spacing: 6,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Text(

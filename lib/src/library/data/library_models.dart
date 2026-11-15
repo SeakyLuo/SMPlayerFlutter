@@ -1,7 +1,13 @@
 import 'library_source.dart';
+import 'dart:async';
 
 import 'package:smplayer_flutter/src/settings/settings_model.dart'
     show LocalViewMode;
+
+part 'library_scan_models.dart';
+part 'library_storage_models.dart';
+part 'library_collection_summary.dart';
+part 'library_content_data.dart';
 
 enum MusicLibrarySortCriterion {
   title,
@@ -50,7 +56,13 @@ class PendingLocalItemsDelete {
   final List<String> folderPaths;
 }
 
-class LibrarySong {
+abstract interface class ArtistTagSource {
+  String get artist;
+  List<String> get artists;
+  int get artistOccurrenceCount;
+}
+
+class LibrarySong implements ArtistTagSource {
   const LibrarySong({
     required this.id,
     required this.path,
@@ -65,11 +77,15 @@ class LibrarySong {
     required this.favorite,
     required this.thumbnailPath,
     this.remoteAvailable = true,
+    this.detailsLoaded = true,
   });
 
+  @override
+  int get artistOccurrenceCount => 1;
   LibrarySource get source => LibrarySource.fromPath(path);
 
   final bool remoteAvailable;
+  final bool detailsLoaded;
   final int id;
   final String path;
   final String title;
@@ -98,6 +114,7 @@ class LibrarySong {
     return LibrarySong(
       id: id,
       remoteAvailable: remoteAvailable,
+      detailsLoaded: detailsLoaded,
       path: path,
       title: title ?? this.title,
       artist: artist ?? this.artist,
@@ -454,6 +471,12 @@ class LibraryPlaylist {
   const LibraryPlaylist({
     required this.id,
     this.remotePath = '',
+    this.duration = 0,
+    this.playCount = 0,
+    this.artworkPath = '',
+    this.artworkSongId = 0,
+    this.artworkPaths = const [],
+    this.artworkSongIds = const [],
     required this.name,
     required this.priority,
     required this.songCount,
@@ -462,6 +485,12 @@ class LibraryPlaylist {
     required this.isBuiltIn,
   });
 
+  final List<String> artworkPaths;
+  final List<int> artworkSongIds;
+  final int duration;
+  final int playCount;
+  final String artworkPath;
+  final int artworkSongId;
   final int id;
   LibrarySource get source =>
       remotePath.isEmpty
@@ -486,6 +515,12 @@ class LibraryPlaylist {
     return LibraryPlaylist(
       id: id,
       remotePath: remotePath,
+      artworkPaths: artworkPaths,
+      artworkSongIds: artworkSongIds,
+      duration: duration,
+      playCount: playCount,
+      artworkPath: artworkPath,
+      artworkSongId: artworkSongId,
       name: name ?? this.name,
       priority: priority ?? this.priority,
       songCount: songCount ?? this.songCount,
@@ -551,111 +586,6 @@ class ArtistSplitAnalysisResult {
       directSplits.isNotEmpty ||
       possibleSplits.isNotEmpty ||
       mergeSuggestions.isNotEmpty;
-}
-
-class LocalFolderRefreshResult {
-  const LocalFolderRefreshResult({
-    required this.libraryChanged,
-    required this.requiresFullReload,
-    required this.filesAdded,
-    required this.filesUpdated,
-    required this.filesRemoved,
-    required this.filesMoved,
-    required this.artistSplitsApplied,
-    required this.artistSplitSuggestions,
-    required this.artistMergeSuggestions,
-  });
-
-  final bool libraryChanged;
-  final bool requiresFullReload;
-  final List<String> filesAdded;
-  final List<String> filesUpdated;
-  final List<String> filesRemoved;
-  final List<String> filesMoved;
-  final List<ArtistSplitResultItem> artistSplitsApplied;
-  final List<ArtistSplitResultItem> artistSplitSuggestions;
-  final List<ArtistSplitResultItem> artistMergeSuggestions;
-
-  bool get hasChanges =>
-      filesAdded.isNotEmpty ||
-      filesUpdated.isNotEmpty ||
-      filesRemoved.isNotEmpty ||
-      filesMoved.isNotEmpty ||
-      artistSplitsApplied.isNotEmpty ||
-      artistSplitSuggestions.isNotEmpty ||
-      artistMergeSuggestions.isNotEmpty;
-}
-
-enum LocalFolderRefreshStage {
-  checking,
-  reading,
-  updating,
-  finalizing,
-  completed,
-}
-
-class LocalFolderScanCanceledException implements Exception {
-  const LocalFolderScanCanceledException();
-}
-
-class LocalFolderScanCancellation {
-  var _canceled = false;
-
-  bool get isCanceled => _canceled;
-
-  void cancel() {
-    _canceled = true;
-  }
-
-  void throwIfCanceled() {
-    if (_canceled) {
-      throw const LocalFolderScanCanceledException();
-    }
-  }
-}
-
-class LocalFolderRefreshProgress {
-  const LocalFolderRefreshProgress({
-    required this.current,
-    required this.total,
-    required this.currentPath,
-    this.stage = LocalFolderRefreshStage.updating,
-    this.checkedFolderCount = 0,
-    this.folderCount = 0,
-    this.processedSongCount = 0,
-    this.songCount = 0,
-    this.addedCount = 0,
-    this.updatedCount = 0,
-    this.missingCount = 0,
-    this.canCancel = false,
-  });
-
-  final int current;
-  final int total;
-  final String currentPath;
-  final LocalFolderRefreshStage stage;
-  final int checkedFolderCount;
-  final int folderCount;
-  final int processedSongCount;
-  final int songCount;
-  final int addedCount;
-  final int updatedCount;
-  final int missingCount;
-  final bool canCancel;
-
-  LocalFolderRefreshProgress completed() => LocalFolderRefreshProgress(
-    stage: LocalFolderRefreshStage.completed,
-    current: 1,
-    total: 1,
-    currentPath: '',
-    checkedFolderCount: checkedFolderCount,
-    folderCount: folderCount,
-    processedSongCount: processedSongCount,
-    songCount: songCount,
-    addedCount: addedCount,
-    updatedCount: updatedCount,
-    missingCount: missingCount,
-  );
 }
 
 class NowPlayingSnapshot {
@@ -727,69 +657,4 @@ class ShellNavigationData {
   final List<SearchHistoryEntry> recentSearches;
   final NowPlayingSnapshot nowPlaying;
   final String rootPath;
-}
-
-class LibraryContentData {
-  const LibraryContentData({
-    required this.songs,
-    required this.hasLibrary,
-    required this.sortCriterion,
-    required this.albumsSort,
-    required this.databasePath,
-    this.recentSongs = const [],
-    this.recentPlaylists = const [],
-    this.recentAlbums = const [],
-    this.recentArtists = const [],
-    this.recentSearches = const [],
-    this.playlists = const [],
-    this.folders = const [],
-    this.favoritePlaylistId = 0,
-    this.nowPlaying = const NowPlayingSnapshot(playlistId: 0, songIds: []),
-    this.showCount = true,
-    this.hideMultiSelectCommandBarAfterOperation = true,
-    this.localViewMode = LocalViewMode.grid,
-    this.rootPath = '',
-  });
-
-  LibraryContentData withPlaylists(List<LibraryPlaylist> values) =>
-      LibraryContentData(
-        songs: songs,
-        hasLibrary: hasLibrary,
-        sortCriterion: sortCriterion,
-        albumsSort: albumsSort,
-        databasePath: databasePath,
-        recentSongs: recentSongs,
-        recentPlaylists: recentPlaylists,
-        recentAlbums: recentAlbums,
-        recentArtists: recentArtists,
-        recentSearches: recentSearches,
-        playlists: values,
-        folders: folders,
-        favoritePlaylistId: favoritePlaylistId,
-        nowPlaying: nowPlaying,
-        showCount: showCount,
-        hideMultiSelectCommandBarAfterOperation:
-            hideMultiSelectCommandBarAfterOperation,
-        localViewMode: localViewMode,
-        rootPath: rootPath,
-      );
-
-  final List<LibrarySong> songs;
-  final List<RecentLibrarySong> recentSongs;
-  final List<RecentPlaylistPlayback> recentPlaylists;
-  final List<RecentAlbumPlayback> recentAlbums;
-  final List<RecentArtistPlayback> recentArtists;
-  final List<SearchHistoryEntry> recentSearches;
-  final List<LibraryPlaylist> playlists;
-  final List<LibraryFolder> folders;
-  final int favoritePlaylistId;
-  final NowPlayingSnapshot nowPlaying;
-  final bool hasLibrary;
-  final MusicLibrarySortCriterion sortCriterion;
-  final AlbumSortCriterion albumsSort;
-  final bool showCount;
-  final bool hideMultiSelectCommandBarAfterOperation;
-  final LocalViewMode localViewMode;
-  final String rootPath;
-  final String databasePath;
 }

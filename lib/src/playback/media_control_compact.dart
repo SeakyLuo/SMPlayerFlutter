@@ -43,6 +43,7 @@ class _CompactMediaControlLayout extends StatelessWidget {
     this.currentSong,
     this.nowPlayingSongIds = const [],
     this.randomPlaySubmenu,
+    this.loadRandomPlaySubmenu,
     this.randomPlayDisabled = false,
     this.onPlayArtist,
     this.onPlayAlbum,
@@ -105,6 +106,8 @@ class _CompactMediaControlLayout extends StatelessWidget {
   final LibrarySong? currentSong;
   final List<int> nowPlayingSongIds;
   final List<MenuFlyoutItem>? randomPlaySubmenu;
+  final Future<List<MenuFlyoutItem>> Function(BuildContext)?
+  loadRandomPlaySubmenu;
   final bool randomPlayDisabled;
   final VoidCallback? onPlayArtist;
   final VoidCallback? onPlayAlbum;
@@ -278,6 +281,7 @@ class _CompactMediaControlLayout extends StatelessWidget {
                   onToggleDesktopLyrics: onToggleDesktopLyrics,
                   onQuickPlay: onQuickPlay,
                   randomPlaySubmenu: randomPlaySubmenu,
+                  loadRandomPlaySubmenu: loadRandomPlaySubmenu,
                   randomPlayDisabled: randomPlayDisabled,
                   onPlayArtist: onPlayArtist,
                   onPlayAlbum: onPlayAlbum,
@@ -409,6 +413,7 @@ class _CompactMediaControlLayout extends StatelessWidget {
     VoidCallback? onToggleDesktopLyrics,
     required VoidCallback onQuickPlay,
     List<MenuFlyoutItem>? randomPlaySubmenu,
+    Future<List<MenuFlyoutItem>> Function(BuildContext)? loadRandomPlaySubmenu,
     required bool randomPlayDisabled,
     VoidCallback? onPlayArtist,
     VoidCallback? onPlayAlbum,
@@ -444,6 +449,7 @@ class _CompactMediaControlLayout extends StatelessWidget {
       onQuickPlay: onQuickPlay,
       alwaysShowQuickPlay: true,
       randomPlaySubmenu: randomPlaySubmenu,
+      loadRandomPlaySubmenu: loadRandomPlaySubmenu,
       randomPlayDisabled: randomPlayDisabled,
       onVolumeChange: onVolumeChange,
       onToggleMute: onToggleMute,

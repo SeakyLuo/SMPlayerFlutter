@@ -217,8 +217,17 @@ class _PlaylistsPageState extends ConsumerState<PlaylistsPage> {
 
   @override
   Widget build(BuildContext context) {
+    if (!TickerMode.valuesOf(context).enabled) return const SizedBox.shrink();
     final i18nValue = ref.watch(smPlayerI18nProvider);
-    final snapshotValue = ref.watch(browsingLibraryContentDataProvider);
+    final snapshotValue = ref.watch(
+      browsingLibraryPageProvider(
+        LibraryDataQuery(
+          LibraryQueryKind.playlists,
+          playlistId: widget.selectedPlaylistId,
+          limit: widget.selectedPlaylistId == null ? null : 200,
+        ),
+      ),
+    );
     final favoriteOverrides = ref.watch(libraryFavoriteOverridesProvider);
     final songOverrides = ref.watch(librarySongOverridesProvider);
     final playlistOverrides = ref.watch(libraryPlaylistOverridesProvider);
@@ -230,7 +239,7 @@ class _PlaylistsPageState extends ConsumerState<PlaylistsPage> {
 
     if ((i18nValue.isLoading && !i18nValue.hasValue) ||
         (snapshotValue.isLoading && !snapshotValue.hasValue)) {
-      return const SmPlayerLoadingState();
+      return const SmPlayerLoadingState(layout: SmPlayerLoadingLayout.grid);
     }
 
     final i18n = i18nValue.valueOrNull;
@@ -240,7 +249,9 @@ class _PlaylistsPageState extends ConsumerState<PlaylistsPage> {
 
     final remotePlaylists = ref.watch(remotePlaylistLoadStateProvider);
     if (remotePlaylists.remote && !remotePlaylists.loaded) {
-      if (remotePlaylists.loading) return const SmPlayerLoadingState();
+      if (remotePlaylists.loading) {
+        return const SmPlayerLoadingState(layout: SmPlayerLoadingLayout.grid);
+      }
       return _PlaylistsEmptyState(
         title: i18n.t('share.connectComputer'),
         message: i18n.t('share.connectHint'),
@@ -253,7 +264,8 @@ class _PlaylistsPageState extends ConsumerState<PlaylistsPage> {
 
     return snapshotValue.when(
       skipLoadingOnReload: true,
-      loading: () => const SmPlayerLoadingState(),
+      loading:
+          () => const SmPlayerLoadingState(layout: SmPlayerLoadingLayout.grid),
       error: (error, _) {
         if (!identical(_lastPlaylistLoadError, error)) {
           _lastPlaylistLoadError = error;
@@ -332,6 +344,12 @@ class _PlaylistsPageState extends ConsumerState<PlaylistsPage> {
       child: HeaderedPlaylistControl(
         key: ValueKey('HeaderedPlaylist.Playlist.${selectedPlaylist.id}'),
         playlistId: selectedPlaylist.id,
+        query: LibraryDataQuery(
+          LibraryQueryKind.playlists,
+          playlistId: selectedPlaylist.id,
+          limit: 200,
+        ),
+        page: snapshot,
         routeLocation: GoRouterState.of(context).uri.toString(),
         type:
             selectedPlaylist.isBuiltIn
@@ -382,20 +400,18 @@ class _PlaylistsPageState extends ConsumerState<PlaylistsPage> {
             _addSongsToPlaylistWithoutReload(snapshot, playlistId, songIds),
           );
         },
-        onToggleFavorite: (songId, favorite) {
+        onToggleFavorite: (songId, favorite) async {
           if (favorite) {
-            unawaited(
-              setSongsFavoriteWithUndo(
-                context: context,
-                ref: ref,
-                i18n: i18n,
-                songIds: [songId],
-                favorite: true,
-              ),
+            await setSongsFavoriteWithUndo(
+              context: context,
+              ref: ref,
+              i18n: i18n,
+              songIds: [songId],
+              favorite: true,
             );
             return;
           }
-          unawaited(setSongsFavoriteFromControl(ref, [songId], false));
+          await setSongsFavoriteFromControl(ref, [songId], false);
         },
         onRemoveSongs:
             !canEditPlaylist(selectedPlaylist)

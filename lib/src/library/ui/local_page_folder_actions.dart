@@ -19,7 +19,9 @@ extension _LocalPageFolderActions on _LocalPageState {
     required String rootPath,
     required SmPlayerI18n i18n,
   }) async {
-    final repository = ref.read(libraryRepositoryProvider);
+    final storage = LibraryStorageActions(ref);
+    final source =
+        isRemoteMusicPath(parent.path) ? Uri.parse(parent.path).host : 'local';
     final name = await _requestFolderName(
       i18n: i18n,
       confirmText: i18n.t('playlists.create'),
@@ -39,15 +41,27 @@ extension _LocalPageFolderActions on _LocalPageState {
 
     final relativePath =
         parent.relativePath.isEmpty ? name : '${parent.relativePath}/$name';
-    await repository.createLocalFolder(rootPath, parent.relativePath, name);
-    if (!mounted) {
+    try {
+      await storage.createFolder(rootPath, parent.relativePath, name);
+    } catch (error) {
+      if (mounted) {
+        _showMessage(
+          i18n.t(
+            error is MusicShareException
+                ? error.messageKey
+                : 'song.updateFailed',
+          ),
+        );
+      }
+      return;
+    }
+    if (!mounted || _source != source) {
       return;
     }
 
     _updateLocalPageState(() {
       _createdFolderPaths.add(relativePath);
     });
-    ref.invalidate(libraryContentDataProvider);
   }
 
   Future<void> _renameFolder({
@@ -56,6 +70,8 @@ extension _LocalPageFolderActions on _LocalPageState {
     required String rootPath,
     required SmPlayerI18n i18n,
   }) async {
+    final source =
+        isRemoteMusicPath(folder.path) ? Uri.parse(folder.path).host : 'local';
     final name = await _requestFolderName(
       i18n: i18n,
       title: i18n.t('local.renameFolder'),
@@ -75,36 +91,53 @@ extension _LocalPageFolderActions on _LocalPageState {
       return;
     }
 
-    await ref.read(libraryRepositoryProvider).renameFolder(folder.path, name);
-    ref.invalidate(libraryContentDataProvider);
-
-    if (folder.relativePath == widget.currentRelativePath && mounted) {
+    if (!mounted) return;
+    await runLibraryStorageAction(context, () async {
+      final change = await LibraryStorageActions(
+        ref,
+      ).renameFolder(folder.path, name);
       final parentPath = getParentPath(folder.relativePath);
-      final nextRelativePath = parentPath.isEmpty ? name : '$parentPath/$name';
-      _openFolder(nextRelativePath);
-    }
+      final next = parentPath.isEmpty ? name : '$parentPath/$name';
+      if (!mounted) {
+        await change.commit();
+        return;
+      }
+      if (_source == source &&
+          folder.relativePath == widget.currentRelativePath) {
+        _openFolder(next);
+      }
+      final reason = await showUndoableNotification(
+        context: context,
+        i18n: i18n,
+        message: i18n.t('share.fileRenamed'),
+        onUndo: () async {
+          await change.undo();
+          if (mounted &&
+              _source == source &&
+              widget.currentRelativePath == next) {
+            _openFolder(folder.relativePath);
+          }
+        },
+      );
+      if (reason != AppNotificationClosedReason.action) await change.commit();
+    });
   }
 
   Future<void> _hideFolder(FolderNode folder) async {
-    await ref.read(libraryRepositoryProvider).hideFolder(folder.path);
-    ref.invalidate(libraryContentDataProvider);
-    if (mounted) {
+    await runLibraryStorageAction(context, () async {
+      final change = await LibraryStorageActions(ref).hideFolder(folder.path);
+      if (!mounted) {
+        await change.commit();
+        return;
+      }
       _updateLocalPageState(_clearMultiSelectStatus);
-      showUndoableNotification(
-        context: context,
-        i18n: context.smPlayerI18n,
-        message: context.smPlayerI18n.t('notification.hiddenStorageItem', {
-          'name':
-              folder.name.isEmpty
-                  ? context.smPlayerI18n.t('local.libraryRoot')
-                  : folder.name,
+      await _showStorageChangeUndo(
+        change,
+        context.smPlayerI18n.t('notification.hiddenStorageItem', {
+          'name': folder.name,
         }),
-        onUndo: () async {
-          await ref.read(libraryRepositoryProvider).unhideFolder(folder.path);
-          ref.invalidate(libraryContentDataProvider);
-        },
       );
-    }
+    });
   }
 
   Future<void> _searchDirectory(FolderNode folder, SmPlayerI18n i18n) async {
@@ -113,16 +146,6 @@ extension _LocalPageFolderActions on _LocalPageState {
       return;
     }
     if (!mounted) {
-      return;
-    }
-
-    if (_remote) {
-      context.go(
-        Uri(
-          path: '/local',
-          queryParameters: {'path': folder.relativePath, 'query': result.query},
-        ).toString(),
-      );
       return;
     }
 

@@ -17,17 +17,17 @@ extension _SearchSongHoverActions on _SearchResultSection {
       includeFavorites: true,
       favoritesDisabled: song.favorite,
       favoritesSelected: song.favorite,
-      onAddToNowPlaying: () {
-        unawaited(onAddSongsToNowPlaying([song.id]));
+      onAddToNowPlaying: () async {
+        await onAddSongsToNowPlaying([song.id]);
       },
-      onToggleFavorite: () {
-        unawaited(onToggleSongsFavorite([song.id], true));
+      onToggleFavorite: () async {
+        await onToggleSongsFavorite([song.id], true);
       },
       onCreatePlaylist: () {
         unawaited(onCreatePlaylist(song.title, [song.id]));
       },
-      onAddToPlaylist: (playlistId) {
-        unawaited(onAddSongsToPlaylist(playlistId, [song.id]));
+      onAddToPlaylist: (playlistId) async {
+        await onAddSongsToPlaylist(playlistId, [song.id]);
       },
     );
     await showMenuFlyout(context, items: item!.submenu);

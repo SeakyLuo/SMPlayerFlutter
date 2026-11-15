@@ -186,7 +186,14 @@ void _jumpToArtistKeyForArtistsPage(
 }
 
 void _scrollToArtistForArtistsPage(_ArtistsPageState state, String artistName) {
-  final snapshot = state.ref.read(libraryContentDataProvider).value!;
+  final snapshot =
+      state.ref
+          .read(
+            browsingLibraryPageProvider(
+              const LibraryDataQuery(LibraryQueryKind.artistIndex),
+            ),
+          )
+          .value!;
   final i18n = state.ref.read(smPlayerI18nProvider).valueOrNull!;
   final artistGroups = state._readArtistGroups(snapshot, i18n);
   final artistIndex = artistGroups.indexWhere(
@@ -276,102 +283,6 @@ String _getActiveArtistQuickJumpKeyForArtistsPage(
   );
 }
 
-void _playSongIdsForArtistsPage(_ArtistsPageState state, List<int> songIds) {
-  if (songIds.isEmpty) {
-    return;
-  }
-
-  replaceNowPlayingQueueAndPlayIndex(
-    ref: state.ref,
-    snapshot: state.ref.read(libraryContentDataProvider).value!,
-    i18n: state.context.smPlayerI18n,
-    songIds: songIds,
-    queueIndex: 0,
-  );
-}
-
-void _playTrackInQueueForArtistsPage(
-  _ArtistsPageState state,
-  int songId,
-  List<int> queueSongIds,
-) {
-  final snapshot = state.ref.read(libraryContentDataProvider).value!;
-  final mediaState = state.ref.read(mediaControlControllerProvider).state;
-  final currentSongIds = currentNowPlayingSongIds(state.ref, snapshot);
-  final queueChanged =
-      !_sameSongIdsForArtistsPage(queueSongIds, currentSongIds);
-  final resolvedQueueSongIds =
-      queueChanged && mediaState.mode == PlaybackMode.shuffle
-          ? shufflePlaybackQueueForCurrentTrack(queueSongIds, songId)
-          : (queueChanged ? queueSongIds.toList() : currentSongIds.toList());
-  final queueIndex = resolvedQueueSongIds.indexOf(songId);
-  replaceNowPlayingQueueAndPlayIndex(
-    ref: state.ref,
-    snapshot: snapshot,
-    i18n: state.context.smPlayerI18n,
-    songIds: resolvedQueueSongIds,
-    queueIndex: queueIndex,
-  );
-}
-
-bool _sameSongIdsForArtistsPage(List<int> left, List<int> right) {
-  if (left.length != right.length) {
-    return false;
-  }
-  for (var index = 0; index < left.length; index += 1) {
-    if (left[index] != right[index]) {
-      return false;
-    }
-  }
-  return true;
-}
-
-void _playNextForArtistsPage(_ArtistsPageState state, int songId) {
-  final snapshot = state.ref.read(libraryContentDataProvider).value!;
-  final previousSongIds = currentNowPlayingSongIds(state.ref, snapshot);
-  final activeIndex = currentQueueIndexForPlaybackOccurrence(
-    state.ref.read(mediaControlControllerProvider).state,
-    previousSongIds,
-  );
-  final nextSongIds = previousSongIds.toList()..insert(activeIndex + 1, songId);
-  setNowPlayingQueue(state.ref, nextSongIds);
-  final songsById = {for (final song in snapshot.songs) song.id: song};
-  showPlayNextUndoNotification(
-    context: state.context,
-    i18n: state.context.smPlayerI18n,
-    songTitle: songsById[songId]!.title,
-    onUndo: () {
-      setNowPlayingQueue(state.ref, previousSongIds);
-    },
-  );
-}
-
-void _moveToMusicOrPlayForArtistsPage(_ArtistsPageState state, int songId) {
-  final snapshot = state.ref.read(libraryContentDataProvider).value!;
-  insertOrPlayNowPlayingSong(
-    ref: state.ref,
-    snapshot: snapshot,
-    i18n: state.context.smPlayerI18n,
-    songId: songId,
-  );
-}
-
-void _playShuffledSongIdsForArtistsPage(
-  _ArtistsPageState state,
-  List<int> songIds, {
-  String? artistName,
-  String? albumName,
-}) {
-  if (artistName != null) {
-    unawaited(recordRecentArtistPlayback(state.ref, artistName));
-  }
-  if (albumName != null) {
-    unawaited(recordRecentAlbumPlayback(state.ref, albumName));
-  }
-  final queueSongIds = songIds.toList()..shuffle(Random());
-  state._playSongIds(queueSongIds);
-}
-
 Future<void> _showGroupContextMenuForArtistsPage(
   _ArtistsPageState state, {
   required Offset position,
@@ -390,14 +301,27 @@ Future<void> _showGroupContextMenuForArtistsPage(
     return;
   }
   final snapshot = state.ref.read(libraryContentDataProvider).value!;
-  final songIds = songs.map((song) => song.id).toList();
+  final source = state.ref.read(selectedLibraryDataSourceProvider);
+  final songIds = await source.resolveSongIds(
+    LibraryDataQuery(
+      type == _ArtistGroupMenuType.artist
+          ? LibraryQueryKind.artist
+          : LibraryQueryKind.album,
+      artists:
+          type == _ArtistGroupMenuType.artist
+              ? [label == i18n.t('common.artistUnknown') ? '' : label]
+              : const [],
+      album: label == i18n.t('common.albumUnknown') ? '' : label,
+    ),
+  );
+  if (!state.mounted) return;
   final customLibraryPlaylists =
       state.ref
           .read(currentLibraryPlaylistsProvider)
           .where(
             (playlist) =>
                 !playlist.isBuiltIn &&
-                playlist.source == songs.first.source &&
+                playlist.source == source.source &&
                 canEditPlaylist(playlist),
           )
           .toList();
@@ -411,8 +335,7 @@ Future<void> _showGroupContextMenuForArtistsPage(
             ),
           )
           .toList();
-  final notFavoriteIds =
-      songs.where((song) => !song.favorite).map((song) => song.id).toList();
+  final notFavoriteIds = songIds;
   final addToItem = buildAddToPlaylistMenuFlyoutItem(
     i18n: i18n,
     songIds: songIds,
@@ -423,8 +346,8 @@ Future<void> _showGroupContextMenuForArtistsPage(
       isNowPlayingContext: false,
     ),
     includeFavorites: notFavoriteIds.isNotEmpty,
-    onAddToNowPlaying: () {
-      addSongsToNowPlayingWithUndo(
+    onAddToNowPlaying: () async {
+      await addSongsToNowPlayingWithUndo(
         context: state.context,
         ref: state.ref,
         i18n: i18n,
@@ -453,8 +376,8 @@ Future<void> _showGroupContextMenuForArtistsPage(
         songIds: songIds,
       );
     },
-    onAddToPlaylist: (playlistId) {
-      addSongsToPlaylistWithUndo(
+    onAddToPlaylist: (playlistId) async {
+      await addSongsToPlaylistWithUndo(
         context: state.context,
         ref: state.ref,
         i18n: i18n,
@@ -602,8 +525,8 @@ Future<void> _showSongContextMenuForArtistsPage(
       onPlayNext: () {
         state._playNext(song.id);
       },
-      onAddToNowPlaying: () {
-        addSongsToNowPlayingWithUndo(
+      onAddToNowPlaying: () async {
+        await addSongsToNowPlayingWithUndo(
           context: state.context,
           ref: state.ref,
           i18n: i18n,
@@ -622,8 +545,8 @@ Future<void> _showSongContextMenuForArtistsPage(
           songIds: [song.id],
         );
       },
-      onAddToPlaylist: (playlistId) {
-        addSongsToPlaylistWithUndo(
+      onAddToPlaylist: (playlistId) async {
+        await addSongsToPlaylistWithUndo(
           context: state.context,
           ref: state.ref,
           i18n: i18n,
@@ -639,8 +562,8 @@ Future<void> _showSongContextMenuForArtistsPage(
           state._selection.selectSingle(song.id);
         });
       },
-      onToggleFavorite: () {
-        setSongsFavoriteWithUndo(
+      onToggleFavorite: () async {
+        await setSongsFavoriteWithUndo(
           context: state.context,
           ref: state.ref,
           i18n: i18n,
@@ -751,8 +674,8 @@ Future<void> _showSongAddToMenuForArtistsPage(
       isNowPlayingContext: false,
     ),
     includeFavorites: !song.favorite,
-    onAddToNowPlaying: () {
-      addSongsToNowPlayingWithUndo(
+    onAddToNowPlaying: () async {
+      await addSongsToNowPlayingWithUndo(
         context: state.context,
         ref: state.ref,
         i18n: i18n,
@@ -781,8 +704,8 @@ Future<void> _showSongAddToMenuForArtistsPage(
         songIds: [song.id],
       );
     },
-    onAddToPlaylist: (playlistId) {
-      addSongsToPlaylistWithUndo(
+    onAddToPlaylist: (playlistId) async {
+      await addSongsToPlaylistWithUndo(
         context: state.context,
         ref: state.ref,
         i18n: i18n,

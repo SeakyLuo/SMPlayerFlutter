@@ -1,8 +1,9 @@
 part of 'artists_page.dart';
 
-class _ArtistAlbumSliverSection extends StatelessWidget {
+class _ArtistAlbumSliverSection extends ConsumerStatefulWidget {
   const _ArtistAlbumSliverSection({
     required this.album,
+    required this.artistName,
     required this.responsive,
     required this.multiSelect,
     required this.selectedSongIds,
@@ -22,6 +23,7 @@ class _ArtistAlbumSliverSection extends StatelessWidget {
     required this.onOpenSongContextMenu,
   });
 
+  final String artistName;
   final AlbumGroup album;
   final bool responsive;
   final bool multiSelect;
@@ -44,7 +46,50 @@ class _ArtistAlbumSliverSection extends StatelessWidget {
   onOpenSongContextMenu;
 
   @override
+  ConsumerState<_ArtistAlbumSliverSection> createState() =>
+      _ArtistAlbumSliverState();
+}
+
+class _ArtistAlbumSliverState extends ConsumerState<_ArtistAlbumSliverSection> {
+  final _attempted = <int>{};
+  LibraryDataQuery get _query => LibraryDataQuery(
+    LibraryQueryKind.album,
+    album: widget.album.sourceName ?? widget.album.name,
+    artists: [widget.artistName],
+    limit: 200,
+  );
+  get album => widget.album;
+  get responsive => widget.responsive;
+  get multiSelect => widget.multiSelect;
+  get selectedSongIds => widget.selectedSongIds;
+  get i18n => widget.i18n;
+  get queueSongIds => widget.queueSongIds;
+  get selectedTrackId => widget.selectedTrackId;
+  get isPlaying => widget.isPlaying;
+  get onPlaySongs => widget.onPlaySongs;
+  get onOpenAlbumMenu => widget.onOpenAlbumMenu;
+  get onPlayTrack => widget.onPlayTrack;
+  get onPlaySong => widget.onPlaySong;
+  get onTogglePlayPause => widget.onTogglePlayPause;
+  get onPlayNext => widget.onPlayNext;
+  get onToggleFavorite => widget.onToggleFavorite;
+  get onOpenSongAddToMenu => widget.onOpenSongAddToMenu;
+  get onToggleSongSelection => widget.onToggleSongSelection;
+  get onOpenSongContextMenu => widget.onOpenSongContextMenu;
+  @override
   Widget build(BuildContext context) {
+    final value = ref.watch(browsingLibraryPageProvider(_query));
+    listenLibraryPageFailure(ref, _query);
+    final page = value.valueOrNull;
+    final songs = page?.songs ?? const <LibrarySong>[];
+    final headerAlbum = AlbumGroup(
+      name: album.name,
+      sourceName: album.sourceName,
+      songs: songs,
+      duration: album.duration,
+      summarySongCount: album.songCount,
+      artworkPath: album.artworkPath,
+    );
     final brightness = Theme.of(context).brightness;
     final compact = MediaQuery.sizeOf(context).width <= 720;
     final songRowColors = _ArtistsColors.artistSongRowColors(brightness);
@@ -98,7 +143,7 @@ class _ArtistAlbumSliverSection extends StatelessWidget {
                   ),
                   clipBehavior: Clip.hardEdge,
                   child: _ArtistAlbumHeader(
-                    album: album,
+                    album: headerAlbum,
                     responsive: responsive,
                     i18n: i18n,
                     onPlaySongs: onPlaySongs,
@@ -108,19 +153,44 @@ class _ArtistAlbumSliverSection extends StatelessWidget {
               ),
             ),
             PlaylistControlSliver(
-              entries: [
-                for (var index = 0; index < album.songs.length; index += 1)
-                  _albumSongEntry(
-                    context: context,
-                    song: album.songs[index],
-                    queueSongIds: queueSongIds,
-                    songRowTrailingPadding: songRowTrailingPadding,
-                    songRowColors: songRowColors,
-                  ),
-              ],
+              entries: const [],
+              totalCount: album.songCount,
+              entryBuilder: (index) {
+                final song = page?.songRows[index];
+                if (song == null) {
+                  if (page != null && _attempted.add(index ~/ 200)) {
+                    WidgetsBinding.instance.addPostFrameCallback((_) {
+                      if (!mounted) return;
+                      unawaited(
+                        runMusicShareAction(context, () async {
+                          final query = _query.withPage(
+                            source:
+                                ref
+                                    .read(selectedLibraryDataSourceProvider)
+                                    .source
+                                    .deviceId,
+                          );
+                          await ref
+                              .read(libraryPagedQueryProvider(query).notifier)
+                              .loadWindow(index);
+                          _attempted.remove(index ~/ 200);
+                        }),
+                      );
+                    });
+                  }
+                  return null;
+                }
+                return _albumSongEntry(
+                  context: context,
+                  song: song,
+                  queueSongIds: queueSongIds,
+                  songRowTrailingPadding: songRowTrailingPadding,
+                  songRowColors: songRowColors,
+                );
+              },
               itemShellBuilder: (context, index, child) {
                 final first = index == 0;
-                final last = index == album.songs.length - 1;
+                final last = index == album.songCount - 1;
                 return _ArtistAlbumSongRowShell(
                   key:
                       first

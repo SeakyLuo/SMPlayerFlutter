@@ -12,10 +12,28 @@ mixin _LibraryLocalFolderRefresh on _LibraryLocalRefreshOperations {
     Set<int> changedSongIds,
   ) async {
     if (changedSongIds.isEmpty) return _artistSplitService.emptyAnalysis();
-    final songs = _readService.readSongs(db);
-    return _artistSplitService.analyzeExistingLibrary(
-      songs,
-      songIds: changedSongIds,
+    final rules = artist_rules.buildArtistSplitRules(
+      _artistSplitService.readRecognitionSources(db),
+    );
+    final ids = changedSongIds.toList()..sort();
+    final direct = <ArtistSplitResultItem>[],
+        possible = <ArtistSplitResultItem>[],
+        merges = <ArtistSplitResultItem>[];
+    const size = 100;
+    for (var offset = 0; offset < ids.length; offset += size) {
+      final songs = _readService.readSongs(
+        db,
+        songIds: ids.sublist(offset, min(offset + size, ids.length)),
+      );
+      final page = rules.apply(songs);
+      direct.addAll(page.directSplits);
+      possible.addAll(page.possibleSplits);
+      merges.addAll(page.mergeSuggestions);
+    }
+    return ArtistSplitAnalysisResult(
+      directSplits: direct,
+      possibleSplits: possible,
+      mergeSuggestions: merges,
     );
   }
 

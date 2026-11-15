@@ -198,6 +198,11 @@ class _FolderArtworkState extends ConsumerState<_FolderArtwork> {
   }
 
   void _refreshArtwork() {
+    if (widget.folder.artworkPaths case final paths?) {
+      _thumbnailPaths = paths;
+      return;
+    }
+
     final candidateGroups = getOriginalFolderThumbnailCandidateGroups(
       widget.folder,
       widget.nodes,

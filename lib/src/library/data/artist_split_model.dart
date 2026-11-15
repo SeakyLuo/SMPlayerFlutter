@@ -1,4 +1,16 @@
+import 'dart:convert';
 import 'library_models.dart';
+
+class ArtistSplitSource implements ArtistTagSource {
+  const ArtistSplitSource(
+    this.artist,
+    this.artists, [
+    this.artistOccurrenceCount = 1,
+  ]);
+  final String artist;
+  final List<String> artists;
+  final int artistOccurrenceCount;
+}
 
 ArtistSplitAnalysisResult analyzeArtistSplits(
   List<LibrarySong> songs, {
@@ -8,6 +20,7 @@ ArtistSplitAnalysisResult analyzeArtistSplits(
   bool includeScannedSongsInUsage = false,
   void Function(double progress)? onProgress,
   Set<int>? songIds,
+  List<ArtistSplitSource>? recognitionSources,
 }) {
   var lastReportedPercent = -1;
   void reportProgress(double progress) {
@@ -45,6 +58,7 @@ ArtistSplitAnalysisResult analyzeArtistSplits(
   final artistSplitPlan = _buildArtistSplitPlan(
     splitTargetSongs,
     knownArtistSongs: songs,
+    recognitionSources: recognitionSources,
     onProgress: (progress) => reportProgress(0.04 + progress * 0.21),
   );
   final artistMergePlan = _buildArtistMergePlan(
@@ -53,6 +67,7 @@ ArtistSplitAnalysisResult analyzeArtistSplits(
     usageSongs: usageSongs ?? songs,
     usageAnalysisSongs: songIds == null ? mergeTargetSongs : songs,
     includeScannedSongs: includeScannedSongsInUsage,
+    recognitionSources: recognitionSources,
     onProgress: (progress) => reportProgress(0.25 + progress * 0.67),
   );
   final splitTargetSongSet = splitTargetSongs.toSet();
@@ -97,6 +112,59 @@ ArtistSplitAnalysisResult analyzeArtistSplits(
   );
 }
 
+String artistRuleKey(ArtistTagSource source) =>
+    jsonEncode([source.artist, source.artists]);
+
+class ArtistSplitRules {
+  const ArtistSplitRules(this.direct, this.possible, this.merges);
+  final Map<String, List<String>> direct;
+  final Map<String, List<String>> possible;
+  final Map<String, List<String>> merges;
+
+  ArtistSplitAnalysisResult apply(List<LibrarySong> songs) {
+    List<ArtistSplitResultItem> matches(Map<String, List<String>> rules) => [
+      for (final song in songs)
+        if (rules.containsKey(artistRuleKey(song)))
+          _toArtistSplitResultItem(song, rules[artistRuleKey(song)]!),
+    ];
+    return ArtistSplitAnalysisResult(
+      directSplits: matches(direct),
+      possibleSplits: matches(possible),
+      mergeSuggestions: matches(merges),
+    );
+  }
+}
+
+ArtistSplitRules buildArtistSplitRules(List<ArtistSplitSource> sources) {
+  final targets =
+      sources
+          .where(
+            (source) => source.artists.length <= 1 && source.artist.isNotEmpty,
+          )
+          .toList();
+  final plan = _buildArtistSplitPlan(targets, knownArtistSongs: sources);
+  final merges = _buildArtistMergePlan(
+    sources,
+    plan,
+    usageSongs: const [],
+    usageAnalysisSongs: sources,
+    recognitionSources: sources,
+  );
+  return ArtistSplitRules(
+    {
+      for (final entry in plan.autoSplits.entries)
+        if (!merges.containsKey(entry.key))
+          artistRuleKey(entry.key): entry.value,
+    },
+    {
+      for (final entry in plan.suggestions.entries)
+        if (!merges.containsKey(entry.key))
+          artistRuleKey(entry.key): entry.value,
+    },
+    {for (final entry in merges.entries) artistRuleKey(entry.key): entry.value},
+  );
+}
+
 List<String> splitSmartArtistCandidate(String artist) {
   return _normalizeArtists(
     artist.split(_smartArtistSplitPattern).map((part) => part.trim()).toList(),
@@ -107,12 +175,20 @@ final _smartArtistSplitPattern = RegExp(r'\s*(?:/|／|;|；|,|，|、|\|)\s*');
 final _artistValueSplitPattern = RegExp(r'\s*(?:;|；|、|\|)\s*');
 
 _ArtistSplitPlan _buildArtistSplitPlan(
-  List<LibrarySong> songs, {
-  required List<LibrarySong> knownArtistSongs,
+  List<ArtistTagSource> songs, {
+  required List<ArtistTagSource> knownArtistSongs,
+  List<ArtistSplitSource>? recognitionSources,
   void Function(double progress)? onProgress,
 }) {
-  final knownArtists = _getKnownArtists(knownArtistSongs);
-  final autoSplits = <LibrarySong, List<String>>{};
+  final knownArtists =
+      recognitionSources == null
+          ? _getKnownArtists(knownArtistSongs)
+          : {
+            for (final source in recognitionSources)
+              for (final name in _normalizeArtists(source.artists))
+                _normalizeArtistKey(name),
+          };
+  final autoSplits = <ArtistTagSource, List<String>>{};
   final candidates = <_ArtistSplitCandidate>[];
 
   for (final (index, song) in songs.indexed) {
@@ -165,7 +241,7 @@ _ArtistSplitPlan _buildArtistSplitPlan(
   );
 }
 
-Set<String> _getKnownArtists(List<LibrarySong> songs) {
+Set<String> _getKnownArtists(List<ArtistTagSource> songs) {
   return {
     for (final song in songs)
       for (final artist in _normalizeArtists(song.artists))
@@ -177,21 +253,23 @@ String _normalizeArtistKey(String artist) {
   return artist.trim().toLowerCase();
 }
 
-Map<LibrarySong, List<String>> _buildArtistMergePlan(
-  List<LibrarySong> songs,
+Map<ArtistTagSource, List<String>> _buildArtistMergePlan(
+  List<ArtistTagSource> songs,
   _ArtistSplitPlan artistSplitPlan, {
-  required List<LibrarySong> usageSongs,
-  required List<LibrarySong> usageAnalysisSongs,
+  required List<ArtistTagSource> usageSongs,
+  required List<ArtistTagSource> usageAnalysisSongs,
   bool includeScannedSongs = true,
+  List<ArtistSplitSource>? recognitionSources,
   void Function(double progress)? onProgress,
 }) {
   final artistUsage = _artistUsage(
     usageSongs,
     scannedSongs: usageAnalysisSongs,
     includeScannedSongs: includeScannedSongs,
+    recognitionSources: recognitionSources,
   );
   final expandedCandidatesByArtistKey = <String, List<String>>{};
-  final mergeSuggestions = <LibrarySong, List<String>>{};
+  final mergeSuggestions = <ArtistTagSource, List<String>>{};
   onProgress?.call(0.05);
 
   for (final (index, song) in songs.indexed) {
@@ -237,9 +315,10 @@ List<String> _explodeKnownCompositeArtists(
 }
 
 Map<String, _ArtistUsage> _artistUsage(
-  List<LibrarySong> songs, {
-  required List<LibrarySong> scannedSongs,
+  List<ArtistTagSource> songs, {
+  required List<ArtistTagSource> scannedSongs,
   required bool includeScannedSongs,
+  List<ArtistSplitSource>? recognitionSources,
 }) {
   final usage = <String, _ArtistUsage>{};
   for (final song in songs) {
@@ -247,20 +326,30 @@ Map<String, _ArtistUsage> _artistUsage(
       if (splitSmartArtistCandidate(artist).length != 1) {
         continue;
       }
-      _addArtistUsage(usage, artist);
+      _addArtistUsage(usage, artist, song.artistOccurrenceCount);
     }
   }
   if (includeScannedSongs) {
-    for (final song in scannedSongs) {
-      for (final artist in _getScannedSongArtistUnits(song)) {
-        _addArtistUsage(usage, artist);
+    final sources =
+        recognitionSources ??
+        [
+          for (final song in scannedSongs)
+            ArtistSplitSource(song.artist, song.artists),
+        ];
+    for (final source in sources) {
+      for (final artist in _scannedArtistUnits(source.artist, source.artists)) {
+        _addArtistUsage(usage, artist, source.artistOccurrenceCount);
       }
     }
   }
   return usage;
 }
 
-void _addArtistUsage(Map<String, _ArtistUsage> usage, String artist) {
+void _addArtistUsage(
+  Map<String, _ArtistUsage> usage,
+  String artist,
+  int count,
+) {
   for (final normalizedArtist in _normalizeArtists([
     _normalizeArtistMergeName(artist),
   ])) {
@@ -271,7 +360,7 @@ void _addArtistUsage(Map<String, _ArtistUsage> usage, String artist) {
           current != null && current.name.length >= normalizedArtist.length
               ? current.name
               : normalizedArtist,
-      count: (current?.count ?? 0) + 1,
+      count: (current?.count ?? 0) + count,
     );
   }
 }
@@ -364,18 +453,19 @@ String _pickPreferredArtistName(
   return sorted.first;
 }
 
-List<String> _getScannedSongArtistUnits(LibrarySong song) {
-  if (song.artists.length > 1) {
-    return song.artists;
-  }
-  final splitArtists = splitSmartArtistCandidate(song.artist);
+List<String> _getScannedSongArtistUnits(ArtistTagSource song) =>
+    _scannedArtistUnits(song.artist, song.artists);
+
+List<String> _scannedArtistUnits(String artist, List<String> artists) {
+  if (artists.length > 1) return artists;
+  final splitArtists = splitSmartArtistCandidate(artist);
   return splitArtists.length > 1
       ? splitArtists
-      : (song.artist.isEmpty ? [] : [song.artist]);
+      : (artist.isEmpty ? [] : [artist]);
 }
 
 List<String> _getArtistMergeSourceArtists(
-  LibrarySong song,
+  ArtistTagSource song,
   _ArtistSplitPlan artistSplitPlan,
 ) {
   return _normalizeArtistMergeNames(
@@ -523,14 +613,14 @@ ArtistSplitResultItem _toArtistSplitResultItem(
 class _ArtistSplitPlan {
   const _ArtistSplitPlan({required this.autoSplits, required this.suggestions});
 
-  final Map<LibrarySong, List<String>> autoSplits;
-  final Map<LibrarySong, List<String>> suggestions;
+  final Map<ArtistTagSource, List<String>> autoSplits;
+  final Map<ArtistTagSource, List<String>> suggestions;
 }
 
 class _ArtistSplitCandidate {
   const _ArtistSplitCandidate({required this.song, required this.artists});
 
-  final LibrarySong song;
+  final ArtistTagSource song;
   final List<String> artists;
 }
 

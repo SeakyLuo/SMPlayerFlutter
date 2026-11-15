@@ -1,7 +1,7 @@
 part of 'library_repository.dart';
 
 mixin _LibraryRepositorySongEditing on _LibraryDataSources {
-  Future<List<LibrarySong>> getLibrarySongs({List<int>? songIds});
+  Future<List<LibrarySong>> getLibrarySongs({required List<int> songIds});
   void _invalidateLyricsCache(Iterable<int> songIds);
 
   Future<SongPropertiesSnapshot> getSongProperties(int songId) async {
@@ -33,6 +33,8 @@ mixin _LibraryRepositorySongEditing on _LibraryDataSources {
   Future<void> deleteSongArtwork(int songId) => _writeSongArtwork(songId, null);
   Future<void> _writeSongArtwork(int songId, String? sourcePath) async {
     final song = (await getLibrarySongs(songIds: [songId])).single;
-    await dataSource(song.source).writeArtwork([song], sourcePath);
+    await dataSource(
+      song.source,
+    ).writeArtwork({song.id: song.path}, sourcePath);
   }
 }

@@ -115,7 +115,10 @@ List<_RankedSong> _getAlbumArtRecommendationCandidates(
       _getSongArtists(song).map((artist) => artist.toLowerCase()).toSet();
   final candidates =
       songs
-          .where((candidate) => candidate.id != song.id)
+          .where(
+            (candidate) =>
+                candidate.id != song.id && candidate.source == song.source,
+          )
           .map((candidate) {
             final sameArtist = _getSongArtists(
               candidate,

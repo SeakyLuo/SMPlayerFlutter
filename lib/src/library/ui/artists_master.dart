@@ -116,90 +116,86 @@ class _ArtistsMaster extends StatelessWidget {
                 const SizedBox(height: 14),
               ],
               Expanded(
-                child: Stack(
-                  clipBehavior: Clip.none,
-                  children: [
-                    Row(
-                      children: [
-                        _ArtistQuickJump(
-                          activeKey: activeArtistQuickJumpKey,
-                          keys: artistQuickJumpKeys,
-                          enabledKeys: artistQuickJumpMap.keys.toSet(),
-                          i18n: i18n,
-                          onJump: (key) {
-                            onJumpToArtistKey(artistQuickJumpMap, key);
-                          },
-                        ),
-                        const SizedBox(width: 4),
-                        Expanded(
-                          child: Stack(
-                            clipBehavior: Clip.none,
-                            children: [
-                              Positioned.fill(
-                                right: 0,
-                                child: ScrollConfiguration(
-                                  key: const ValueKey(
-                                    'Artists.MasterScrollConfiguration',
+                child: ClipRect(
+                  child: Row(
+                    children: [
+                      _ArtistQuickJump(
+                        activeKey: activeArtistQuickJumpKey,
+                        keys: artistQuickJumpKeys,
+                        enabledKeys: artistQuickJumpMap.keys.toSet(),
+                        i18n: i18n,
+                        onJump: (key) {
+                          onJumpToArtistKey(artistQuickJumpMap, key);
+                        },
+                      ),
+                      const SizedBox(width: 4),
+                      Expanded(
+                        child: Stack(
+                          clipBehavior: Clip.none,
+                          children: [
+                            Positioned.fill(
+                              right: 0,
+                              child: ScrollConfiguration(
+                                key: const ValueKey(
+                                  'Artists.MasterScrollConfiguration',
+                                ),
+                                behavior: ScrollConfiguration.of(
+                                  context,
+                                ).copyWith(scrollbars: false),
+                                child: ListView.builder(
+                                  key: const ValueKey('Artists.Master.List'),
+                                  controller: scrollController,
+                                  itemExtent: artistRowHeight,
+                                  clipBehavior: Clip.none,
+                                  scrollCacheExtent: ScrollCacheExtent.pixels(
+                                    artistRowHeight * artistOverscanRows,
                                   ),
-                                  behavior: ScrollConfiguration.of(
-                                    context,
-                                  ).copyWith(scrollbars: false),
-                                  child: ListView.builder(
-                                    key: const ValueKey('Artists.Master.List'),
-                                    controller: scrollController,
-                                    itemExtent: artistRowHeight,
-                                    clipBehavior: Clip.none,
-                                    scrollCacheExtent: ScrollCacheExtent.pixels(
-                                      artistRowHeight * artistOverscanRows,
-                                    ),
-                                    padding: const EdgeInsets.only(
-                                      bottom: _artistsMasterPlayerSafeBottom,
-                                    ),
-                                    itemCount: visibleArtists.length,
-                                    itemBuilder: (context, index) {
-                                      final artist = visibleArtists[index];
-                                      return ArtistListItem(
-                                        artist: artist,
-                                        active:
-                                            artist.name == selectedArtistName,
-                                        i18n: i18n,
-                                        locateHighlighted:
-                                            artist.name == locatedArtistName,
-                                        locatePulse: locateArtistPulse,
-                                        onPressed: () {
-                                          onOpenArtistDetail(artist.name);
-                                        },
-                                        onPlay: () {
-                                          onPlayArtist(artist);
-                                        },
-                                        onOpenContextMenu: (position) {
-                                          return onOpenArtistMenu(
-                                            position,
-                                            artist,
-                                          );
-                                        },
-                                      );
-                                    },
+                                  padding: const EdgeInsets.only(
+                                    bottom: _artistsMasterPlayerSafeBottom,
                                   ),
+                                  itemCount: visibleArtists.length,
+                                  itemBuilder: (context, index) {
+                                    final artist = visibleArtists[index];
+                                    return ArtistListItem(
+                                      artist: artist,
+                                      active: artist.name == selectedArtistName,
+                                      i18n: i18n,
+                                      locateHighlighted:
+                                          artist.name == locatedArtistName,
+                                      locatePulse: locateArtistPulse,
+                                      onPressed: () {
+                                        onOpenArtistDetail(artist.name);
+                                      },
+                                      onPlay: () {
+                                        onPlayArtist(artist);
+                                      },
+                                      onOpenContextMenu: (position) {
+                                        return onOpenArtistMenu(
+                                          position,
+                                          artist,
+                                        );
+                                      },
+                                    );
+                                  },
                                 ),
                               ),
-                              _ArtistsCustomScrollbar(
-                                key: const ValueKey('Artists.MasterScrollbar'),
-                                positionKey: const ValueKey(
-                                  'Artists.MasterScrollbar.Position',
-                                ),
-                                thumbKey: const ValueKey(
-                                  'Artists.MasterScrollbar.Thumb',
-                                ),
-                                controller: scrollController,
-                                right: 0,
+                            ),
+                            _ArtistsCustomScrollbar(
+                              key: const ValueKey('Artists.MasterScrollbar'),
+                              positionKey: const ValueKey(
+                                'Artists.MasterScrollbar.Position',
                               ),
-                            ],
-                          ),
+                              thumbKey: const ValueKey(
+                                'Artists.MasterScrollbar.Thumb',
+                              ),
+                              controller: scrollController,
+                              right: 0,
+                            ),
+                          ],
                         ),
-                      ],
-                    ),
-                  ],
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ],

@@ -1,3 +1,4 @@
+import 'artist_split_model.dart' as artist_rules;
 import 'dart:async';
 import 'dart:io';
 import 'dart:isolate';

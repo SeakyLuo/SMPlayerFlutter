@@ -89,8 +89,6 @@ extension _MusicDialogStateHelpers on _MusicDialogState {
   }
 
   void _notifySaved() {
-    ref.invalidate(libraryContentDataProvider);
-    ref.invalidate(recentPageDataProvider);
     widget.onSaved?.call();
   }
 

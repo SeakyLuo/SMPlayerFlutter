@@ -79,16 +79,9 @@ class _SmPlayerWorkspaceState extends ConsumerState<SmPlayerWorkspace> {
     final i18n =
         ref.watch(smPlayerI18nProvider).valueOrNull ?? context.smPlayerI18n;
     final snapshot = ref.watch(libraryContentDataProvider).valueOrNull;
-    final browsingSnapshot =
-        ref.watch(browsingAvailableLibraryContentDataProvider).valueOrNull;
+    final browsingSnapshot = snapshot;
     final share = ref.watch(musicShareProvider);
     final title = _workspaceTitle(
-      sourceDeviceName:
-          share.selectedSource == 'local'
-              ? null
-              : share.peers
-                  .firstWhere((peer) => peer.id == share.selectedSource)
-                  .name,
       path: widget.currentPath,
       snapshot: snapshot,
       i18n: i18n,
@@ -140,7 +133,7 @@ class _SmPlayerWorkspaceState extends ConsumerState<SmPlayerWorkspace> {
               currentRelativePath: currentUri.queryParameters['path'] ?? '',
               compact: widget.showNavigationAppBar,
               onHiddenFoldersListButtonClick: () {
-                context.go('/hidden-folders');
+                context.push<void>('/hidden-folders');
               },
               onOpenFolder: (targetRelativePath) {
                 final query = <String, String>{};

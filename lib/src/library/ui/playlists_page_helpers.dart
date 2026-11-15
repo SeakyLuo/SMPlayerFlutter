@@ -63,15 +63,10 @@ LibraryPlaylist _copyPlaylistWithSongIds(
   List<int> songIds, {
   PlaylistSortCriterion? sortCriterion,
 }) {
-  return LibraryPlaylist(
-    id: playlist.id,
-    remotePath: playlist.remotePath,
-    name: playlist.name,
-    priority: playlist.priority,
-    songCount: songIds.length,
+  return playlist.copyWith(
     songIds: songIds,
-    sortCriterion: sortCriterion ?? playlist.sortCriterion,
-    isBuiltIn: playlist.isBuiltIn,
+    songCount: songIds.length,
+    sortCriterion: sortCriterion,
   );
 }
 
@@ -87,25 +82,5 @@ LibraryContentData _copySnapshotWithPlaylists(
   List<LibraryPlaylist> playlists, {
   required NowPlayingSnapshot nowPlaying,
 }) {
-  return LibraryContentData(
-    songs: snapshot.songs,
-    recentSongs: snapshot.recentSongs,
-    recentPlaylists: snapshot.recentPlaylists,
-    recentAlbums: snapshot.recentAlbums,
-    recentArtists: snapshot.recentArtists,
-    recentSearches: snapshot.recentSearches,
-    playlists: playlists,
-    folders: snapshot.folders,
-    favoritePlaylistId: snapshot.favoritePlaylistId,
-    nowPlaying: nowPlaying,
-    hasLibrary: snapshot.hasLibrary,
-    sortCriterion: snapshot.sortCriterion,
-    albumsSort: snapshot.albumsSort,
-    showCount: snapshot.showCount,
-    hideMultiSelectCommandBarAfterOperation:
-        snapshot.hideMultiSelectCommandBarAfterOperation,
-    localViewMode: snapshot.localViewMode,
-    rootPath: snapshot.rootPath,
-    databasePath: snapshot.databasePath,
-  );
+  return snapshot.withPlaylists(playlists).withPage(nowPlaying: nowPlaying);
 }

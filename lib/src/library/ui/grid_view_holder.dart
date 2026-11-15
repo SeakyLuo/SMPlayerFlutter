@@ -89,7 +89,8 @@ class _GridViewHolderState extends ConsumerState<GridViewHolder> {
   @override
   void didUpdateWidget(GridViewHolder oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.songs != widget.songs) {
+    if (oldWidget.songs != widget.songs ||
+        oldWidget.playlist != widget.playlist) {
       _refreshArtwork();
     }
     if (widget.sorting && _hovered) {
@@ -242,6 +243,11 @@ class _GridViewHolderState extends ConsumerState<GridViewHolder> {
   }
 
   void _refreshArtwork() {
+    if (widget.playlist.artworkPaths.isNotEmpty || widget.songs.isEmpty) {
+      _artworkGeneration++;
+      _artworkUrls = widget.playlist.artworkPaths;
+      return;
+    }
     final signature = getPlaylistArtworkSignature(widget.songs);
     if (signature == _artworkSignature) {
       return;

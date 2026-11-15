@@ -1,3 +1,9 @@
+import '../library/data/library_repository.dart';
+import '../library/data/library_source.dart';
+import 'package:smplayer_flutter/src/remote/music_source_selector.dart';
+import 'package:smplayer_flutter/src/remote/music_share_models.dart';
+import 'source_random_play.dart';
+import 'package:smplayer_flutter/src/playback/source_quick_play.dart';
 import 'package:smplayer_flutter/src/library/ui/library_load_failure.dart';
 import 'dart:async';
 
@@ -26,9 +32,9 @@ import 'package:smplayer_flutter/src/playback/immersive_mode_model.dart';
 import 'package:smplayer_flutter/src/playback/media_control_provider.dart';
 import 'package:smplayer_flutter/src/playback/now_playing_queue_view.dart';
 import 'package:smplayer_flutter/src/playback/playback_queue_actions.dart';
-import 'package:smplayer_flutter/src/playback/quick_play_model.dart';
 
 part 'now_playing_page_actions.dart';
+part 'now_playing_page_query.dart';
 
 class NowPlayingPage extends ConsumerStatefulWidget {
   const NowPlayingPage({super.key, this.searchQuery = ''});
@@ -48,11 +54,13 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
   String? _appBarPortalSignature;
   late final StateController<WorkspaceAppBarPortalEntry?> _appBarPortalNotifier;
   MusicDialogEntry? _songDialog;
+  final _attemptedWindows = <int>{};
 
   @override
   void initState() {
     super.initState();
     _appBarPortalNotifier = ref.read(workspaceAppBarPortalProvider.notifier);
+    _listController.addListener(_attemptedWindows.clear);
   }
 
   @override
@@ -110,7 +118,44 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
 
   @override
   Widget build(BuildContext context) {
-    final snapshotValue = ref.watch(libraryContentDataProvider);
+    final queueOverride = ref.watch(nowPlayingQueueOverrideProvider);
+    final contextValue = ref.watch(libraryContentDataProvider);
+    if (!contextValue.hasValue) {
+      return contextValue.hasError
+          ? LibraryLoadFailure(
+            onRetry: () => ref.invalidate(libraryLoadedDataProvider),
+          )
+          : const SmPlayerLoadingState();
+    }
+    final allQueueIds =
+        queueOverride ?? contextValue.requireValue.nowPlaying.songIds;
+    final searchQuery = LibraryDataQuery(
+      LibraryQueryKind.queue,
+      songIds: allQueueIds,
+      text: widget.searchQuery,
+    );
+    final searchValue =
+        widget.searchQuery.isEmpty
+            ? AsyncData(allQueueIds)
+            : ref.watch(_queueSearchIdsProvider(searchQuery));
+    if (!searchValue.hasValue)
+      return searchValue.hasError
+          ? LibraryLoadFailure(
+            onRetry: () => ref.invalidate(_queueSearchIdsProvider(searchQuery)),
+          )
+          : const SmPlayerLoadingState();
+    final matchingIds = searchValue.requireValue.toSet();
+    final matchingIndexes = [
+      for (var index = 0; index < allQueueIds.length; index++)
+        if (matchingIds.contains(allQueueIds[index])) index,
+    ];
+    final query = LibraryDataQuery(
+      LibraryQueryKind.queue,
+      limit: 200,
+      useSongIds: true,
+      songIds: [for (final index in matchingIndexes) allQueueIds[index]],
+    );
+    final snapshotValue = ref.watch(libraryPagedQueryProvider(query));
     final recentSongs = ref.watch(recentSongsProvider);
     ref.watch(libraryPlaylistOverridesProvider);
     ref.watch(libraryDeletedPlaylistIdsProvider);
@@ -134,34 +179,25 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
       error: (_, _) => const _NowPlayingPagePanel(child: LibraryLoadFailure()),
       data: (snapshot) {
         final songsById = {for (final song in snapshot.songs) song.id: song};
-        final queueOverride = ref.watch(nowPlayingQueueOverrideProvider);
-        final sourceQueueSongIds = queueOverride ?? snapshot.nowPlaying.songIds;
-        final queueSongs =
-            sourceQueueSongIds
-                .map((songId) => songsById[songId])
-                .whereType<LibrarySong>()
+        final sourceQueueSongIds = allQueueIds;
+        final queueSongs = snapshot.songs;
+        final queueSongIds = sourceQueueSongIds;
+        final queueEntries =
+            snapshot.songRows.entries
+                .map((entry) => (matchingIndexes[entry.key], entry.value))
                 .toList();
-        final queueSongIds = queueSongs.map((song) => song.id).toList();
-        final queueEntries = queueSongs.indexed.toList();
-        final visibleEntries =
-            queueEntries
-                .where((entry) => _matchesSearch(entry.$2, widget.searchQuery))
-                .toList();
-        final visibleQueueIndexes =
-            visibleEntries.map((entry) => entry.$1).toList();
-        final selectedVisibleSongIds =
-            visibleEntries
-                .where((entry) => _selection.isSelected(entry.$1))
-                .map((entry) => entry.$2.id)
-                .toList();
+        final visibleEntries = queueEntries;
+        final visibleQueueIndexes = matchingIndexes;
         final selectedVisibleQueueIndexes =
-            visibleQueueIndexes
-                .where((index) => _selection.isSelected(index))
+            visibleQueueIndexes.where(_selection.isSelected).toList();
+        final selectedVisibleSongIds =
+            selectedVisibleQueueIndexes
+                .map((index) => queueSongIds[index])
                 .toList();
         final currentSong = _resolveCurrentSong(
           mediaState.trackId,
           mediaState.selectedQueueIndex,
-          queueSongs,
+          contextValue.requireValue.songs,
         );
         final folders =
             snapshot.folders
@@ -190,17 +226,11 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
           songIds: queueSongIds,
           playlists: customPlaylists,
           currentPlaylistName: i18n.t('common.nowPlaying'),
-          includeFavorites: queueSongs.any((song) => !song.favorite),
+          includeFavorites: queueSongIds.isNotEmpty,
           onToggleFavorite:
-              queueSongs.any((song) => !song.favorite)
+              queueSongIds.isNotEmpty
                   ? () {
-                    _addSongsToFavorites(
-                      queueSongs
-                          .where((song) => !song.favorite)
-                          .map((song) => song.id)
-                          .toList(),
-                      songsById,
-                    );
+                    _addSongsToFavorites(queueSongIds, songsById);
                   }
                   : null,
           onCreatePlaylist: () {
@@ -218,14 +248,12 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
               ),
             );
           },
-          onAddToPlaylist: (playlistId) {
-            unawaited(
-              _addSongsToPlaylistWithUndo(
-                playlistId,
-                queueSongIds,
-                _effectivePlaylists(snapshot.playlists),
-                songsById,
-              ),
+          onAddToPlaylist: (playlistId) async {
+            await _addSongsToPlaylistWithUndo(
+              playlistId,
+              queueSongIds,
+              _effectivePlaylists(snapshot.playlists),
+              songsById,
             );
           },
         );
@@ -283,7 +311,7 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
                       canOverflow: false,
                       showLabel: !compact,
                       onPressed: () {
-                        unawaited(_quickPlay(snapshot));
+                        unawaited(_quickPlay());
                       },
                     ),
                     CommandBarButton(
@@ -309,11 +337,11 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
           title:
               snapshot.showCount
                   ? i18n.t('nowPlaying.titleWithCount', {
-                    'count': queueSongs.length,
+                    'count': queueSongIds.length,
                   })
                   : i18n.t('common.nowPlaying'),
           content: appBarCommandBar,
-          queueLength: queueSongs.length,
+          queueLength: queueSongIds.length,
           currentSongId: currentSong?.id,
           libraryCommandsEnabled: snapshot.songs.isNotEmpty,
           compact: compact,
@@ -327,18 +355,11 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
           playlists: customPlaylists,
           addToSongIds: selectedVisibleSongIds,
           nowPlayingSongIds: queueSongIds,
-          includeFavoritesInAddTo: selectedVisibleSongIds.any(
-            (songId) => !songsById[songId]!.favorite,
-          ),
+          includeFavoritesInAddTo: selectedVisibleSongIds.isNotEmpty,
           removeLabel: i18n.t('nowPlaying.remove'),
           hideAfterOperation: snapshot.hideMultiSelectCommandBarAfterOperation,
           onToggleFavorite: () {
-            _addSongsToFavorites(
-              selectedVisibleSongIds
-                  .where((songId) => !songsById[songId]!.favorite)
-                  .toList(),
-              songsById,
-            );
+            _addSongsToFavorites(selectedVisibleSongIds, songsById);
           },
           onCreatePlaylist: () {
             unawaited(
@@ -355,14 +376,12 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
               ),
             );
           },
-          onAddToPlaylist: (playlistId) {
-            unawaited(
-              _addSongsToPlaylistWithUndo(
-                playlistId,
-                selectedVisibleSongIds,
-                _effectivePlaylists(snapshot.playlists),
-                songsById,
-              ),
+          onAddToPlaylist: (playlistId) async {
+            await _addSongsToPlaylistWithUndo(
+              playlistId,
+              selectedVisibleSongIds,
+              _effectivePlaylists(snapshot.playlists),
+              songsById,
             );
           },
           onRemove:
@@ -410,7 +429,7 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
                           icon: FluentIcons.play_20_regular,
                           label: i18n.t('nowPlaying.quickPlay'),
                           onPressed: () {
-                            unawaited(_quickPlay(snapshot));
+                            unawaited(_quickPlay());
                           },
                         ),
                         CommandBarButton(
@@ -427,13 +446,11 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
                           },
                           onOverflowPressedWithContext: (buttonContext) {
                             unawaited(
-                              showMenuFlyout(
-                                buttonContext,
-                                items: _buildShuffleMenuItems(
-                                  snapshot: snapshot,
-                                  queueSongs: queueSongs,
-                                  recentSongs: recentSongs,
-                                ),
+                              _showShuffleMenu(
+                                buttonContext: buttonContext,
+                                snapshot: snapshot,
+                                queueSongs: queueSongs,
+                                recentSongs: recentSongs,
                               ),
                             );
                           },
@@ -502,6 +519,25 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
                   Expanded(
                     child: NowPlayingQueueView(
                       queueSongs: queueSongs,
+                      totalCount: matchingIndexes.length,
+                      queueIndexAt: (index) => matchingIndexes[index],
+                      songAt: (index) => snapshot.songRows[index],
+                      onAccessRow: (index) {
+                        final offset = index ~/ 200 * 200;
+                        if (!_attemptedWindows.add(offset)) return;
+                        WidgetsBinding.instance.addPostFrameCallback((_) {
+                          if (!mounted) return;
+                          unawaited(
+                            runMusicShareAction(context, () async {
+                              await ref
+                                  .read(
+                                    libraryPagedQueryProvider(query).notifier,
+                                  )
+                                  .loadWindow(index);
+                            }),
+                          );
+                        });
+                      },
                       visibleEntries: visibleEntries,
                       searchQuery: widget.searchQuery,
                       scrollController: _listController,
@@ -526,12 +562,10 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
                               .read(mediaControlControllerProvider)
                               .onTogglePlayPause,
                       onToggleQueueSelection: _toggleQueueSelection,
-                      onToggleFavorite: (song) {
-                        unawaited(
-                          setSongsFavoriteFromControl(ref, [
-                            song.id,
-                          ], !song.favorite),
-                        );
+                      onToggleFavorite: (song) async {
+                        await setSongsFavoriteFromControl(ref, [
+                          song.id,
+                        ], !song.favorite);
                       },
                       onOpenAddToPlaylist: (buttonContext, song) {
                         return _showQueueAddToPlaylistMenu(
@@ -584,11 +618,12 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
                           .read(mediaControlControllerProvider)
                           .onTogglePlayPause,
                   onPlayTrack: (trackId, nextQueueSongIds) {
-                    final song = songsById[trackId]!;
-                    _playQueueTrack(
-                      song,
-                      nextQueueSongIds,
-                      nextQueueSongIds.indexOf(trackId),
+                    replaceNowPlayingQueueAndPlayIndex(
+                      ref: ref,
+                      snapshot: snapshot,
+                      i18n: i18n,
+                      songIds: nextQueueSongIds,
+                      queueIndex: nextQueueSongIds.indexOf(trackId),
                     );
                   },
                   onReveal: _revealPath,
@@ -607,15 +642,6 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
       },
     );
   }
-}
-
-bool _matchesSearch(LibrarySong song, String searchQuery) {
-  final normalizedSearchQuery = searchQuery.trim().toLowerCase();
-  if (normalizedSearchQuery.isEmpty) {
-    return true;
-  }
-
-  return searchableSongText(song).toLowerCase().contains(normalizedSearchQuery);
 }
 
 bool _sameSongIds(List<int> left, List<int> right) {

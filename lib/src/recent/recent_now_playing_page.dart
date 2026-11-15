@@ -30,7 +30,7 @@ class _RecentNowPlayingGrid extends StatelessWidget {
           id: entry.playlistId,
           name: recentNowPlayingTitle(i18n, entry),
           priority: 0,
-          songCount: entry.songs.length,
+          songCount: entry.songIds.length,
           songIds: entry.songIds,
           sortCriterion: PlaylistSortCriterion.title,
           isBuiltIn: true,
@@ -58,10 +58,10 @@ class _RecentNowPlayingGrid extends StatelessWidget {
 }
 
 String recentNowPlayingTitle(SmPlayerI18n i18n, RecentNowPlayingView entry) {
-  return entry.songs.length == 1
+  return entry.songIds.length == 1
       ? entry.songs.first.title
       : i18n.t('recent.nowPlayingQueueTitle', {
         'title': entry.songs.first.title,
-        'count': entry.songs.length,
+        'count': entry.songIds.length,
       });
 }

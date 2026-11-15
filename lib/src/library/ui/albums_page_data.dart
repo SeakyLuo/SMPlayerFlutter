@@ -19,22 +19,47 @@ class _AlbumsLibraryData {
   final Map<int, LibrarySong> songsById;
 }
 
-final _albumsLibraryDataProvider = Provider.autoDispose
-    .family<_AlbumsLibraryData, _AlbumsLibraryDataRequest>((ref, request) {
-      final snapshot = applyLibraryFavoriteOverrides(
-        request.snapshot,
-        const {},
-        request.songOverrides,
-        ref.watch(libraryPlaylistOverridesProvider),
-        ref.watch(libraryDeletedPlaylistIdsProvider),
-        ref.watch(libraryPlaylistOrderProvider),
-      );
-      return _AlbumsLibraryData(
-        snapshot: snapshot,
-        albums: buildAlbumViews(snapshot.songs, request.i18n),
-        songsById: {for (final song in snapshot.songs) song.id: song},
-      );
-    });
+final _albumsLibraryDataProvider = Provider.autoDispose.family<
+  _AlbumsLibraryData,
+  _AlbumsLibraryDataRequest
+>((ref, request) {
+  final snapshot = applyLibraryFavoriteOverrides(
+    request.snapshot,
+    const {},
+    request.songOverrides,
+    ref.watch(libraryPlaylistOverridesProvider),
+    ref.watch(libraryDeletedPlaylistIdsProvider),
+    ref.watch(libraryPlaylistOrderProvider),
+  );
+  return _AlbumsLibraryData(
+    snapshot: snapshot,
+    albums: [
+      for (final item in snapshot.albumSummaries)
+        AlbumView(
+          name:
+              item.name.isEmpty
+                  ? request.i18n.t('common.albumUnknown')
+                  : item.name,
+          rawName: item.name,
+          artist:
+              item.artists.first.isEmpty
+                  ? request.i18n.t('common.artistUnknown')
+                  : item.artists.first,
+          artists: [
+            for (final artist in item.artists)
+              artist.isEmpty ? request.i18n.t('common.artistUnknown') : artist,
+          ],
+          songs:
+              snapshot.songs.where((song) => song.album == item.name).toList(),
+          duration: item.duration,
+          artworkSong: null,
+          artworkPath: item.artworkPath,
+          summarySongCount: item.songCount,
+        ),
+    ],
+    songsById: {for (final song in snapshot.songs) song.id: song},
+  );
+});
 
 typedef _VisibleAlbumsRequest =
     ({
@@ -78,3 +103,38 @@ final _albumSearchSuggestionsProvider = Provider.autoDispose
         request.searchDraft,
       ).take(8).map((album) => album.name).toList();
     });
+
+extension _AlbumSummaryActions on _AlbumsPageState {
+  Future<AlbumView> _loadAlbumSummary(AlbumView album) async {
+    final container = ProviderScope.containerOf(context, listen: false);
+    final query = LibraryDataQuery(
+      LibraryQueryKind.album,
+      album: album.preferenceId,
+      source: container.read(musicShareProvider).selectedSource,
+    );
+    final source = container.read(selectedLibraryDataSourceProvider);
+    final results = await Future.wait([
+      source.query(
+        LibraryDataQuery(
+          LibraryQueryKind.album,
+          album: album.preferenceId,
+          limit: 1,
+        ),
+      ),
+      source.resolveSongIds(query),
+    ]);
+    final page = results[0] as LibraryContentData;
+    return album.withSongs(page.songs, ids: results[1] as List<int>);
+  }
+
+  Future<void> _playAlbumSummary(AlbumView album) async {
+    final ids = await ref
+        .read(selectedLibraryDataSourceProvider)
+        .resolveSongIds(
+          LibraryDataQuery(LibraryQueryKind.album, album: album.preferenceId),
+        );
+    if (!mounted) return;
+    await recordRecentAlbumPlayback(ref, album.name);
+    await _playSongIds(ids);
+  }
+}

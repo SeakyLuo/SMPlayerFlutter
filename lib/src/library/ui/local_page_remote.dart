@@ -2,14 +2,6 @@ import '../../remote/music_share_models.dart';
 import '../../remote/remote_directory_provider.dart';
 import '../data/library_models.dart';
 
-Map<int, String> remoteSongFolders(
-  List<LibrarySong> songs,
-  RemoteDirectoryIndex directory,
-) => {
-  for (final song in songs)
-    song.id: directory.songFolders[Uri.parse(song.path).pathSegments.single]!,
-};
-
 LibraryContentData remoteDirectorySnapshot(
   LibraryContentData source,
   RemoteDirectoryIndex directory,
@@ -18,6 +10,12 @@ LibraryContentData remoteDirectorySnapshot(
   final root = '$remoteMusicScheme://$device';
   return LibraryContentData(
     songs: source.songs,
+    totalSongCount: source.totalSongCount,
+    totalDuration: source.totalDuration,
+    songRows: source.songRows,
+    folderSongRows: source.folderSongRows,
+    folderSummaries: source.folderSummaries,
+    songFolderPaths: source.songFolderPaths,
     hasLibrary: source.hasLibrary,
     sortCriterion: source.sortCriterion,
     albumsSort: source.albumsSort,
@@ -29,12 +27,12 @@ LibraryContentData remoteDirectorySnapshot(
     recentSearches: source.recentSearches,
     playlists: source.playlists,
     folders: [
-      for (final path in directory.folders)
+      for (final entry in directory.folders.indexed)
         LibraryFolder(
-          id: 0,
-          path: path.isEmpty ? root : '$root/$path',
+          id: directory.folderInfo[entry.$2]['id'] as int,
+          path: entry.$2.isEmpty ? root : '$root/${entry.$2}',
           parentId: 0,
-          criterion: 0,
+          criterion: directory.folderInfo[entry.$2]['criterion'] as int,
         ),
     ],
     favoritePlaylistId: source.favoritePlaylistId,
@@ -60,10 +58,43 @@ class RemoteDirectoryPageDataCache {
     if (_key != key) {
       _value = (
         snapshot: remoteDirectorySnapshot(source, directory, device),
-        songFolders: remoteSongFolders(source.songs, directory),
+        songFolders: {
+          for (final entry in source.songFolderPaths.entries)
+            entry.key:
+                entry.value == '$remoteMusicScheme://$device'
+                    ? ''
+                    : entry.value.substring(
+                      '$remoteMusicScheme://$device/'.length,
+                    ),
+        },
       );
       _key = key;
     }
     return _value;
   }
+}
+
+LibraryContentData unavailableRemoteDirectorySnapshot(
+  String device,
+  String path,
+) {
+  final root = '$remoteMusicScheme://$device';
+  final segments = path.isEmpty ? <String>[] : path.split('/');
+  return LibraryContentData(
+    songs: const [],
+    hasLibrary: false,
+    sortCriterion: MusicLibrarySortCriterion.values.first,
+    albumsSort: AlbumSortCriterion.defaultSort,
+    databasePath: '',
+    rootPath: root,
+    folders: [
+      for (var depth = 0; depth <= segments.length; depth++)
+        LibraryFolder(
+          id: 0,
+          path: depth == 0 ? root : '$root/${segments.take(depth).join('/')}',
+          parentId: 0,
+          criterion: 0,
+        ),
+    ],
+  );
 }

@@ -1,8 +1,8 @@
 part of 'local_page.dart';
 
 extension _LocalPageAddToActions on _LocalPageState {
-  void _addSongsToNowPlaying(List<int> songIds) {
-    addSongsToNowPlayingWithUndo(
+  Future<void> _addSongsToNowPlaying(List<int> songIds) async {
+    await addSongsToNowPlayingWithUndo(
       context: context,
       ref: ref,
       i18n: context.smPlayerI18n,
@@ -51,17 +51,20 @@ extension _LocalPageAddToActions on _LocalPageState {
         isNowPlayingContext: false,
       ),
       includeFavorites: _hasNotFavoriteSongs(songIds, songsById),
-      onAddToNowPlaying: () {
-        _addSongsToNowPlaying(songIds);
+      onAddToNowPlaying: () async {
+        await _addSongsToNowPlaying(songIds);
       },
-      onToggleFavorite: () {
-        _toggleSongsFavorite(_notFavoriteSongIds(songIds, songsById), true);
+      onToggleFavorite: () async {
+        await _toggleSongsFavorite(
+          _notFavoriteSongIds(songIds, songsById),
+          true,
+        );
       },
       onCreatePlaylist: () {
         _createPlaylist(defaultPlaylistName, songIds, snapshot, i18n);
       },
-      onAddToPlaylist: (playlistId) {
-        _addSongsToPlaylist(playlistId, songIds);
+      onAddToPlaylist: (playlistId) async {
+        await _addSongsToPlaylist(playlistId, songIds);
       },
     );
 
@@ -122,13 +125,15 @@ extension _LocalPageAddToActions on _LocalPageState {
     List<int> songIds,
     Map<int, LibrarySong> songsById,
   ) {
-    return songIds.any((songId) => !songsById[songId]!.favorite);
+    return songIds.any((songId) => songsById[songId]?.favorite != true);
   }
 
   List<int> _notFavoriteSongIds(
     List<int> songIds,
     Map<int, LibrarySong> songsById,
   ) {
-    return songIds.where((songId) => !songsById[songId]!.favorite).toList();
+    return songIds
+        .where((songId) => songsById[songId]?.favorite != true)
+        .toList();
   }
 }

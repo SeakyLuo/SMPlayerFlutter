@@ -7,34 +7,46 @@ class _SearchSectionData {
     required this.cards,
     required this.previewLimit,
   }) : songs = const [],
+       totalCount = null,
+       songRows = const {},
+       lyricsRows = const {},
        lyrics = const [];
 
   const _SearchSectionData.songs({
     required this.criterion,
     required this.songs,
+    this.totalCount,
+    this.songRows = const {},
     required this.previewLimit,
   }) : type = SearchResultType.songs,
+       lyricsRows = const {},
        cards = const [],
        lyrics = const [];
 
   const _SearchSectionData.lyrics({
     required this.criterion,
     required this.lyrics,
+    this.totalCount,
+    this.lyricsRows = const {},
     required this.previewLimit,
   }) : type = SearchResultType.lyrics,
+       songRows = const {},
        cards = const [],
        songs = const [];
 
   final SearchResultType type;
   final SearchSortCriterion criterion;
   final List<SearchResult> cards;
+  final Map<int, SearchLyricsResult> lyricsRows;
+  final int? totalCount;
+  final Map<int, LibrarySong> songRows;
   final List<LibrarySong> songs;
   final List<SearchLyricsResult> lyrics;
   final int previewLimit;
 
   int get count => switch (type) {
-    SearchResultType.songs => songs.length,
-    SearchResultType.lyrics => lyrics.length,
+    SearchResultType.songs => totalCount ?? songs.length,
+    SearchResultType.lyrics => totalCount ?? lyrics.length,
     _ => cards.length,
   };
 
@@ -66,6 +78,8 @@ String _activeSortLabel(
 class _SearchResultSection extends StatelessWidget {
   const _SearchResultSection({
     required this.section,
+    required this.onAccessSongRow,
+    required this.onAccessLyricsRow,
     required this.query,
     required this.i18n,
     required this.activeFilter,
@@ -111,6 +125,8 @@ class _SearchResultSection extends StatelessWidget {
     required this.onRevealSong,
   });
 
+  final ValueChanged<int> onAccessSongRow;
+  final ValueChanged<int> onAccessLyricsRow;
   final _SearchSectionData section;
   final String query;
   final SmPlayerI18n i18n;
@@ -167,7 +183,7 @@ class _SearchResultSection extends StatelessWidget {
     final showViewToggle = preview && section.count > section.previewLimit;
     final sortOptions = getSortOptions(section.type, i18n);
 
-    return Column(
+    final header = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         SizedBox(
@@ -231,12 +247,37 @@ class _SearchResultSection extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 10),
+      ],
+    );
+    return SliverMainAxisGroup(
+      slivers: [
+        SliverToBoxAdapter(child: header),
         if (section.type == SearchResultType.songs)
-          _buildSongs(context, visibleCount)
+          SliverList.builder(
+            itemCount: visibleCount.clamp(0, section.count),
+            itemBuilder: (context, index) {
+              final song = section.songRows[index];
+              if (song == null) {
+                onAccessSongRow(index);
+                return const LibrarySongPlaceholder();
+              }
+              return _buildSongRow(context, song, index);
+            },
+          )
         else if (section.type == SearchResultType.lyrics)
-          _buildLyrics(context, visibleCount)
+          SliverList.builder(
+            itemCount: visibleCount.clamp(0, section.count),
+            itemBuilder: (context, index) {
+              final result = section.lyricsRows[index];
+              if (result == null) {
+                onAccessLyricsRow(index);
+                return const LibrarySongPlaceholder();
+              }
+              return _buildLyricsRow(context, result, index);
+            },
+          )
         else
-          _buildCards(context, visibleCount),
+          SliverToBoxAdapter(child: _buildCards(context, visibleCount)),
       ],
     );
   }
@@ -275,156 +316,139 @@ class _SearchResultSection extends StatelessWidget {
     };
   }
 
-  Widget _buildSongs(BuildContext context, int visibleCount) {
-    final songs = section.songs.take(visibleCount).toList();
-    return Column(
-      children: [
-        for (var index = 0; index < songs.length; index += 1)
-          PlaylistControlItem(
-            key: ValueKey('search-song-${songs[index].id}'),
-            song: songs[index],
-            current: songs[index].id == currentTrackId,
-            playing: songs[index].id == currentTrackId && isPlaying,
-            selected: selection.isSelected(_songSelectionKey(songs[index])),
-            selectionMode: selection.multiSelect,
-            variant: PlaylistControlItemVariant.headeredPlaylist,
-            searchQuery: query,
-            showCompactPrimaryActions: true,
-            keepFavoriteActionInCompact: true,
-            keepAddToActionInCompact: true,
-            favoriteLabel: i18n.t(
-              songs[index].favorite
-                  ? 'context.removeFavorite'
-                  : 'context.addFavorite',
-            ),
-            addToPlaylistLabel: i18n.t('context.addToPlaylist'),
-            onToggleFavoriteClick: () {
-              unawaited(
-                onToggleSongsFavorite([
-                  songs[index].id,
-                ], !songs[index].favorite),
-              );
-            },
-            onAddToPlaylistClick:
-                (buttonContext) =>
-                    _showSongAddToMenu(buttonContext, songs[index]),
-            playNextLabel: i18n.t('context.playNext'),
-            removeLabel: i18n.t('nowPlaying.remove'),
-            onActivateRow: () {
-              onPlayTrack(songs[index], index);
-            },
-            onPlayTrack: () {
-              onPlaySong(songs[index]);
-            },
-            onTogglePlayPause: onTogglePlayPause,
-            onToggleSelection: () {
-              selection.toggle(_songSelectionKey(songs[index]));
-              onSelectionChanged();
-            },
-            onPlayNextClick: () {
-              onPlayNext(songs[index]);
-            },
-            onSeeArtist: (artist) {
-              onOpenArtist(artist);
-            },
-            onSeeAlbum: () {
-              onOpenAlbum(song_display.displayAlbum(songs[index], i18n));
-            },
-            onOpenContextMenu: (position) {
-              return _showSongContextMenu(
-                context,
-                position,
-                songs[index],
-                songs.map((song) => song.id).toList(),
-              );
-            },
-          ),
-      ],
+  Widget _buildSongRow(BuildContext context, LibrarySong song, int index) {
+    return PlaylistControlItem(
+      key: ValueKey('search-song-${song.id}'),
+      song: song,
+      current: song.id == currentTrackId,
+      playing: song.id == currentTrackId && isPlaying,
+      selected: selection.isSelected(_songSelectionKey(song)),
+      selectionMode: selection.multiSelect,
+      variant: PlaylistControlItemVariant.headeredPlaylist,
+      searchQuery: query,
+      showCompactPrimaryActions: true,
+      keepFavoriteActionInCompact: true,
+      keepAddToActionInCompact: true,
+      favoriteLabel: i18n.t(
+        song.favorite ? 'context.removeFavorite' : 'context.addFavorite',
+      ),
+      addToPlaylistLabel: i18n.t('context.addToPlaylist'),
+      onToggleFavoriteClick: () {
+        unawaited(onToggleSongsFavorite([song.id], !song.favorite));
+      },
+      onAddToPlaylistClick:
+          (buttonContext) => _showSongAddToMenu(buttonContext, song),
+      playNextLabel: i18n.t('context.playNext'),
+      removeLabel: i18n.t('nowPlaying.remove'),
+      onActivateRow: () {
+        onPlayTrack(song, index);
+      },
+      onPlayTrack: () {
+        onPlaySong(song);
+      },
+      onTogglePlayPause: onTogglePlayPause,
+      onToggleSelection: () {
+        selection.toggle(_songSelectionKey(song));
+        onSelectionChanged();
+      },
+      onPlayNextClick: () {
+        onPlayNext(song);
+      },
+      onSeeArtist: (artist) {
+        onOpenArtist(artist);
+      },
+      onSeeAlbum: () {
+        onOpenAlbum(song_display.displayAlbum(song, i18n));
+      },
+      onOpenContextMenu: (position) {
+        return _showSongContextMenu(
+          context,
+          position,
+          song,
+          section.songs.map((song) => song.id).toList(),
+        );
+      },
     );
   }
 
-  Widget _buildLyrics(BuildContext context, int visibleCount) {
-    final results = section.lyrics.take(visibleCount).toList();
+  Widget _buildLyricsRow(
+    BuildContext context,
+    SearchLyricsResult result,
+    int index,
+  ) {
     final queueSongIds =
         section.lyrics.map((result) => result.song.id).toList();
     return Column(
       children: [
-        for (var index = 0; index < results.length; index += 1) ...[
-          PlaylistControlItem(
-            key: ValueKey('search-lyrics-${results[index].song.id}'),
-            song: results[index].song,
-            current: results[index].song.id == currentTrackId,
-            playing: results[index].song.id == currentTrackId && isPlaying,
-            selected: selection.isSelected(
-              _songSelectionKey(results[index].song),
-            ),
-            selectionMode: selection.multiSelect,
-            variant: PlaylistControlItemVariant.headeredPlaylist,
-            searchQuery: '',
-            showCompactPrimaryActions: true,
-            keepFavoriteActionInCompact: true,
-            keepAddToActionInCompact: true,
-            favoriteLabel: i18n.t(
-              results[index].song.favorite
-                  ? 'context.removeFavorite'
-                  : 'context.addFavorite',
-            ),
-            addToPlaylistLabel: i18n.t('context.addToPlaylist'),
-            onToggleFavoriteClick: () {
-              unawaited(
-                onToggleSongsFavorite([
-                  results[index].song.id,
-                ], !results[index].song.favorite),
-              );
-            },
-            onAddToPlaylistClick:
-                (buttonContext) =>
-                    _showSongAddToMenu(buttonContext, results[index].song),
-            showBottomBorder: false,
-            playNextLabel: i18n.t('context.playNext'),
-            removeLabel: i18n.t('nowPlaying.remove'),
-            onActivateRow: () {
-              onPlayTrack(results[index].song, index);
-            },
-            onPlayTrack: () {
-              onPlaySong(results[index].song);
-            },
-            onTogglePlayPause: onTogglePlayPause,
-            onToggleSelection: () {
-              selection.toggle(_songSelectionKey(results[index].song));
+        PlaylistControlItem(
+          key: ValueKey('search-lyrics-${result.song.id}'),
+          song: result.song,
+          current: result.song.id == currentTrackId,
+          playing: result.song.id == currentTrackId && isPlaying,
+          selected: selection.isSelected(_songSelectionKey(result.song)),
+          selectionMode: selection.multiSelect,
+          variant: PlaylistControlItemVariant.headeredPlaylist,
+          searchQuery: '',
+          showCompactPrimaryActions: true,
+          keepFavoriteActionInCompact: true,
+          keepAddToActionInCompact: true,
+          favoriteLabel: i18n.t(
+            result.song.favorite
+                ? 'context.removeFavorite'
+                : 'context.addFavorite',
+          ),
+          addToPlaylistLabel: i18n.t('context.addToPlaylist'),
+          onToggleFavoriteClick: () {
+            unawaited(
+              onToggleSongsFavorite([result.song.id], !result.song.favorite),
+            );
+          },
+          onAddToPlaylistClick:
+              (buttonContext) => _showSongAddToMenu(buttonContext, result.song),
+          showBottomBorder: false,
+          playNextLabel: i18n.t('context.playNext'),
+          removeLabel: i18n.t('nowPlaying.remove'),
+          onActivateRow: () {
+            onPlayTrack(result.song, index);
+          },
+          onPlayTrack: () {
+            onPlaySong(result.song);
+          },
+          onTogglePlayPause: onTogglePlayPause,
+          onToggleSelection: () {
+            selection.toggle(_songSelectionKey(result.song));
+            onSelectionChanged();
+          },
+          onPlayNextClick: () {
+            onPlayNext(result.song);
+          },
+          onSeeArtist: onOpenArtist,
+          onSeeAlbum: () {
+            onOpenAlbum(song_display.displayAlbum(result.song, i18n));
+          },
+          onOpenContextMenu: (position) {
+            return _showSongContextMenu(
+              context,
+              position,
+              result.song,
+              queueSongIds,
+            );
+          },
+        ),
+        _SearchLyricsExcerpt(
+          key: ValueKey((result.song.id, query)),
+          match: result.match,
+          query: query,
+          i18n: i18n,
+          onTap: () {
+            if (selection.multiSelect) {
+              selection.toggle(_songSelectionKey(result.song));
               onSelectionChanged();
-            },
-            onPlayNextClick: () {
-              onPlayNext(results[index].song);
-            },
-            onSeeArtist: onOpenArtist,
-            onSeeAlbum: () {
-              onOpenAlbum(song_display.displayAlbum(results[index].song, i18n));
-            },
-            onOpenContextMenu: (position) {
-              return _showSongContextMenu(
-                context,
-                position,
-                results[index].song,
-                queueSongIds,
-              );
-            },
-          ),
-          _SearchLyricsExcerpt(
-            key: ValueKey((results[index].song.id, query)),
-            match: results[index].match,
-            query: query,
-            i18n: i18n,
-            onTap: () {
-              if (selection.multiSelect) {
-                selection.toggle(_songSelectionKey(results[index].song));
-                onSelectionChanged();
-                return;
-              }
-              onOpenLyricsMatch(results[index], queueSongIds);
-            },
-          ),
-        ],
+              return;
+            }
+            onOpenLyricsMatch(result, queueSongIds);
+          },
+        ),
       ],
     );
   }
@@ -638,14 +662,14 @@ class _SearchResultSection extends StatelessWidget {
           onPlayNext(song);
         },
         nowPlayingSongIds: nowPlayingSongIds,
-        onAddToNowPlaying: () {
-          unawaited(onAddSongsToNowPlaying([song.id]));
+        onAddToNowPlaying: () async {
+          await onAddSongsToNowPlaying([song.id]);
         },
         onCreatePlaylist: () {
           unawaited(onCreatePlaylist(song.title, [song.id]));
         },
-        onAddToPlaylist: (playlistId) {
-          unawaited(onAddSongsToPlaylist(playlistId, [song.id]));
+        onAddToPlaylist: (playlistId) async {
+          await onAddSongsToPlaylist(playlistId, [song.id]);
         },
         onRemove: () {},
         onSelect: () {
@@ -658,8 +682,8 @@ class _SearchResultSection extends StatelessWidget {
           ], selectionAnchor: songKey);
           onSelectionChanged();
         },
-        onToggleFavorite: () {
-          unawaited(onToggleSongsFavorite([song.id], !song.favorite));
+        onToggleFavorite: () async {
+          await onToggleSongsFavorite([song.id], !song.favorite);
         },
         onSetPreference: (level) {
           unawaited(onSetSongPreference(song, level));
@@ -691,217 +715,4 @@ class _SearchResultSection extends StatelessWidget {
       ),
     );
   }
-
-  Future<void> _showCardContextMenu(
-    BuildContext context,
-    Offset position,
-    SearchResult card,
-  ) async {
-    final cardKey = getSearchResultCardKey(section.type, card);
-    final preferenceLevel = await onGetPreferenceLevel(section.type, card);
-    if (!context.mounted) {
-      return;
-    }
-    final favoriteSongIds = [
-      for (final songId in card.songIds)
-        if (songsById[songId]?.favorite != true) songId,
-    ];
-    final addToItem = buildAddToPlaylistMenuFlyoutItem(
-      i18n: i18n,
-      songIds: card.songIds,
-      playlists: playlists,
-      includeNowPlaying: shouldShowNowPlayingAddToTarget(
-        songIds: card.songIds,
-        nowPlayingSongIds: nowPlayingSongIds,
-        isNowPlayingContext: false,
-      ),
-      includeFavorites: favoriteSongIds.isNotEmpty,
-      onAddToNowPlaying: () {
-        onAddSongsToNowPlaying(card.songIds);
-      },
-      onToggleFavorite: () {
-        onToggleSongsFavorite(favoriteSongIds, true);
-      },
-      onCreatePlaylist: () {
-        onCreatePlaylist(card.title, card.songIds);
-      },
-      onAddToPlaylist: (playlistId) {
-        onAddCardSongsToPlaylist(playlistId, card.songIds);
-      },
-    );
-
-    await showMenuFlyout(
-      context,
-      position: position,
-      items: [
-        MenuFlyoutItem(
-          key: 'shuffle',
-          text: i18n.t('nowPlaying.randomPlay'),
-          useShuffleIcon: true,
-          onPressed: () {
-            onPlayCard(card);
-          },
-        ),
-        if (addToItem != null) addToItem,
-        MenuFlyoutItem(
-          key: 'select',
-          text: i18n.t('context.select'),
-          icon: FluentIcons.multiselect_ltr_20_regular,
-          onPressed: () {
-            selection.enterMultiSelect();
-            selection.replaceSelection([
-              for (final key in selection.selectedItems)
-                if (_isSearchSongSelectionKey(key)) key,
-              cardKey,
-            ], selectionAnchor: cardKey);
-            onSelectionChanged();
-          },
-        ),
-        if (_searchResultPreferenceType(section.type) != null)
-          _buildSearchResultPreferenceMenuItem(card, preferenceLevel),
-        if (section.type == SearchResultType.albums)
-          MenuFlyoutItem(
-            key: 'see-album-art',
-            text: i18n.t('context.seeAlbumArt'),
-            icon: FluentIcons.image_20_regular,
-            onPressed: () {
-              onPreviewAlbumArt(card);
-            },
-          ),
-        if (section.type == SearchResultType.folders) ...[
-          MenuFlyoutItem(
-            key: 'show-in-explorer',
-            text: i18n.t('context.reveal'),
-            pendingText: i18n.t('context.openingLocal'),
-            icon: FluentIcons.folder_open_20_regular,
-            onPressed: () => onRevealCard(card),
-          ),
-          MenuFlyoutItem(
-            key: 'search-directory',
-            text: i18n.t('local.searchDirectory'),
-            icon: FluentIcons.search_20_regular,
-            onPressed: () {
-              onSearchDirectory(card);
-            },
-          ),
-        ],
-      ],
-    );
-  }
-
-  void _showCardAddToMenu(
-    BuildContext context,
-    Offset position,
-    SearchResult card,
-  ) {
-    final favoriteSongIds = [
-      for (final songId in card.songIds)
-        if (songsById[songId]?.favorite != true) songId,
-    ];
-    final addToItem = buildAddToPlaylistMenuFlyoutItem(
-      i18n: i18n,
-      songIds: card.songIds,
-      playlists: playlists,
-      includeNowPlaying: shouldShowNowPlayingAddToTarget(
-        songIds: card.songIds,
-        nowPlayingSongIds: nowPlayingSongIds,
-        isNowPlayingContext: false,
-      ),
-      includeFavorites: favoriteSongIds.isNotEmpty,
-      onAddToNowPlaying: () {
-        onAddSongsToNowPlaying(card.songIds);
-      },
-      onToggleFavorite: () {
-        onToggleSongsFavorite(favoriteSongIds, true);
-      },
-      onCreatePlaylist: () {
-        onCreatePlaylist(card.title, card.songIds);
-      },
-      onAddToPlaylist: (playlistId) {
-        onAddSongsToPlaylist(playlistId, card.songIds);
-      },
-    );
-    if (addToItem == null) {
-      return;
-    }
-
-    showMenuFlyout(context, position: position, items: addToItem.submenu);
-  }
-
-  MenuFlyoutItem _buildSearchResultPreferenceMenuItem(
-    SearchResult card,
-    String? preferenceLevel,
-  ) {
-    return buildPreferenceMenuFlyoutItem(
-      i18n: i18n,
-      key: 'preference',
-      preferenceLevel: preferenceLevel,
-      onUndoPreference:
-          preferenceLevel == null
-              ? null
-              : () {
-                onUndoPreference(section.type, card);
-              },
-      onSetPreference: (level) {
-        onSetPreference(section.type, card, level);
-      },
-    );
-  }
-}
-
-class _SearchSectionActionButton extends StatelessWidget {
-  const _SearchSectionActionButton({
-    required this.icon,
-    required this.label,
-    required this.onPressed,
-  });
-
-  final IconData icon;
-  final String label;
-  final VoidCallback onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    return SmPlayerTextIconButton(
-      label: label,
-      icon: icon,
-      onPressed: onPressed,
-    );
-  }
-}
-
-String? _searchResultPreferenceType(SearchResultType type) {
-  return switch (type) {
-    SearchResultType.artists => 'artist',
-    SearchResultType.albums => 'album',
-    SearchResultType.playlists => 'playlist',
-    SearchResultType.folders => 'folder',
-    SearchResultType.songs => null,
-    SearchResultType.lyrics => null,
-  };
-}
-
-String _searchResultPreferenceId(String preferenceType, SearchResult card) {
-  return preferenceType == 'folder' || preferenceType == 'playlist'
-      ? card.sourceId!
-      : card.title;
-}
-
-SearchFilterKey _filterForSection(SearchResultType type) {
-  return switch (type) {
-    SearchResultType.artists => SearchFilterKey.artists,
-    SearchResultType.albums => SearchFilterKey.albums,
-    SearchResultType.songs => SearchFilterKey.songs,
-    SearchResultType.lyrics => SearchFilterKey.lyrics,
-    SearchResultType.playlists => SearchFilterKey.playlists,
-    SearchResultType.folders => SearchFilterKey.folders,
-  };
-}
-
-String _songSelectionKey(LibrarySong song) {
-  return 'songs:${song.id}';
-}
-
-bool _isSearchSongSelectionKey(String key) {
-  return key.startsWith('songs:');
 }

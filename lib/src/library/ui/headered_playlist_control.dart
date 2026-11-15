@@ -1,3 +1,7 @@
+import 'library_scope_access.dart';
+import '../data/library_repository.dart';
+import '../../playback/source_group_play.dart';
+import '../../playback/media_control_model.dart' show formatDuration;
 import '../../remote/music_source_providers.dart';
 import 'package:smplayer_flutter/src/remote/music_share_models.dart';
 import 'package:smplayer_flutter/src/remote/music_source_selector.dart';
@@ -40,6 +44,7 @@ import 'package:smplayer_flutter/src/platform/desktop_feature_service.dart';
 import 'package:smplayer_flutter/src/playback/playlist_control.dart';
 
 part 'headered_playlist_actions.dart';
+part 'headered_playlist_paging.dart';
 part 'headered_playlist_artwork.dart';
 part 'headered_playlist_command_bar.dart';
 part 'headered_playlist_cover.dart';
@@ -78,6 +83,8 @@ class HeaderedPlaylistControl extends ConsumerStatefulWidget {
     required this.onPlayTrack,
     required this.onAddSongToPlaylist,
     this.playlistId,
+    this.query,
+    this.page,
     this.headerSongs,
     this.isPlaying = false,
     this.removable = false,
@@ -108,6 +115,8 @@ class HeaderedPlaylistControl extends ConsumerStatefulWidget {
     this.onRecordPlay,
   });
 
+  final LibraryDataQuery? query;
+  final LibraryContentData? page;
   final HeaderedPlaylistType type;
   final int? playlistId;
   final String title;
@@ -158,6 +167,10 @@ class _HeaderedPlaylistControlState
   late PageSelectionController<int> _selection;
   final _scrollController = ScrollController(keepScrollOffset: false);
   List<int>? _orderedSongIds;
+  LibraryDataQuery? _sortQuery;
+  Future<List<int>>? _scopeRead;
+  LibraryDataQuery? _scopeQuery;
+  final _attemptedWindows = <int>{};
   PlaylistSortCriterion? _selectedSortCriterion;
   MusicDialogEntry? _musicDialog;
   List<String> _resolvedPlaylistArtworkUrls = const [];
@@ -167,6 +180,8 @@ class _HeaderedPlaylistControlState
   var _headerArtworkColorGeneration = 0;
   var _headerCoverColor = _defaultHeaderArtworkColor;
   var _scrollTop = 0.0;
+  (LibraryDataQuery?, int)? _lastAnchor;
+  String? _selectionSource;
   var _headerCollapsed = false;
   final _pendingFavoriteSongIds = <int>{};
   final _appBarPortalOwner = Object();
@@ -201,7 +216,12 @@ class _HeaderedPlaylistControlState
         _selectionStorageKeyFor(widget),
       );
     }
-    if (oldWidget.songs != widget.songs) {
+    if (oldWidget.query != widget.query) {
+      _sortQuery = null;
+      _attemptedWindows.clear();
+      _selection.cancel();
+    }
+    if (oldWidget.songs != widget.songs && widget.query == null) {
       _orderedSongIds = null;
       _selectedSortCriterion = null;
     }
@@ -228,9 +248,20 @@ class _HeaderedPlaylistControlState
 
   @override
   Widget build(BuildContext context) {
+    final source = ref.watch(selectedLibraryDataSourceProvider).source.deviceId;
+    if (_selectionSource != source) {
+      _selectionSource = source;
+      _selection.cancel();
+      _attemptedWindows.clear();
+    }
     ref.watch(libraryPlaylistOverridesProvider);
     ref.watch(libraryDeletedPlaylistIdsProvider);
     ref.watch(libraryPlaylistOrderProvider);
+    final query = _effectiveQuery;
+    if (query != null) {
+      ref.watch(browsingLibraryPageProvider(query));
+      listenLibraryPageFailure(ref, query);
+    }
     return _buildBody(context);
   }
 
@@ -247,7 +278,10 @@ class _HeaderedPlaylistControlState
 
   List<LibraryPlaylist> _effectivePlaylists(List<LibraryPlaylist> playlists) {
     return applyLibraryPlaylistOverridesToPlaylists(
-      playlists,
+      {
+        for (final playlist in widget.playlists) playlist.id: playlist,
+        for (final playlist in playlists) playlist.id: playlist,
+      }.values.toList(),
       ref.read(libraryPlaylistOverridesProvider),
       ref.read(libraryDeletedPlaylistIdsProvider),
       ref.read(libraryPlaylistOrderProvider),
@@ -255,6 +289,7 @@ class _HeaderedPlaylistControlState
   }
 
   void _handleScroll() {
+    _attemptedWindows.clear();
     final nextScrollTop = _scrollController.offset;
     if ((nextScrollTop - _scrollTop).abs() < 0.5) {
       return;

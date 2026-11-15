@@ -1,9 +1,9 @@
+import '../library/data/library_queries.dart';
 import 'dart:convert';
 import 'dart:io';
 
 import 'package:path/path.dart' as p;
 
-import '../library/data/library_models.dart';
 import '../library/data/library_repository.dart';
 import 'music_share_edit_codec.dart';
 import 'music_share_song_editor.dart';
@@ -11,26 +11,40 @@ import 'music_share_song_editor.dart';
 Future<Map<String, dynamic>> handleSharedBatchEdit(
   HttpRequest request,
   String resource,
-  Map<int, LibrarySong> sharedSongs,
-  String rootPath,
   LibraryRepository repository,
   bool Function() canWrite,
 ) async {
-  final ids =
-      request.uri.queryParameters['ids']!.split(',').map(int.parse).toList();
-  if (ids.isEmpty || !ids.every(sharedSongs.containsKey)) {
+  final buffer = StringBuffer();
+  await for (final chunk in utf8.decoder
+      .bind(request)
+      .timeout(const Duration(seconds: 15))) {
+    buffer.write(chunk);
+    if (buffer.length > 16 * 1024 * 1024) {
+      request.response.statusCode = HttpStatus.requestEntityTooLarge;
+      return {};
+    }
+  }
+  final envelope = jsonDecode(buffer.toString()) as Map<String, dynamic>;
+  final ids = (envelope['ids'] as List).cast<int>();
+  final method = envelope['method'] as String;
+  final references = await repository.songReferences(ids);
+  final context = await repository.queryLibrary(
+    const LibraryDataQuery(LibraryQueryKind.context),
+  );
+  final rootPath = context.rootPath;
+  if (ids.isEmpty || !ids.every(references.containsKey)) {
     request.response.statusCode = HttpStatus.notFound;
     return {};
   }
   final root = await Directory(rootPath).resolveSymbolicLinks();
   for (final id in ids) {
-    final path = await File(sharedSongs[id]!.path).resolveSymbolicLinks();
+    final path = await File(references[id]!).resolveSymbolicLinks();
     if (!p.isWithin(root, path)) {
       request.response.statusCode = HttpStatus.forbidden;
       return {};
     }
   }
-  if (request.method == 'GET' && resource == 'properties') {
+  if (method == 'GET' && resource == 'properties') {
     final values = await repository.getSongPropertiesBatch(ids);
     return {
       'properties': [
@@ -43,24 +57,29 @@ Future<Map<String, dynamic>> handleSharedBatchEdit(
     request.response.statusCode = HttpStatus.forbidden;
     return {};
   }
-  if (request.method == 'DELETE' && resource == 'artwork') {
+  if (method == 'DELETE' && resource == 'artwork') {
     await repository.updateSharedSongsArtwork(ids, null);
-  } else if (request.method == 'POST') {
-    final bytes = <int>[];
-    await for (final chunk in request.timeout(const Duration(seconds: 15))) {
-      bytes.addAll(chunk);
-      if (bytes.length > 16 * 1024 * 1024) {
-        request.response.statusCode = HttpStatus.requestEntityTooLarge;
-        return {};
-      }
-    }
-    final json = jsonDecode(utf8.decode(bytes)) as Map<String, dynamic>;
+  } else if (method == 'POST') {
+    final json = envelope['data'] as Map<String, dynamic>;
     if (!canWrite()) {
       request.response.statusCode = HttpStatus.forbidden;
       return {};
     }
     if (resource == 'favorites') {
-      await repository.setSongsFavorite(ids, json['favorite'] as bool);
+      final changed = await repository.setSongsFavorite(
+        ids,
+        json['favorite'] as bool,
+      );
+      return {'changed': changed};
+    } else if (resource == 'artist-splits') {
+      final artists = (json['artists'] as Map).cast<String, dynamic>();
+      if (artists.length != ids.toSet().length ||
+          !ids.every((id) => artists.containsKey('$id'))) {
+        throw const FormatException('Invalid song selection');
+      }
+      await repository.applySharedArtistValues({
+        for (final id in ids) id: (artists['$id'] as List).cast<String>(),
+      });
     } else if (resource == 'properties') {
       final rawUpdates = (json['updates'] as Map).cast<String, dynamic>();
       if (rawUpdates.length != ids.toSet().length ||
@@ -87,5 +106,5 @@ Future<Map<String, dynamic>> handleSharedBatchEdit(
     request.response.statusCode = HttpStatus.methodNotAllowed;
     return {};
   }
-  return {};
+  return {'changed': ids};
 }

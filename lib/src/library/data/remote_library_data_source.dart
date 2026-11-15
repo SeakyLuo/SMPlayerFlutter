@@ -1,16 +1,40 @@
 part of 'library_repository.dart';
 
-final class RemoteLibraryDataSource implements LibraryDataSource {
+final class RemoteLibraryDataSource
+    with _RemoteLibraryStorage, _RemoteLibraryReading
+    implements LibraryDataSource {
   const RemoteLibraryDataSource(this.source, this.access, this.repository);
   @override
   final RemoteLibrarySource source;
+  @override
   final MusicShareAccess access;
+  @override
   final LibraryRepository repository;
   @override
   bool get canWrite => access.canWrite(source.rootPath);
 
   void _checkWrite() {
     if (!canWrite) throw const MusicShareException('share.readOnlyPermission');
+  }
+
+  @override
+  Future<void> applyArtistSplits(
+    Map<int, String> songs,
+    List<ArtistSplitResultItem> splits,
+  ) async {
+    _checkWrite();
+    final byId = {for (final split in splits) split.songId: split};
+    await access.songsRequest(
+      songs.values.toList(),
+      'artist-splits',
+      method: 'POST',
+      body: {
+        'artists': {
+          for (final song in songs.entries)
+            Uri.parse(song.value).pathSegments.single: byId[song.key]!.artists,
+        },
+      },
+    );
   }
 
   Future<LibraryPlaylist?> _playlist(
@@ -106,42 +130,42 @@ final class RemoteLibraryDataSource implements LibraryDataSource {
 
   @override
   Future<List<SongPropertiesSnapshot>> getProperties(
-    List<LibrarySong> songs,
+    Map<int, String> songs,
   ) async {
     final result = await access.songsRequest(
-      songs.map((s) => s.path).toList(),
+      songs.values.toList(),
       'properties',
     );
     final byHost = {
-      for (final song in songs)
-        int.parse(Uri.parse(song.path).pathSegments.single): song,
+      for (final song in songs.entries)
+        int.parse(Uri.parse(song.value).pathSegments.single): song,
     };
     return (result['properties'] as List).map((raw) {
       final json = (raw as Map).cast<String, dynamic>();
       final song = byHost[json['id']]!;
-      return sharedPropertiesFromJson(json, song.id, song.path);
+      return sharedPropertiesFromJson(json, song.key, song.value);
     }).toList();
   }
 
   @override
   Future<BatchSongPropertiesUpdateResult> updateProperties(
-    List<LibrarySong> songs,
+    Map<int, String> songs,
     Map<int, SongPropertiesUpdate> updates,
   ) async {
     _checkWrite();
     final byHost = {
-      for (final song in songs)
-        int.parse(Uri.parse(song.path).pathSegments.single): song.id,
+      for (final song in songs.entries)
+        int.parse(Uri.parse(song.value).pathSegments.single): song.key,
     };
     final result = await access.songsRequest(
-      songs.map((s) => s.path).toList(),
+      songs.values.toList(),
       'properties',
       method: 'POST',
       body: {
         'updates': {
-          for (final song in songs)
-            Uri.parse(song.path).pathSegments.single: sharedUpdateJson(
-              updates[song.id]!,
+          for (final song in songs.entries)
+            Uri.parse(song.value).pathSegments.single: sharedUpdateJson(
+              updates[song.key]!,
             ),
         },
       },
@@ -155,14 +179,22 @@ final class RemoteLibraryDataSource implements LibraryDataSource {
   }
 
   @override
-  Future<void> setFavorites(List<LibrarySong> songs, bool favorite) async {
+  Future<List<int>> setFavorites(Map<int, String> songs, bool favorite) async {
     _checkWrite();
-    await access.songsRequest(
-      songs.map((s) => s.path).toList(),
+    final result = await access.songsRequest(
+      songs.values.toList(),
       'favorites',
       method: 'POST',
       body: {'favorite': favorite},
     );
+    final byHost = {
+      for (final entry in songs.entries)
+        int.parse(Uri.parse(entry.value).pathSegments.single): entry.key,
+    };
+    return (result['changed'] as List)
+        .cast<int>()
+        .map((id) => byHost[id]!)
+        .toList();
   }
 
   @override
@@ -199,23 +231,23 @@ final class RemoteLibraryDataSource implements LibraryDataSource {
   }
 
   @override
-  Future<void> writeArtwork(List<LibrarySong> songs, String? sourcePath) async {
+  Future<void> writeArtwork(Map<int, String> songs, String? sourcePath) async {
     _checkWrite();
     final body =
         sourcePath == null
             ? null
             : {'image': base64Encode(await File(sourcePath).readAsBytes())};
     if (songs.length == 1) {
-      final song = songs.single;
+      final song = songs.values.single;
       await access.songRequest(
-        song.path,
+        song,
         'artwork',
         method: sourcePath == null ? 'DELETE' : 'POST',
         body: body,
       );
     } else {
       await access.songsRequest(
-        songs.map((s) => s.path).toList(),
+        songs.values.toList(),
         'artwork',
         method: sourcePath == null ? 'DELETE' : 'POST',
         body: body,
@@ -224,14 +256,14 @@ final class RemoteLibraryDataSource implements LibraryDataSource {
   }
 
   @override
-  Future<void> writeAlbumArtwork(
-    String album,
-    List<LibrarySong> songs,
-    String? sourcePath,
-  ) async {
+  Future<void> writeAlbumArtwork(String album, String? sourcePath) async {
     _checkWrite();
+    final ids = await resolveSongIds(
+      LibraryDataQuery(LibraryQueryKind.album, album: album),
+    );
+    final songs = await repository.songReferences(ids);
     await access.songsRequest(
-      songs.map((s) => s.path).toList(),
+      songs.values.toList(),
       'artwork',
       method: sourcePath == null ? 'DELETE' : 'POST',
       body:
@@ -308,16 +340,26 @@ final class RemoteLibraryDataSource implements LibraryDataSource {
     final json = await access.preferenceRequest(device, 'get', {
       'unknownAlbumName': unknownAlbumName,
     });
-    final songs = await repository.getLibrarySongs();
+    final hostIds = (json['songIds'] as List).cast<int>();
+    final localIds = await repository.cacheRemoteSongReferences(
+      device,
+      hostIds,
+    );
     final songIds = {
-      for (final song in songs)
-        if (song.source == source)
-          Uri.parse(song.path).pathSegments.single: song.id.toString(),
+      for (var index = 0; index < hostIds.length; index++)
+        '${hostIds[index]}': '${localIds[index]}',
     };
     final playlists = {
-      for (final list in access.remotePlaylists)
-        if (list.source == source)
-          Uri.parse(list.remotePath).pathSegments.last: list.id.toString(),
+      for (final raw in json['playlists'] as List)
+        (raw as Map)['itemId'] as String:
+            (-int.parse(
+                      shareDigest(
+                        '$remoteMusicScheme://$device/playlists/${raw['itemId']}',
+                      ).substring(0, 15),
+                      radix: 16,
+                    ) -
+                    1)
+                .toString(),
     };
     repository.forgetRemotePreferences(device);
     List<PreferenceItemSnapshot> decode(String key) =>

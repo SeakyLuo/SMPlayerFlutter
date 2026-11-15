@@ -3,6 +3,7 @@ part of 'music_library_page.dart';
 class _CompactSongList extends StatelessWidget {
   const _CompactSongList({
     required this.songs,
+    required this.totalSongCount,
     required this.scrollController,
     required this.sortCriterion,
     required this.sortDirection,
@@ -22,7 +23,8 @@ class _CompactSongList extends StatelessWidget {
     required this.onOpenContextMenu,
   });
 
-  final List<LibrarySong> songs;
+  final Map<int, LibrarySong> songs;
+  final int totalSongCount;
   final ScrollController scrollController;
   final MusicLibrarySortCriterion sortCriterion;
   final MusicLibrarySortDirection sortDirection;
@@ -63,9 +65,10 @@ class _CompactSongList extends StatelessWidget {
               bottom: multiSelect ? multiSelectCommandBarScrollSpacer : 4,
             ),
             itemExtent: 76,
-            itemCount: songs.length,
+            itemCount: totalSongCount,
             itemBuilder: (context, index) {
               final song = songs[index];
+              if (song == null) return const _SongWindowPlaceholder();
               return _CompactSongRow(
                 song: song,
                 selected: selectedSongIds.contains(song.id),
@@ -693,4 +696,25 @@ class _SelectionMark extends StatelessWidget {
       ),
     );
   }
+}
+
+class _SongWindowPlaceholder extends StatelessWidget {
+  const _SongWindowPlaceholder();
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
+    child: Align(
+      alignment: Alignment.centerLeft,
+      child: Container(
+        width: 180,
+        height: 12,
+        decoration: BoxDecoration(
+          color: Theme.of(
+            context,
+          ).colorScheme.onSurface.withValues(alpha: 0.06),
+          borderRadius: BorderRadius.circular(4),
+        ),
+      ),
+    ),
+  );
 }

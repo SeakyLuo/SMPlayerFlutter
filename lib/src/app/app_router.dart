@@ -276,7 +276,7 @@ GoRouter createSmPlayerRouter({
                               },
                               onScanLibrary:
                                   (rootPath, {cancellation, onProgress}) =>
-                                      _scanLibraryRootAndReload(
+                                      _scanLibraryRoot(
                                         ref,
                                         rootPath,
                                         settingsController,
@@ -508,7 +508,7 @@ class _SmPlayerRouteShell extends ConsumerWidget {
           return;
         }
         if (target == '/local' && isHiddenFoldersRoute) {
-          context.go('/local');
+          _returnFromHiddenFolders(context);
           return;
         }
         if (target == '/albums') {
@@ -556,7 +556,7 @@ class _SmPlayerRouteShell extends ConsumerWidget {
         }
 
         if (isHiddenFoldersRoute) {
-          context.go('/local');
+          _returnFromHiddenFolders(context);
           return;
         }
       },
@@ -570,6 +570,15 @@ class _SmPlayerRouteShell extends ConsumerWidget {
           smPlayerGlobalSettingsSnapshot.lastDisplayMode,
       child: navigationShell,
     );
+  }
+}
+
+void _returnFromHiddenFolders(BuildContext context) {
+  if (context.canPop()) {
+    context.pop();
+  } else {
+    // A direct link to hidden folders has no directory page to return to.
+    context.go('/local');
   }
 }
 
@@ -636,7 +645,7 @@ String _searchRouteFor(String query, SearchHistoryType type) {
 }
 
 void _invalidateLibraryData(WidgetRef ref) {
-  ref.invalidate(libraryContentDataProvider);
+  invalidateLibraryQueries(ref.invalidate);
   ref.invalidate(librarySongCountProvider);
   ref.invalidate(recentPageDataProvider);
   ref.invalidate(shellNavigationDataProvider);

@@ -2,7 +2,7 @@ part of 'library_repository.dart';
 
 mixin _LibraryRepositoryPreferences on _LibraryDataSources {
   Future<File> _resolveDatabaseFile();
-  Future<List<LibrarySong>> getLibrarySongs({List<int>? songIds});
+  Future<List<LibrarySong>> getLibrarySongs({required List<int> songIds});
   static final _locations = <int, (RemoteLibrarySource, int)>{};
 
   void forgetRemotePreferences(String device) {

@@ -176,114 +176,108 @@ class _CompactArtistsPage extends StatelessWidget {
                     : const EdgeInsets.only(
                       bottom: _artistsMasterPlayerSafeBottom,
                     ),
-            child: Stack(
-              clipBehavior: Clip.none,
-              children: [
-                Row(
-                  children: [
-                    Padding(
-                      key: const ValueKey('Artists.CompactQuickJump.Padding'),
-                      padding:
-                          navMinimal
-                              ? const EdgeInsets.only(
-                                top: 2,
-                                bottom: _artistsMasterPlayerSafeBottom,
-                              )
-                              : const EdgeInsets.only(
-                                bottom: _artistsMasterPlayerSafeBottom,
-                              ),
-                      child: _ArtistQuickJump(
-                        activeKey: activeArtistQuickJumpKey,
-                        keys: artistQuickJumpKeys,
-                        enabledKeys: artistQuickJumpMap.keys.toSet(),
-                        i18n: i18n,
-                        onJump: (key) {
-                          onJumpToArtistKey(artistQuickJumpMap, key);
-                        },
-                      ),
-                    ),
-                    SizedBox(width: navMinimal ? 2 : 4),
-                    Expanded(
-                      child: Stack(
-                        clipBehavior: Clip.none,
-                        children: [
-                          if (visibleArtists.isEmpty)
-                            Padding(
-                              padding: const EdgeInsets.only(right: 12),
-                              child: _ArtistsEmptyState(
-                                title: i18n.t('collection.noArtists'),
-                                message: i18n.t('artists.emptyCopy'),
-                              ),
+            child: ClipRect(
+              child: Row(
+                children: [
+                  Padding(
+                    key: const ValueKey('Artists.CompactQuickJump.Padding'),
+                    padding:
+                        navMinimal
+                            ? const EdgeInsets.only(
+                              top: 2,
+                              bottom: _artistsMasterPlayerSafeBottom,
                             )
-                          else ...[
-                            Positioned.fill(
-                              right: 0,
-                              child: ScrollConfiguration(
-                                key: const ValueKey(
-                                  'Artists.CompactMasterScrollConfiguration',
-                                ),
-                                behavior: ScrollConfiguration.of(
-                                  context,
-                                ).copyWith(scrollbars: false),
-                                child: ListView.builder(
-                                  key: const ValueKey(
-                                    'Artists.CompactMaster.List',
-                                  ),
-                                  controller: scrollController,
-                                  itemExtent: artistRowHeight,
-                                  clipBehavior: Clip.none,
-                                  scrollCacheExtent: ScrollCacheExtent.pixels(
-                                    artistRowHeight * artistOverscanRows,
-                                  ),
-                                  padding: const EdgeInsets.only(
-                                    bottom: _artistsMasterPlayerSafeBottom,
-                                  ),
-                                  itemCount: visibleArtists.length,
-                                  itemBuilder: (context, index) {
-                                    final artist = visibleArtists[index];
-                                    return ArtistListItem(
-                                      artist: artist,
-                                      active: false,
-                                      i18n: i18n,
-                                      locateHighlighted:
-                                          artist.name == locatedArtistName,
-                                      locatePulse: locateArtistPulse,
-                                      compactNavMinimal: navMinimal,
-                                      onPressed: () {
-                                        onOpenArtistDetail(artist.name);
-                                      },
-                                      onPlay: () {
-                                        onPlayArtist(artist);
-                                      },
-                                      onOpenContextMenu: (position) {
-                                        return onOpenArtistMenu(
-                                          position,
-                                          artist,
-                                        );
-                                      },
-                                    );
-                                  },
-                                ),
-                              ),
+                            : const EdgeInsets.only(
+                              bottom: _artistsMasterPlayerSafeBottom,
                             ),
-                            _ArtistsCustomScrollbar(
-                              key: const ValueKey('Artists.MasterScrollbar'),
-                              positionKey: const ValueKey(
-                                'Artists.MasterScrollbar.Position',
-                              ),
-                              thumbKey: const ValueKey(
-                                'Artists.MasterScrollbar.Thumb',
-                              ),
-                              controller: scrollController,
-                              right: 0,
-                            ),
-                          ],
-                        ],
-                      ),
+                    child: _ArtistQuickJump(
+                      activeKey: activeArtistQuickJumpKey,
+                      keys: artistQuickJumpKeys,
+                      enabledKeys: artistQuickJumpMap.keys.toSet(),
+                      i18n: i18n,
+                      onJump: (key) {
+                        onJumpToArtistKey(artistQuickJumpMap, key);
+                      },
                     ),
-                  ],
-                ),
-              ],
+                  ),
+                  SizedBox(width: navMinimal ? 2 : 4),
+                  Expanded(
+                    child: Stack(
+                      clipBehavior: Clip.none,
+                      children: [
+                        if (visibleArtists.isEmpty)
+                          Padding(
+                            padding: const EdgeInsets.only(right: 12),
+                            child: _ArtistsEmptyState(
+                              title: i18n.t('collection.noArtists'),
+                              message: i18n.t('artists.emptyCopy'),
+                            ),
+                          )
+                        else ...[
+                          Positioned.fill(
+                            right: 0,
+                            child: ScrollConfiguration(
+                              key: const ValueKey(
+                                'Artists.CompactMasterScrollConfiguration',
+                              ),
+                              behavior: ScrollConfiguration.of(
+                                context,
+                              ).copyWith(scrollbars: false),
+                              child: ListView.builder(
+                                key: const ValueKey(
+                                  'Artists.CompactMaster.List',
+                                ),
+                                controller: scrollController,
+                                itemExtent: artistRowHeight,
+                                clipBehavior: Clip.none,
+                                scrollCacheExtent: ScrollCacheExtent.pixels(
+                                  artistRowHeight * artistOverscanRows,
+                                ),
+                                padding: const EdgeInsets.only(
+                                  bottom: _artistsMasterPlayerSafeBottom,
+                                ),
+                                itemCount: visibleArtists.length,
+                                itemBuilder: (context, index) {
+                                  final artist = visibleArtists[index];
+                                  return ArtistListItem(
+                                    artist: artist,
+                                    active: false,
+                                    i18n: i18n,
+                                    locateHighlighted:
+                                        artist.name == locatedArtistName,
+                                    locatePulse: locateArtistPulse,
+                                    compactNavMinimal: navMinimal,
+                                    onPressed: () {
+                                      onOpenArtistDetail(artist.name);
+                                    },
+                                    onPlay: () {
+                                      onPlayArtist(artist);
+                                    },
+                                    onOpenContextMenu: (position) {
+                                      return onOpenArtistMenu(position, artist);
+                                    },
+                                  );
+                                },
+                              ),
+                            ),
+                          ),
+                          _ArtistsCustomScrollbar(
+                            key: const ValueKey('Artists.MasterScrollbar'),
+                            positionKey: const ValueKey(
+                              'Artists.MasterScrollbar.Position',
+                            ),
+                            thumbKey: const ValueKey(
+                              'Artists.MasterScrollbar.Thumb',
+                            ),
+                            controller: scrollController,
+                            right: 0,
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ),

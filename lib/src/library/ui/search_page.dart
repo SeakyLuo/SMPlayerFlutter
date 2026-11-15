@@ -1,4 +1,12 @@
+import 'library_scope_access.dart';
+import '../../playback/source_group_play.dart';
+import '../data/library_repository.dart';
+import '../../remote/music_source_selector.dart';
+import 'library_song_placeholder.dart';
+import '../../app/loading_state.dart';
 import '../../remote/music_source_providers.dart';
+import '../../remote/remote_directory_provider.dart';
+import 'local_page_remote.dart';
 import 'library_load_failure.dart';
 import 'dart:async';
 import 'dart:io';
@@ -44,14 +52,19 @@ import 'package:smplayer_flutter/src/playback/media_control_provider.dart';
 import 'package:smplayer_flutter/src/playback/playback_queue_actions.dart';
 import 'package:smplayer_flutter/src/playback/playlist_control_item.dart';
 import 'package:smplayer_flutter/src/settings/settings_controller.dart';
-import 'package:smplayer_flutter/src/settings/settings_model.dart';
+import 'package:smplayer_flutter/src/settings/settings_model.dart'
+    hide MusicLibrarySortCriterion;
 
 part 'search_page_data.dart';
+part 'search_page_queries.dart';
+part 'search_page_lyrics_search.dart';
+part 'search_lyrics_window.dart';
 part 'search_page_content.dart';
 part 'search_filter_tabs.dart';
 part 'search_page_shell.dart';
 part 'search_result_cards.dart';
 part 'search_result_sections.dart';
+part 'search_result_card_menus.dart';
 part 'search_song_hover_actions.dart';
 part 'search_lyrics_excerpt.dart';
 part 'search_theme.dart';
@@ -91,13 +104,17 @@ class _SearchPageState extends ConsumerState<SearchPage> {
   SearchResult? _albumArtPreview;
   final _expandedSections = <SearchResultType>{};
   var _lyricsCriterion = SearchSortCriterion.defaultCriterion;
-  var _lyricsMatches = const <LocalLyricsSearchMatch>[];
   var _lyricsSearchLoading = false;
   LocalLyricsIndexProgress? _lyricsIndexProgress;
   String? _lyricsSearchSignature;
   var _lyricsSearchGeneration = 0;
   final _dataCache = LibraryPageDataCache();
   final _searchCache = _SearchPageDataCache();
+  String? _selectionSource;
+  LibraryDataQuery? _songQuery;
+  LibraryDataQuery? _lyricsQuery;
+  final _attemptedLyricsWindows = <int>{};
+  final _attemptedSongWindows = <int>{};
 
   void _updateSearchPageState(VoidCallback update) => setState(update);
 
@@ -134,7 +151,6 @@ class _SearchPageState extends ConsumerState<SearchPage> {
       _albumArtPreview = null;
       _lyricsSearchSignature = null;
       _lyricsSearchGeneration += 1;
-      _lyricsMatches = const [];
       _lyricsSearchLoading = false;
       _lyricsIndexProgress = null;
       return;
@@ -160,8 +176,8 @@ class _SearchPageState extends ConsumerState<SearchPage> {
   }) {
     final signature =
         '$showPortal:$title:$_activeFilter:${results.artists.length}:'
-        '${results.albums.length}:${results.songs.length}:'
-        '${results.lyrics.length}:${_lyricsIndexProgress != null}:'
+        '${results.albums.length}:${results.songCount}:'
+        '${results.lyricsCount}:${_lyricsIndexProgress != null}:'
         '${results.playlists.length}:${results.folders.length}';
     if (_appBarPortalSignature == signature) {
       return;
@@ -269,110 +285,6 @@ class _SearchPageState extends ConsumerState<SearchPage> {
     });
   }
 
-  void _syncLocalLyricsSearch({
-    required String query,
-    required String folderPath,
-    required int lyricsSavedRevision,
-    required int librarySnapshotIdentity,
-  }) {
-    final signature =
-        '$_lyricsSearchRevision\u0000$query\u0000$folderPath\u0000'
-        '$lyricsSavedRevision\u0000'
-        '$librarySnapshotIdentity';
-    if (_lyricsSearchSignature == signature) {
-      return;
-    }
-    _lyricsSearchSignature = signature;
-    _lyricsMatches = const [];
-    final generation = ++_lyricsSearchGeneration;
-    final queryLength = query.trim().runes.length;
-    WidgetsBinding.instance.addPostFrameCallback((_) async {
-      if (!mounted || generation != _lyricsSearchGeneration) {
-        return;
-      }
-      if (queryLength < 2) {
-        setState(() {
-          _lyricsMatches = const [];
-          _lyricsSearchLoading = false;
-          _lyricsIndexProgress = null;
-        });
-        _leaveEmptyLyricsFilter();
-        return;
-      }
-
-      setState(() {
-        _lyricsMatches = const [];
-        _lyricsSearchLoading = true;
-        _lyricsIndexProgress = null;
-      });
-      final repository = ref.read(libraryRepositoryProvider);
-      try {
-        final matches = await repository.searchLocalLyrics(
-          query,
-          folderPath: folderPath,
-        );
-        if (!mounted || generation != _lyricsSearchGeneration) {
-          return;
-        }
-        setState(() {
-          _lyricsMatches = matches;
-          _lyricsSearchLoading = false;
-        });
-      } catch (_) {
-        if (!mounted || generation != _lyricsSearchGeneration) {
-          return;
-        }
-        setState(() {
-          _lyricsMatches = const [];
-          _lyricsSearchLoading = false;
-          _lyricsIndexProgress = null;
-        });
-        _leaveEmptyLyricsFilter();
-        showAppNotification(
-          context: context,
-          message: context.smPlayerI18n.t('search.lyricsSearchFailed'),
-        );
-        return;
-      }
-
-      try {
-        await repository.indexMissingLocalLyrics(
-          onProgress: (progress) {
-            if (!mounted || generation != _lyricsSearchGeneration) {
-              return;
-            }
-            setState(() {
-              _lyricsIndexProgress = progress;
-            });
-          },
-        );
-        if (!mounted || generation != _lyricsSearchGeneration) {
-          return;
-        }
-        setState(() {
-          _lyricsIndexProgress = null;
-        });
-      } catch (_) {
-        if (!mounted || generation != _lyricsSearchGeneration) {
-          return;
-        }
-        setState(() {
-          _lyricsIndexProgress = null;
-        });
-        showAppNotification(
-          context: context,
-          message: context.smPlayerI18n.t('search.lyricsSearchFailed'),
-        );
-      }
-    });
-  }
-
-  void _leaveEmptyLyricsFilter() {
-    if (_activeFilter == SearchFilterKey.lyrics) {
-      _changeFilter(SearchFilterKey.all);
-    }
-  }
-
   bool _showSearchStatus(
     SearchResults results,
     List<_SearchSectionData> visibleSections,
@@ -469,6 +381,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
         .getPreferenceLevel(
           preferenceType,
           _searchResultPreferenceId(preferenceType, card),
+          source: ref.read(musicShareProvider).selectedSource,
         );
   }
 
@@ -488,6 +401,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
           _searchResultPreferenceId(preferenceType, card),
           card.title,
           level,
+          source: ref.read(musicShareProvider).selectedSource,
         );
   }
 
@@ -504,6 +418,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
         .removePreferenceItem(
           preferenceType,
           _searchResultPreferenceId(preferenceType, card),
+          source: ref.read(musicShareProvider).selectedSource,
         );
   }
 
@@ -528,8 +443,8 @@ class _SearchPageState extends ConsumerState<SearchPage> {
   int _totalCount(SearchResults results) {
     return results.artists.length +
         results.albums.length +
-        results.songs.length +
-        results.lyrics.length +
+        results.songCount +
+        results.lyricsCount +
         results.playlists.length +
         results.folders.length;
   }
@@ -541,62 +456,79 @@ class _SearchPageState extends ConsumerState<SearchPage> {
     ];
   }
 
-  int _selectedItemCount(List<_SearchSectionData> visibleSections) {
-    final selectedKeys = _selection.selectedItems;
-    final selectedItems = <String>{};
-    for (final section in visibleSections) {
-      if (section.type == SearchResultType.songs) {
-        for (final song in section.songs) {
-          if (selectedKeys.contains(_songSelectionKey(song))) {
-            selectedItems.add(_songSelectionKey(song));
-          }
-        }
-      } else if (section.type == SearchResultType.lyrics) {
-        for (final result in section.lyrics) {
-          if (selectedKeys.contains(_songSelectionKey(result.song))) {
-            selectedItems.add(_songSelectionKey(result.song));
-          }
-        }
-      } else {
-        for (final card in section.cards) {
-          if (selectedKeys.contains(
-            getSearchResultCardKey(section.type, card),
-          )) {
-            selectedItems.add(getSearchResultCardKey(section.type, card));
-          }
-        }
-      }
-    }
-    return selectedItems.length;
-  }
+  int _selectedItemCount(List<_SearchSectionData> sections) =>
+      _selection.selectedItems.length;
 
-  List<int> _selectedSongIds(List<_SearchSectionData> visibleSections) {
-    final songIds = <int>[];
-    final selectedKeys = _selection.selectedItems;
-    for (final section in visibleSections) {
-      if (section.type == SearchResultType.songs) {
-        for (final song in section.songs) {
-          if (selectedKeys.contains(_songSelectionKey(song))) {
-            songIds.add(song.id);
-          }
+  List<int> _selectedSongIds(List<_SearchSectionData> sections) {
+    final source = ref.read(selectedLibraryDataSourceProvider).source.deviceId;
+    final ids = {
+      for (final key in _selection.selectedItems.where(
+        _isSearchSongSelectionKey,
+      ))
+        int.parse(key.substring('songs:'.length)),
+    };
+    final artists = <String>[], albums = <String>[], folders = <String>[];
+    for (final section in sections) {
+      for (final card in section.cards) {
+        if (!_selection.isSelected(getSearchResultCardKey(section.type, card)))
+          continue;
+        final scope = card.scope;
+        if (scope == null) {
+          ids.addAll(card.songIds);
+          continue;
         }
-      } else if (section.type == SearchResultType.lyrics) {
-        for (final result in section.lyrics) {
-          if (selectedKeys.contains(_songSelectionKey(result.song))) {
-            songIds.add(result.song.id);
-          }
-        }
-      } else {
-        for (final card in section.cards) {
-          if (selectedKeys.contains(
-            getSearchResultCardKey(section.type, card),
-          )) {
-            songIds.addAll(card.songIds);
-          }
+        switch (section.type) {
+          case SearchResultType.artists:
+            artists.addAll(scope.artists);
+          case SearchResultType.albums:
+            albums.add(scope.album);
+          case SearchResultType.folders:
+            folders.add(scope.folder!);
+          default:
+            break;
         }
       }
     }
-    return getUniqueSongIds(songIds);
+    // Resolve each selected aggregation dimension with one set query.
+    if (artists.isNotEmpty)
+      ids.addAll(
+        watchLibraryScopeIds(
+              ref,
+              LibraryDataQuery(
+                LibraryQueryKind.artist,
+                source: source,
+                artists: artists,
+                folder: _songQuery!.folder,
+              ),
+            ).valueOrNull ??
+            const [],
+      );
+    if (albums.isNotEmpty)
+      ids.addAll(
+        watchLibraryScopeIds(
+              ref,
+              LibraryDataQuery(
+                LibraryQueryKind.album,
+                source: source,
+                albumNames: albums,
+                folder: _songQuery!.folder,
+              ),
+            ).valueOrNull ??
+            const [],
+      );
+    if (folders.isNotEmpty)
+      ids.addAll(
+        watchLibraryScopeIds(
+              ref,
+              LibraryDataQuery(
+                LibraryQueryKind.songs,
+                source: source,
+                recursiveFolders: folders,
+              ),
+            ).valueOrNull ??
+            const [],
+      );
+    return ids.toList();
   }
 
   void _openCard(SearchResultType type, SearchResult card, String query) {
@@ -614,12 +546,14 @@ class _SearchPageState extends ConsumerState<SearchPage> {
     }
   }
 
-  void _playCard(SearchResultType type, SearchResult card) {
-    if (type == SearchResultType.artists) {
-      unawaited(recordRecentArtistPlayback(ref, card.title));
-    }
-    _playSongIds(shuffleSearchSongIds(card.songIds));
-  }
+  Future<void> _playCard(SearchResultType type, SearchResult card) =>
+      runMusicShareAction(context, () async {
+        final ids = await _cardIds(card);
+        if (!mounted) return;
+        if (type == SearchResultType.artists)
+          await recordRecentArtistPlayback(ref, card.title);
+        _playSongIds(await sourceShuffleSongIds(ref, ids));
+      });
 
   void _playTrack(LibrarySong song, int index, List<int> songIds) {
     replaceNowPlayingQueueAndPlayIndex(
@@ -700,7 +634,10 @@ class _SearchPageState extends ConsumerState<SearchPage> {
     });
   }
 
-  void _showAlbumArtPreview(SearchResult card) {
+  Future<void> _showAlbumArtPreview(SearchResult card) async {
+    final ids = await _cardIds(card);
+    if (!mounted) return;
+    card = card.withIds(ids);
     setState(() {
       _albumArtPreview = card;
       _musicDialog = null;

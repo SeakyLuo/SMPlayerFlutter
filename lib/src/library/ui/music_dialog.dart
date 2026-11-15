@@ -1,3 +1,4 @@
+import '../../app/loading_state.dart';
 import '../../remote/music_source_providers.dart';
 import '../../remote/music_share_models.dart';
 import 'dart:async';
@@ -375,9 +376,7 @@ class _MusicDialogState extends ConsumerState<MusicDialog> {
     );
     final i18n = context.smPlayerI18n;
     ref.listen(libraryContentDataProvider, (previous, next) {
-      if (!isRemoteMusicPath(widget.song.path) &&
-          next.hasValue &&
-          _requestedModes.contains(SongDialogMode.albumArt)) {
+      if (next.hasValue && _requestedModes.contains(SongDialogMode.albumArt)) {
         unawaited(_loadArtworkRecommendation(librarySnapshotChanged: true));
       }
     });

@@ -81,7 +81,7 @@ extension _HeaderedPlaylistControlArtwork on _HeaderedPlaylistControlState {
   List<LibrarySong> _visibleSongs(Map<int, LibrarySong> songsById) {
     final orderedSongIds = _orderedSongIds;
     if (orderedSongIds == null) {
-      return widget.songs;
+      return _page?.songs ?? widget.songs;
     }
 
     final orderedSongIdSet = orderedSongIds.toSet();

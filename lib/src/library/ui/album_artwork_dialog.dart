@@ -38,14 +38,12 @@ class AlbumArtworkDialog extends ConsumerStatefulWidget {
     required this.artworkUrl,
     required this.songId,
     required this.onClose,
-    required this.onSaved,
   });
 
   final String albumName;
   final String artworkUrl;
   final int songId;
   final VoidCallback onClose;
-  final VoidCallback onSaved;
 
   @override
   ConsumerState<AlbumArtworkDialog> createState() => _AlbumArtworkDialogState();
@@ -197,6 +195,7 @@ class _AlbumArtworkDialogState extends ConsumerState<AlbumArtworkDialog> {
     }
     final i18n = context.smPlayerI18n;
     final deleteArtwork = _artworkDeletePending;
+    final container = ProviderScope.containerOf(context, listen: false);
 
     setState(() {
       _saving = true;
@@ -223,7 +222,40 @@ class _AlbumArtworkDialogState extends ConsumerState<AlbumArtworkDialog> {
         _artworkSourcePath = '';
         _artworkDeletePending = false;
       });
-      widget.onSaved();
+      final sourceSong =
+          (await repository.getLibrarySongs(songIds: [widget.songId])).single;
+      invalidateLibraryQueries(
+        container.invalidate,
+        source: sourceSong.source.deviceId,
+        kinds: const {
+          LibraryQueryKind.album,
+          LibraryQueryKind.albumIndex,
+          LibraryQueryKind.artistIndex,
+          LibraryQueryKind.folders,
+          LibraryQueryKind.playlists,
+          LibraryQueryKind.playlistIndex,
+          LibraryQueryKind.artist,
+        },
+      );
+      final visible =
+          container
+              .read(libraryLoadedDataProvider)
+              .requireValue
+              .songs
+              .where(
+                (song) =>
+                    song.album == sourceSong.album &&
+                    song.source == sourceSong.source,
+              )
+              .map((song) => song.id)
+              .toList();
+      final songs = await repository.getLibrarySongs(songIds: visible);
+      final overrides = container.read(librarySongOverridesProvider.notifier);
+      overrides.state = {
+        ...overrides.state,
+        for (final song in songs) song.id: song,
+      };
+      if (!mounted) return;
       showAppNotification(
         context: context,
         message: i18n.t(

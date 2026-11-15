@@ -117,28 +117,17 @@ extension _SmPlayerShellPlayerActions on _SmPlayerShellPageState {
 
   Future<void> _quickPlayLibraryAsync(WidgetRef ref) async {
     final i18n = context.smPlayerI18n;
-    final snapshot = ref.read(libraryContentDataProvider).valueOrNull;
-    final songs = snapshot?.songs ?? const <LibrarySong>[];
-    if (songs.isEmpty) {
-      return;
-    }
-
-    final repository = ref.read(libraryRepositoryProvider);
-    final preferences = await repository.getPreferenceSettings(
+    final songIds = await sourceQuickPlaySongIds(
+      ref: ref,
       unknownAlbumName: i18n.t('common.albumUnknown'),
     );
-    final songIds = quickPlaySongIds(
-      songs: songs,
-      playlists: snapshot!.playlists,
-      folders: snapshot.folders,
-      preferences: preferences,
-    );
+    if (!mounted) return;
     if (songIds.isEmpty) {
       return;
     }
     replaceNowPlayingQueueAndPlayIndex(
       ref: ref,
-      snapshot: snapshot,
+      snapshot: ref.read(libraryContentDataProvider).requireValue,
       i18n: i18n,
       songIds: songIds,
       queueIndex: 0,

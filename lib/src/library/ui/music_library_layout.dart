@@ -2,10 +2,16 @@ part of 'music_library_page.dart';
 
 extension _MusicLibraryLayout on _MusicLibraryPageState {
   Widget _buildLibraryPage(BuildContext context) {
+    if (!TickerMode.valuesOf(context).enabled) return const SizedBox.shrink();
     final i18nValue = ref.watch(smPlayerI18nProvider);
-    final snapshotValue = ref.watch(
-      browsingAvailableLibraryContentDataProvider,
-    );
+    final contextData = ref.watch(libraryContentDataProvider).valueOrNull;
+    if (contextData != null &&
+        _snapshotSortCriterion != contextData.sortCriterion) {
+      _snapshotSortCriterion = contextData.sortCriterion;
+      _sortCriterion = contextData.sortCriterion;
+      _sortDirection = MusicLibrarySortDirection.ascending;
+    }
+    final snapshotValue = ref.watch(browsingLibraryPageProvider(_pageQuery));
     final favoriteOverrides = ref.watch(libraryFavoriteOverridesProvider);
     final songOverrides = ref.watch(librarySongOverridesProvider);
     final playlistOverrides = ref.watch(libraryPlaylistOverridesProvider);
@@ -26,6 +32,39 @@ extension _MusicLibraryLayout on _MusicLibraryPageState {
       loading: () => const _LibraryScaffold(child: SmPlayerLoadingState()),
       error: (_, _) => const _LibraryScaffold(child: LibraryLoadFailure()),
       data: (snapshot) {
+        final anchor = (
+          _pageQuery.withPage(
+            source: ref.read(selectedLibraryDataSourceProvider).source.deviceId,
+          ),
+          snapshot.anchorRevision,
+        );
+        if (_lastAnchor != anchor) {
+          _lastAnchor = anchor;
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (!mounted || !_scrollController.hasClients) return;
+            if (snapshot.anchorShift != 0)
+              _scrollController.jumpTo(
+                (_scrollController.offset +
+                        snapshot.anchorShift *
+                            (_compactLayout
+                                ? _compactVirtualRowHeight
+                                : _wideVirtualRowHeight))
+                    .clamp(0, _scrollController.position.maxScrollExtent),
+              );
+            unawaited(_loadVisibleSongWindow());
+          });
+        }
+        final accessQuery = _pageQuery.withPage(
+          source: ref.read(musicShareProvider).selectedSource,
+        );
+        if (_accessedPageQuery != accessQuery) {
+          if (_accessedPageQuery != null) _selection.clearSelection();
+          _accessedPageQuery = accessQuery;
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted && _scrollController.hasClients)
+              unawaited(_loadVisibleSongWindow());
+          });
+        }
         final playlists = applyLibraryPlaylistOverridesToPlaylists(
           snapshot.playlists,
           playlistOverrides,
@@ -38,7 +77,7 @@ extension _MusicLibraryLayout on _MusicLibraryPageState {
           _sortDirection = MusicLibrarySortDirection.ascending;
         }
 
-        if (snapshot.songs.isEmpty) {
+        if (snapshot.totalSongCount == 0) {
           return _LibraryScaffold(
             child: _EmptyState(
               title:
@@ -63,16 +102,20 @@ extension _MusicLibraryLayout on _MusicLibraryPageState {
           );
         }
 
-        final viewCache = _MusicLibraryViewCache.resolve(
-          current: _viewCache,
-          sourceSongs:
-              snapshot.songs.where((song) => song.remoteAvailable).toList(),
-          favoriteOverrides: favoriteOverrides,
-          songOverrides: songOverrides,
-          i18n: i18n,
+        final sortedSongs = applyFavoriteOverridesToSongs(
+          snapshot.songs,
+          favoriteOverrides,
+          songOverrides,
         );
-        _viewCache = viewCache;
-        final sortedSongs = viewCache.songsFor(_sortCriterion, _sortDirection);
+        final songRows = {
+          for (final entry in snapshot.songRows.entries)
+            entry.key:
+                applyFavoriteOverridesToSongs(
+                  [entry.value],
+                  favoriteOverrides,
+                  songOverrides,
+                ).single,
+        };
         final mediaState = ref.watch(
           mediaControlControllerProvider.select(
             (controller) => (
@@ -81,10 +124,7 @@ extension _MusicLibraryLayout on _MusicLibraryPageState {
             ),
           ),
         );
-        final quickJumpMap = viewCache.quickJumpMapFor(
-          _sortCriterion,
-          _sortDirection,
-        );
+        final quickJumpMap = snapshot.quickJumpOffsets;
 
         return SmPlayerI18nScope(
           i18n: i18n,
@@ -102,7 +142,7 @@ extension _MusicLibraryLayout on _MusicLibraryPageState {
                 title:
                     snapshot.showCount
                         ? i18n.t('library.allSongsWithCount', {
-                          'count': sortedSongs.length,
+                          'count': snapshot.totalSongCount,
                         })
                         : i18n.t('library.allSongs'),
                 quickJumpActive: _quickJumpPanelOpen,
@@ -139,18 +179,14 @@ extension _MusicLibraryLayout on _MusicLibraryPageState {
                       )
                       .toList();
               final activeQuickJumpKey = _activeQuickJumpKey(
-                sortedSongs,
+                quickJumpMap,
                 compact,
-                i18n,
               );
-              final visibleSongIds = [for (final song in sortedSongs) song.id];
               final selectedVisibleSongs = [
                 for (final song in sortedSongs)
                   if (_selection.isSelected(song.id)) song,
               ];
-              final selectedVisibleSongIds = [
-                for (final song in selectedVisibleSongs) song.id,
-              ];
+              final selectedVisibleSongIds = _selection.selectedItems.toList();
               return Stack(
                 children: [
                   _LibraryScaffold(
@@ -228,7 +264,9 @@ extension _MusicLibraryLayout on _MusicLibraryPageState {
                                           child:
                                               compact
                                                   ? _CompactSongList(
-                                                    songs: sortedSongs,
+                                                    songs: songRows,
+                                                    totalSongCount:
+                                                        snapshot.totalSongCount,
                                                     scrollController:
                                                         _scrollController,
                                                     sortCriterion:
@@ -302,7 +340,9 @@ extension _MusicLibraryLayout on _MusicLibraryPageState {
                                                     },
                                                   )
                                                   : _WideSongTable(
-                                                    songs: sortedSongs,
+                                                    songs: songRows,
+                                                    totalSongCount:
+                                                        snapshot.totalSongCount,
                                                     sortCriterion:
                                                         _sortCriterion,
                                                     sortDirection:
@@ -463,9 +503,7 @@ extension _MusicLibraryLayout on _MusicLibraryPageState {
                       playlists,
                     ),
                     includeNowPlayingInAddTo: true,
-                    includeFavoritesInAddTo: selectedVisibleSongs.any(
-                      (song) => !song.favorite,
-                    ),
+                    includeFavoritesInAddTo: selectedVisibleSongIds.isNotEmpty,
                     onPlay:
                         selectedVisibleSongIds.isEmpty
                             ? null
@@ -533,14 +571,10 @@ extension _MusicLibraryLayout on _MusicLibraryPageState {
                     hideAfterOperation:
                         snapshot.hideMultiSelectCommandBarAfterOperation,
                     onSelectAll: () {
-                      _updateLibraryState(() {
-                        _selection.selectAll(visibleSongIds);
-                      });
+                      unawaited(_selectQueryScope());
                     },
                     onReverseSelection: () {
-                      _updateLibraryState(() {
-                        _selection.reverseSelection(visibleSongIds);
-                      });
+                      unawaited(_selectQueryScope(reverse: true));
                     },
                     onClearSelection: () {
                       _updateLibraryState(_selection.clearSelection);

@@ -1,8 +1,13 @@
+import '../../remote/music_source_providers.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../data/library_providers.dart';
 import '../../remote/music_share_models.dart';
+import '../../remote/music_share_access.dart';
+import '../data/library_repository.dart';
 import '../../remote/music_share_file_actions.dart';
 import '../../remote/music_source_selector.dart';
 import 'dart:async';
-import 'dart:math';
+import '../../playback/random_play_selection.dart';
 
 export 'local_song_location.dart' show locateSongInLocal;
 
@@ -13,7 +18,6 @@ import 'package:smplayer_flutter/src/app/smplayer_vector_icons.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/data/library_models.dart';
 import 'package:smplayer_flutter/src/library/ui/menu_flyout.dart';
-import 'package:smplayer_flutter/src/library/ui/song_display_helpers.dart';
 
 part 'menu_flyout_shuffle.dart';
 
@@ -95,16 +99,18 @@ MenuFlyoutItem? buildAddToPlaylistMenuFlyoutItem({
   String? currentPlaylistName,
   String? excludePlaylistName,
   VoidCallback? onPlayNext,
-  VoidCallback? onAddToNowPlaying,
-  VoidCallback? onToggleFavorite,
-  VoidCallback? onRequestCreatePlaylist,
-  VoidCallback? onCreatePlaylist,
-  ValueChanged<String>? onCreatePlaylistWithName,
-  ValueChanged<int>? onAddToPlaylist,
+  FutureOr<void> Function()? onAddToNowPlaying,
+  FutureOr<void> Function()? onToggleFavorite,
+  FutureOr<void> Function()? onRequestCreatePlaylist,
+  FutureOr<void> Function()? onCreatePlaylist,
+  FutureOr<void> Function(String)? onCreatePlaylistWithName,
+  FutureOr<void> Function(int)? onAddToPlaylist,
   String key = 'add-to',
 }) {
-  final addablePlaylists =
-      playlists.where((playlist) {
+  List<MultiSelectCommandBarPlaylist> addableTargets(
+    List<MultiSelectCommandBarPlaylist> values,
+  ) =>
+      values.where((playlist) {
         if (playlist.name == (excludePlaylistName ?? currentPlaylistName)) {
           return false;
         }
@@ -113,6 +119,7 @@ MenuFlyoutItem? buildAddToPlaylistMenuFlyoutItem({
         }
         return !playlist.songIds.contains(songIds.first);
       }).toList();
+  final addablePlaylists = addableTargets(playlists);
   final submenu = <MenuFlyoutItem>[];
 
   if (songIds.length == 1 && onPlayNext != null) {
@@ -132,8 +139,12 @@ MenuFlyoutItem? buildAddToPlaylistMenuFlyoutItem({
         key: '$key-now-playing',
         text: i18n.t('common.nowPlaying'),
         icon: FluentIcons.headphones_20_regular,
-        disabled: songIds.isEmpty,
-        onPressed: onAddToNowPlaying,
+        disabled: songIds.isEmpty || onAddToNowPlaying == null,
+        keepOpen: true,
+        onPressed: () async {
+          await onAddToNowPlaying!();
+          closeOpenMenuFlyouts();
+        },
       ),
     );
   }
@@ -149,7 +160,11 @@ MenuFlyoutItem? buildAddToPlaylistMenuFlyoutItem({
           animate: false,
         ),
         disabled: songIds.isEmpty || favoritesDisabled,
-        onPressed: onToggleFavorite,
+        keepOpen: true,
+        onPressed: () async {
+          await onToggleFavorite();
+          closeOpenMenuFlyouts();
+        },
       ),
     );
   }
@@ -170,11 +185,11 @@ MenuFlyoutItem? buildAddToPlaylistMenuFlyoutItem({
         disabled: songIds.isEmpty,
         onPressedWithContext: (context) async {
           if (onRequestCreatePlaylist != null) {
-            onRequestCreatePlaylist();
+            await onRequestCreatePlaylist();
             return;
           }
           if (onCreatePlaylistWithName == null) {
-            onCreatePlaylist?.call();
+            await onCreatePlaylist?.call();
             return;
           }
           final name = await showSmPlayerInputDialog(
@@ -186,7 +201,7 @@ MenuFlyoutItem? buildAddToPlaylistMenuFlyoutItem({
             confirmText: i18n.t('playlists.create'),
           );
           if (name != null) {
-            onCreatePlaylistWithName(name);
+            await onCreatePlaylistWithName(name);
           }
         },
       ),
@@ -199,9 +214,11 @@ MenuFlyoutItem? buildAddToPlaylistMenuFlyoutItem({
         key: '$key-${playlist.id}',
         text: playlist.name,
         usePlaylistIcon: true,
-        disabled: songIds.isEmpty,
-        onPressed: () {
-          onAddToPlaylist?.call(playlist.id);
+        disabled: songIds.isEmpty || onAddToPlaylist == null,
+        keepOpen: true,
+        onPressed: () async {
+          await onAddToPlaylist!(playlist.id);
+          closeOpenMenuFlyouts();
         },
       ),
     ),
@@ -217,6 +234,50 @@ MenuFlyoutItem? buildAddToPlaylistMenuFlyoutItem({
     icon: FluentIcons.add_20_regular,
     disabled: songIds.isEmpty,
     submenu: submenu,
+    loadSubmenu: (context) async {
+      final container = ProviderScope.containerOf(context, listen: false);
+      final source = container.read(selectedLibraryDataSourceProvider);
+      final query = LibraryDataQuery(
+        LibraryQueryKind.playlistIndex,
+        source: source.source.deviceId,
+      );
+      final page = await source.query(query);
+      await container
+          .read(libraryLoadedDataProvider.notifier)
+          .publish(page, query);
+      final lists = page.playlists;
+      final oldTargets = {
+        for (final playlist in playlists) '$key-${playlist.id}',
+      };
+      final items =
+          submenu.where((item) => !oldTargets.contains(item.key)).toList();
+      final targets = addableTargets([
+        for (final playlist in lists)
+          if (!playlist.isBuiltIn && canEditPlaylist(playlist))
+            MultiSelectCommandBarPlaylist(
+              id: playlist.id,
+              name: playlist.name,
+              songIds: playlist.songIds,
+            ),
+      ]);
+      if (onCreatePlaylist == null && onCreatePlaylistWithName == null) {
+        items.removeWhere((item) => item.key == '$key-built-in-separator');
+        if (items.isNotEmpty && targets.isNotEmpty) {
+          items.add(MenuFlyoutItem.separator(key: '$key-built-in-separator'));
+        }
+      }
+      return [
+        ...items,
+        for (final playlist in targets)
+          MenuFlyoutItem(
+            key: '$key-${playlist.id}',
+            text: playlist.name,
+            usePlaylistIcon: true,
+            disabled: songIds.isEmpty,
+            onPressed: () => onAddToPlaylist?.call(playlist.id),
+          ),
+      ];
+    },
   );
 }
 
@@ -246,8 +307,8 @@ List<MenuFlyoutItem> buildMusicMenuFlyoutItems({
   VoidCallback? onPlayNext,
   required VoidCallback onAddToNowPlaying,
   required VoidCallback onCreatePlaylist,
-  VoidCallback? onRequestCreatePlaylist,
-  ValueChanged<String>? onCreatePlaylistWithName,
+  FutureOr<void> Function()? onRequestCreatePlaylist,
+  FutureOr<void> Function(String)? onCreatePlaylistWithName,
   required ValueChanged<int> onAddToPlaylist,
   required VoidCallback onRemove,
   required VoidCallback onSelect,
@@ -287,12 +348,10 @@ List<MenuFlyoutItem> buildMusicMenuFlyoutItems({
   bool keepFavoritesInAddTo = false,
 }) {
   final remoteFiles = isRemoteMusicPath(songPath) && showDelete;
-  if (isRemoteMusicPath(songPath)) {
-    showDelete = false;
-    showHideFile = false;
-    showMoveToFolder = false;
-    onLocateLocal = null;
-  }
+  final storageWritable =
+      const LibraryRepository()
+          .dataSource(LibrarySource.fromPath(songPath))
+          .canWrite;
   final items = <MenuFlyoutItem>[
     if (isCurrentTrack && isPlaying)
       MenuFlyoutItem(
@@ -390,22 +449,52 @@ List<MenuFlyoutItem> buildMusicMenuFlyoutItems({
     items.addAll(buildRemoteFileMenuItems(i18n, songPath, songTitle));
   }
 
-  if (showMoveToFolder && folders.isNotEmpty && onMoveToFolder != null) {
-    final moveToFolderItem = buildMoveToFolderMenuFlyoutItem(
-      i18n: i18n,
-      folders: folders,
-      songPath: songPath,
-      onMoveToFolder: onMoveToFolder,
+  if (onMoveToFolder != null) {
+    items.add(
+      MenuFlyoutItem(
+        key: 'move-to-folder',
+        text: i18n.t('context.moveToFolder'),
+        icon: FluentIcons.folder_20_regular,
+        disabled: !storageWritable,
+        loadSubmenu: (context) async {
+          final repository = ProviderScope.containerOf(
+            context,
+            listen: false,
+          ).read(libraryRepositoryProvider);
+          final target = await repository
+              .dataSource(LibrarySource.fromPath(songPath))
+              .getStorageFolders(songPath);
+          return buildMoveToFolderMenuFlyoutItem(
+                i18n: i18n,
+                folders: [
+                  for (final folder in target.folders)
+                    MenuFlyoutFolder(
+                      id: folder.id,
+                      name: folder.name,
+                      path: folder.path,
+                      parentId: folder.parentId,
+                    ),
+                ],
+                songPath: '${target.songParentPath}/file',
+                onMoveToFolder: onMoveToFolder,
+              )?.submenu ??
+              [
+                MenuFlyoutItem(
+                  key: 'no-destinations',
+                  text: i18n.t('share.noMoveFolders'),
+                  disabled: true,
+                ),
+              ];
+        },
+      ),
     );
-    if (moveToFolderItem != null) {
-      items.add(moveToFolderItem);
-    }
   }
 
   if (showDelete && onDelete != null) {
     items.add(
       MenuFlyoutItem(
         key: 'delete',
+        disabled: !storageWritable,
         text: i18n.t('context.deleteFromDisk'),
         icon: FluentIcons.delete_20_regular,
         onPressed: onDelete,
@@ -417,6 +506,7 @@ List<MenuFlyoutItem> buildMusicMenuFlyoutItems({
     items.add(
       MenuFlyoutItem(
         key: 'hide-file',
+        disabled: !storageWritable,
         text: i18n.t('context.hideFile'),
         icon: FluentIcons.eye_off_20_regular,
         onPressed: onHide,
@@ -515,7 +605,7 @@ MenuFlyoutItem? buildMoveToFolderMenuFlyoutItem({
   required String songPath,
   required ValueChanged<String> onMoveToFolder,
 }) {
-  final currentFolderPath = _getFileParentPath(songPath);
+  final currentFolderPath = randomSongFolderPath(songPath);
   final childrenByParentId = <int, List<MenuFlyoutFolder>>{};
   for (final folder in folders) {
     childrenByParentId[folder.parentId] = [

@@ -5,18 +5,7 @@ class _SongDialogLoading extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final viewportHeight = MediaQuery.sizeOf(context).height;
-        return Align(
-          alignment: Alignment.topCenter,
-          child: Padding(
-            padding: EdgeInsets.only(top: math.min(180, viewportHeight * 0.28)),
-            child: const _SongDialogLoadingIndicator(),
-          ),
-        );
-      },
-    );
+    return const SmPlayerLoadingState(layout: SmPlayerLoadingLayout.form);
   }
 }
 

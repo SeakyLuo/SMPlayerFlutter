@@ -21,18 +21,24 @@ class _ArtistsLibraryData {
 
 final _artistsLibraryDataProvider = Provider.autoDispose
     .family<_ArtistsLibraryData, _ArtistsLibraryDataRequest>((ref, request) {
-      final snapshot = applyLibraryFavoriteOverrides(
-        request.snapshot,
-        const {},
-        request.songOverrides,
-        ref.watch(libraryPlaylistOverridesProvider),
-        ref.watch(libraryDeletedPlaylistIdsProvider),
-        ref.watch(libraryPlaylistOrderProvider),
-      );
       return _ArtistsLibraryData(
-        snapshot: snapshot,
-        artistGroups: buildArtistGroups(snapshot.songs, request.i18n),
-        songsById: {for (final song in snapshot.songs) song.id: song},
+        snapshot: request.snapshot,
+        artistGroups: [
+          for (final item in request.snapshot.artistSummaries)
+            ArtistGroup(
+              name:
+                  item.name.isEmpty
+                      ? request.i18n.t('common.artistUnknown')
+                      : item.name,
+              sourceName: item.name,
+              songs: const [],
+              songCount: item.songCount,
+              albumCount: item.albumCount,
+              artworkSongId: item.artworkSongId,
+              artworkPath: item.artworkPath,
+            ),
+        ],
+        songsById: {for (final song in request.snapshot.songs) song.id: song},
       );
     });
 
@@ -58,5 +64,55 @@ extension _ArtistsLibraryDataAccess on _ArtistsPageState {
           )),
         )
         .artistGroups;
+  }
+}
+
+extension _ArtistSummaryActions on _ArtistsPageState {
+  Future<void> _selectArtistScope(
+    ArtistGroup artist, {
+    required bool reverse,
+  }) => runMusicShareAction(context, () async {
+    final source = ref.read(selectedLibraryDataSourceProvider);
+    final ids = await source.resolveSongIds(
+      LibraryDataQuery(LibraryQueryKind.artist, artists: [artist.sourceName]),
+    );
+    if (!mounted ||
+        ref.read(selectedLibraryDataSourceProvider).source != source.source ||
+        _detailArtistSource != artist.sourceName)
+      return;
+    _updateArtistsPageState(() {
+      if (reverse) {
+        _selection.reverseSelection(ids);
+      } else {
+        _selection.selectAll(ids);
+      }
+    });
+  });
+
+  Future<void> _playArtistSummary(ArtistGroup artist) async {
+    final container = ProviderScope.containerOf(context, listen: false);
+    final songs = await container
+        .read(selectedLibraryDataSourceProvider)
+        .selectSongIds(
+          LibrarySelectionRequest(
+            LibrarySelectionKind.currentArtist,
+            artists: [artist.sourceName],
+          ),
+        );
+    if (!mounted) return;
+    await recordRecentArtistPlayback(ref, artist.name);
+    _playSongIds(songs);
+  }
+
+  Future<void> _showArtistSummaryMenu(
+    Offset position,
+    ArtistGroup artist,
+  ) async {
+    await _showGroupContextMenu(
+      position: position,
+      type: _ArtistGroupMenuType.artist,
+      label: artist.name,
+      songs: const [],
+    );
   }
 }

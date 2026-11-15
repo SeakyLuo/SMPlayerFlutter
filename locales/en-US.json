@@ -1128,5 +1128,8 @@
   "recent.clearBrowsesMessage": "This clears recent browsing history. Your library will be kept.",
   "song.replaceLyrics": "Replace",
   "settings.lyricsBatchStop": "Stop Adding",
-  "settings.lyricsBatchContinue": "Keep Adding"
+  "settings.lyricsBatchContinue": "Keep Adding",
+  "share.download": "Download to this device",
+  "share.downloadComplete": "Downloaded {count} songs",
+  "share.downloadSaveFailed": "Could not save the download. Check folder permissions and available space."
 }

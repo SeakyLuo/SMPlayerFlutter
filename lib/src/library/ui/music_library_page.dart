@@ -1,3 +1,4 @@
+import '../../remote/music_share_models.dart';
 import 'package:smplayer_flutter/src/library/ui/library_load_failure.dart';
 import 'package:smplayer_flutter/src/remote/music_share_access.dart';
 import '../../remote/music_source_providers.dart';
@@ -26,14 +27,8 @@ import '../../playback/playing_wave.dart';
 import '../data/library_models.dart';
 import '../data/library_time_codec.dart';
 import '../data/library_providers.dart';
-import 'artist_text_sort_key.dart';
 import 'artwork_floating_action_button.dart';
-import 'artists_page_model.dart'
-    show
-        buildArtistTextSortKey,
-        compareArtistTextSortKeys,
-        getArtistQuickJumpBucket,
-        getSongArtists;
+import 'artists_page_model.dart' show getSongArtists;
 import 'command_bar.dart';
 import 'menu_flyout.dart';
 import 'menu_flyout_helpers.dart';
@@ -50,6 +45,7 @@ import '../../platform/desktop_feature_service.dart';
 part 'music_library_layout.dart';
 part 'music_library_actions.dart';
 part 'music_library_table.dart';
+part 'music_library_table_rows.dart';
 part 'music_library_row_overlays.dart';
 part 'music_library_rows.dart';
 part 'music_library_sort_bar.dart';
@@ -121,6 +117,15 @@ class MusicLibraryPage extends ConsumerStatefulWidget {
 }
 
 class _MusicLibraryPageState extends ConsumerState<MusicLibraryPage> {
+  LibraryDataQuery get _pageQuery => LibraryDataQuery(
+    LibraryQueryKind.songs,
+    limit: 200,
+    text: widget.searchQuery,
+    substringSearch: true,
+    order: _sortCriterion,
+    descending: _sortDirection == MusicLibrarySortDirection.descending,
+  );
+
   var _sortCriterion = MusicLibrarySortCriterion.title;
   var _snapshotSortCriterion = MusicLibrarySortCriterion.title;
   var _sortDirection = MusicLibrarySortDirection.ascending;
@@ -135,7 +140,10 @@ class _MusicLibraryPageState extends ConsumerState<MusicLibraryPage> {
   String? _appBarPortalSignature;
   late final StateController<WorkspaceAppBarPortalEntry?> _appBarPortalNotifier;
   MusicDialogEntry? _musicDialog;
-  _MusicLibraryViewCache? _viewCache;
+  LibraryDataQuery? _accessedPageQuery;
+  (LibraryDataQuery, int)? _lastAnchor;
+  Future<List<int>>? _scopeRead;
+  LibraryDataQuery? _scopeReadQuery;
 
   @override
   void initState() {

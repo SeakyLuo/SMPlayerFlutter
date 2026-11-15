@@ -29,23 +29,14 @@ extension _NowPlayingPageActions on _NowPlayingPageState {
     );
   }
 
-  Future<void> _quickPlay(LibraryContentData snapshot) async {
-    final repository = ref.read(libraryRepositoryProvider);
-    final preferences = await repository.getPreferenceSettings(
+  Future<void> _quickPlay() async {
+    final songIds = await sourceQuickPlaySongIds(
+      ref: ref,
       unknownAlbumName: context.smPlayerI18n.t('common.albumUnknown'),
+      randomLimit: _NowPlayingPageState.quickPlayLimit,
     );
-    if (!mounted) {
-      return;
-    }
-    _playSongIds(
-      quickPlaySongIds(
-        songs: snapshot.songs,
-        playlists: _effectivePlaylists(snapshot.playlists),
-        folders: snapshot.folders,
-        preferences: preferences,
-        randomLimit: _NowPlayingPageState.quickPlayLimit,
-      ),
-    );
+    if (!mounted) return;
+    _playSongIds(songIds);
   }
 
   void _replaceQueue(List<int> songIds) {
@@ -205,15 +196,10 @@ extension _NowPlayingPageActions on _NowPlayingPageState {
     }
     final i18n = context.smPlayerI18n;
     _showUndo(
-      selectedSongIds.length == 1
-          ? i18n.t('notification.removedFrom', {
-            'title': songsById[selectedSongIds.first]!.title,
-            'target': i18n.t('common.nowPlaying'),
-          })
-          : i18n.t('notification.songsRemovedFrom', {
-            'count': selectedSongIds.length,
-            'target': i18n.t('common.nowPlaying'),
-          }),
+      i18n.t('notification.songsRemovedFrom', {
+        'count': selectedSongIds.length,
+        'target': i18n.t('common.nowPlaying'),
+      }),
       () => _replaceQueue(before),
     );
   }
@@ -295,14 +281,12 @@ extension _NowPlayingPageActions on _NowPlayingPageState {
             ),
           );
         },
-        onAddToPlaylist: (playlistId) {
-          unawaited(
-            _addSongsToPlaylistWithUndo(
-              playlistId,
-              [song.id],
-              allPlaylists,
-              songsById,
-            ),
+        onAddToPlaylist: (playlistId) async {
+          await _addSongsToPlaylistWithUndo(
+            playlistId,
+            [song.id],
+            allPlaylists,
+            songsById,
           );
         },
         onRemove: () {
@@ -391,72 +375,63 @@ extension _NowPlayingPageActions on _NowPlayingPageState {
     int? selectedQueueIndex,
     List<LibrarySong> queueSongs,
   ) {
-    final queueIndex = selectedQueueIndex;
-    if (queueIndex != null &&
-        queueIndex >= 0 &&
-        queueIndex < queueSongs.length) {
-      return queueSongs[queueIndex];
-    }
-
     if (trackId == null) {
       return null;
     }
     return queueSongs.where((song) => song.id == trackId).firstOrNull;
   }
 
-  void _showShuffleMenu({
+  Future<void> _showShuffleMenu({
     required BuildContext buttonContext,
     required LibraryContentData snapshot,
     required List<LibrarySong> queueSongs,
     required List<LibrarySong> recentSongs,
-  }) {
-    showMenuFlyout(
-      buttonContext,
-      items: _buildShuffleMenuItems(
-        snapshot: snapshot,
-        queueSongs: queueSongs,
-        recentSongs: recentSongs,
-      ),
-    );
-  }
-
-  List<MenuFlyoutItem> _buildShuffleMenuItems({
-    required LibraryContentData snapshot,
-    required List<LibrarySong> queueSongs,
-    required List<LibrarySong> recentSongs,
-  }) {
-    return buildShuffleMenuFlyoutItems(
-      i18n: context.smPlayerI18n,
-      songs: queueSongs,
-      librarySongs: snapshot.songs,
-      recentSongs: recentSongs,
-      playlists: _effectivePlaylists(snapshot.playlists),
-      folders: snapshot.folders,
-      randomLimit: _NowPlayingPageState.quickPlayLimit,
-      onPlaySongs: _playSongIds,
-    );
+  }) async {
+    try {
+      final items = await loadSourceShuffleMenu(
+        buttonContext,
+        context.smPlayerI18n,
+        _playSongIds,
+        _NowPlayingPageState.quickPlayLimit,
+      );
+      if (!mounted || !buttonContext.mounted) return;
+      await showMenuFlyout(
+        buttonContext,
+        items: [
+          ...items,
+          ...buildQueueShuffleMenuFlyoutItems(
+            i18n: context.smPlayerI18n,
+            songs: queueSongs,
+            onPlaySongs: _playSongIds,
+          ),
+        ],
+      );
+    } catch (error) {
+      if (mounted) {
+        showAppNotification(
+          context: context,
+          message: context.smPlayerI18n.t(
+            error is MusicShareException
+                ? error.messageKey
+                : 'song.updateFailed',
+          ),
+        );
+      }
+    }
   }
 
   void _addSongsToFavorites(
     List<int> songIds,
     Map<int, LibrarySong> songsById,
   ) {
-    if (songIds.isEmpty) {
-      return;
-    }
-    unawaited(setSongsFavoriteFromControl(ref, songIds, true));
-    final i18n = context.smPlayerI18n;
-    _showUndo(
-      songIds.length == 1
-          ? i18n.t('notification.songAddedTo', {
-            'title': songsById[songIds.first]!.title,
-            'target': i18n.t('common.myFavorites'),
-          })
-          : i18n.t('notification.songsAddedTo', {
-            'count': songIds.length,
-            'target': i18n.t('common.myFavorites'),
-          }),
-      () => setSongsFavorite(ref, songIds, false),
+    unawaited(
+      setSongsFavoriteWithUndo(
+        context: context,
+        ref: ref,
+        i18n: context.smPlayerI18n,
+        songIds: songIds,
+        favorite: true,
+      ),
     );
   }
 
@@ -518,14 +493,12 @@ extension _NowPlayingPageActions on _NowPlayingPageState {
           ),
         );
       },
-      onAddToPlaylist: (playlistId) {
-        unawaited(
-          _addSongsToPlaylistWithUndo(
-            playlistId,
-            [song.id],
-            allPlaylists,
-            songsById,
-          ),
+      onAddToPlaylist: (playlistId) async {
+        await _addSongsToPlaylistWithUndo(
+          playlistId,
+          [song.id],
+          allPlaylists,
+          songsById,
         );
       },
     );

@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:sqlite3/sqlite3.dart';
 
 import '../library/data/library_models.dart';
@@ -58,8 +59,20 @@ class _CatalogImport {
       db.execute('BEGIN IMMEDIATE');
       final paths = {
         for (final row in db.select(
-          'SELECT Id, Path FROM Music WHERE Path LIKE ?',
-          ['$remoteMusicScheme://$deviceId/%'],
+          replace
+              ? 'SELECT Id, Path FROM Music WHERE Path LIKE ?'
+              : 'SELECT Id, Path FROM Music WHERE Path IN (SELECT value FROM json_each(?))',
+          [
+            replace
+                ? '$remoteMusicScheme://$deviceId/%'
+                : jsonEncode(
+                  songs
+                      .map(
+                        (song) => remoteMusicPath(deviceId, song['id'] as int),
+                      )
+                      .toList(),
+                ),
+          ],
         ))
           row['Path'] as String: row['Id'] as int,
       };
@@ -69,11 +82,11 @@ class _CatalogImport {
         ]);
       }
       final upsert = db.prepare('''
-      INSERT INTO Music (Path, Name, Artist, Album, Duration, DateAdded, ThumbnailPath, RemoteAvailable, State)
-      VALUES (?, ?, ?, ?, ?, ?, ?, 1, 1)
+      INSERT INTO Music (Path, Name, Artist, Album, Duration, DateAdded, ThumbnailPath, RemoteAvailable, RemoteDetailsLoaded, State)
+      VALUES (?, ?, ?, ?, ?, ?, ?, 1, 1, 1)
       ON CONFLICT(Path) DO UPDATE SET Name = excluded.Name,
         Artist = excluded.Artist, Album = excluded.Album,
-        Duration = excluded.Duration, ThumbnailPath = excluded.ThumbnailPath, RemoteAvailable = 1, State = 1
+        Duration = excluded.Duration, ThumbnailPath = excluded.ThumbnailPath, RemoteAvailable = 1, RemoteDetailsLoaded = 1, State = 1
     ''');
       final updateOffset = db.prepare(
         'UPDATE Music SET LyricsOffsetMs = ? WHERE Id = ?',
@@ -146,4 +159,25 @@ class _CatalogImport {
       db.dispose();
     }
   }
+}
+
+Map<String, dynamic> sharedCatalogChanges(
+  Map<int, LibrarySong> before,
+  Map<int, LibrarySong> after, {
+  Iterable<int> affectedIds = const [],
+}) {
+  final changed =
+      affectedIds.toSet()
+        ..addAll(before.keys.where((id) => !after.containsKey(id)));
+  for (final song in after.values) {
+    if (!before.containsKey(song.id) ||
+        jsonEncode(sharedSongJson(song)) !=
+            jsonEncode(sharedSongJson(before[song.id]!)))
+      changed.add(song.id);
+  }
+  return {
+    'songs': <Map<String, dynamic>>[],
+    'removed': <int>[],
+    'changed': changed.toList(),
+  };
 }

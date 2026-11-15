@@ -27,7 +27,7 @@ class LibraryLoadFailure extends ConsumerWidget {
             onRetry ??
             (remote
                 ? RemotePageAccessScope.of(context).retry
-                : () => ref.invalidate(libraryContentDataProvider)),
+                : () => invalidateLibraryQueries(ref.invalidate)),
       ),
     );
   }

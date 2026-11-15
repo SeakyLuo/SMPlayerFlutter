@@ -24,8 +24,8 @@ class _SearchFilterTabs extends StatelessWidget {
         count:
             results.artists.length +
             results.albums.length +
-            results.songs.length +
-            results.lyrics.length +
+            results.songCount +
+            results.lyricsCount +
             results.playlists.length +
             results.folders.length,
         order: 0,
@@ -45,13 +45,13 @@ class _SearchFilterTabs extends StatelessWidget {
       (
         key: SearchFilterKey.songs,
         label: i18n.t('common.songs'),
-        count: results.songs.length,
+        count: results.songCount,
         order: 3,
       ),
       (
         key: SearchFilterKey.lyrics,
         label: i18n.t('nowPlaying.lyrics'),
-        count: results.lyrics.length,
+        count: results.lyricsCount,
         order: 4,
       ),
       (

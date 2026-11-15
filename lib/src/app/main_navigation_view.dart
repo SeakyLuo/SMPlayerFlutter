@@ -58,6 +58,8 @@ class MainNavigationView extends StatefulWidget {
     this.canGoBack = false,
     this.showTitlebar = true,
     this.sourceDeviceName,
+    this.playlistSource = 'local',
+    this.onPlaylistsVisibilityChanged,
     this.playlists = const [],
     this.recentSearches = const [],
     this.onGoBack,
@@ -76,6 +78,8 @@ class MainNavigationView extends StatefulWidget {
     this.onTitlebarTap,
   });
 
+  final String playlistSource;
+  final ValueChanged<bool>? onPlaylistsVisibilityChanged;
   final bool isPaneOpen;
   final String currentPath;
   final String searchText;
@@ -185,6 +189,7 @@ class _MainNavigationViewState extends State<MainNavigationView> {
   var _isSearchHistoryOpen = false;
   var _searchHistoryOpenScheduled = false;
   var _isPlaylistNavExpanded = true;
+  String? _visiblePlaylistSource;
   int? _draggingPlaylistId;
   ({int playlistId, _PlaylistDropPosition position})? _playlistDropIndicator;
 
@@ -444,6 +449,25 @@ class _MainNavigationViewState extends State<MainNavigationView> {
                           SmPlayerShellMetrics
                                   .navigationPlaylistChildrenCollapseHeight +
                               1;
+                  final playlistsVisible =
+                      showPlaylistChildren && _isPlaylistNavExpanded;
+                  if (!playlistsVisible && _visiblePlaylistSource != null) {
+                    _visiblePlaylistSource = null;
+                    WidgetsBinding.instance.addPostFrameCallback((_) {
+                      if (mounted && _visiblePlaylistSource == null) {
+                        widget.onPlaylistsVisibilityChanged?.call(false);
+                      }
+                    });
+                  } else if (playlistsVisible &&
+                      _visiblePlaylistSource != widget.playlistSource) {
+                    _visiblePlaylistSource = widget.playlistSource;
+                    WidgetsBinding.instance.addPostFrameCallback((_) {
+                      if (mounted &&
+                          _visiblePlaylistSource == widget.playlistSource) {
+                        widget.onPlaylistsVisibilityChanged?.call(true);
+                      }
+                    });
+                  }
                   return Stack(
                     clipBehavior: Clip.none,
                     children: [

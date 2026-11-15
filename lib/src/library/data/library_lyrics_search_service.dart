@@ -1,3 +1,4 @@
+import 'library_sql_functions.dart';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:isolate';
@@ -9,6 +10,7 @@ import 'package:sqlite3/sqlite3.dart';
 
 import 'library_database_service.dart';
 import 'library_models.dart';
+import 'library_text.dart';
 
 const _activeState = 1;
 const _lyricsIndexReadBatchSize = 2;
@@ -35,92 +37,139 @@ class LibraryLyricsSearchService {
     File databaseFile,
     String query, {
     String folderPath = '',
-  }) async {
-    try {
-      return await _searchInBackground(
-        _database,
-        databaseFile.path,
-        query,
-        folderPath,
-      );
-    } on Object catch (error, stackTrace) {
-      developer.log(
-        'Cannot search local lyrics index',
-        name: 'library.search',
-        error: error,
-        stackTrace: stackTrace,
-      );
-      rethrow;
-    }
-  }
+  }) async =>
+      (await searchPage(databaseFile, query, folderPath: folderPath)).matches;
 
-  static Future<List<LocalLyricsSearchMatch>> _searchInBackground(
-    LibraryDatabaseService database,
-    String databasePath,
-    String query,
-    String folderPath,
-  ) {
-    return Isolate.run(
-      () => _searchAvailableSync(
-        database,
-        databasePath,
-        query,
-        folderPath: folderPath,
-      ),
-    );
-  }
+  Future<LibraryLyricsSearchPage> searchPage(
+    File databaseFile,
+    String query, {
+    String folderPath = '',
+    int offset = 0,
+    MusicLibrarySortCriterion? order,
+  }) => Isolate.run(
+    () => _searchPageSync(
+      _database,
+      databaseFile.path,
+      query,
+      folderPath: folderPath,
+      offset: offset,
+      order: order,
+    ),
+  );
 
-  static List<LocalLyricsSearchMatch> _searchAvailableSync(
+  Future<List<int>> searchSongIds(
+    File file,
+    String text, {
+    String folderPath = '',
+    MusicLibrarySortCriterion? order,
+  }) async =>
+      (await Isolate.run(
+        () => _searchPageSync(
+          _database,
+          file.path,
+          text,
+          folderPath: folderPath,
+          offset: 0,
+          order: order,
+          idsOnly: true,
+        ),
+      )).songIds;
+
+  static LibraryLyricsSearchPage _searchPageSync(
     LibraryDatabaseService database,
     String databasePath,
     String query, {
     required String folderPath,
+    required int offset,
+    required MusicLibrarySortCriterion? order,
+    bool idsOnly = false,
   }) {
     final normalizedQuery = _normalizeQuery(query);
-    if (normalizedQuery.runes.length < 2) {
-      return const [];
-    }
-
+    if (normalizedQuery.runes.length < 2)
+      return const LibraryLyricsSearchPage(matches: [], totalCount: 0);
     final db = database.openInitializedLibraryDatabase(File(databasePath));
     try {
+      db.createFunction(
+        functionName: 'lyrics_rank',
+        argumentCount: const AllowedArgumentCount(1),
+        deterministic: true,
+        function: (values) {
+          final lines =
+              (jsonDecode(values.single as String) as List).cast<Map>();
+          var best = 0, count = 0;
+          for (final line in lines) {
+            final text = line['text'] as String;
+            if (_normalizeLine(text).contains(normalizedQuery)) {
+              count++;
+              final score = _lineRelevance(text, normalizedQuery);
+              if (score > best) best = score;
+            }
+          }
+          return best * 100 + count.clamp(0, 99);
+        },
+      );
+      registerLibraryTimeSql(db);
+      final keys = <String, ArtistTextSortKey>{};
+      db.createCollation(
+        name: 'library_text',
+        function:
+            (a, b) => (keys[a!] ??= buildArtistTextSortKey(a)).compareTo(
+              keys[b!] ??= buildArtistTextSortKey(b),
+            ),
+      );
       final normalizedFolder = _normalizePath(folderPath);
-      final folderPrefix = normalizedFolder.isEmpty ? '' : '$normalizedFolder/';
+      final prefix = normalizedFolder.isEmpty ? '' : '$normalizedFolder/';
       final useFullText = normalizedQuery.runes.length >= 3;
+      final filter =
+          useFullText ? 'LocalLyricsSearch MATCH ?' : 'instr(SearchText,?)>0';
+      final scope =
+          "FROM LocalLyricsSearch INNER JOIN Music ON Music.Id=LocalLyricsSearch.SongId WHERE $filter AND Music.State=1 AND (?='' OR instr(lower(replace(LocalLyricsSearch.Path,char(92),'/')),?)=1)";
+      final parameters = [
+        useFullText ? _ftsPhrase(normalizedQuery) : normalizedQuery,
+        prefix,
+        prefix,
+      ];
+      final total =
+          db
+                  .select('SELECT COUNT(*) AS count $scope', parameters)
+                  .single['count']
+              as int;
+      final sort = switch (order) {
+        MusicLibrarySortCriterion.title => 'Music.Name COLLATE library_text',
+        MusicLibrarySortCriterion.artist => 'Music.Artist COLLATE library_text',
+        MusicLibrarySortCriterion.album => 'Music.Album COLLATE library_text',
+        MusicLibrarySortCriterion.duration => 'Music.Duration',
+        MusicLibrarySortCriterion.playCount => 'Music.PlayCount DESC',
+        MusicLibrarySortCriterion.dateAdded =>
+          'library_time(CAST(Music.DateAdded AS TEXT))',
+        null => 'lyrics_rank(LinesJson) DESC',
+      };
+      if (idsOnly) {
+        final rows = db.select(
+          'SELECT SongId $scope ORDER BY $sort,SongId',
+          parameters,
+        );
+        return LibraryLyricsSearchPage(
+          matches: const [],
+          totalCount: total,
+          songIds: rows.map((row) => row['SongId'] as int).toList(),
+        );
+      }
       final rows = db.select(
-        useFullText
-            ? '''
-              SELECT SongId AS songId, LinesJson AS linesJson
-              FROM LocalLyricsSearch
-              WHERE LocalLyricsSearch MATCH ?
-                AND SongId IN (SELECT Id FROM Music WHERE State = 1)
-                AND (? = '' OR instr(lower(replace(Path, char(92), '/')), ?) = 1)
-            '''
-            : '''
-              SELECT SongId AS songId, LinesJson AS linesJson
-              FROM LocalLyricsSearch
-              WHERE instr(SearchText, ?) > 0
-                AND SongId IN (SELECT Id FROM Music WHERE State = 1)
-                AND (? = '' OR instr(lower(replace(Path, char(92), '/')), ?) = 1)
-            ''',
-        [
-          if (useFullText) _ftsPhrase(normalizedQuery) else normalizedQuery,
-          folderPrefix,
-          folderPrefix,
+        'SELECT SongId AS songId,LinesJson AS linesJson $scope ORDER BY $sort,SongId LIMIT 100 OFFSET ?',
+        [...parameters, offset],
+      );
+      return LibraryLyricsSearchPage(
+        totalCount: total,
+        matches: [
+          for (final row in rows)
+            _buildMatch(
+              songId: row['songId'] as int,
+              linesJson: row['linesJson'] as String,
+              normalizedQuery: normalizedQuery,
+            ),
         ],
       );
-      final matches = [
-        for (final row in rows)
-          _buildMatch(
-            songId: row['songId'] as int,
-            linesJson: row['linesJson'] as String,
-            normalizedQuery: normalizedQuery,
-          ),
-      ];
-      matches.sort((left, right) {
-        final relevance = right.relevance.compareTo(left.relevance);
-        return relevance != 0 ? relevance : left.songId.compareTo(right.songId);
-      });
-      return matches;
     } finally {
       db.dispose();
     }

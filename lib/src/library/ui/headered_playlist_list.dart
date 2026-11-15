@@ -4,11 +4,15 @@ class _HeaderedPlaylistListSliver extends StatelessWidget {
   const _HeaderedPlaylistListSliver({
     required this.showAlbum,
     required this.entries,
+    this.totalCount,
+    this.entryBuilder,
     required this.bottomPadding,
   });
 
   final bool showAlbum;
   final List<PlaylistControlEntry> entries;
+  final int? totalCount;
+  final PlaylistControlEntry? Function(int)? entryBuilder;
   final double bottomPadding;
 
   @override
@@ -59,6 +63,8 @@ class _HeaderedPlaylistListSliver extends StatelessWidget {
               ),
               sliver: PlaylistControlSliver(
                 entries: entries,
+                totalCount: totalCount,
+                entryBuilder: entryBuilder,
                 itemShellBuilder: (context, index, item) {
                   if (!compact) {
                     return item;

@@ -1,4 +1,7 @@
+import 'local_demand_song.dart';
 import 'dart:async';
+import '../../app/smplayer_auto_hide_scrollbar.dart';
+import 'library_song_placeholder.dart';
 
 import 'package:flutter/material.dart';
 
@@ -6,15 +9,14 @@ import '../../i18n/app_i18n.dart';
 import '../data/library_models.dart';
 import 'local_folder_model.dart';
 import 'grid_view_folder.dart';
-import 'grid_view_music.dart';
 import 'local_page_model.dart';
-import 'local_page_quick_jump.dart';
 import 'tree_view.dart';
 
 class LocalContentView extends StatelessWidget {
   const LocalContentView({
     super.key,
     required this.childFolders,
+    required this.songSliverKey,
     required this.currentSongs,
     required this.nodes,
     required this.songsById,
@@ -61,9 +63,18 @@ class LocalContentView extends StatelessWidget {
     this.reserveSongQuickJumpSpace = false,
     this.scrollController,
     this.locatedSongId,
+    this.songRows = const {},
+    this.totalSongs = 0,
+    required this.onAccessSong,
+    required this.onAccessFolderSong,
   });
 
+  final GlobalKey songSliverKey;
   final List<FolderNode> childFolders;
+  final Map<int, LibrarySong> songRows;
+  final int totalSongs;
+  final ValueChanged<int> onAccessSong;
+  final void Function(String, int) onAccessFolderSong;
   final List<LibrarySong> currentSongs;
   final Map<String, FolderNode> nodes;
   final Map<int, LibrarySong> songsById;
@@ -170,61 +181,111 @@ class LocalContentView extends StatelessWidget {
               onToggleFolderSelection: onToggleFolderSelection,
               onMoveLocalItemsToFolder: onMoveLocalItemsToFolder,
             );
-    final songContent = LocalGridViewMusic(
-      locatedSongId: locatedSongId,
-      currentSongs: currentSongs,
-      selectedSongIds: selectedSongIds,
-      selectedTrackId: selectedTrackId,
-      isPlaying: isPlaying,
+    Widget songContent(LibrarySong song, int index) => LocalDemandSong(
+      song: song,
+      compact: isCompactLayout,
+      selectedIds: selectedSongIds,
+      trackId: selectedTrackId,
+      playing: isPlaying,
       multiSelect: multiSelect,
-      isCompactLayout: isCompactLayout,
-      showSongQuickJump: showSongQuickJump,
-      reserveSongQuickJumpSpace: reserveSongQuickJumpSpace,
-      songQuickJumpBasisName: songQuickJumpBasisName,
-      songQuickJumpMap: songQuickJumpMap,
+      located: song.id == locatedSongId,
+      last: index == totalSongs - 1,
       sortMode: sortMode,
       currentSortMode: currentSortMode,
-      queueSongIds: queueSongIds,
-      folderQueueSongIds: folderQueueSongIds,
       i18n: i18n,
-      onPlayTrack: onPlayTrack,
-      onPlaySong: onPlaySong,
+      onPlay: () => onPlayTrack(song.id, folderQueueSongIds),
+      onPlayButton: () => onPlaySong(song.id),
       onTogglePlayPause: onTogglePlayPause,
-      onToggleSongSelection: onToggleSongSelection,
-      onPlayNext: onPlayNext,
-      onToggleFavorite: onToggleFavorite,
-      onAddSong: onAddSong,
-      onOpenSongMenu: onOpenSongMenu,
-      onJumpToSongKey: onJumpToSongKey,
-      scrollController: scrollController,
+      onSelect: () => onToggleSongSelection(song.id),
+      onPlayNext: () => onPlayNext(song.id),
+      onFavorite: () => onToggleFavorite(song.id, !song.favorite),
+      onAdd: (position) => onAddSong(song, position),
+      onMenu: (position) => onOpenSongMenu(song, position),
     );
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        if (childFolders.isNotEmpty)
-          showLocalSectionHeaders
-              ? LocalContentSection(
-                title: i18n.t('common.folders'),
-                count: childFolders.length,
-                expanded: foldersExpanded,
-                onToggle: onToggleFoldersExpanded,
-                compact: isCompactLayout,
-                child: folderContent,
-              )
-              : folderContent,
-        if (currentSongs.isNotEmpty)
-          showLocalSectionHeaders
-              ? LocalContentSection(
-                title: i18n.t('common.songs'),
-                count: currentSongs.length,
-                expanded: songsExpanded,
-                onToggle: onToggleSongsExpanded,
-                compact: isCompactLayout,
-                child: songContent,
-              )
-              : songContent,
-      ],
+    return SmPlayerAutoHideScrollbar(
+      controller: scrollController!,
+      child: CustomScrollView(
+        controller: scrollController,
+        slivers: [
+          if (childFolders.isNotEmpty && !isCompactLayout)
+            SliverToBoxAdapter(child: folderContent),
+          if (isCompactLayout && compactTreeRows.isNotEmpty)
+            SliverList.builder(
+              itemCount: compactTreeRows.length,
+              itemBuilder: (context, index) {
+                final row = compactTreeRows[index];
+                if (row.type == LocalCompactTreeRowType.placeholder) {
+                  onAccessFolderSong(row.folder!.path, row.songIndex!);
+                  return const LibrarySongPlaceholder();
+                }
+                // A single tree row keeps the existing folder and song interactions.
+                return LocalTreeView(
+                  rows: [row],
+                  nodes: nodes,
+                  songsById: songsById,
+                  selectedFolderPaths: selectedFolderPaths,
+                  selectedSongIds: selectedSongIds,
+                  selectedTrackId: selectedTrackId,
+                  isPlaying: isPlaying,
+                  multiSelect: multiSelect,
+                  queueSongIds: compactQueueSongIds,
+                  i18n: i18n,
+                  onToggleTreeFolderExpanded: onToggleTreeFolderExpanded,
+                  onPlayFolder: onPlayFolder,
+                  onAddFolder: onAddFolder,
+                  onRefreshFolder: onRefreshFolder,
+                  onSearchFolder: onSearchFolder,
+                  onRevealFolder: onRevealFolder,
+                  onOpenFolder: onOpenFolder,
+                  onOpenFolderMenu: onOpenFolderMenu,
+                  onToggleFolderSelection: onToggleFolderSelection,
+                  onMoveLocalItemsToFolder: onMoveLocalItemsToFolder,
+                  onPlayTrack: onPlayTrack,
+                  onPlaySong: onPlaySong,
+                  onTogglePlayPause: onTogglePlayPause,
+                  onToggleSongSelection: onToggleSongSelection,
+                  onPlayNext: onPlayNext,
+                  onToggleFavorite: onToggleFavorite,
+                  onAddSong: onAddSong,
+                  onOpenSongMenu: onOpenSongMenu,
+                );
+              },
+            ),
+          if (totalSongs > 0)
+            const SliverToBoxAdapter(child: SizedBox(height: 18)),
+          if (isCompactLayout)
+            SliverList.builder(
+              key: songSliverKey,
+              itemCount: totalSongs,
+              itemBuilder: (context, index) {
+                onAccessSong(index);
+                final song = songRows[index];
+                if (song == null) {
+                  return LibrarySongPlaceholder(
+                    height: index == totalSongs - 1 ? 78 : 79,
+                  );
+                }
+                return songContent(song, index);
+              },
+            )
+          else
+            SliverGrid.builder(
+              key: songSliverKey,
+              gridDelegate: const LocalSongGridDelegate(),
+              itemCount: totalSongs,
+              itemBuilder: (context, index) {
+                onAccessSong(index);
+                final song = songRows[index];
+                if (song == null) {
+                  return const LibrarySongPlaceholder();
+                }
+                return songContent(song, index);
+              },
+            ),
+          const SliverToBoxAdapter(child: SizedBox(height: 80)),
+        ],
+      ),
     );
   }
 }

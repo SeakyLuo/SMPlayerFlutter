@@ -1,4 +1,5 @@
 import '../../remote/music_share_models.dart';
+import '../../remote/music_share_access.dart';
 import 'dart:async';
 
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
@@ -102,13 +103,12 @@ class _LocalFolderCardState extends State<LocalFolderCard> {
   Widget build(BuildContext context) {
     return DragTarget<LocalItemsDragPayload>(
       onWillAcceptWithDetails:
-          isRemoteMusicPath(widget.folder.path) ||
-                  widget.onWillAcceptDrop == null
+          widget.onWillAcceptDrop == null
               ? null
               : (details) =>
                   widget.onWillAcceptDrop!(widget.folder, details.data),
       onAcceptWithDetails:
-          isRemoteMusicPath(widget.folder.path) || widget.onAcceptDrop == null
+          widget.onAcceptDrop == null
               ? null
               : (details) => widget.onAcceptDrop!(widget.folder, details.data),
       builder: (context, candidateData, rejectedData) {
@@ -468,14 +468,19 @@ class _LocalFolderCardState extends State<LocalFolderCard> {
                                     widget.folder.subtreeSongIds.isNotEmpty,
                               ),
                               const SizedBox(width: 2),
-                              if (!isRemoteMusicPath(widget.folder.path))
-                                _LocalIconAction(
-                                  tooltip: widget.i18n.t('local.updateFolder'),
-                                  icon: FluentIcons.arrow_sync_20_regular,
-                                  onPressed:
-                                      () =>
-                                          widget.onRefreshFolder(widget.folder),
-                                ),
+                              _LocalIconAction(
+                                tooltip: widget.i18n.t('local.updateFolder'),
+                                icon: FluentIcons.arrow_sync_20_regular,
+                                onPressed:
+                                    !isRemoteMusicPath(widget.folder.path) ||
+                                            activeMusicShareAccess!.canWrite(
+                                              widget.folder.path,
+                                            )
+                                        ? () => widget.onRefreshFolder(
+                                          widget.folder,
+                                        )
+                                        : null,
+                              ),
                               const SizedBox(width: 2),
                               _LocalIconAction(
                                 tooltip: widget.i18n.t(
@@ -515,14 +520,11 @@ class _LocalFolderCardState extends State<LocalFolderCard> {
       return formatFolderCardStats(
         widget.i18n,
         widget.folder.childPaths.length,
-        widget.folder.directSongIds.length,
+        widget.folder.directCount,
       );
     }
 
-    return formatLocalFolderSongCount(
-      widget.i18n,
-      widget.folder.directSongIds.length,
-    );
+    return formatLocalFolderSongCount(widget.i18n, widget.folder.directCount);
   }
 
   void _open() {

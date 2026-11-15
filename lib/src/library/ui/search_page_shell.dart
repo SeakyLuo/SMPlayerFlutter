@@ -74,33 +74,24 @@ class _SearchLoadingState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = SearchPageThemeColors.of(context);
-    return ConstrainedBox(
-      constraints: const BoxConstraints(minHeight: 52),
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(
-          _searchPageHorizontalInset,
-          6,
-          _searchPageHorizontalInset,
-          22,
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const SizedBox.square(
-              dimension: 18,
-              child: CircularProgressIndicator(
-                strokeWidth: 2,
-                color: _SearchColors.accent,
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 12),
+      child: Row(
+        children: [
+          const SizedBox(
+            width: 48,
+            child: LinearProgressIndicator(minHeight: 2),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              message,
+              style: TextStyle(
+                color: SearchPageThemeColors.of(context).textMuted,
               ),
             ),
-            const SizedBox(width: 10),
-            Text(
-              message,
-              style: TextStyle(color: colors.textMuted, fontSize: 14),
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

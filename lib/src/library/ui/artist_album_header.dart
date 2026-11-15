@@ -72,7 +72,7 @@ class _ArtistAlbumHeader extends StatelessWidget {
                       Text(
                         key: ValueKey('Artists.AlbumSummary.${album.name}'),
                         i18n.t('artists.albumSummary', {
-                          'songs': album.songs.length,
+                          'songs': album.songCount,
                           'duration': formatDuration(album.duration),
                         }),
                         style: TextStyle(

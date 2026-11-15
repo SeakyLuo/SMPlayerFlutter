@@ -19,6 +19,9 @@ class AlbumTileData {
     required this.songs,
     required this.duration,
     this.artworkSong,
+    this.artworkPath,
+    this.summarySongCount,
+    this.referenceIds,
     this.subtitle,
   });
 
@@ -27,9 +30,14 @@ class AlbumTileData {
   final List<LibrarySong> songs;
   final int duration;
   final LibrarySong? artworkSong;
+  final String? artworkPath;
+  final int? summarySongCount;
+  int get songCount => summarySongCount ?? songs.length;
   final String? subtitle;
 
-  List<int> get songIds => songs.map((song) => song.id).toList();
+  final List<int>? referenceIds;
+  List<int> get songIds =>
+      referenceIds ?? songs.map((song) => song.id).toList();
 }
 
 class AlbumTile extends StatefulWidget {
@@ -240,7 +248,9 @@ class AlbumArtControl extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final firstSong = album.artworkSong ?? getAlbumArtworkSong(album.songs);
+    final artworkPath =
+        album.artworkPath ??
+        (album.artworkSong ?? getAlbumArtworkSong(album.songs)).thumbnailPath;
     final brightness = Theme.of(context).brightness;
     final colors = _AlbumTileColors.forBrightness(brightness);
     final radius = BorderRadius.circular(8);
@@ -262,7 +272,7 @@ class AlbumArtControl extends StatelessWidget {
         ),
         child: ClipRRect(
           borderRadius: radius,
-          child: SongArtwork(artworkPath: firstSong.thumbnailPath),
+          child: SongArtwork(artworkPath: artworkPath),
         ),
       ),
     );

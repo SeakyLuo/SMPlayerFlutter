@@ -378,11 +378,13 @@ extension _SmPlayerShellNavigationMethods on _SmPlayerShellPageState {
       if (latestSnapshot == null) {
         return;
       }
-      _restorePlaybackTrackFromSnapshot(latestSnapshot);
+      unawaited(_restorePlaybackTrackFromSnapshot(latestSnapshot));
     });
   }
 
-  void _restorePlaybackTrackFromSnapshot(LibraryContentData snapshot) {
+  Future<void> _restorePlaybackTrackFromSnapshot(
+    LibraryContentData snapshot,
+  ) async {
     if (_playbackTrackRestored) {
       return;
     }
@@ -391,30 +393,28 @@ extension _SmPlayerShellNavigationMethods on _SmPlayerShellPageState {
       return;
     }
     final songIds = _playbackSongIds(snapshot);
-    if (snapshot.songs.isEmpty || songIds.isEmpty) {
+    if (songIds.isEmpty) {
       return;
     }
 
     final settings = _settingsController.snapshot;
-    final songsById = {for (final song in snapshot.songs) song.id: song};
     final savedSongIndex = songIds.indexOf(settings.lastMusicId);
     final restoredIndex =
         savedSongIndex >= 0
             ? savedSongIndex
             : settings.lastMusicIndex.clamp(0, songIds.length - 1);
-    final restoredSong = songsById[songIds[restoredIndex]];
-    if (restoredSong == null) {
-      return;
-    }
     _playbackTrackRestored = true;
     final progressSeconds =
         settings.saveMusicProgress ? settings.musicProgress : 0.0;
     _restoringPlaybackTrack = true;
     try {
-      _mediaControlController.playTrack(
-        mediaControlTrackForSong(restoredSong, context.smPlayerI18n),
-        durationSeconds: restoredSong.duration.toDouble(),
+      await playQueueIndex(
+        ref: ref,
+        snapshot: snapshot,
+        i18n: context.smPlayerI18n,
+        songIds: songIds,
         queueIndex: restoredIndex,
+        mediaController: _mediaControlController,
         progressSeconds: progressSeconds,
         autoplay:
             settings.autoPlay && !_settingsController.suppressAutoPlayOnRestore,
@@ -520,7 +520,7 @@ extension _SmPlayerShellNavigationMethods on _SmPlayerShellPageState {
     });
     try {
       await ref.read(libraryRepositoryProvider).applyArtistSplits(splits);
-      ref.invalidate(libraryContentDataProvider);
+      invalidateLibraryQueries(ref.invalidate);
       if (!mounted) {
         return;
       }

@@ -7,8 +7,8 @@ import '../app/loading_state.dart';
 import '../app/undoable_notification.dart';
 import '../i18n/app_i18n.dart';
 import '../library/ui/library_load_failure.dart';
+import '../library/data/library_providers.dart';
 import '../platform/system_log.dart';
-import 'music_share_controller.dart';
 import 'music_share_models.dart';
 import 'music_source_providers.dart';
 
@@ -38,7 +38,6 @@ class _RemotePageAccessState extends ConsumerState<RemotePageAccess> {
     if (widget.device == 'local') return false;
     final path = Uri.parse(widget.location).path;
     return [
-      '/local',
       '/songs',
       '/artists',
       '/albums',
@@ -78,6 +77,7 @@ class _RemotePageAccessState extends ConsumerState<RemotePageAccess> {
   }
 
   void _retry() {
+    invalidateLibraryQueries(ref.invalidate, source: widget.device);
     if (_visible && !_loading) unawaited(_access());
   }
 
@@ -90,9 +90,9 @@ class _RemotePageAccessState extends ConsumerState<RemotePageAccess> {
     if (!_needsData) return;
     bool current() => mounted && _visible && generation == _generation;
     try {
-      await ref
-          .read(musicShareProvider)
-          .readPageData(widget.device, playlists: true, isCurrent: current);
+      final share = ref.read(musicShareProvider);
+      await share.ready;
+      if (current()) share.notifyLibraryAccess(widget.device);
       if (current()) setState(() => _loading = false);
     } catch (error, stack) {
       if (!mounted || !_visible || generation != _generation) return;
@@ -115,19 +115,34 @@ class _RemotePageAccessState extends ConsumerState<RemotePageAccess> {
   @override
   Widget build(BuildContext context) {
     final blocked = _loading || _failed;
+    final path = Uri.parse(widget.location).path;
+    final loadingLayout = switch (path) {
+      '/artists' => SmPlayerLoadingLayout.artists,
+      '/albums' || '/playlists' => SmPlayerLoadingLayout.grid,
+      _ when path.startsWith('/albums/') || path.startsWith('/artists/') =>
+        SmPlayerLoadingLayout.detail,
+      _ => SmPlayerLoadingLayout.list,
+    };
+    final directoryPage = Uri.parse(widget.location).path == '/local';
     return RemotePageAccessScope(
       retry: _retry,
+      loading: _loading,
+      failed: _failed,
       child: Stack(
         fit: StackFit.expand,
         children: [
           // Keep navigation state mounted, but prevent hidden content from making
           // visibility-driven artwork requests or accepting user input.
           TickerMode(
-            enabled: !blocked,
-            child: Offstage(offstage: blocked, child: widget.child),
+            enabled: directoryPage || !blocked,
+            child: Offstage(
+              offstage: !directoryPage && blocked,
+              child: widget.child,
+            ),
           ),
-          if (_loading) const SmPlayerLoadingState(),
-          if (_failed) LibraryLoadFailure(onRetry: _retry),
+          if (!directoryPage && _loading)
+            SmPlayerLoadingState(layout: loadingLayout),
+          if (!directoryPage && _failed) LibraryLoadFailure(onRetry: _retry),
         ],
       ),
     );
@@ -138,14 +153,20 @@ class RemotePageAccessScope extends InheritedWidget {
   const RemotePageAccessScope({
     super.key,
     required this.retry,
+    required this.loading,
+    required this.failed,
     required super.child,
   });
   final VoidCallback retry;
+  final bool loading;
+  final bool failed;
 
   static RemotePageAccessScope of(BuildContext context) =>
       context.dependOnInheritedWidgetOfExactType<RemotePageAccessScope>()!;
 
   @override
   bool updateShouldNotify(RemotePageAccessScope oldWidget) =>
-      retry != oldWidget.retry;
+      retry != oldWidget.retry ||
+      loading != oldWidget.loading ||
+      failed != oldWidget.failed;
 }

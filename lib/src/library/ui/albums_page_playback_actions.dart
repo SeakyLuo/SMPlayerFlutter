@@ -6,10 +6,9 @@ extension _AlbumsPagePlaybackActions on _AlbumsPageState {
       return;
     }
 
-    final queueSongIds = songIds.toList();
-    if (shuffle) {
-      queueSongIds.shuffle(Random());
-    }
+    final queueSongIds =
+        shuffle ? await sourceShuffleSongIds(ref, songIds) : songIds.toList();
+    if (!mounted || queueSongIds.isEmpty) return;
     final snapshot = ref.read(libraryContentDataProvider).value!;
     final i18n = context.smPlayerI18n;
     replaceNowPlayingQueueAndPlayIndex(
@@ -22,37 +21,11 @@ extension _AlbumsPagePlaybackActions on _AlbumsPageState {
   }
 
   Future<void> _addSongsToNowPlayingWithUndo(List<int> songIds) async {
-    if (songIds.isEmpty) {
-      return;
-    }
-
-    final snapshot = ref.read(libraryContentDataProvider).value!;
-    final currentSongIds = currentNowPlayingSongIds(ref, snapshot);
-    final insertedIndex = currentSongIds.length;
-    final songsById = {for (final song in snapshot.songs) song.id: song};
-    final i18n = context.smPlayerI18n;
-    final queueAfterAdd = [...currentSongIds, ...songIds];
-    setNowPlayingQueue(ref, queueAfterAdd);
-    _showUndoNotification(
-      songIds.length == 1
-          ? i18n.t('notification.songAddedTo', {
-            'title': songsById[songIds.first]!.title,
-            'target': i18n.t('common.nowPlaying'),
-          })
-          : i18n.t('notification.songsAddedTo', {
-            'count': songIds.length,
-            'target': i18n.t('common.nowPlaying'),
-          }),
-      () async {
-        final currentSongIds =
-            ref.read(nowPlayingQueueOverrideProvider) ?? queueAfterAdd;
-        final restoredSongIds =
-            currentSongIds.toList()..removeRange(
-              insertedIndex,
-              min(insertedIndex + songIds.length, currentSongIds.length),
-            );
-        setNowPlayingQueue(ref, restoredSongIds);
-      },
+    await addSongsToNowPlayingWithUndo(
+      context: context,
+      ref: ref,
+      i18n: context.smPlayerI18n,
+      songIds: songIds,
     );
   }
 
@@ -77,13 +50,4 @@ extension _AlbumsPagePlaybackActions on _AlbumsPageState {
         songIds: songIds,
         favorite: favorite,
       );
-
-  void _showUndoNotification(String message, FutureOr<void> Function() onUndo) {
-    showUndoableNotification(
-      context: context,
-      i18n: context.smPlayerI18n,
-      message: message,
-      onUndo: onUndo,
-    );
-  }
 }
