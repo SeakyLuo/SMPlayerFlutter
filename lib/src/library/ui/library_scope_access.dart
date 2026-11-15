@@ -4,8 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/undoable_notification.dart';
 import '../../i18n/app_i18n.dart';
-import '../../remote/music_share_models.dart';
 import '../data/library_providers.dart';
+import 'library_query_failure.dart';
 
 AsyncValue<List<int>> watchLibraryScopeIds(
   WidgetRef ref,
@@ -45,8 +45,9 @@ void listenLibraryQueryFailure<T>(
   ref.listen(provider, (previous, next) {
     if (next.isLoading ||
         !next.hasError ||
-        previous?.isLoading == false && identical(previous?.error, next.error))
+        previous?.isLoading == false && identical(previous?.error, next.error)) {
       return;
+    }
     final context = ref.context;
     final container = ProviderScope.containerOf(context, listen: false);
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -55,11 +56,7 @@ void listenLibraryQueryFailure<T>(
       showAppNotification(
         context: context,
         message: context.smPlayerI18n.t(
-          error is MusicShareException
-              ? (error.httpStatusCode != null && error.httpStatusCode! >= 500
-                  ? 'share.pageLoadFailed'
-                  : error.messageKey)
-              : 'share.pageLoadFailed',
+          libraryQueryFailureMessage(error!, next.stackTrace!),
         ),
         actionLabel: context.smPlayerI18n.t('share.retryDirectory'),
         onAction: () {

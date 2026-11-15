@@ -1,5 +1,5 @@
 import 'library_scope_access.dart';
-import '../../remote/music_share_models.dart';
+import 'library_query_failure.dart';
 import 'package:smplayer_flutter/src/library/ui/library_load_failure.dart';
 import 'package:smplayer_flutter/src/remote/music_share_access.dart';
 import '../../remote/music_source_providers.dart';

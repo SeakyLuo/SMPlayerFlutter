@@ -1,3 +1,4 @@
+import 'dart:math' show min;
 import 'dart:ui' show ImageFilter;
 import '../remote/remote_page_access.dart';
 
@@ -545,7 +546,12 @@ class _WorkspaceNavigationAppBar extends StatelessWidget {
                               ),
                             );
                           }
-                          final actionsMaxWidth = constraints.maxWidth - 12;
+                          final titleActionsGap = min(
+                            12.0,
+                            constraints.maxWidth,
+                          );
+                          final actionsMaxWidth =
+                              constraints.maxWidth - titleActionsGap;
                           return Row(
                             children: [
                               Expanded(
@@ -555,7 +561,7 @@ class _WorkspaceNavigationAppBar extends StatelessWidget {
                                   color: titleColor,
                                 ),
                               ),
-                              const SizedBox(width: 12),
+                              SizedBox(width: titleActionsGap),
                               ConstrainedBox(
                                 constraints: BoxConstraints(
                                   maxWidth: actionsMaxWidth,
