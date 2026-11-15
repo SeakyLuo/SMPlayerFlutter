@@ -57,11 +57,13 @@ extension _MusicLibraryActions on _MusicLibraryPageState {
       await ref
           .read(libraryPagedQueryProvider(query).notifier)
           .loadWindow(index);
-    } catch (error) {
+    } catch (error, stack) {
       if (mounted)
         showAppNotification(
           context: context,
-          message: context.smPlayerI18n.t('share.connectionFailed'),
+          message: context.smPlayerI18n.t(
+            libraryQueryFailureMessage(error, stack),
+          ),
           actionLabel: context.smPlayerI18n.t('share.retryDirectory'),
           onAction: _loadVisibleSongWindow,
         );
@@ -112,14 +114,12 @@ extension _MusicLibraryActions on _MusicLibraryPageState {
     if (rangeSelection) {
       try {
         orderedSongIds = await _resolveScopeSongIds();
-      } catch (error) {
+      } catch (error, stack) {
         if (mounted)
           showAppNotification(
             context: context,
             message: context.smPlayerI18n.t(
-              error is MusicShareException
-                  ? error.messageKey
-                  : 'share.connectionFailed',
+              libraryQueryFailureMessage(error, stack),
             ),
           );
         return;
@@ -179,11 +179,13 @@ extension _MusicLibraryActions on _MusicLibraryPageState {
           _selection.selectAll(ids);
         }
       });
-    } catch (error) {
+    } catch (error, stack) {
       if (mounted)
         showAppNotification(
           context: context,
-          message: context.smPlayerI18n.t('share.connectionFailed'),
+          message: context.smPlayerI18n.t(
+            libraryQueryFailureMessage(error, stack),
+          ),
         );
     }
   }
