@@ -77,16 +77,16 @@ class _CatalogImport {
           row['Path'] as String: row['Id'] as int,
       };
       if (replace) {
-        db.execute('UPDATE Music SET RemoteAvailable = 0 WHERE Path LIKE ?', [
+        db.execute('UPDATE Music SET State = 0 WHERE Path LIKE ?', [
           '$remoteMusicScheme://$deviceId/%',
         ]);
       }
       final upsert = db.prepare('''
-      INSERT INTO Music (Path, Name, Artist, Album, Duration, DateAdded, ThumbnailPath, RemoteAvailable, RemoteDetailsLoaded, State)
-      VALUES (?, ?, ?, ?, ?, ?, ?, 1, 1, 1)
+      INSERT INTO Music (Path, Name, Artist, Album, Duration, DateAdded, ThumbnailPath, State)
+      VALUES (?, ?, ?, ?, ?, ?, ?, 1)
       ON CONFLICT(Path) DO UPDATE SET Name = excluded.Name,
         Artist = excluded.Artist, Album = excluded.Album,
-        Duration = excluded.Duration, ThumbnailPath = excluded.ThumbnailPath, RemoteAvailable = 1, RemoteDetailsLoaded = 1, State = 1
+        Duration = excluded.Duration, ThumbnailPath = excluded.ThumbnailPath, State = 1
     ''');
       final updateOffset = db.prepare(
         'UPDATE Music SET LyricsOffsetMs = ? WHERE Id = ?',
@@ -147,7 +147,7 @@ class _CatalogImport {
         final removedPaths =
             removedSongIds.map((id) => remoteMusicPath(deviceId, id)).toList();
         db.execute(
-          'UPDATE Music SET State = 0, RemoteAvailable = 0 WHERE Path IN (${List.filled(removedPaths.length, '?').join(',')})',
+          'UPDATE Music SET State = 0 WHERE Path IN (${List.filled(removedPaths.length, '?').join(',')})',
           removedPaths,
         );
       }

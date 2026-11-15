@@ -93,7 +93,8 @@ class _WideSongTable extends StatelessWidget {
                   itemCount: totalSongCount,
                   itemBuilder: (context, index) {
                     final song = songs[index];
-                    if (song == null) return const _SongWindowPlaceholder();
+                    if (song == null)
+                      return _SongWindowPlaceholder(columnWidths: columnWidths);
                     return _WideSongRow(
                       song: song,
                       selected: selectedSongIds.contains(song.id),

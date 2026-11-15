@@ -206,7 +206,7 @@ class _QueueArtwork extends StatelessWidget {
   Widget build(BuildContext context) {
     final available = canPlayLibrarySong(song);
     final unavailableLabel = context.smPlayerI18n.t(
-      song.remoteAvailable ? 'share.offline' : 'share.unavailableShort',
+      song.isActive ? 'share.offline' : 'share.unavailableShort',
     );
     final artworkShadowVisible = hovered && available;
     final artworkShadow = BoxShadow(
@@ -337,7 +337,7 @@ class _QueueCopy extends StatelessWidget {
         SearchMatchText(
           key: const ValueKey('PlaylistControlItem.Title'),
           text:
-              song.remoteAvailable
+              song.isActive
                   ? song.title
                   : '${song.title} · ${context.smPlayerI18n.t('share.songRemoved')}',
           query: searchQuery,

@@ -21,7 +21,8 @@ mixin _LocalLibraryReading {
 
   Future<LibraryContentData> query(LibraryDataQuery query) async {
     final page = await repository._readDatabaseQuery(query);
-    if (!page.songs.any((song) => !song.detailsLoaded)) return page;
+    if (!page.songs.any((song) => song.source is RemoteLibrarySource))
+      return page;
     final songs = await repository.getLibrarySongs(
       songIds: page.songs.map((song) => song.id).toList(),
     );

@@ -44,6 +44,7 @@ import 'song_artwork.dart';
 import '../../platform/desktop_feature_service.dart';
 
 part 'music_library_layout.dart';
+part 'music_library_loading.dart';
 part 'music_library_actions.dart';
 part 'music_library_table.dart';
 part 'music_library_table_rows.dart';

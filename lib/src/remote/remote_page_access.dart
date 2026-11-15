@@ -3,7 +3,6 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../app/loading_state.dart';
 import '../app/undoable_notification.dart';
 import '../i18n/app_i18n.dart';
 import '../library/ui/library_load_failure.dart';
@@ -114,15 +113,7 @@ class _RemotePageAccessState extends ConsumerState<RemotePageAccess> {
 
   @override
   Widget build(BuildContext context) {
-    final blocked = _loading || _failed;
-    final path = Uri.parse(widget.location).path;
-    final loadingLayout = switch (path) {
-      '/artists' => SmPlayerLoadingLayout.artists,
-      '/albums' || '/playlists' => SmPlayerLoadingLayout.grid,
-      _ when path.startsWith('/albums/') || path.startsWith('/artists/') =>
-        SmPlayerLoadingLayout.detail,
-      _ => SmPlayerLoadingLayout.list,
-    };
+    final blocked = _failed;
     final directoryPage = Uri.parse(widget.location).path == '/local';
     return RemotePageAccessScope(
       retry: _retry,
@@ -140,8 +131,6 @@ class _RemotePageAccessState extends ConsumerState<RemotePageAccess> {
               child: widget.child,
             ),
           ),
-          if (!directoryPage && _loading)
-            SmPlayerLoadingState(layout: loadingLayout),
           if (!directoryPage && _failed) LibraryLoadFailure(onRetry: _retry),
         ],
       ),

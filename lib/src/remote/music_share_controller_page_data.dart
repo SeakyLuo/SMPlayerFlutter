@@ -7,8 +7,6 @@ extension MusicSharePageData on MusicShareController {
     bool notify = true,
   }) async {
     final changed = (result['changed'] as List?)?.cast<int>() ?? const <int>[];
-    if (changed.isNotEmpty)
-      await repository.invalidateRemoteSongDetails(device, changed);
     if (changed.isEmpty &&
         (result['songs'] as List).isEmpty &&
         (result['removed'] as List).isEmpty) {
