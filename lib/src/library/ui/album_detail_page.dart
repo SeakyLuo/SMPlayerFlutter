@@ -1,3 +1,4 @@
+import 'library_scope_access.dart';
 import '../../remote/music_source_providers.dart';
 import 'package:smplayer_flutter/src/library/ui/library_load_failure.dart';
 import 'dart:async';
@@ -57,18 +58,16 @@ class _AlbumDetailPageState extends ConsumerState<AlbumDetailPage> {
   Widget build(BuildContext context) {
     if (!TickerMode.valuesOf(context).enabled) return const SizedBox.shrink();
     final i18nValue = ref.watch(smPlayerI18nProvider);
-    final snapshotValue = ref.watch(
-      browsingLibraryPageProvider(
-        LibraryDataQuery(
-          LibraryQueryKind.album,
-          limit: 200,
-          album:
-              widget.albumName == context.smPlayerI18n.t('common.albumUnknown')
-                  ? ''
-                  : widget.albumName,
-        ),
-      ),
+    final pageQuery = LibraryDataQuery(
+      LibraryQueryKind.album,
+      limit: 200,
+      album:
+          widget.albumName == context.smPlayerI18n.t('common.albumUnknown')
+              ? ''
+              : widget.albumName,
     );
+    listenLibraryPageFailure(ref, pageQuery);
+    final snapshotValue = ref.watch(browsingLibraryPageProvider(pageQuery));
     final favoriteOverrides = ref.watch(libraryFavoriteOverridesProvider);
     final songOverrides = ref.watch(librarySongOverridesProvider);
 

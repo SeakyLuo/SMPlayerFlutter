@@ -13,7 +13,7 @@ extension LibraryScopeIds on LibraryRepository {
     final queueFile = _resolveNowPlayingFile(file);
     await LibrarySnapshotService.waitForPendingOperations();
     return Isolate.run(() {
-      final db = sqlite3.open(file.path, mode: OpenMode.readOnly);
+      final db = LibrarySnapshotService.openReadDatabase(file.path);
       try {
         db.execute('BEGIN');
         final List<int>? ids;

@@ -1,3 +1,4 @@
+import 'library_scope_access.dart';
 import 'package:smplayer_flutter/src/library/ui/library_load_failure.dart';
 import '../../remote/music_source_providers.dart';
 import 'dart:async';
@@ -21,6 +22,10 @@ class MyFavoritesPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     if (!TickerMode.valuesOf(context).enabled) return const SizedBox.shrink();
     final i18nValue = ref.watch(smPlayerI18nProvider);
+    listenLibraryPageFailure(
+      ref,
+      const LibraryDataQuery(LibraryQueryKind.favorites, limit: 200),
+    );
     final snapshotValue = ref.watch(
       browsingLibraryPageProvider(
         const LibraryDataQuery(LibraryQueryKind.favorites, limit: 200),

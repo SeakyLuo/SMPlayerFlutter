@@ -23,11 +23,17 @@ class LibraryLoadFailure extends ConsumerWidget {
         primary: true,
         label: i18n.t('share.retryDirectory'),
         icon: FluentIcons.arrow_clockwise_24_regular,
-        onPressed:
-            onRetry ??
-            (remote
-                ? RemotePageAccessScope.of(context).retry
-                : () => invalidateLibraryQueries(ref.invalidate)),
+        onPressed: () {
+          if (ref.read(libraryLoadedDataProvider).hasError) {
+            ref.invalidate(libraryLoadedDataProvider);
+          }
+          final retry =
+              onRetry ??
+              (remote
+                  ? RemotePageAccessScope.of(context).retry
+                  : () => invalidateLibraryQueries(ref.invalidate));
+          retry();
+        },
       ),
     );
   }

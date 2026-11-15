@@ -42,7 +42,7 @@ extension _LocalPageContent on _LocalPageState {
       created: _createdFolderPaths,
       songFolderPaths: _remoteSongFolders,
       rootName:
-          _remote
+          _remote && !contentUnavailable && !contentLoading
               ? ref.read(remoteDirectoryProvider(_source)).requireValue.rootName
               : null,
     );

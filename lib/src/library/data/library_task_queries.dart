@@ -13,7 +13,7 @@ extension LibraryTaskQueries on LibraryRepository {
     final file = await _resolveDatabaseFile();
     await LibrarySnapshotService.waitForPendingOperations();
     return Isolate.run(() {
-      final db = sqlite3.open(file.path, mode: OpenMode.readOnly);
+      final db = LibrarySnapshotService.openReadDatabase(file.path);
       try {
         final row =
             db.select(
@@ -41,7 +41,7 @@ extension LibraryTaskQueries on LibraryRepository {
     final file = await _resolveDatabaseFile();
     await LibrarySnapshotService.waitForPendingOperations();
     return Isolate.run(() {
-      final db = sqlite3.open(file.path, mode: OpenMode.readOnly);
+      final db = LibrarySnapshotService.openReadDatabase(file.path);
       try {
         db.execute('BEGIN');
         final ids =
@@ -108,7 +108,7 @@ extension LibraryTaskQueries on LibraryRepository {
     final file = await _resolveDatabaseFile();
     await LibrarySnapshotService.waitForPendingOperations();
     final rules = await Isolate.run(() {
-      final db = sqlite3.open(file.path, mode: OpenMode.readOnly);
+      final db = LibrarySnapshotService.openReadDatabase(file.path);
       try {
         return artist_rules.buildArtistSplitRules(
           LibraryRepository._artistSplitService.readRecognitionSources(

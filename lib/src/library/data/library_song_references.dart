@@ -8,7 +8,7 @@ extension LibrarySongReferences on LibraryRepository {
     final file = await _resolveDatabaseFile();
     await LibrarySnapshotService.waitForPendingOperations();
     return Isolate.run(() {
-      final db = sqlite3.open(file.path, mode: OpenMode.readOnly);
+      final db = LibrarySnapshotService.openReadDatabase(file.path);
       try {
         return {
           for (final row in db.select(
@@ -47,7 +47,7 @@ extension LibrarySongReferences on LibraryRepository {
     final file = await _resolveDatabaseFile();
     await LibrarySnapshotService.waitForPendingOperations();
     final missing = await Isolate.run(() {
-      final db = sqlite3.open(file.path, mode: OpenMode.readOnly);
+      final db = LibrarySnapshotService.openReadDatabase(file.path);
       try {
         return {
           for (final row in db.select(

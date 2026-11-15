@@ -11,6 +11,10 @@ extension _ArtistsPageContent on _ArtistsPageState {
     if (!TickerMode.valuesOf(context).enabled) return const SizedBox.shrink();
     _listenForArtistsListRequests(this);
     final i18nValue = ref.watch(smPlayerI18nProvider);
+    listenLibraryPageFailure(
+      ref,
+      const LibraryDataQuery(LibraryQueryKind.artistIndex),
+    );
     final snapshotValue = ref.watch(
       browsingLibraryPageProvider(
         const LibraryDataQuery(LibraryQueryKind.artistIndex),

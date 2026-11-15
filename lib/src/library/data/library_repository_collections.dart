@@ -7,7 +7,7 @@ mixin _LibraryRepositoryCollections on _LibraryDataSources {
     final file = await _resolveDatabaseFile();
     await LibrarySnapshotService.waitForPendingOperations();
     return Isolate.run(() {
-      final db = sqlite3.open(file.path, mode: OpenMode.readOnly);
+      final db = LibrarySnapshotService.openReadDatabase(file.path);
       try {
         db.execute('BEGIN');
         final playlists = LibraryRepository._playlistService.readPlaylists(db);

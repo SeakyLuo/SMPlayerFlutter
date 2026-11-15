@@ -12,38 +12,43 @@ AsyncValue<List<int>> watchLibraryScopeIds(
   LibraryDataQuery query,
 ) {
   final provider = libraryScopeIdsProvider(query);
-  ref.listen(provider, (previous, next) {
-    if (!next.hasError || identical(previous?.error, next.error)) return;
-    final context = ref.context;
-    final container = ProviderScope.containerOf(context, listen: false);
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!context.mounted) return;
-      final error = next.error;
-      showAppNotification(
-        context: context,
-        message: context.smPlayerI18n.t(
-          error is MusicShareException
-              ? error.messageKey
-              : 'share.connectionFailed',
-        ),
-        actionLabel: context.smPlayerI18n.t('share.retryDirectory'),
-        onAction: () => container.invalidate(provider),
-      );
-    });
-  });
+  final container = ProviderScope.containerOf(ref.context, listen: false);
+  listenLibraryQueryFailure(
+    ref,
+    provider,
+    () => container.invalidate(provider),
+  );
   return ref.watch(provider);
 }
 
 void listenLibraryPageFailure(WidgetRef ref, LibraryDataQuery query) {
-  ref.listen(browsingLibraryPageProvider(query), (previous, next) {
-    if (!next.hasError || identical(previous?.error, next.error)) return;
+  final source =
+      query.kind == LibraryQueryKind.queue
+          ? 'local'
+          : ref.read(selectedLibraryDataSourceProvider).source.deviceId;
+  final bound = query.withPage(source: source);
+  final container = ProviderScope.containerOf(ref.context, listen: false);
+  listenLibraryQueryFailure(ref, browsingLibraryPageProvider(query), () {
+    container.invalidate(
+      query.limit == null
+          ? libraryPageQueryProvider(bound)
+          : libraryPagedQueryProvider(bound),
+    );
+  });
+}
+
+void listenLibraryQueryFailure<T>(
+  WidgetRef ref,
+  ProviderListenable<AsyncValue<T>> provider,
+  VoidCallback retry,
+) {
+  ref.listen(provider, (previous, next) {
+    if (next.isLoading ||
+        !next.hasError ||
+        previous?.isLoading == false && identical(previous?.error, next.error))
+      return;
     final context = ref.context;
     final container = ProviderScope.containerOf(context, listen: false);
-    final source =
-        query.kind == LibraryQueryKind.queue
-            ? 'local'
-            : ref.read(selectedLibraryDataSourceProvider).source.deviceId;
-    final bound = query.withPage(source: source);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!context.mounted) return;
       final error = next.error;
@@ -51,16 +56,18 @@ void listenLibraryPageFailure(WidgetRef ref, LibraryDataQuery query) {
         context: context,
         message: context.smPlayerI18n.t(
           error is MusicShareException
-              ? error.messageKey
-              : 'share.connectionFailed',
+              ? (error.httpStatusCode != null && error.httpStatusCode! >= 500
+                  ? 'share.pageLoadFailed'
+                  : error.messageKey)
+              : 'share.pageLoadFailed',
         ),
         actionLabel: context.smPlayerI18n.t('share.retryDirectory'),
-        onAction:
-            () => container.invalidate(
-              query.limit == null
-                  ? libraryPageQueryProvider(bound)
-                  : libraryPagedQueryProvider(bound),
-            ),
+        onAction: () {
+          if (container.read(libraryLoadedDataProvider).hasError) {
+            container.invalidate(libraryLoadedDataProvider);
+          }
+          retry();
+        },
       );
     });
   });

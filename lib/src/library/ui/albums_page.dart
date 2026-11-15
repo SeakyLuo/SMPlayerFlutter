@@ -216,6 +216,10 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
     }
     if (!TickerMode.valuesOf(context).enabled) return const SizedBox.shrink();
     final i18nValue = ref.watch(smPlayerI18nProvider);
+    listenLibraryPageFailure(
+      ref,
+      const LibraryDataQuery(LibraryQueryKind.albumIndex),
+    );
     final snapshotValue = ref.watch(
       browsingLibraryPageProvider(
         const LibraryDataQuery(LibraryQueryKind.albumIndex),

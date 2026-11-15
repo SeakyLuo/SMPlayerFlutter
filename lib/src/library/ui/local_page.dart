@@ -260,6 +260,11 @@ class _LocalPageState extends ConsumerState<LocalPage> {
       text: widget.searchQuery,
     );
     _windowQuery = directoryQuery;
+    listenLibraryQueryFailure(
+      ref,
+      libraryDirectoryWindowsProvider(directoryQuery),
+      () => ref.invalidate(libraryDirectoryWindowsProvider(directoryQuery)),
+    );
     var snapshotValue = ref.watch(
       libraryDirectoryWindowsProvider(directoryQuery),
     );
@@ -273,7 +278,10 @@ class _LocalPageState extends ConsumerState<LocalPage> {
       }
       final directoryProvider = remoteDirectoryProvider(source);
       ref.listen(directoryProvider, (previous, next) {
-        if (next.hasError && !identical(previous?.error, next.error)) {
+        if (!next.isLoading &&
+            next.hasError &&
+            (previous?.isLoading != false ||
+                !identical(previous?.error, next.error))) {
           WidgetsBinding.instance.addPostFrameCallback((_) {
             if (mounted) {
               final error = next.error;

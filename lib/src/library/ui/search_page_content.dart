@@ -47,6 +47,11 @@ extension _SearchPageContent on _SearchPageState {
     final songQuery = _queryForSongs(selectedSource, folder);
     if (_songQuery != songQuery) _attemptedSongWindows.clear();
     _songQuery = songQuery;
+    listenLibraryQueryFailure(
+      ref,
+      libraryPagedQueryProvider(songQuery),
+      () => ref.invalidate(libraryPagedQueryProvider(songQuery)),
+    );
     final songsValue = ref.watch(libraryPagedQueryProvider(songQuery));
     final indexValue = ref.watch(
       _searchIndexProvider(
@@ -184,7 +189,10 @@ extension _SearchPageContent on _SearchPageState {
         final lyricsValue = ref.watch(_lyricsWindowProvider(lyricsQuery));
         _lyricsSearchLoading = lyricsValue.isLoading;
         ref.listen(_lyricsWindowProvider(lyricsQuery), (previous, next) {
-          if (next.hasError && !identical(previous?.error, next.error))
+          if (!next.isLoading &&
+              next.hasError &&
+              (previous?.isLoading != false ||
+                  !identical(previous?.error, next.error)))
             WidgetsBinding.instance.addPostFrameCallback((_) {
               if (mounted)
                 showAppNotification(

@@ -11,6 +11,7 @@ extension _MusicLibraryLayout on _MusicLibraryPageState {
       _sortCriterion = contextData.sortCriterion;
       _sortDirection = MusicLibrarySortDirection.ascending;
     }
+    listenLibraryPageFailure(ref, _pageQuery);
     final snapshotValue = ref.watch(browsingLibraryPageProvider(_pageQuery));
     final favoriteOverrides = ref.watch(libraryFavoriteOverridesProvider);
     final songOverrides = ref.watch(librarySongOverridesProvider);

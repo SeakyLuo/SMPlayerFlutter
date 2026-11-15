@@ -19,7 +19,7 @@ extension LibraryDatabaseSelection on LibraryRepository {
             : null;
     await LibrarySnapshotService.waitForPendingOperations();
     return Isolate.run(() {
-      final db = sqlite3.open(file.path, mode: OpenMode.readOnly);
+      final db = LibrarySnapshotService.openReadDatabase(file.path);
       try {
         registerLibraryTimeSql(db);
         db.execute('BEGIN');

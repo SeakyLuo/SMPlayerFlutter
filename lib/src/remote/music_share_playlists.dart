@@ -47,13 +47,10 @@ Future<Map<String, dynamic>> serveSharedPlaylists(
     }
     body = jsonDecode(utf8.decode(chunks)) as Map<String, dynamic>;
   }
-  final (localPlaylists, context) =
-      await (
-        repository.getLocalPlaylists(),
-        repository.queryLibrary(
-          const LibraryDataQuery(LibraryQueryKind.context),
-        ),
-      ).wait;
+  final context = await repository.queryLibrary(
+    const LibraryDataQuery(LibraryQueryKind.playlistIndex),
+  );
+  final localPlaylists = context.playlists;
   final listSongIds =
       {
         if (body == null)

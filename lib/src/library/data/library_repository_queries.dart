@@ -3,13 +3,24 @@ part of 'library_repository.dart';
 mixin _LibraryRepositoryQueries on _LibraryDataSources {
   Future<File> _resolveDatabaseFile();
   File _resolveNowPlayingFile(File file);
-  Future<LibraryContentData> queryLibrary(LibraryDataQuery query) =>
-      dataSource(switch (query.kind) {
+  Future<LibraryContentData> queryLibrary(LibraryDataQuery query) async {
+    try {
+      return await dataSource(switch (query.kind) {
         LibraryQueryKind.context ||
         LibraryQueryKind.queue ||
         LibraryQueryKind.recent => const LocalLibrarySource(),
         _ => LibrarySource.fromDevice(query.source),
       }).query(query);
+    } catch (error, stack) {
+      SystemLog.error(
+        'Library query failed: kind=${query.kind.name}; '
+        'source=${query.source}; offset=${query.offset}; limit=${query.limit}',
+        error,
+        stack,
+      );
+      rethrow;
+    }
+  }
 
   Future<LibraryContentData> _readDatabaseQuery(LibraryDataQuery query) async {
     final file = await _resolveDatabaseFile();
@@ -24,7 +35,7 @@ mixin _LibraryRepositoryQueries on _LibraryDataSources {
         const <LibraryPlaylist>[];
     await LibrarySnapshotService.waitForPendingOperations();
     return Isolate.run(() {
-      final db = sqlite3.open(file.path, mode: OpenMode.readOnly);
+      final db = LibrarySnapshotService.openReadDatabase(file.path);
       try {
         db.execute('BEGIN');
         final settings = LibraryRepository._readService.readLibrarySettings(db);
@@ -218,7 +229,7 @@ mixin _LibraryRepositoryQueries on _LibraryDataSources {
     final file = await _resolveDatabaseFile();
     await LibrarySnapshotService.waitForPendingOperations();
     return Isolate.run(() {
-      final db = sqlite3.open(file.path, mode: OpenMode.readOnly);
+      final db = LibrarySnapshotService.openReadDatabase(file.path);
       try {
         db.execute('BEGIN');
         final rows = db.select(
@@ -240,7 +251,7 @@ mixin _LibraryRepositoryQueries on _LibraryDataSources {
     final file = await _resolveDatabaseFile();
     await LibrarySnapshotService.waitForPendingOperations();
     return Isolate.run(() {
-      final db = sqlite3.open(file.path, mode: OpenMode.readOnly);
+      final db = LibrarySnapshotService.openReadDatabase(file.path);
       try {
         return {
           for (final row in db.select(
@@ -263,7 +274,7 @@ mixin _LibraryRepositoryQueries on _LibraryDataSources {
     final paths = hostIds.map((id) => remoteMusicPath(device, id)).toList();
     await LibrarySnapshotService.waitForPendingOperations();
     return Isolate.run(() {
-      final db = sqlite3.open(file.path, mode: OpenMode.readOnly);
+      final db = LibrarySnapshotService.openReadDatabase(file.path);
       try {
         final rows = db.select(
           "SELECT Id FROM Music WHERE Path IN (SELECT value FROM json_each(?)) AND State = 1",
