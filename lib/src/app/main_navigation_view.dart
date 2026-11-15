@@ -57,6 +57,7 @@ class MainNavigationView extends StatefulWidget {
     this.onRecentSearchSelected,
     this.canGoBack = false,
     this.showTitlebar = true,
+    this.sourceDeviceName,
     this.playlists = const [],
     this.recentSearches = const [],
     this.onGoBack,
@@ -83,6 +84,7 @@ class MainNavigationView extends StatefulWidget {
   final List<SearchHistoryEntry> recentSearches;
   final bool canGoBack;
   final bool showTitlebar;
+  final String? sourceDeviceName;
   final VoidCallback onPaneToggle;
   final ValueChanged<String> onSearchTextChanged;
   final MainNavigationSearchCommit onSearchCommitted;
@@ -130,10 +132,11 @@ class _MainNavigationViewState extends State<MainNavigationView> {
     labelKey: 'common.albums',
     icon: FluentIcons.album_24_regular,
   );
-  static const _localItem = MainNavigationViewItem(
+  MainNavigationViewItem get _localItem => MainNavigationViewItem(
     name: 'LocalItem',
     target: '/local',
-    labelKey: 'common.local',
+    labelKey: widget.sourceDeviceName == null ? 'common.local' : null,
+    label: widget.sourceDeviceName ?? '',
     icon: FluentIcons.hard_drive_24_regular,
   );
   static const _recentItem = MainNavigationViewItem(
@@ -169,7 +172,7 @@ class _MainNavigationViewState extends State<MainNavigationView> {
   );
 
   static const _libraryItems = [_musicLibraryItem, _artistsItem, _albumsItem];
-  static const _playbackItems = [
+  List<MainNavigationViewItem> get _playbackItems => [
     _localItem,
     _recentItem,
     _nowPlayingItem,

@@ -1109,5 +1109,10 @@
   "share.cancelConnection": "Cancel connection",
   "share.requestAccessLibrary": "Requests access to your music library",
   "share.requestTimedOut": "The request timed out. Please try again later.",
-  "share.deviceForgotten": "The device was removed. Synchronization has stopped."
+  "share.deviceForgotten": "The device was removed. Synchronization has stopped.",
+  "share.downloadLocation": "Emplacement de téléchargement par défaut",
+  "share.downloadCustomDirectory": "Dossier personnalisé",
+  "share.systemDownloads": "Téléchargements",
+  "share.downloadSettingsFailed": "Impossible d’enregistrer les paramètres de téléchargement. Réessayez.",
+  "share.downloadDirectoryUnavailable": "Le dossier Téléchargements est indisponible. Choisissez un dossier."
 }

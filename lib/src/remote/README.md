@@ -6,7 +6,7 @@ Pairing, authorization, local HTTP APIs, streaming endpoints, and connection dia
 
 The source selector above sidebar search scopes library browsing, artists,
 albums, favorites and search. Playback and saved playlists retain complete,
-source-independent song identities. File browsing selects the local source.
+source-independent song identities. File browsing keeps the selected music source. Source selection does not navigate away from the current page.
 
 Sharing is off by default. Open Settings > External control and enable sharing for the configured local
 music library. The connection QR code is displayed immediately. Both screens show

@@ -180,7 +180,7 @@ class _ShellNavigationContent extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    ref.watch(musicShareProvider);
+    final share = ref.watch(musicShareProvider);
     final canCreate = canCreateSourcePlaylist();
     final snapshot = ref.watch(libraryContentDataProvider).valueOrNull;
     final playlistOverrides = ref.watch(libraryPlaylistOverridesProvider);
@@ -203,6 +203,11 @@ class _ShellNavigationContent extends ConsumerWidget {
               playlistOrder,
             );
     return MainNavigationView(
+      sourceDeviceName:
+          share.peers
+              .where((peer) => peer.id == share.selectedSource)
+              .firstOrNull
+              ?.name,
       isPaneOpen: layout.isNavigationPaneVisible,
       showTitlebar:
           !Platform.isAndroid &&
@@ -222,12 +227,7 @@ class _ShellNavigationContent extends ConsumerWidget {
       onSearchCleared: onSearchCleared,
       searchHistoryDismissEpoch: searchHistoryDismissEpoch,
       onSearchHistoryOpenChanged: onSearchHistoryOpenChanged,
-      onItemInvoked: (target) {
-        if (target == '/local') {
-          ref.read(musicShareProvider).selectSource('local');
-        }
-        onItemInvoked(target);
-      },
+      onItemInvoked: onItemInvoked,
       onRecentSearchRemove: onRecentSearchRemove,
       onRecentSearchesClear: onRecentSearchesClear,
       onCreatePlaylist: canCreate ? onCreatePlaylist : null,

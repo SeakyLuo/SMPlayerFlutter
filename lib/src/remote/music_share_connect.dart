@@ -1,4 +1,3 @@
-import 'package:go_router/go_router.dart';
 import 'dart:async';
 import 'dart:io';
 
@@ -70,9 +69,7 @@ class _MusicShareConnectState extends ConsumerState<MusicShareConnect> {
           await share.selectSource(peer.id);
         }
         if (!mounted) return;
-        final router = GoRouter.of(context);
         widget.onConnected();
-        router.go('/songs');
       });
     } finally {
       if (mounted) {
@@ -171,9 +168,7 @@ class _MusicShareConnectState extends ConsumerState<MusicShareConnect> {
       );
       if (!mounted || _canceled) return;
       showAppNotification(context: context, message: i18n.t('share.connected'));
-      final router = GoRouter.of(context);
       widget.onConnected();
-      router.go('/songs');
     } catch (error) {
       if (mounted && !_canceled) {
         showAppNotification(

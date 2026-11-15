@@ -8,12 +8,11 @@ import 'music_share_models.dart';
 
 final ChangeNotifierProvider<MusicShareController>
 musicShareProvider = ChangeNotifierProvider<MusicShareController>((ref) {
+  final dataRevision = ref.read(libraryDataRevisionProvider.notifier);
   final controller = MusicShareController(
     ref.read(libraryRepositoryProvider),
     () {
-      ref.invalidate(libraryContentDataProvider);
-      ref.invalidate(recentPageDataProvider);
-      ref.invalidate(librarySongCountProvider);
+      dataRevision.state += 1;
     },
     loadLibrary: () => ref.read(libraryContentDataProvider.future),
   );

@@ -1,5 +1,7 @@
 import '../remote/music_share_dialog.dart';
 import '../remote/music_share_access.dart';
+import '../remote/music_share_download_settings.dart';
+import '../remote/music_share_models.dart';
 import 'dart:async';
 import 'dart:io';
 import '../library/data/library_queue_backup.dart';
@@ -54,6 +56,7 @@ part 'settings_library_folder_field.dart';
 part 'settings_lyrics_batch_actions.dart';
 part 'settings_ai_agent_actions.dart';
 part 'settings_music_sharing.dart';
+part 'settings_download_location.dart';
 part 'settings_device_name.dart';
 part 'settings_page_sections.dart';
 part 'settings_ai_skill_export.dart';

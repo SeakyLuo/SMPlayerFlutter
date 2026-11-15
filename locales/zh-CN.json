@@ -1109,5 +1109,10 @@
   "share.cancelConnection": "取消连接",
   "share.requestAccessLibrary": "请求访问本机音乐库",
   "share.requestTimedOut": "请求超时，请稍后重试。",
-  "share.deviceForgotten": "设备已移除，已停止同步。"
+  "share.deviceForgotten": "设备已移除，已停止同步。",
+  "share.downloadLocation": "默认下载位置",
+  "share.downloadCustomDirectory": "指定目录",
+  "share.systemDownloads": "下载",
+  "share.downloadSettingsFailed": "无法保存下载设置，请重试。",
+  "share.downloadDirectoryUnavailable": "系统下载目录不可用，请选择指定目录。"
 }

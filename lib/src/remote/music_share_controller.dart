@@ -282,7 +282,17 @@ class MusicShareController extends ChangeNotifier
     await ready;
     final peer = peers.where((peer) => peer.id == source).firstOrNull;
     if (peer != null) {
-      await syncPeer(peer, importCatalog: false, rememberConnection: true);
+      final dataReady =
+          peer.status == MusicPeerStatus.online &&
+          peer.catalogLoaded &&
+          !_pendingCatalogPeers.contains(peer.id) &&
+          !_pendingPlaylistPeers.contains(peer.id) &&
+          (_pendingSongIds[peer.id]?.isEmpty ?? true) &&
+          (!peer.supportsPlaylists || _playlistClient.hasLoaded(peer.id));
+      if (!dataReady) {
+        await syncPeer(peer, importCatalog: false, rememberConnection: true);
+      }
+      lastConnectedPeerId = peer.id;
     }
     final previous = selectedSource;
     selectedSource = source;

@@ -1109,5 +1109,10 @@
   "share.cancelConnection": "取消連線",
   "share.requestAccessLibrary": "請求存取本機音樂庫",
   "share.requestTimedOut": "請求逾時，請稍後重試。",
-  "share.deviceForgotten": "裝置已移除，已停止同步。"
+  "share.deviceForgotten": "裝置已移除，已停止同步。",
+  "share.downloadLocation": "預設下載位置",
+  "share.downloadCustomDirectory": "指定目錄",
+  "share.systemDownloads": "下載",
+  "share.downloadSettingsFailed": "無法儲存下載設定，請重試。",
+  "share.downloadDirectoryUnavailable": "系統下載目錄無法使用，請選擇指定目錄。"
 }

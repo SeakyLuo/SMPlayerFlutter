@@ -56,6 +56,7 @@ class MusicShareServer {
   final _deletedPlaylists = <int, (LibraryPlaylist, DateTime)>{};
   String _catalog = '{"songs":[]}';
   String catalogRevision = '';
+  String _directories = '';
   String _libraryRevision = '';
   final events = MusicShareEventHub();
 
@@ -79,6 +80,28 @@ class MusicShareServer {
       'songs': _songs.values.map(sharedSongJson).toList(),
     });
     catalogRevision = shareDigest(_catalog);
+    String relative(String path) =>
+        p.relative(path, from: _rootPath).split(p.separator).join('/');
+    final directories = jsonEncode({
+      'folders': [
+        '',
+        ...snapshot.folders
+            .where((folder) => p.isWithin(_rootPath, folder.path))
+            .map((folder) => relative(folder.path)),
+      ],
+      'songs': {
+        for (final song in _songs.values)
+          '${song.id}':
+              p.dirname(song.path) == _rootPath
+                  ? ''
+                  : relative(p.dirname(song.path)),
+      },
+    });
+    if (_directories != directories) {
+      _directories = directories;
+      if (running) events.dataChanged('library');
+    }
+
     final changed = {
       for (final song in _songs.values)
         if (previousSongs.remove(song.id) !=
@@ -396,7 +419,7 @@ class MusicShareServer {
         response.statusCode = HttpStatus.methodNotAllowed;
         return;
       }
-      if ((path == '/status' || path == '/catalog') &&
+      if ((path == '/status' || path == '/catalog' || path == '/directories') &&
           request.method != 'GET' &&
           request.method != 'HEAD') {
         response.statusCode = HttpStatus.methodNotAllowed;
@@ -413,6 +436,11 @@ class MusicShareServer {
           'playlistSupport': true,
           'eventsSupport': true,
         });
+        return;
+      }
+      if (path == '/directories') {
+        response.headers.contentType = ContentType.json;
+        response.write(_directories);
         return;
       }
       if (path == '/catalog') {

@@ -1109,5 +1109,10 @@
   "share.cancelConnection": "Cancel connection",
   "share.requestAccessLibrary": "Requests access to your music library",
   "share.requestTimedOut": "The request timed out. Please try again later.",
-  "share.deviceForgotten": "The device was removed. Synchronization has stopped."
+  "share.deviceForgotten": "The device was removed. Synchronization has stopped.",
+  "share.downloadLocation": "Default download location",
+  "share.downloadCustomDirectory": "Custom folder",
+  "share.systemDownloads": "Downloads",
+  "share.downloadSettingsFailed": "Could not save download settings. Please try again.",
+  "share.downloadDirectoryUnavailable": "The system Downloads folder is unavailable. Choose a custom folder."
 }

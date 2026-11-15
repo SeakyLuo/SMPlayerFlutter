@@ -1109,5 +1109,10 @@
   "share.cancelConnection": "Cancel connection",
   "share.requestAccessLibrary": "Requests access to your music library",
   "share.requestTimedOut": "The request timed out. Please try again later.",
-  "share.deviceForgotten": "The device was removed. Synchronization has stopped."
+  "share.deviceForgotten": "The device was removed. Synchronization has stopped.",
+  "share.downloadLocation": "既定のダウンロード先",
+  "share.downloadCustomDirectory": "指定フォルダー",
+  "share.systemDownloads": "ダウンロード",
+  "share.downloadSettingsFailed": "ダウンロード設定を保存できませんでした。もう一度お試しください。",
+  "share.downloadDirectoryUnavailable": "ダウンロードフォルダーを使用できません。フォルダーを選択してください。"
 }

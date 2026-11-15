@@ -1109,5 +1109,10 @@
   "share.cancelConnection": "Cancel connection",
   "share.requestAccessLibrary": "Requests access to your music library",
   "share.requestTimedOut": "The request timed out. Please try again later.",
-  "share.deviceForgotten": "The device was removed. Synchronization has stopped."
+  "share.deviceForgotten": "The device was removed. Synchronization has stopped.",
+  "share.downloadLocation": "Типова папка завантаження",
+  "share.downloadCustomDirectory": "Вибрати папку",
+  "share.systemDownloads": "Завантаження",
+  "share.downloadSettingsFailed": "Не вдалося зберегти налаштування завантаження. Спробуйте ще раз.",
+  "share.downloadDirectoryUnavailable": "Папка завантажень недоступна. Виберіть іншу папку."
 }

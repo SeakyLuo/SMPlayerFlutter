@@ -1109,5 +1109,10 @@
   "share.cancelConnection": "Cancel connection",
   "share.requestAccessLibrary": "Requests access to your music library",
   "share.requestTimedOut": "The request timed out. Please try again later.",
-  "share.deviceForgotten": "The device was removed. Synchronization has stopped."
+  "share.deviceForgotten": "The device was removed. Synchronization has stopped.",
+  "share.downloadLocation": "Local padrão de download",
+  "share.downloadCustomDirectory": "Pasta personalizada",
+  "share.systemDownloads": "Downloads",
+  "share.downloadSettingsFailed": "Não foi possível salvar as configurações de download. Tente novamente.",
+  "share.downloadDirectoryUnavailable": "A pasta Downloads não está disponível. Escolha outra pasta."
 }

@@ -301,13 +301,19 @@ class RecentBrowsesNotifier extends AsyncNotifier<List<RecentBrowseEntry>> {
   }
 }
 
+// Shared data changes enter through this signal; consumers keep their normal
+// dependency direction instead of the sharing controller invalidating them.
+final libraryDataRevisionProvider = StateProvider<int>((ref) => 0);
+
 final librarySongCountProvider = FutureProvider<int>((ref) {
+  ref.watch(libraryDataRevisionProvider);
   return ref.watch(libraryRepositoryProvider).getLibrarySongCount();
 });
 
 final libraryContentDataProvider = FutureProvider<LibraryContentData>((
   ref,
 ) async {
+  ref.watch(libraryDataRevisionProvider);
   return ref.watch(libraryRepositoryProvider).getLibraryContentData();
 });
 

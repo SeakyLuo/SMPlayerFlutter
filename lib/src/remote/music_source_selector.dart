@@ -1,7 +1,6 @@
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
 import '../app/undoable_notification.dart';
 import '../platform/system_log.dart';
@@ -44,14 +43,7 @@ MenuFlyoutItem? buildMusicSourceMenuItem(BuildContext context) {
   final label = peer?.name ?? i18n.t('share.localSource');
 
   Future<void> selectSource(String source) =>
-      runMusicShareAction(context, () async {
-        await share.selectSource(source);
-        if (context.mounted &&
-            GoRouterState.of(context).uri.path == '/local' &&
-            source != 'local') {
-          context.go('/songs');
-        }
-      });
+      runMusicShareAction(context, () => share.selectSource(source));
 
   return MenuFlyoutItem(
     key: 'music-source',

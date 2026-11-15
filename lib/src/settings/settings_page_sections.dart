@@ -445,6 +445,8 @@ extension _SettingsPageSections on _SettingsPageState {
             ],
           ),
           const _SettingsMusicSharing(),
+          const SizedBox(height: 20),
+          const _SettingsDownloadLocation(),
         ],
       ),
       SettingsCard(
