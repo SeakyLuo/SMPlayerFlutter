@@ -321,58 +321,68 @@ class _CompactMediaControlLayout extends StatelessWidget {
                   utilityControlOuterSlack;
               final transportWidth = narrow ? 160.0 : 192.0;
               final transportOpticalOffset = narrow ? 6.0 : 10.0;
+              final layoutWidth = max(
+                constraints.maxWidth,
+                transportWidth + 2 * (utilityWidth + transportOpticalOffset),
+              );
               final leadingWidth = max(
                 0.0,
-                (constraints.maxWidth - transportWidth) / 2 +
-                    transportOpticalOffset,
+                (layoutWidth - transportWidth) / 2 + transportOpticalOffset,
               );
 
-              return Stack(
-                fit: StackFit.expand,
-                children: [
-                  Center(
-                    child: Transform.translate(
-                      offset: Offset(transportOpticalOffset, 0),
-                      child: SizedBox(
-                        width: transportWidth,
-                        child: transportControls,
+              return FittedBox(
+                fit: BoxFit.scaleDown,
+                child: SizedBox(
+                  width: layoutWidth,
+                  height: constraints.maxHeight,
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      Center(
+                        child: Transform.translate(
+                          offset: Offset(transportOpticalOffset, 0),
+                          child: SizedBox(
+                            width: transportWidth,
+                            child: transportControls,
+                          ),
+                        ),
                       ),
-                    ),
-                  ),
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: SizedBox(
-                      width: leadingWidth,
-                      child: Align(
+                      Align(
                         alignment: Alignment.centerLeft,
-                        child:
-                            leading ??
-                            MediaControlTrackInfo(
-                              track: track,
-                              artworkPath: resolvePlayerArtworkPath(
-                                track,
-                                currentSong,
-                              ),
-                              currentLyricsLine: currentLyricsLine,
-                              onArtworkError: onArtworkError,
-                              disabled: track.id == null,
-                              compact: true,
-                              showTrackCopy: mediaControlShowsTrackCopy(
-                                leadingWidth,
-                              ),
-                              onPressed: onOpenNowPlaying,
-                            ),
+                        child: SizedBox(
+                          width: leadingWidth,
+                          child: Align(
+                            alignment: Alignment.centerLeft,
+                            child:
+                                leading ??
+                                MediaControlTrackInfo(
+                                  track: track,
+                                  artworkPath: resolvePlayerArtworkPath(
+                                    track,
+                                    currentSong,
+                                  ),
+                                  currentLyricsLine: currentLyricsLine,
+                                  onArtworkError: onArtworkError,
+                                  disabled: track.id == null,
+                                  compact: true,
+                                  showTrackCopy: mediaControlShowsTrackCopy(
+                                    leadingWidth,
+                                  ),
+                                  onPressed: onOpenNowPlaying,
+                                ),
+                          ),
+                        ),
                       ),
-                    ),
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: SizedBox(
+                          width: utilityWidth,
+                          child: utilityControls,
+                        ),
+                      ),
+                    ],
                   ),
-                  Align(
-                    alignment: Alignment.centerRight,
-                    child: SizedBox(
-                      width: utilityWidth,
-                      child: utilityControls,
-                    ),
-                  ),
-                ],
+                ),
               );
             },
           ),

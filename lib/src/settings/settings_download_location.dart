@@ -53,76 +53,82 @@ class _SettingsDownloadLocationState
     final i18n = context.smPlayerI18n;
     final colors = SettingsPageColors.of(context);
     final enabled = settings.initialized && !settings.saving && !_busy;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Text(
-          i18n.t('share.downloadLocation'),
-          style: TextStyle(
-            color: colors.textStrong,
-            fontSize: 15,
-            fontWeight: FontWeight.w500,
+    return Material(
+      type: MaterialType.transparency,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            i18n.t('share.downloadLocation'),
+            style: TextStyle(
+              color: colors.textStrong,
+              fontSize: 15,
+              fontWeight: FontWeight.w500,
+            ),
           ),
-        ),
-        RadioGroup<MusicShareDownloadLocation>(
-          groupValue: settings.location,
-          onChanged: (value) {
-            if (value != null && enabled) {
-              unawaited(_run(() => settings.setLocation(value)));
-            }
-          },
-          child: Row(
-            children: [
-              for (final location in MusicShareDownloadLocation.values)
-                Expanded(
-                  child: RadioListTile<MusicShareDownloadLocation>(
-                    value: location,
-                    enabled: enabled,
-                    activeColor: colors.accent,
-                    contentPadding: EdgeInsets.zero,
-                    dense: true,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    title: Text(
-                      i18n.t(
-                        location == MusicShareDownloadLocation.library
-                            ? 'library.title'
-                            : 'share.downloadCustomDirectory',
+          RadioGroup<MusicShareDownloadLocation>(
+            groupValue: settings.location,
+            onChanged: (value) {
+              if (value != null && enabled) {
+                unawaited(_run(() => settings.setLocation(value)));
+              }
+            },
+            child: Row(
+              children: [
+                for (final location in MusicShareDownloadLocation.values)
+                  Expanded(
+                    child: RadioListTile<MusicShareDownloadLocation>(
+                      value: location,
+                      enabled: enabled,
+                      activeColor: colors.accent,
+                      contentPadding: EdgeInsets.zero,
+                      dense: true,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
                       ),
-                      style: TextStyle(fontSize: 14, color: colors.textStrong),
+                      title: Text(
+                        i18n.t(
+                          location == MusicShareDownloadLocation.library
+                              ? 'library.title'
+                              : 'share.downloadCustomDirectory',
+                        ),
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: colors.textStrong,
+                        ),
+                      ),
                     ),
                   ),
-                ),
-            ],
+              ],
+            ),
           ),
-        ),
-        if (settings.location == MusicShareDownloadLocation.directory)
-          _SettingsLibraryFolderField(
-            path: settings.customDirectory ?? i18n.t('share.systemDownloads'),
-            busy: _busy,
-            enabled: enabled,
-            onChoose: () => unawaited(_choose(settings)),
-            onCopy:
-                () => unawaited(
-                  _run(() async {
-                    final path = await settings.resolveDirectory(
-                      libraryRoot: '',
-                    );
-                    await Clipboard.setData(ClipboardData(text: path));
-                  }),
-                ),
-            onOpen:
-                () => unawaited(
-                  _run(() async {
-                    final path = await settings.resolveDirectory(
-                      libraryRoot: '',
-                    );
-                    await openFolderInShell(path);
-                  }),
-                ),
-          ),
-      ],
+          if (settings.location == MusicShareDownloadLocation.directory)
+            _SettingsLibraryFolderField(
+              path: settings.customDirectory ?? i18n.t('share.systemDownloads'),
+              busy: _busy,
+              enabled: enabled,
+              onChoose: () => unawaited(_choose(settings)),
+              onCopy:
+                  () => unawaited(
+                    _run(() async {
+                      final path = await settings.resolveDirectory(
+                        libraryRoot: '',
+                      );
+                      await Clipboard.setData(ClipboardData(text: path));
+                    }),
+                  ),
+              onOpen:
+                  () => unawaited(
+                    _run(() async {
+                      final path = await settings.resolveDirectory(
+                        libraryRoot: '',
+                      );
+                      await openFolderInShell(path);
+                    }),
+                  ),
+            ),
+        ],
+      ),
     );
   }
 }

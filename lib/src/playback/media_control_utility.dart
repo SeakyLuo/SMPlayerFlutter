@@ -192,7 +192,6 @@ class _MediaControlUtilityRowsState extends State<MediaControlUtilityRows> {
             tooltip: _desktopLyricsTooltip(i18n, desktopLyricsEnabled),
             icon: _desktopLyricsIcon,
             active: desktopLyricsEnabled,
-            disabled: disabled,
             buttonSize: utilityButtonSize,
             padding: utilityButtonPadding,
             iconSize: utilityIconSize,
