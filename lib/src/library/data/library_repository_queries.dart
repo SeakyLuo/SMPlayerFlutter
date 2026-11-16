@@ -4,6 +4,7 @@ mixin _LibraryRepositoryQueries on _LibraryDataSources {
   Future<File> _resolveDatabaseFile();
   File _resolveNowPlayingFile(File file);
   Future<LibraryContentData> queryLibrary(LibraryDataQuery query) async {
+    final elapsed = Stopwatch()..start();
     try {
       return await dataSource(switch (query.kind) {
         LibraryQueryKind.context ||
@@ -14,7 +15,8 @@ mixin _LibraryRepositoryQueries on _LibraryDataSources {
     } catch (error, stack) {
       SystemLog.error(
         'Library query failed: kind=${query.kind.name}; '
-        'source=${query.source}; offset=${query.offset}; limit=${query.limit}',
+        'source=${query.source}; offset=${query.offset}; limit=${query.limit}; '
+        'elapsedMs=${elapsed.elapsedMilliseconds}',
         error,
         stack,
       );

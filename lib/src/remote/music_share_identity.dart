@@ -10,6 +10,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:uuid/uuid.dart';
 
 import 'music_share_models.dart';
+import '../platform/system_log.dart';
 
 class MusicShareIdentity {
   MusicShareIdentity(this.id, this.key, this.certificate);
@@ -173,12 +174,26 @@ class MusicShareTransport {
     String method = 'GET',
     Object? body,
   }) async {
+    final elapsed = Stopwatch()..start();
     try {
       return await runNetworkOperation(
         () => _json(path, method: method, body: body),
       );
-    } on TimeoutException {
-      throw const MusicShareException('share.requestTimedOut');
+    } catch (error, stack) {
+      final reported =
+          error is TimeoutException
+              ? const MusicShareException('share.requestTimedOut')
+              : error;
+      SystemLog.error(
+        'Remote request failed: $method ${Uri.parse(path).path}; '
+        'host=${Uri.parse(address).origin}; elapsedMs=${elapsed.elapsedMilliseconds}',
+        reported,
+        stack,
+      );
+      if (error is TimeoutException) {
+        Error.throwWithStackTrace(reported, stack);
+      }
+      rethrow;
     }
   }
 

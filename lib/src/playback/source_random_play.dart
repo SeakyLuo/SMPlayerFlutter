@@ -1,6 +1,8 @@
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import '../platform/system_log.dart';
 
 import '../app/undoable_notification.dart';
 import '../i18n/app_i18n.dart';
@@ -19,7 +21,23 @@ Future<List<MenuFlyoutItem>> loadSourceShuffleMenu(
   final source = container.read(selectedLibraryDataSourceProvider);
   final notificationContext =
       Navigator.of(context, rootNavigator: true).context;
-  final modes = (await source.selectionModes(limit)).toSet();
+  final route = GoRouter.of(context).routeInformationProvider.value.uri.path;
+  final elapsed = Stopwatch()..start();
+  SystemLog.info(
+    'Random playback menu requested: route=$route; source=${source.source.deviceId}; limit=$limit',
+  );
+  final Set<LibrarySelectionKind> modes;
+  try {
+    modes = (await source.selectionModes(limit)).toSet();
+  } catch (error, stack) {
+    SystemLog.error(
+      'Random playback menu failed: route=$route; source=${source.source.deviceId}; '
+      'elapsedMs=${elapsed.elapsedMilliseconds}',
+      error,
+      stack,
+    );
+    rethrow;
+  }
   const labels = {
     LibrarySelectionKind.library: 'random.musicLibrary',
     LibrarySelectionKind.artist: 'common.artist',

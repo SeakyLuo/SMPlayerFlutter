@@ -83,7 +83,7 @@ class _SettingsLibraryFolderField extends StatelessWidget {
             const SizedBox(width: 6),
             IconButton(
               tooltip: i18n.t('common.copy'),
-              onPressed: enabled ? onCopy : null,
+              onPressed: onCopy,
               icon: const Icon(FluentIcons.copy_20_regular, size: 20),
               color: colors.textStrong,
               constraints: const BoxConstraints.tightFor(width: 38, height: 40),
@@ -92,7 +92,7 @@ class _SettingsLibraryFolderField extends StatelessWidget {
             if (desktop)
               IconButton(
                 tooltip: i18n.t('local.openInFileManager'),
-                onPressed: enabled ? onOpen : null,
+                onPressed: onOpen,
                 icon: const Icon(FluentIcons.folder_open_20_regular, size: 20),
                 color: colors.textStrong,
                 constraints: const BoxConstraints.tightFor(

@@ -15,6 +15,14 @@ class _SettingsDownloadLocationState
   Future<void> _run(Future<void> Function() action) async {
     setState(() => _busy = true);
     try {
+      await _read(action);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _read(Future<void> Function() action) async {
+    try {
       await action();
     } catch (error) {
       if (!mounted) return;
@@ -26,8 +34,6 @@ class _SettingsDownloadLocationState
               : 'share.downloadSettingsFailed',
         ),
       );
-    } finally {
-      if (mounted) setState(() => _busy = false);
     }
   }
 
@@ -111,7 +117,7 @@ class _SettingsDownloadLocationState
               onChoose: () => unawaited(_choose(settings)),
               onCopy:
                   () => unawaited(
-                    _run(() async {
+                    _read(() async {
                       final path = await settings.resolveDirectory(
                         libraryRoot: '',
                       );
@@ -120,7 +126,7 @@ class _SettingsDownloadLocationState
                   ),
               onOpen:
                   () => unawaited(
-                    _run(() async {
+                    _read(() async {
                       final path = await settings.resolveDirectory(
                         libraryRoot: '',
                       );

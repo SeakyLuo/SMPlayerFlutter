@@ -335,25 +335,22 @@ extension _PlaylistsPageGrid on _PlaylistsPageState {
                                                     );
                                                   },
                                                   onPlay: () {
-                                                    if (playlistSongs
-                                                        .isNotEmpty) {
-                                                      unawaited(
-                                                        recordRecentPlaylistPlayback(
-                                                          ref,
-                                                          playlist.id,
-                                                        ),
-                                                      );
-                                                      _playTrack(
-                                                        snapshot,
-                                                        i18n,
-                                                        playlistSongs.first.id,
-                                                        playlistSongs
-                                                            .map(
-                                                              (song) => song.id,
-                                                            )
-                                                            .toList(),
-                                                      );
-                                                    }
+                                                    if (playlist
+                                                        .songIds
+                                                        .isEmpty)
+                                                      return;
+                                                    unawaited(
+                                                      recordRecentPlaylistPlayback(
+                                                        ref,
+                                                        playlist.id,
+                                                      ),
+                                                    );
+                                                    _playTrack(
+                                                      snapshot,
+                                                      i18n,
+                                                      playlist.songIds.first,
+                                                      playlist.songIds,
+                                                    );
                                                   },
                                                   onContextMenu: (position) {
                                                     return _showPlaylistMenu(

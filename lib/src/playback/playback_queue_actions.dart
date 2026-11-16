@@ -1,4 +1,9 @@
 import 'dart:async';
+import 'dart:io';
+
+import '../platform/system_log.dart';
+import '../library/data/library_repository.dart';
+import '../remote/music_source_providers.dart';
 import '../remote/music_share_models.dart';
 import 'package:flutter/foundation.dart';
 import '../remote/music_share_access.dart';
@@ -219,20 +224,43 @@ Future<QueuePlayResult> playQueueIndexFromSongs({
       songIds[queueIndex],
       if (queueIndex + 1 < songIds.length) songIds[queueIndex + 1],
     ];
-    final loaded = await container
-        .read(libraryRepositoryProvider)
-        .getLibrarySongs(songIds: ids);
+    final repository = container.read(libraryRepositoryProvider);
+    final references = await repository.songReferences(
+      ids,
+      includeInactive: true,
+    );
+    if (references.entries.any(
+      (entry) =>
+          entry.key == songIds[queueIndex] && isRemoteMusicPath(entry.value),
+    )) {
+      await container.read(musicShareProvider).initialConnection;
+    }
+    if (revision != _playMetadataRevision || !context.mounted) {
+      return QueuePlayResult.superseded;
+    }
+    final loaded = await repository.getLibrarySongs(songIds: ids);
     if (revision != _playMetadataRevision || !context.mounted)
       return QueuePlayResult.superseded;
     await container.read(libraryLoadedDataProvider.notifier).addSongs(loaded);
     final song =
         loaded.where((song) => song.id == songIds[queueIndex]).firstOrNull;
-    if (song == null || !canPlayLibrarySong(song)) {
+    if (song == null || !song.isActive) {
+      SystemLog.warning('Playback unavailable: song missing or removed');
       showAppNotification(
         context: context,
-        message: i18n.t(
-          song?.isActive == false ? 'share.songRemoved' : 'share.offline',
-        ),
+        message: i18n.t('share.songRemoved'),
+      );
+      return QueuePlayResult.unavailable;
+    }
+    if (isRemoteMusicPath(song.path) && !canPlayLibrarySong(song)) {
+      final peer = container.read(musicShareProvider).peerFor(song.path);
+      SystemLog.warning(
+        'Playback unavailable: device=${peer.name}; address=${peer.address}; '
+        'status=${peer.status.name}',
+      );
+      showAppNotification(
+        context: context,
+        message: i18n.t('share.playbackDeviceOffline', {'name': peer.name}),
       );
       return QueuePlayResult.unavailable;
     }
@@ -244,14 +272,20 @@ Future<QueuePlayResult> playQueueIndexFromSongs({
       autoplay: autoplay,
     );
     return QueuePlayResult.played;
-  } catch (error) {
+  } catch (error, stack) {
+    SystemLog.error('Playback metadata request failed', error, stack);
     if (revision == _playMetadataRevision && context.mounted) {
-      showAppNotification(
-        context: context,
-        message: i18n.t(
-          error is MusicShareException ? error.messageKey : 'song.updateFailed',
-        ),
-      );
+      final messageKey = switch (error) {
+        MusicShareException(httpStatusCode: final status?) when status >= 500 =>
+          'share.playbackMetadataFailed',
+        MusicShareException(:final messageKey) => messageKey,
+        TimeoutException() => 'share.requestTimedOut',
+        HandshakeException() => 'share.playbackSecureConnectionFailed',
+        SocketException() ||
+        HttpException() => 'share.playbackConnectionFailed',
+        _ => 'share.playbackMetadataFailed',
+      };
+      showAppNotification(context: context, message: i18n.t(messageKey));
     }
     return QueuePlayResult.failed;
   }

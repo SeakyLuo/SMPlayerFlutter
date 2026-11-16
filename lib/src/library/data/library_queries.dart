@@ -213,9 +213,10 @@ LibraryContentData mergeLoadedLibraryData(
   playlists:
       {
         for (final playlist in context.playlists)
-          if ((query.kind != LibraryQueryKind.playlists &&
-                  query.kind != LibraryQueryKind.playlistIndex) ||
-              playlist.source != LibrarySource.fromDevice(query.source))
+          if (!((query.kind == LibraryQueryKind.playlistIndex ||
+                  query.kind == LibraryQueryKind.playlists &&
+                      query.playlistId == null) &&
+              playlist.source == LibrarySource.fromDevice(query.source)))
             playlist.id: playlist,
         for (final playlist in page.playlists) playlist.id: playlist,
       }.values.toList(),

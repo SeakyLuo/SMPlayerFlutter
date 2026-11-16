@@ -139,7 +139,11 @@ AsyncValue<LibraryContentData> _browse(
       recentAlbums: source.recentAlbums,
       recentArtists: source.recentArtists,
       recentSearches: source.recentSearches,
-      playlists: playlists,
+      playlists:
+          query.kind == LibraryQueryKind.playlists ||
+                  query.kind == LibraryQueryKind.playlistIndex
+              ? source.playlists
+              : playlists,
       folders: source.folders,
       favoritePlaylistId: source.favoritePlaylistId,
       nowPlaying: source.nowPlaying,
