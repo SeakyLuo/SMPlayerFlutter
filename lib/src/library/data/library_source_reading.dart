@@ -74,7 +74,13 @@ mixin _RemoteLibraryReading {
     }
     if (query.kind == LibraryQueryKind.playlists)
       await access.readPlaylists(source.deviceId);
-    return access.queryLibraryData(source.deviceId, query);
+    final page = await access.queryLibraryData(source.deviceId, query);
+    if (query.kind != LibraryQueryKind.playlists) return page;
+    return page.withPlaylists(
+      access.remotePlaylists
+          .where((playlist) => playlist.source == source)
+          .toList(),
+    );
   }
 
   Future<List<LibrarySelectionKind>> selectionModes(int limit) async {

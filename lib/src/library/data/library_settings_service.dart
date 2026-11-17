@@ -1,3 +1,4 @@
+import 'library_snapshot_service.dart';
 import 'dart:io';
 
 import 'package:sqlite3/sqlite3.dart';
@@ -18,7 +19,7 @@ class LibrarySettingsService {
   final LibraryDatabaseService _database;
 
   settings.SettingsSnapshot readSettingsSnapshot(File databaseFile) {
-    final db = sqlite3.open(databaseFile.path, mode: OpenMode.readOnly);
+    final db = LibrarySnapshotService.openReadDatabase(databaseFile.path);
     try {
       return settingsSnapshotFromRow(
         db.select('SELECT * FROM Settings ORDER BY Id DESC LIMIT 1').single,

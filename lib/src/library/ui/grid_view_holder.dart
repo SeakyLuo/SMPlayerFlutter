@@ -224,7 +224,10 @@ class _GridViewHolderState extends ConsumerState<GridViewHolder> {
                   actions: [
                     GridArtworkAction(
                       title: widget.playTooltip,
-                      onPressed: widget.songs.isEmpty ? null : widget.onPlay,
+                      onPressed:
+                          widget.playlist.songIds.isEmpty
+                              ? null
+                              : widget.onPlay,
                     ),
                   ],
                 ),

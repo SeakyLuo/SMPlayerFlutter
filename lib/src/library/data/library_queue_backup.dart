@@ -1,3 +1,4 @@
+import 'library_snapshot_service.dart';
 import 'dart:convert';
 import 'dart:io';
 
@@ -40,7 +41,7 @@ class LibraryQueueBackup {
   }
 
   static LibraryQueueBackup? read(File database) {
-    final db = sqlite3.open(database.path, mode: OpenMode.readOnly);
+    final db = LibrarySnapshotService.openReadDatabase(database.path);
     try {
       if (db
           .select(

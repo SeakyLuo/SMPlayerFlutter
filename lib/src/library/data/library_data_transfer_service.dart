@@ -1,3 +1,4 @@
+import 'library_snapshot_service.dart';
 import 'dart:io';
 import 'dart:isolate';
 
@@ -13,7 +14,7 @@ const _legacyUwpPackageIdentityName = '23778SeakyTheLoner.SMPlayer';
 
 Future<void> _copyDatabase(String sourcePath, String targetPath) {
   return Isolate.run(() async {
-    final source = sqlite3.open(sourcePath, mode: OpenMode.readOnly);
+    final source = LibrarySnapshotService.openReadDatabase(sourcePath);
     try {
       final target = sqlite3.open(targetPath);
       try {

@@ -515,7 +515,6 @@ extension _SettingsPageSections on _SettingsPageState {
               SettingsActionButton(
                 icon: FluentIcons.copy_20_regular,
                 tooltip: i18n.t('settings.aiAgentCopyPromptTooltip'),
-                disabled: _updatingAiAgent || _editingAiAgentPort,
                 onClick: () {
                   unawaited(_copyAiAgentPrompt(i18n));
                 },
@@ -525,7 +524,6 @@ extension _SettingsPageSections on _SettingsPageState {
                 icon: FluentIcons.share_ios_20_regular,
                 tooltip: i18n.t('settings.aiAgentExportSkillTooltip'),
                 loading: _exportingAiSkill,
-                disabled: _updatingAiAgent || _editingAiAgentPort,
                 onClick: () {
                   unawaited(_exportAiSkill(i18n));
                 },
@@ -534,7 +532,6 @@ extension _SettingsPageSections on _SettingsPageState {
               SettingsActionButton(
                 icon: FluentIcons.copy_20_regular,
                 tooltip: i18n.t('settings.aiAgentCopyEndpointTooltip'),
-                disabled: _updatingAiAgent || _editingAiAgentPort,
                 onClick: () {
                   unawaited(
                     _copyAiAgentValue(aiAgentRemoteController.endpoint, i18n),

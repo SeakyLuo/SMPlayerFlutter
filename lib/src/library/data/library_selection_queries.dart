@@ -18,10 +18,13 @@ extension LibrarySelectionQueries on LibraryRepository {
     ];
     Future<Map<String, int>> read(
       String sql, {
+      required String operation,
       bool directory = false,
       int scopes = 1,
     }) => Isolate.run(() {
-      final db = sqlite3.open(databasePath, mode: OpenMode.readOnly);
+      final elapsed = Stopwatch()..start();
+      final db = LibrarySnapshotService.openReadDatabase(databasePath);
+      final openedMs = elapsed.elapsedMilliseconds;
       try {
         if (directory) {
           db.createFunction(
@@ -36,20 +39,35 @@ extension LibrarySelectionQueries on LibraryRepository {
               for (var index = 0; index < scopes; index++) ...arguments,
             ]).first;
         return {for (final key in row.keys) key: row[key] as int};
+      } catch (error, stack) {
+        SystemLog.error(
+          'Random playback availability query failed: operation=$operation; '
+          'openMs=$openedMs; totalMs=${elapsed.elapsedMilliseconds}',
+          error,
+          stack,
+        );
+        rethrow;
       } finally {
         db.dispose();
       }
     });
     final (inventory, directories, recent, lists) =
         await (
-          read('SELECT COUNT(*) AS total FROM Music WHERE $scope'),
-          read('''
+          read(
+            'SELECT COUNT(*) AS total FROM Music WHERE $scope',
+            operation: 'inventory',
+          ),
+          read(
+            '''
         SELECT EXISTS(
           SELECT 1 FROM Folder WHERE State = 1 AND Path IN (
             SELECT song_directory(Music.Path) FROM Music WHERE $scope
           )
         ) AS available
-      ''', directory: true),
+      ''',
+            directory: true,
+            operation: 'directories',
+          ),
           read('''
         SELECT EXISTS(
           SELECT 1 FROM Music WHERE $scope AND Id IN (
@@ -59,8 +77,9 @@ extension LibrarySelectionQueries on LibraryRepository {
             ) ORDER BY Id DESC LIMIT 500
           )
         ) AS available
-      '''),
-          read('''
+      ''', operation: 'recent'),
+          read(
+            '''
         SELECT
           EXISTS(SELECT 1 FROM PlaylistItem WHERE State = 1
             AND PlaylistId = (SELECT MyFavorites FROM Settings ORDER BY Id LIMIT 1)
@@ -68,7 +87,10 @@ extension LibrarySelectionQueries on LibraryRepository {
           EXISTS(SELECT 1 FROM PlaylistItem WHERE State = 1
             AND PlaylistId IN (SELECT Id FROM Playlist WHERE State = 1 AND Type = 0 AND Id > 0)
             AND ItemId IN (SELECT Music.Id FROM Music WHERE $scope)) AS custom
-      ''', scopes: 2),
+      ''',
+            scopes: 2,
+            operation: 'playlists',
+          ),
         ).wait;
     final count = inventory['total']!;
     return [

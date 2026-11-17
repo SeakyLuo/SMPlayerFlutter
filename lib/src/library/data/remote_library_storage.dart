@@ -208,7 +208,7 @@ mixin _RemoteLibraryStorage implements LibraryDataSource {
       onProgress,
     );
     final file = await repository._resolveDatabaseFile();
-    final db = sqlite3.open(file.path, mode: OpenMode.readOnly);
+    final db = LibrarySnapshotService.openReadDatabase(file.path);
     final Map<String, int> ids;
     try {
       ids = {

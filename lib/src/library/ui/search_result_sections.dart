@@ -531,7 +531,7 @@ class _SearchResultSection extends StatelessWidget {
                     }
                   },
                   onPlay: () {
-                    onPlaySongs(playlistSongs.map((song) => song.id).toList());
+                    onPlaySongs(playlist.songIds);
                   },
                   onContextMenu: (position) {
                     return _showCardContextMenu(context, position, card);

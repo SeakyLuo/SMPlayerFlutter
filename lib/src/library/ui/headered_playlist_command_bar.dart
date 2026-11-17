@@ -9,6 +9,7 @@ extension _HeaderedPlaylistControlCommandBar on _HeaderedPlaylistControlState {
     PlaylistSortCriterion activeSortCriterion,
     List<MultiSelectCommandBarPlaylist> customPlaylists,
   ) {
+    final hasSongs = (_page?.totalSongCount ?? visibleSongs.length) > 0;
     final colors = HeaderedPlaylistThemeColors.of(context);
     final compact = MediaQuery.sizeOf(context).width <= 720;
     return SmPlayerTextIconButtonTheme(
@@ -31,7 +32,7 @@ extension _HeaderedPlaylistControlCommandBar on _HeaderedPlaylistControlState {
             iconWidget: const ShuffleIcon(),
             useShuffleIcon: true,
             label: captionForHeaderedPlaylist(i18n, 'shuffle'),
-            disabled: visibleSongs.isEmpty,
+            disabled: !hasSongs,
             onPressed: () {
               _shuffle(queueSongIds);
             },
@@ -45,7 +46,7 @@ extension _HeaderedPlaylistControlCommandBar on _HeaderedPlaylistControlState {
                 _selection.multiSelect
                     ? i18n.t('common.exitMultiSelectTooltip')
                     : null,
-            disabled: visibleSongs.isEmpty,
+            disabled: !hasSongs && !_selection.multiSelect,
             onPressed: () {
               _updateState(() {
                 _selection.toggleMultiSelect();
@@ -66,7 +67,7 @@ extension _HeaderedPlaylistControlCommandBar on _HeaderedPlaylistControlState {
           CommandBarButton(
             icon: FluentIcons.arrow_sort_20_regular,
             label: captionForHeaderedPlaylist(i18n, 'sort'),
-            disabled: visibleSongs.isEmpty,
+            disabled: !hasSongs,
             overflowSubmenu: _sortMenuItems(i18n, activeSortCriterion),
             onPressedWithContext: (buttonContext) {
               showMenuFlyout(
@@ -87,7 +88,7 @@ extension _HeaderedPlaylistControlCommandBar on _HeaderedPlaylistControlState {
             CommandBarButton(
               icon: FluentIcons.broom_20_regular,
               label: captionForHeaderedPlaylist(i18n, 'clear'),
-              disabled: visibleSongs.isEmpty,
+              disabled: !hasSongs,
               onPressed: () {
                 unawaited(_requestClear(i18n));
               },
@@ -118,6 +119,7 @@ extension _HeaderedPlaylistControlCommandBar on _HeaderedPlaylistControlState {
     List<int> queueSongIds,
     PlaylistSortCriterion activeSortCriterion,
   ) {
+    final hasSongs = (_page?.totalSongCount ?? visibleSongs.length) > 0;
     return CommandBar(
       style: CommandBarStyleVariant.appBar,
       dynamicOverflow: false,
@@ -126,7 +128,7 @@ extension _HeaderedPlaylistControlCommandBar on _HeaderedPlaylistControlState {
           key: 'multi-select',
           text: captionForHeaderedPlaylist(i18n, 'multiSelect'),
           icon: FluentIcons.multiselect_ltr_20_regular,
-          disabled: visibleSongs.isEmpty,
+          disabled: !hasSongs && !_selection.multiSelect,
           onPressed: () {
             _updateState(() {
               _selection.toggleMultiSelect();
@@ -147,7 +149,7 @@ extension _HeaderedPlaylistControlCommandBar on _HeaderedPlaylistControlState {
           key: 'sort',
           text: captionForHeaderedPlaylist(i18n, 'sort'),
           icon: FluentIcons.arrow_sort_20_regular,
-          disabled: visibleSongs.isEmpty,
+          disabled: !hasSongs,
           submenu: _sortMenuItems(i18n, activeSortCriterion),
         ),
         if (widget.canRename)
@@ -164,7 +166,7 @@ extension _HeaderedPlaylistControlCommandBar on _HeaderedPlaylistControlState {
             key: 'clear',
             text: captionForHeaderedPlaylist(i18n, 'clear'),
             icon: FluentIcons.broom_20_regular,
-            disabled: visibleSongs.isEmpty,
+            disabled: !hasSongs,
             onPressed: () {
               unawaited(_requestClear(i18n));
             },
@@ -192,7 +194,7 @@ extension _HeaderedPlaylistControlCommandBar on _HeaderedPlaylistControlState {
           iconWidget: const ShuffleIcon(),
           useShuffleIcon: true,
           label: captionForHeaderedPlaylist(i18n, 'shuffle'),
-          disabled: visibleSongs.isEmpty,
+          disabled: !hasSongs,
           onPressed: () {
             _shuffle(queueSongIds);
           },
