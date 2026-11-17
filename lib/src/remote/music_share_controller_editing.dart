@@ -50,20 +50,11 @@ extension MusicShareEditing on MusicShareController {
         if (result.containsKey('songs')) {
           await applyDirectoryChanges(peer.id, result, notify: false);
         }
-        if (result.containsKey('changed') || result.containsKey('updated')) {
-          final changed =
-              (result[result.containsKey('changed') ? 'changed' : 'updated']
-                      as List)
-                  .cast<int>();
-          await repository.invalidateRemoteSongDetails(
+        if (Uri.parse(endpoint).path == '/songs/favorites') {
+          await repository.applyRemoteSongFavorites(
             peer.id,
-            Uri.parse(endpoint).path == '/songs/favorites'
-                ? ((body as Map)['ids'] as List).cast<int>()
-                : changed,
-            favorite:
-                Uri.parse(endpoint).path == '/songs/favorites'
-                    ? ((body as Map)['data'] as Map)['favorite'] as bool
-                    : null,
+            ((body as Map)['ids'] as List).cast<int>(),
+            (body['data'] as Map)['favorite'] as bool,
           );
         }
         final batchIds =

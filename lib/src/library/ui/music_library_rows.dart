@@ -699,22 +699,63 @@ class _SelectionMark extends StatelessWidget {
 }
 
 class _SongWindowPlaceholder extends StatelessWidget {
-  const _SongWindowPlaceholder();
+  const _SongWindowPlaceholder({this.columnWidths});
+  final Map<_LibraryColumn, double>? columnWidths;
+
   @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
-    child: Align(
-      alignment: Alignment.centerLeft,
-      child: Container(
-        width: 180,
-        height: 12,
-        decoration: BoxDecoration(
-          color: Theme.of(
-            context,
-          ).colorScheme.onSurface.withValues(alpha: 0.06),
-          borderRadius: BorderRadius.circular(4),
-        ),
+  Widget build(BuildContext context) {
+    final color = Theme.of(
+      context,
+    ).colorScheme.onSurface.withValues(alpha: 0.06);
+    Widget block(double width, double height) => Container(
+      width: width,
+      height: height,
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: BorderRadius.circular(4),
       ),
-    ),
-  );
+    );
+    if (columnWidths case final widths?) {
+      return Row(
+        children: [
+          for (final entry in widths.entries)
+            SizedBox(
+              width: entry.value,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: block(
+                    entry.key == _LibraryColumn.artwork
+                        ? 36
+                        : entry.value * 0.55,
+                    entry.key == _LibraryColumn.artwork ? 36 : 12,
+                  ),
+                ),
+              ),
+            ),
+        ],
+      );
+    }
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      child: Row(
+        children: [
+          block(48, 48),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                block(160, 12),
+                const SizedBox(height: 8),
+                block(100, 10),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }

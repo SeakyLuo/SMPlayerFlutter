@@ -116,7 +116,7 @@ bool canCreateSourcePlaylist() {
 }
 
 bool canPlayLibrarySong(LibrarySong song) =>
-    song.remoteAvailable &&
+    song.isActive &&
     (!isRemoteMusicPath(song.path) ||
         activeMusicShareAccess != null &&
             activeMusicShareAccess!.isOnline(song.path));

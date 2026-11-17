@@ -34,9 +34,11 @@ authorization tokens never appear in playback URLs. Remote files are read-only.
 
 Imported metadata uses stable `smplayer-music://<device>/<song>` paths in Music,
 so existing playlist, favorite, queue and history storage retain their identities.
-Schema 6 adds only `Music.RemoteAvailable`. Catalog revision changes trigger
-synchronization; removed songs leave ordinary browsing but remain marked in
-playlists and queues. Offline devices retain their last known metadata.
+Schema 8 removes the old `Music.RemoteAvailable` and `Music.RemoteDetailsLoaded`
+columns. Removed remote songs use the existing `Music.State` deletion state,
+leave ordinary browsing, and remain unavailable in saved queues. Changes
+invalidate the relevant caches; accessed pages read data on demand. Offline
+devices retain their last known metadata.
 
 ## AI Agent API
 

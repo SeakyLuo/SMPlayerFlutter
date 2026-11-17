@@ -282,8 +282,22 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
                   onChangeAlbumSort: _changeAlbumSort,
                   onToggleMultiSelect: _toggleMultiSelect,
                 ),
-              const Expanded(
-                child: SmPlayerLoadingState(layout: SmPlayerLoadingLayout.grid),
+              Expanded(
+                child: Row(
+                  children: [
+                    _AlbumsQuickJump(
+                      activeKey: '',
+                      enabledKeys: const {},
+                      i18n: i18n,
+                      onJump: (_) {},
+                    ),
+                    Expanded(
+                      child: const SmPlayerLoadingState(
+                        layout: SmPlayerLoadingLayout.grid,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ],
           ),

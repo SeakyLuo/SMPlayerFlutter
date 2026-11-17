@@ -231,9 +231,7 @@ Future<QueuePlayResult> playQueueIndexFromSongs({
       showAppNotification(
         context: context,
         message: i18n.t(
-          song?.remoteAvailable == false
-              ? 'share.songRemoved'
-              : 'share.offline',
+          song?.isActive == false ? 'share.songRemoved' : 'share.offline',
         ),
       );
       return QueuePlayResult.unavailable;

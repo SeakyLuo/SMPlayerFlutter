@@ -70,17 +70,15 @@ class _LibraryRootGateState extends ConsumerState<_LibraryRootGate> {
                             },
                   )
                   : widget.child,
-      loading: () => const _MissingLibraryRootPage(loading: true),
+      loading: () => widget.child,
       error:
-          (_, _) => _MissingLibraryRootPage(
-            loading: false,
-            buttonLoading: _scanning,
-            onPickLibraryRoot:
-                _scanning
-                    ? null
-                    : () {
-                      unawaited(_pickLibraryRootAndScan());
-                    },
+          (_, _) => LibraryLoadFailure(
+            onRetry:
+                () => ref.invalidate(
+                  libraryPageQueryProvider(
+                    const LibraryDataQuery(LibraryQueryKind.context),
+                  ),
+                ),
           ),
     );
     final result = _result;

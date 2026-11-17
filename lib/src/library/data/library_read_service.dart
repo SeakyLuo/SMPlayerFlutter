@@ -344,8 +344,7 @@ class LibraryReadService {
       SELECT
         Music.Id AS id,
         Music.Path AS path,
-        CASE WHEN Music.State = 1 THEN Music.RemoteAvailable ELSE 0 END AS remoteAvailable,
-        Music.RemoteDetailsLoaded AS detailsLoaded,
+        Music.State AS state,
         Music.ThumbnailPath AS thumbnailPath,
         Music.Name AS title,
         Music.Artist AS artist,
@@ -390,8 +389,7 @@ class LibraryReadService {
           return LibrarySong(
             id: row['id'] as int,
             path: row['path'] as String,
-            remoteAvailable: row['remoteAvailable'] == 1,
-            detailsLoaded: row['detailsLoaded'] == 1,
+            isActive: row['state'] == 1,
             thumbnailPath: row['thumbnailPath'] as String,
             title: normalizeTagText(row['title'] as String),
             artist: artist,

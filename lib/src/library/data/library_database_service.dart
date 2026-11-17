@@ -8,7 +8,7 @@ class LibraryDatabaseService {
   const LibraryDatabaseService();
 
   // Increment when changing tables, columns, indexes, or the lyrics FTS schema.
-  static const schemaVersion = 7;
+  static const schemaVersion = 8;
 
   Database openInitializedLibraryDatabase(File databaseFile) {
     databaseFile.parent.createSync(recursive: true);
@@ -30,7 +30,20 @@ class LibraryDatabaseService {
     db.execute('PRAGMA journal_mode = WAL');
     db.execute('BEGIN IMMEDIATE');
     try {
-      _migrateLibrarySchema(db);
+      if (version < 6) _migrateLibrarySchema(db);
+      // Version 6 databases exist with and without this cache-only column.
+      final musicColumns = db.select('PRAGMA table_info(Music)');
+      if (musicColumns.any(
+        (column) => column['name'] == 'RemoteDetailsLoaded',
+      )) {
+        db.execute('ALTER TABLE Music DROP COLUMN RemoteDetailsLoaded');
+      }
+      if (musicColumns.any((column) => column['name'] == 'RemoteAvailable')) {
+        db.execute(
+          "UPDATE Music SET State = 0 WHERE State = 1 AND RemoteAvailable = 0 AND Path LIKE 'smplayer-music://%'",
+        );
+        db.execute('ALTER TABLE Music DROP COLUMN RemoteAvailable');
+      }
       db.execute('PRAGMA user_version = $schemaVersion');
       db.execute('COMMIT');
     } catch (_) {
@@ -508,8 +521,6 @@ class LibraryDatabaseService {
       'AiAgentPort': 'INTEGER DEFAULT 29643',
     });
     _addColumnsIfMissing(db, 'Music', {
-      'RemoteAvailable': 'INTEGER NOT NULL DEFAULT 1',
-      'RemoteDetailsLoaded': 'INTEGER NOT NULL DEFAULT 1',
       'Path': "TEXT DEFAULT ''",
       'Name': "TEXT DEFAULT ''",
       'Artist': "TEXT DEFAULT ''",

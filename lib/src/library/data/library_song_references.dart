@@ -46,12 +46,12 @@ extension LibrarySongReferences on LibraryRepository {
   Future<List<LibrarySong>> resolveSongDetails(List<int> ids) async {
     final file = await _resolveDatabaseFile();
     await LibrarySnapshotService.waitForPendingOperations();
-    final missing = await Isolate.run(() {
+    final references = await Isolate.run(() {
       final db = LibrarySnapshotService.openReadDatabase(file.path);
       try {
         return {
           for (final row in db.select(
-            "SELECT Id, Path FROM Music WHERE (RemoteDetailsLoaded = 0 OR RemoteAvailable = 0) AND Path LIKE 'smplayer-music://%' AND Id IN (SELECT value FROM json_each(?))",
+            "SELECT Id, Path FROM Music WHERE Path LIKE 'smplayer-music://%' AND Id IN (SELECT value FROM json_each(?))",
             [jsonEncode(ids)],
           ))
             row['Id'] as int: row['Path'] as String,
@@ -61,7 +61,8 @@ extension LibrarySongReferences on LibraryRepository {
       }
     });
     final groups = <String, List<int>>{};
-    for (final entry in missing.entries) {
+    for (final entry in references.entries) {
+      if (!activeMusicShareAccess!.isOnline(entry.value)) continue;
       groups.putIfAbsent(Uri.parse(entry.value).host, () => []).add(entry.key);
     }
     await Future.wait(
@@ -79,11 +80,11 @@ extension LibrarySongReferences on LibraryRepository {
     return const LibrarySnapshotService().readSongs(file.path, songIds: ids);
   }
 
-  Future<void> invalidateRemoteSongDetails(
+  Future<void> applyRemoteSongFavorites(
     String device,
-    List<int> hostIds, {
-    bool? favorite,
-  }) async {
+    List<int> hostIds,
+    bool favorite,
+  ) async {
     final file = await _resolveDatabaseFile();
     final paths = jsonEncode(
       hostIds.map((id) => remoteMusicPath(device, id)).toList(),
@@ -92,26 +93,19 @@ extension LibrarySongReferences on LibraryRepository {
       final db = sqlite3.open(file.path);
       try {
         db.execute('BEGIN IMMEDIATE');
-        if (favorite == null) {
-          db.execute(
-            'UPDATE Music SET RemoteDetailsLoaded = 0 WHERE Path IN (SELECT value FROM json_each(?))',
-            [paths],
-          );
-        } else {
-          final ids =
-              db
-                  .select(
-                    'SELECT Id FROM Music WHERE Path IN (SELECT value FROM json_each(?))',
-                    [paths],
-                  )
-                  .map((row) => row['Id'] as int)
-                  .toList();
-          LibraryRepository._playlistService.applySharedFavorites(
-            db,
-            favorite ? ids : const [],
-            favorite ? const [] : ids,
-          );
-        }
+        final ids =
+            db
+                .select(
+                  'SELECT Id FROM Music WHERE Path IN (SELECT value FROM json_each(?))',
+                  [paths],
+                )
+                .map((row) => row['Id'] as int)
+                .toList();
+        LibraryRepository._playlistService.applySharedFavorites(
+          db,
+          favorite ? ids : const [],
+          favorite ? const [] : ids,
+        );
         db.execute('COMMIT');
       } finally {
         db.dispose();
@@ -130,11 +124,10 @@ extension LibrarySongReferences on LibraryRepository {
       try {
         db.execute('BEGIN IMMEDIATE');
         db.execute(
-          '''INSERT INTO Music(Path,RemoteAvailable,RemoteDetailsLoaded,State)
-          SELECT value,1,0,1 FROM json_each(?) WHERE 1
-          ON CONFLICT(Path) DO UPDATE SET RemoteAvailable=1,State=1,
-            RemoteDetailsLoaded=CASE WHEN Music.State=0 OR Music.RemoteAvailable=0 THEN 0 ELSE Music.RemoteDetailsLoaded END
-          WHERE Music.State<>1 OR Music.RemoteAvailable<>1''',
+          '''INSERT INTO Music(Path,State)
+          SELECT value,1 FROM json_each(?) WHERE 1
+          ON CONFLICT(Path) DO UPDATE SET State=1
+          WHERE Music.State<>1''',
           [jsonEncode(paths)],
         );
         final ids = {

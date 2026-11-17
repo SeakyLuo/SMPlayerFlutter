@@ -30,7 +30,15 @@ extension _MusicLibraryLayout on _MusicLibraryPageState {
 
     return snapshotValue.when(
       skipLoadingOnReload: true,
-      loading: () => const _LibraryScaffold(child: SmPlayerLoadingState()),
+      loading:
+          () => _LibraryScaffold(
+            child: _MusicLibraryLoadingState(
+              i18n: i18n,
+              columnWidths: _columnWidths,
+              sortCriterion: _sortCriterion,
+              sortDirection: _sortDirection,
+            ),
+          ),
       error: (_, _) => const _LibraryScaffold(child: LibraryLoadFailure()),
       data: (snapshot) {
         final anchor = (
