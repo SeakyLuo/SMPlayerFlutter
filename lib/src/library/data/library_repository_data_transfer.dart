@@ -15,12 +15,17 @@ extension LibraryRepositoryDataTransfer on LibraryRepository {
     bool restoreNowPlaying = true,
   }) async {
     final databaseFile = await _resolveDatabaseFile();
-    return LibraryRepository._dataTransferService.importDataFrom(
-      databaseFile,
-      sourcePath,
-      rescanLibrary: scanAllMusicLibrary,
-      nowPlayingFile: _resolveNowPlayingFile(databaseFile),
-      restoreNowPlaying: restoreNowPlaying,
-    );
+    Future<bool> performImport() =>
+        LibraryRepository._dataTransferService.importDataFrom(
+          databaseFile,
+          sourcePath,
+          rescanLibrary: scanAllMusicLibrary,
+          nowPlayingFile: _resolveNowPlayingFile(databaseFile),
+          restoreNowPlaying: restoreNowPlaying,
+        );
+    final share = activeMusicShareAccess;
+    return share == null
+        ? performImport()
+        : share.withSharingSuspended(performImport);
   }
 }

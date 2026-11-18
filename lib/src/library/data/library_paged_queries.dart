@@ -9,6 +9,7 @@ class LibraryPagedQuery
     extends
         AutoDisposeFamilyAsyncNotifier<LibraryContentData, LibraryDataQuery> {
   var _generation = 0;
+  void Function()? _releaseCache;
   var _visibleOffset = 0;
   var _visibleIndex = 0;
   final _pages = <int, Map<int, LibrarySong>>{};
@@ -58,6 +59,7 @@ class LibraryPagedQuery
       _visibleIndex = page.anchorIndex ?? previousIndex;
       _pages[page.pageOffset] = page.songRows;
       await ref.read(libraryLoadedDataProvider.notifier).publish(page, query);
+      if (_generation == generation) _releaseCache = retainLibraryQuery(ref);
     }
     return page;
   }
@@ -111,7 +113,10 @@ class LibraryPagedQuery
           state = AsyncData(next);
           await ref.read(libraryLoadedDataProvider.notifier).publish(next, arg);
         } catch (error, stack) {
-          if (generation == _generation) state = AsyncError(error, stack);
+          if (generation == _generation) {
+            _releaseCache?.call();
+            state = AsyncError(error, stack);
+          }
         } finally {
           if (identical(_requests[offset], request)) _requests.remove(offset);
         }

@@ -5,6 +5,7 @@
 #include <shlobj.h>
 #include <shobjidl.h>
 #include <windows.h>
+#include <roapi.h>
 #include <wrl/client.h>
 
 #include <array>
@@ -12,6 +13,7 @@
 #include <string>
 
 #include "flutter_window.h"
+#include "background_sharing.h"
 #include "resource.h"
 #include "utils.h"
 
@@ -352,8 +354,14 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
 
   // Initialize COM, so that it is available for use in the library and/or
   // plugins.
-  ::CoInitializeEx(nullptr, COINIT_MULTITHREADED);
+  if (FAILED(::RoInitialize(RO_INIT_SINGLETHREADED))) return EXIT_FAILURE;
   ::SetCurrentProcessExplicitAppUserModelID(kWindowsAppUserModelId);
+
+  if (IsBackgroundSharingLaunch()) {
+    const int result = RunBackgroundSharingWorker();
+    ::RoUninitialize();
+    return result;
+  }
 
   HANDLE single_instance_mutex =
       ::CreateMutexW(nullptr, TRUE, kSingleInstanceMutexName);
@@ -361,7 +369,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
       ::GetLastError() == ERROR_ALREADY_EXISTS &&
       ForwardCommandLineToExistingInstance()) {
     ::CloseHandle(single_instance_mutex);
-    ::CoUninitialize();
+    ::RoUninitialize();
     return EXIT_SUCCESS;
   }
 
@@ -389,7 +397,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
     ::DispatchMessage(&msg);
   }
 
-  ::CoUninitialize();
+  ::RoUninitialize();
   if (single_instance_mutex != nullptr) {
     ::CloseHandle(single_instance_mutex);
   }

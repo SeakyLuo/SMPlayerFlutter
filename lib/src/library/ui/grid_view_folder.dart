@@ -1,3 +1,4 @@
+import 'local_folder_grid_layout.dart';
 import '../../remote/music_share_access.dart';
 import '../../remote/music_share_models.dart';
 import 'local_page_model.dart';
@@ -91,9 +92,7 @@ class LocalGridViewFolder extends StatelessWidget {
       );
     }
 
-    return Wrap(
-      spacing: 30,
-      runSpacing: 26,
+    return LocalFolderGridLayout(
       children: [
         for (final folder in childFolders)
           DraggableLocalFolderCard(

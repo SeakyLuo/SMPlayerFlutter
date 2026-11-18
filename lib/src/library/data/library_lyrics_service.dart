@@ -57,8 +57,32 @@ class LibraryLyricsService {
     settings.LyricsRequestMode mode = settings.LyricsRequestMode.auto,
   }) async {
     final song = await _getLyricsSongLookup(databaseFile, songId);
+    if (mode == settings.LyricsRequestMode.internet) {
+      try {
+        final rawLyrics = await _searchInternetLyrics(song);
+        final internetLyrics = await _prepareInternetLyrics(rawLyrics);
+        return _createLyricsSnapshot(
+          internetLyrics,
+          internetLyrics.trim().isEmpty
+              ? LyricsSource.none
+              : LyricsSource.internet,
+        );
+      } on Exception {
+        return const LyricsSnapshot(
+          source: LyricsSource.none,
+          isSynced: false,
+          rawText: '',
+          lines: [],
+          cacheable: false,
+        );
+      }
+    }
+
     if (isRemoteMusicPath(song.path)) {
-      return activeMusicShareAccess!.lyrics(song.path);
+      final localSnapshot = await activeMusicShareAccess!.lyrics(song.path);
+      return mode == settings.LyricsRequestMode.auto
+          ? _resolveAutomaticLyrics(song, localSnapshot)
+          : localSnapshot;
     }
     final sidecarLyrics = await _getSidecarLyrics(song.path);
 
@@ -82,31 +106,11 @@ class LibraryLyricsService {
                 ? LyricsSource.none
                 : LyricsSource.musicFile,
           );
-      if (localSnapshot.isSynced) {
-        return localSnapshot;
-      }
-
-      final internetSnapshot = await _getSyncedInternetLyrics(song);
-      if (internetSnapshot != null) {
-        return internetSnapshot;
-      }
-
-      return localSnapshot;
+      return _resolveAutomaticLyrics(song, localSnapshot);
     }
 
-    if (mode != settings.LyricsRequestMode.internet && sidecarLyrics != null) {
+    if (sidecarLyrics != null) {
       return sidecarLyrics;
-    }
-
-    if (mode == settings.LyricsRequestMode.internet) {
-      final rawLyrics = await _searchInternetLyrics(song);
-      final internetLyrics = await _prepareInternetLyrics(rawLyrics);
-      return _createLyricsSnapshot(
-        internetLyrics,
-        internetLyrics.trim().isEmpty
-            ? LyricsSource.none
-            : LyricsSource.internet,
-      );
     }
 
     final embeddedLyrics = await _id3TagService.readEmbeddedLyrics(song.path);
@@ -115,6 +119,28 @@ class LibraryLyricsService {
     }
 
     return _createLyricsSnapshot('', LyricsSource.none);
+  }
+
+  Future<LyricsSnapshot> _resolveAutomaticLyrics(
+    _LyricsSongLookup song,
+    LyricsSnapshot localSnapshot,
+  ) async {
+    if (localSnapshot.isSynced) {
+      return localSnapshot;
+    }
+
+    try {
+      final internetSnapshot = await _getSyncedInternetLyrics(song);
+      return internetSnapshot ?? localSnapshot;
+    } on Exception {
+      return LyricsSnapshot(
+        source: localSnapshot.source,
+        isSynced: localSnapshot.isSynced,
+        rawText: localSnapshot.rawText,
+        lines: localSnapshot.lines,
+        cacheable: false,
+      );
+    }
   }
 
   Future<String> readLyricsFromFile(String filePath) async {

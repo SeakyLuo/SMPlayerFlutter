@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'library_models.dart';
 import 'library_queries.dart';
+import 'library_query_cache.dart';
+export 'library_query_cache.dart' show retainLibraryQuery;
 export 'library_queries.dart';
 export 'library_selection.dart';
 import 'library_repository.dart';

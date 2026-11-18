@@ -329,7 +329,27 @@ class LibraryRepository
 
   Future<void> updateSettings(settings.AppSettingsUpdate update) async {
     final databaseFile = await _resolveDatabaseFile();
+    final previous =
+        update.rootPath == null
+            ? null
+            : _settingsService.readSettingsSnapshot(databaseFile);
     await _settingsService.updateSettings(databaseFile, update);
+    if (update.rootPath != null) {
+      try {
+        await activeMusicShareAccess?.syncSharingConfiguration();
+      } catch (error, stack) {
+        await _settingsService.updateSettings(
+          databaseFile,
+          settings.AppSettingsUpdate(rootPath: previous!.rootPath),
+        );
+        SystemLog.error(
+          'Sharing root update failed; restored previous music folder',
+          error,
+          stack,
+        );
+        rethrow;
+      }
+    }
   }
 
   Future<void> savePlaybackSettings(
@@ -526,7 +546,7 @@ class LibraryRepository
     _lyricsLoads[key] = load;
     try {
       final lyrics = await load;
-      if ((_lyricsCacheEpochs[this] ?? 0) == revision) {
+      if (lyrics.cacheable && (_lyricsCacheEpochs[this] ?? 0) == revision) {
         _lyricsCache[key] = lyrics;
         if (_lyricsCache.length > _lyricsCacheCapacity) {
           _lyricsCache.remove(_lyricsCache.keys.first);

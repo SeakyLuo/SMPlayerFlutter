@@ -26,7 +26,18 @@ import 'package:smplayer_flutter/src/settings/settings_model.dart';
 import 'package:screen_retriever/screen_retriever.dart' as screen;
 import 'package:window_manager/window_manager.dart';
 
+import 'src/remote/music_share_background_runtime.dart';
+
+@pragma('vm:entry-point')
+void backgroundSharingMain() {
+  unawaited(musicSharingWorker());
+}
+
 void main(List<String> args) {
+  if (args.contains('--sharing-worker')) {
+    backgroundSharingMain();
+    return;
+  }
   final crashReporter = AppCenterCrashReporter();
   runZonedGuarded(() async {
     WidgetsFlutterBinding.ensureInitialized();

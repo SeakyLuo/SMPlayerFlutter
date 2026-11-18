@@ -2,16 +2,20 @@ part of 'music_share_controller.dart';
 
 extension _MusicShareInitialization on MusicShareController {
   Future<void> _load() async {
-    final (snapshot, loadedIdentity, stored) =
+    final (snapshot, loadedIdentity, stored, storedHost) =
         await (
           loadLibrary(),
           MusicShareIdentity.load(),
           MusicShareIdentity.storage.read(key: 'music-share-connections-v1'),
+          MusicShareConnectionStore.readHost(),
         ).wait;
     databasePath = snapshot.databasePath;
     identity = loadedIdentity;
     if (stored != null) {
-      final json = jsonDecode(stored) as Map<String, dynamic>;
+      final json = {
+        ...jsonDecode(stored) as Map<String, dynamic>,
+        ...?storedHost,
+      };
       name = json['name'] as String;
       selectedSource = json['source'] as String;
       // Existing configurations default to automatic connection.
@@ -48,27 +52,28 @@ extension _MusicShareInitialization on MusicShareController {
         await save();
       }
     }
-    server = MusicShareServer(
-      onLibraryChanged: () => onCatalogChanged('local'),
-      onPeerConnected: (name) {
-        incomingConnection = (
-          revision: (incomingConnection?.revision ?? 0) + 1,
-          name: name,
-        );
-        _notify();
-      },
-      identity: identity,
-      repository: repository,
-      name: () => name,
-      grants: grants,
-      grantIdentities: grantIdentities,
-      mobileGrants: mobileGrants,
-      writeGrants: writeGrants,
-      onChanged: () {
-        _notify();
-      },
-    );
-    server.updateLibrary(snapshot);
+    final host = storedHost;
+    if (host != null) {
+      name = host['name'] as String;
+      port = host['port'] as int;
+      sharing = host['sharing'] as bool;
+      backgroundSharing = host['backgroundSharing'] as bool;
+      grants
+        ..clear()
+        ..addAll((host['grants'] as Map).cast<String, String>());
+      grantIdentities
+        ..clear()
+        ..addAll((host['grantIdentities'] as Map).cast<String, String>());
+      mobileGrants
+        ..clear()
+        ..addAll((host['mobileGrants'] as List).cast<String>());
+      writeGrants
+        ..clear()
+        ..addAll((host['writeGrants'] as List).cast<String>());
+    }
+    server = _localHost(snapshot);
+    if (host == null)
+      await MusicShareConnectionStore.writeHost(_hostConfiguration);
     await _artworkCache.restore();
     initialized = true;
     _notify();

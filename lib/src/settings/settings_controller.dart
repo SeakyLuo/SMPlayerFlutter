@@ -65,6 +65,13 @@ class SettingsController extends ChangeNotifier {
 
   Future<void> updateSettings(AppSettingsUpdate update) async {
     if (_persistenceSuspended) return;
+    if (update.rootPath != null) {
+      await repository?.updateSettings(update);
+      _snapshot = _snapshot.apply(update);
+      setSmPlayerGlobalSettingsSnapshot(_snapshot);
+      notifyListeners();
+      return;
+    }
     _snapshot = _snapshot.apply(update);
     setSmPlayerGlobalSettingsSnapshot(_snapshot);
     notifyListeners();

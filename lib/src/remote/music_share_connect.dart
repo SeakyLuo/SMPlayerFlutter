@@ -551,22 +551,21 @@ class _MusicShareConnectState extends ConsumerState<MusicShareConnect> {
               onPressed: _cancelConnection,
             ),
           ),
-        _AutoConnectSetting(enabled: !_connecting),
+        const _AutoConnectSetting(),
       ],
     );
   }
 }
 
 class _AutoConnectSetting extends ConsumerWidget {
-  const _AutoConnectSetting({required this.enabled});
-  final bool enabled;
+  const _AutoConnectSetting();
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final share = ref.watch(musicShareProvider);
     final i18n = context.smPlayerI18n;
     final colors = PopupDialogColors.resolve(context);
-    final interactive = enabled && share.initialized && !share.busy;
+    final interactive = share.initialized && !share.updatingAutoConnect;
     void change(bool value) {
       unawaited(
         runMusicShareAction(context, () => share.setAutoConnect(value)),

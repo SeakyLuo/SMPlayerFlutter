@@ -20,10 +20,16 @@ class _LyricsWindowNotifier
   Future<_LyricsWindow> build(LibraryDataQuery query) async {
     final generation = ++_generation;
     ref.onDispose(() => _generation++);
+    ref.watch(
+      libraryQueryInvalidationProvider((LibraryQueryKind.lyrics, query.source)),
+    );
     _pages.clear();
     _requests.clear();
     final page = await _read(query, 0);
-    if (generation == _generation) _pages[0] = page.rows;
+    if (generation == _generation) {
+      _pages[0] = page.rows;
+      retainLibraryQuery(ref);
+    }
     return page;
   }
 

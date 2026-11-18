@@ -20,6 +20,7 @@ import 'package:smplayer_flutter/src/library/ui/local_title_grid.dart';
 import 'package:smplayer_flutter/src/remote/music_source_providers.dart';
 import '../remote/remote_directory_provider.dart';
 import '../library/ui/local_page_remote.dart';
+import 'loading_state.dart';
 
 part 'shell_workspace_app_bar_title.dart';
 part 'shell_workspace_titles.dart';
@@ -124,32 +125,45 @@ class _SmPlayerWorkspaceState extends ConsumerState<SmPlayerWorkspace> {
               : null;
     }
     final localTitleContent =
-        currentRoutePath == '/local' &&
-                pathSnapshot != null &&
-                pathSnapshot.rootPath.isNotEmpty
-            ? LocalTitleGrid(
-              nodes: _localDataCache.folders(pathSnapshot).nodes,
-              i18n: i18n,
-              rootPath: pathSnapshot.rootPath,
-              currentRelativePath: currentUri.queryParameters['path'] ?? '',
-              compact: widget.showNavigationAppBar,
-              onHiddenFoldersListButtonClick: () {
-                context.push<void>('/hidden-folders');
-              },
-              onOpenFolder: (targetRelativePath) {
-                final query = <String, String>{};
-                if (targetRelativePath.isNotEmpty) {
-                  query['path'] = targetRelativePath;
-                }
-                final searchQuery = currentUri.queryParameters['query'];
-                if (searchQuery != null && searchQuery.trim().isNotEmpty) {
-                  query['query'] = searchQuery.trim();
-                }
-                context.go(
-                  Uri(path: '/local', queryParameters: query).toString(),
-                );
-              },
-            )
+        currentRoutePath == '/local'
+            ? pathSnapshot != null && pathSnapshot.rootPath.isNotEmpty
+                ? LocalTitleGrid(
+                  nodes: _localDataCache.folders(pathSnapshot).nodes,
+                  i18n: i18n,
+                  rootPath: pathSnapshot.rootPath,
+                  currentRelativePath: currentUri.queryParameters['path'] ?? '',
+                  compact: widget.showNavigationAppBar,
+                  onHiddenFoldersListButtonClick: () {
+                    context.push<void>('/hidden-folders');
+                  },
+                  onOpenFolder: (targetRelativePath) {
+                    final query = <String, String>{};
+                    if (targetRelativePath.isNotEmpty) {
+                      query['path'] = targetRelativePath;
+                    }
+                    final searchQuery = currentUri.queryParameters['query'];
+                    if (searchQuery != null && searchQuery.trim().isNotEmpty) {
+                      query['query'] = searchQuery.trim();
+                    }
+                    context.go(
+                      Uri(path: '/local', queryParameters: query).toString(),
+                    );
+                  },
+                )
+                : share.selectedSource == 'local' && pathSnapshot != null
+                ? Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    i18n.t('common.local'),
+                    style: TextStyle(
+                      fontSize: widget.showNavigationAppBar ? 18 : 24,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                )
+                : _LocalBreadcrumbPlaceholder(
+                  compact: widget.showNavigationAppBar,
+                )
             : null;
     final routeSurface =
         widget.showNavigationAppBar
@@ -714,12 +728,7 @@ String? _synchronousWorkspaceAppBarTitle({
             'count': snapshot.songs.length,
           })
           : i18n.t('library.allSongs'),
-    '/albums' =>
-      snapshot.showCount
-          ? i18n.t('library.allAlbumsWithCount', {
-            'count': _albumCount(snapshot, i18n),
-          })
-          : i18n.t('library.allAlbums'),
+    '/albums' => i18n.t('library.allAlbums'),
     '/playlists' =>
       snapshot.showCount
           ? i18n.t('search.playlistsWithCount', {
@@ -738,4 +747,27 @@ String? _synchronousWorkspaceAppBarTitle({
     '/search' => _searchWorkspaceTitle(uri, i18n),
     _ => null,
   };
+}
+
+class _LocalBreadcrumbPlaceholder extends StatelessWidget {
+  const _LocalBreadcrumbPlaceholder({required this.compact});
+  final bool compact;
+
+  @override
+  Widget build(BuildContext context) => SizedBox(
+    height: compact ? 36 : 42,
+    child: Row(
+      children: [
+        if (!compact) ...[
+          Text(
+            context.smPlayerI18n.t('local.currentPath'),
+            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+          ),
+          const SizedBox(width: 12),
+        ],
+        const Expanded(child: SmPlayerSkeletonBlock(height: 36, radius: 8)),
+        if (!compact) const SizedBox(width: 54),
+      ],
+    ),
+  );
 }

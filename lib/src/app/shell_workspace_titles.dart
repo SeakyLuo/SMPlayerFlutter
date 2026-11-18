@@ -1,12 +1,5 @@
 part of 'shell_workspace.dart';
 
-int _albumCount(LibraryContentData snapshot, SmPlayerI18n i18n) {
-  return {
-    for (final song in snapshot.songs)
-      song.album.isEmpty ? i18n.t('common.albumUnknown') : song.album,
-  }.length;
-}
-
 String _searchWorkspaceTitle(Uri uri, SmPlayerI18n i18n) {
   final query = uri.queryParameters['query']?.trim() ?? '';
   final folder = uri.queryParameters['folder'] ?? '';
@@ -43,15 +36,7 @@ String _workspaceTitle({
   }
 
   if (path.startsWith('/recent')) {
-    final hasRecentContent =
-        snapshot != null &&
-        (snapshot.songs.isNotEmpty ||
-            snapshot.recentSongs.isNotEmpty ||
-            snapshot.recentPlaylists.isNotEmpty ||
-            snapshot.recentAlbums.isNotEmpty ||
-            snapshot.recentArtists.isNotEmpty ||
-            snapshot.recentSearches.isNotEmpty);
-    return hasRecentContent ? '' : i18n.t('common.recent');
+    return '';
   }
 
   if (path.startsWith('/local')) {

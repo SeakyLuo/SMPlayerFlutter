@@ -4,11 +4,13 @@ import FlutterMacOS
 import MediaPlayer
 import UserNotifications
 
-class MainFlutterWindow: NSWindow, NSWindowDelegate, UNUserNotificationCenterDelegate {
+class MainFlutterWindow: NSWindow, NSWindowDelegate {
   private static let mainWindowFrameAutosaveName = "SMPlayerMainWindowFrame"
   private static let mainWindowMinimumSize = NSSize(width: 506, height: 698)
   private static let functionPlaybackHotKeySignature: OSType = 0x534D504C
 
+  private lazy var trackNotifications = TrackNotifications(window: self)
+  private let backgroundSharing = BackgroundSharing()
   private var desktopFeatureChannel: FlutterMethodChannel?
   private var functionPlaybackHotKeyHandler: EventHandlerRef?
   private var functionPlaybackHotKeyRefs: [EventHotKeyRef] = []
@@ -32,11 +34,12 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate, UNUserNotificationCenterDel
     installNativeSplash(on: flutterViewController.view)
 
     RegisterGeneratedPlugins(registry: flutterViewController)
+    backgroundSharing.register(with: flutterViewController.engine)
     desktopFeatureChannel = FlutterMethodChannel(
       name: "smplayer_flutter/desktop_features",
       binaryMessenger: flutterViewController.engine.binaryMessenger)
     desktopFeatureChannel?.setMethodCallHandler(handleDesktopFeatureMethodCall)
-    UNUserNotificationCenter.current().delegate = self
+    UNUserNotificationCenter.current().delegate = trackNotifications
     SmPlayerExternalFileAccessStore.shared.restoreAccess()
     restoreSecurityScopedDirectoryAccess()
     installMediaSessionCommandCenter()
@@ -212,8 +215,7 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate, UNUserNotificationCenterDel
           details: nil))
         return
       }
-      showTrackNotification(payload)
-      result(nil)
+      trackNotifications.show(payload, result: result)
       return
     }
     result(FlutterMethodNotImplemented)
@@ -408,48 +410,6 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate, UNUserNotificationCenterDel
     } completionHandler: {
       splashView.removeFromSuperview()
     }
-  }
-
-  private func showTrackNotification(_ payload: [String: Any]) {
-    let content = UNMutableNotificationContent()
-    content.title = (payload["title"] as? String) ?? ""
-    content.body = (payload["body"] as? String) ?? ""
-    if !((payload["silent"] as? Bool) ?? false) {
-      content.sound = .default
-    }
-    content.userInfo = ["songId": payload["songId"] ?? 0]
-
-    let request = UNNotificationRequest(
-      identifier: "smplayer-track-\(payload["songId"] ?? 0)-\(Date().timeIntervalSince1970)",
-      content: content,
-      trigger: nil)
-    UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { granted, _ in
-      if !granted {
-        return
-      }
-      UNUserNotificationCenter.current().add(request)
-    }
-  }
-
-  func userNotificationCenter(
-    _ center: UNUserNotificationCenter,
-    willPresent notification: UNNotification,
-    withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
-  ) {
-    completionHandler([.banner, .sound])
-  }
-
-  func userNotificationCenter(
-    _ center: UNUserNotificationCenter,
-    didReceive response: UNNotificationResponse,
-    withCompletionHandler completionHandler: @escaping () -> Void
-  ) {
-    if isMiniaturized {
-      deminiaturize(nil)
-    }
-    makeKeyAndOrderFront(nil)
-    NSApp.activate(ignoringOtherApps: true)
-    completionHandler()
   }
 
   private func updateMediaSession(_ state: [String: Any]) {

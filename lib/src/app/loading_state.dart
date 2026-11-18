@@ -74,9 +74,9 @@ class SmPlayerLoadingState extends StatelessWidget {
     mainAxisSize: MainAxisSize.min,
     children: [
       for (var index = 0; index < count; index++) ...[
-        const _SkeletonBlock(width: 72, height: 12),
+        const SmPlayerSkeletonBlock(width: 72, height: 12),
         const SizedBox(height: 12),
-        const _SkeletonBlock(height: 40, radius: 8),
+        const SmPlayerSkeletonBlock(height: 40, radius: 8),
         const SizedBox(height: 24),
       ],
     ],
@@ -90,7 +90,7 @@ class SmPlayerLoadingState extends StatelessWidget {
           padding: EdgeInsets.symmetric(vertical: compact ? 8 : 12),
           child: Row(
             children: [
-              _SkeletonBlock(
+              SmPlayerSkeletonBlock(
                 width: compact ? 40 : 48,
                 height: compact ? 40 : 48,
                 radius: 8,
@@ -102,19 +102,19 @@ class SmPlayerLoadingState extends StatelessWidget {
                   children: [
                     FractionallySizedBox(
                       widthFactor: index.isEven ? 0.62 : 0.46,
-                      child: const _SkeletonBlock(height: 14),
+                      child: const SmPlayerSkeletonBlock(height: 14),
                     ),
                     const SizedBox(height: 10),
                     const FractionallySizedBox(
                       widthFactor: 0.34,
-                      child: _SkeletonBlock(height: 10),
+                      child: SmPlayerSkeletonBlock(height: 10),
                     ),
                   ],
                 ),
               ),
               if (!compact) ...[
                 const SizedBox(width: 20),
-                const _SkeletonBlock(width: 32, height: 10),
+                const SmPlayerSkeletonBlock(width: 32, height: 10),
               ],
             ],
           ),
@@ -140,16 +140,16 @@ class SmPlayerLoadingState extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _SkeletonBlock(height: tileWidth, radius: 10),
+                SmPlayerSkeletonBlock(height: tileWidth, radius: 10),
                 const SizedBox(height: 14),
                 const FractionallySizedBox(
                   widthFactor: 0.75,
-                  child: _SkeletonBlock(height: 14),
+                  child: SmPlayerSkeletonBlock(height: 14),
                 ),
                 const SizedBox(height: 10),
                 const FractionallySizedBox(
                   widthFactor: 0.45,
-                  child: _SkeletonBlock(height: 10),
+                  child: SmPlayerSkeletonBlock(height: 10),
                 ),
               ],
             ),
@@ -165,7 +165,7 @@ class SmPlayerLoadingState extends StatelessWidget {
       children: [
         Row(
           children: [
-            _SkeletonBlock(width: artwork, height: artwork, radius: 10),
+            SmPlayerSkeletonBlock(width: artwork, height: artwork, radius: 10),
             const SizedBox(width: 20),
             const Expanded(
               child: Column(
@@ -173,12 +173,12 @@ class SmPlayerLoadingState extends StatelessWidget {
                 children: [
                   FractionallySizedBox(
                     widthFactor: 0.65,
-                    child: _SkeletonBlock(height: 24),
+                    child: SmPlayerSkeletonBlock(height: 24),
                   ),
                   SizedBox(height: 16),
                   FractionallySizedBox(
                     widthFactor: 0.4,
-                    child: _SkeletonBlock(height: 12),
+                    child: SmPlayerSkeletonBlock(height: 12),
                   ),
                 ],
               ),
@@ -192,8 +192,13 @@ class SmPlayerLoadingState extends StatelessWidget {
   }
 }
 
-class _SkeletonBlock extends StatelessWidget {
-  const _SkeletonBlock({this.width, required this.height, this.radius = 4});
+class SmPlayerSkeletonBlock extends StatelessWidget {
+  const SmPlayerSkeletonBlock({
+    super.key,
+    this.width,
+    required this.height,
+    this.radius = 4,
+  });
 
   final double? width;
   final double height;

@@ -85,7 +85,7 @@ final libraryPlaylistQueryInvalidationProvider = Provider.autoDispose
 final libraryQueryInvalidationProvider = Provider.autoDispose
     .family<Object, (LibraryQueryKind, String)>((ref, scope) => Object());
 
-// Share overlapping page loads only; the next load must observe writes.
+// Retain visited query results; change tokens invalidate data after writes.
 final libraryPageQueryProvider = FutureProvider.autoDispose
     .family<LibraryContentData, LibraryDataQuery>((ref, query) async {
       ref.watch(libraryQueryInvalidationProvider((query.kind, query.source)));
@@ -127,6 +127,7 @@ final libraryPageQueryProvider = FutureProvider.autoDispose
           ..removeWhere((id, _) => ids.contains(id));
       }
       await ref.read(libraryLoadedDataProvider.notifier).publish(page, query);
+      if (active) retainLibraryQuery(ref);
       return page;
     });
 
@@ -146,6 +147,7 @@ void invalidateLibraryQueries(
     LibraryQueryKind.favorites,
     LibraryQueryKind.album,
     LibraryQueryKind.artist,
+    LibraryQueryKind.lyrics,
   },
 }) {
   // Invalidating a family only re-queries its currently accessed instances.

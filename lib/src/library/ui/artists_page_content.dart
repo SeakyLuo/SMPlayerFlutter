@@ -96,6 +96,8 @@ extension _ArtistsPageContent on _ArtistsPageState {
           searchHistoryCount: 0,
         );
         final master = _ArtistsLoadingMaster(
+          sortCriterion: _artistSortCriterion,
+          onChangeArtistSort: _changeArtistSort,
           showSearch: !useWorkspaceAppBar,
           artistSearch: _artistSearch,
           scrollController: _artistListController,

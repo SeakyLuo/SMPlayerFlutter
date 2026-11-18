@@ -1,4 +1,5 @@
 #include "flutter_window.h"
+#include "background_sharing.h"
 #include "application_data_path.h"
 #include "desktop_lyrics_glass.h"
 #include "directory_picker.h"
@@ -476,6 +477,7 @@ bool FlutterWindow::OnCreate() {
               flutter_controller_->engine()->GetRegistrarForPlugin(
                   "SMPlayerWindowsSpeech")));
   RegisterDesktopFeatureChannel();
+  RegisterBackgroundSharingChannel(flutter_controller_->engine()->messenger());
   RegisterGlobalMediaHotkeys();
   taskbar_button_created_message_ =
       ::RegisterWindowMessageW(L"TaskbarButtonCreated");

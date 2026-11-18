@@ -72,6 +72,7 @@ class _HeaderHero extends StatelessWidget {
     required this.collapseProgress,
     required this.windowDragCallbacks,
     required this.commandBar,
+    this.loading = false,
   });
 
   final HeaderedPlaylistType type;
@@ -82,6 +83,7 @@ class _HeaderHero extends StatelessWidget {
   final double collapseProgress;
   final SmPlayerWindowDragCallbacks? windowDragCallbacks;
   final Widget commandBar;
+  final bool loading;
 
   @override
   Widget build(BuildContext context) {
@@ -120,27 +122,41 @@ class _HeaderHero extends StatelessWidget {
       windowDragCallbacks: windowDragCallbacks,
       child: ConstrainedBox(
         constraints: BoxConstraints(maxWidth: compact ? 420 : 860),
-        child: _HeaderHeroTitle(
-          title: title,
-          minimumFontSize: compact ? 20 : 24,
-          maxLines:
-              compact
-                  ? 2
-                  : collapsedDesktop
-                  ? 1
-                  : 3,
-          textAlign: compact ? TextAlign.center : TextAlign.start,
-          style: TextStyle(
-            color: colors.textStrong,
-            fontSize: titleSize,
-            height: compact ? 1.16 : 1.08,
-            fontWeight: FontWeight.w600,
-            fontVariations:
-                compact
-                    ? const [FontVariation.weight(800)]
-                    : const [FontVariation.weight(650)],
-          ),
-        ),
+        child:
+            loading
+                ? SizedBox(
+                  width: compact ? 220 : 360,
+                  height: titleSize * (compact ? 1.16 : 1.08),
+                  child: Align(
+                    alignment:
+                        compact ? Alignment.center : Alignment.centerLeft,
+                    child: SmPlayerSkeletonBlock(
+                      width: compact ? 200 : 330,
+                      height: titleSize * 0.8,
+                    ),
+                  ),
+                )
+                : _HeaderHeroTitle(
+                  title: title,
+                  minimumFontSize: compact ? 20 : 24,
+                  maxLines:
+                      compact
+                          ? 2
+                          : collapsedDesktop
+                          ? 1
+                          : 3,
+                  textAlign: compact ? TextAlign.center : TextAlign.start,
+                  style: TextStyle(
+                    color: colors.textStrong,
+                    fontSize: titleSize,
+                    height: compact ? 1.16 : 1.08,
+                    fontWeight: FontWeight.w600,
+                    fontVariations:
+                        compact
+                            ? const [FontVariation.weight(800)]
+                            : const [FontVariation.weight(650)],
+                  ),
+                ),
       ),
     );
     final titleBlock = Column(
@@ -159,18 +175,22 @@ class _HeaderHero extends StatelessWidget {
                 opacity: (1 - collapseProgress).clamp(0.0, 1.0),
                 child: _HeaderHeroDragRegion(
                   windowDragCallbacks: windowDragCallbacks,
-                  child: Text(
-                    info,
-                    maxLines: 1,
-                    textAlign: compact ? TextAlign.center : TextAlign.start,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: colors.textMuted,
-                      fontSize: lerpDouble(17, 14, collapseProgress)!,
-                      fontWeight: FontWeight.w600,
-                      fontVariations: const [FontVariation.weight(650)],
-                    ),
-                  ),
+                  child:
+                      loading
+                          ? const SmPlayerSkeletonBlock(width: 150, height: 17)
+                          : Text(
+                            info,
+                            maxLines: 1,
+                            textAlign:
+                                compact ? TextAlign.center : TextAlign.start,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: colors.textMuted,
+                              fontSize: lerpDouble(17, 14, collapseProgress)!,
+                              fontWeight: FontWeight.w600,
+                              fontVariations: const [FontVariation.weight(650)],
+                            ),
+                          ),
                 ),
               ),
             ),
@@ -230,13 +250,20 @@ class _HeaderHero extends StatelessWidget {
               children: [
                 _HeaderHeroDragRegion(
                   windowDragCallbacks: windowDragCallbacks,
-                  child: HeaderedPlaylistCover(
-                    artworkUrls: artworkUrls,
-                    title: title,
-                    type: type,
-                    size: coverSize,
-                    collapseProgress: collapseProgress,
-                  ),
+                  child:
+                      loading
+                          ? SmPlayerSkeletonBlock(
+                            width: coverSize,
+                            height: coverSize,
+                            radius: compact ? 8 : 14,
+                          )
+                          : HeaderedPlaylistCover(
+                            artworkUrls: artworkUrls,
+                            title: title,
+                            type: type,
+                            size: coverSize,
+                            collapseProgress: collapseProgress,
+                          ),
                 ),
                 SizedBox(width: compact ? 0 : gap, height: compact ? gap : 0),
                 Expanded(

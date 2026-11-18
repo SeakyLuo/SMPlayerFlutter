@@ -9,6 +9,7 @@ project(runner LANGUAGES CXX)
 add_executable(${BINARY_NAME} WIN32
   "flutter_window.cpp"
   "application_data_path.cpp"
+  "background_sharing.cpp"
   "desktop_lyrics_glass.cpp"
   "desktop_lyrics_tooltips.cpp"
   "directory_picker.cpp"

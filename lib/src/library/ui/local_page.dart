@@ -12,6 +12,8 @@ import '../../remote/music_share_models.dart';
 import 'local_page_remote.dart';
 import 'library_storage_actions.dart';
 import 'library_load_failure.dart';
+import 'local_directory_skeleton.dart';
+import 'local_directory_count.dart';
 import '../../remote/remote_page_access.dart';
 import 'package:flutter/services.dart';
 
@@ -53,7 +55,6 @@ import 'local_folder_model.dart';
 import 'library_root_picker.dart';
 import 'library_page_data_cache.dart';
 import 'local_content_view.dart';
-import 'local_i18n_counts.dart';
 import 'local_page_empty_content.dart';
 import 'local_move_to_folder_menu.dart';
 import 'local_page_model.dart';
@@ -229,7 +230,7 @@ class _LocalPageState extends ConsumerState<LocalPage> {
         const LibraryDataQuery(LibraryQueryKind.context),
       ),
     );
-    if (!contextValue.hasValue)
+    if (!contextValue.hasValue) {
       return LocalPageScaffold(
         child:
             contextValue.hasError
@@ -241,8 +242,9 @@ class _LocalPageState extends ConsumerState<LocalPage> {
                         ),
                       ),
                 )
-                : const SmPlayerLoadingState(),
+                : const LocalDirectorySkeleton(includeHeader: true),
       );
+    }
     final root =
         _remote
             ? '$remoteMusicScheme://$_source'
@@ -344,7 +346,7 @@ class _LocalPageState extends ConsumerState<LocalPage> {
           () =>
               _remote
                   ? _buildRemoteDirectoryPlaceholder(context, loading: true)
-                  : const LocalPageScaffold(child: SmPlayerLoadingState()),
+                  : _buildLocalDirectoryPlaceholder(context, root),
       error:
           (_, _) =>
               _remote
@@ -363,6 +365,28 @@ class _LocalPageState extends ConsumerState<LocalPage> {
           child: _buildPage(context, snapshot, i18n),
         );
       },
+    );
+  }
+
+  Widget _buildLocalDirectoryPlaceholder(
+    BuildContext context,
+    String rootPath,
+  ) {
+    if (rootPath.isEmpty) {
+      return const LocalPageScaffold(
+        child: LocalDirectorySkeleton(includeHeader: true),
+      );
+    }
+    return _buildPage(
+      context,
+      unavailableRemoteDirectorySnapshot(
+        _source,
+        widget.currentRelativePath,
+        rootPath: rootPath,
+      ),
+      context.smPlayerI18n,
+      contentUnavailable: true,
+      contentLoading: true,
     );
   }
 

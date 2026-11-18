@@ -71,35 +71,15 @@ extension _PlaylistsPageGrid on _PlaylistsPageState {
     return Column(
       children: [
         if (!useWorkspaceAppBar) ...[
-          Padding(
-            padding: const EdgeInsets.fromLTRB(24, 12, 24, 0),
-            child: _PlaylistsToolbar(
-              searchDraft: _searchDraft,
-              searchHasText: _searchDraft.isNotEmpty || _searchQuery.isNotEmpty,
-              i18n: i18n,
-              searchFocused: _searchFocused,
-              searchSuggestions: searchSuggestions,
-              searchHistoryEntries: searchHistoryEntries,
-              onSearchChanged: (value) {
-                _updateState(() {
-                  _searchDraft = value;
-                });
-              },
-              onSearchFocusChanged: _changeSearchFocus,
-              onSearchSubmitted: _submitSearch,
-              onClearSearch: _clearSearch,
-              onSelectSearchSuggestion: _selectSearchQuery,
-              onRemoveRecentSearch: _removeRecentSearch,
-              onClearRecentSearches: _clearRecentSearches,
-              onCreatePlaylist:
-                  !canCreateSourcePlaylist()
-                      ? null
-                      : () {
-                        unawaited(_createPlaylist(context, i18n, snapshot));
-                      },
-            ),
+          _buildGridToolbar(
+            i18n,
+            searchSuggestions,
+            searchHistoryEntries,
+            !canCreateSourcePlaylist()
+                ? null
+                : () => unawaited(_createPlaylist(context, i18n, snapshot)),
           ),
-          const SizedBox(height: 18),
+          const SizedBox(height: 12),
         ],
         Expanded(
           child:
@@ -128,12 +108,9 @@ extension _PlaylistsPageGrid on _PlaylistsPageState {
                   )
                   : LayoutBuilder(
                     builder: (context, constraints) {
-                      final columns = ((constraints.maxWidth +
-                                  _playlistGridCrossAxisSpacing) /
-                              (_playlistCardWidth +
-                                  _playlistGridCrossAxisSpacing))
-                          .floor()
-                          .clamp(1, 8);
+                      final columns = _playlistGridColumns(
+                        constraints.maxWidth,
+                      );
                       return Padding(
                         padding: const EdgeInsets.only(right: 18),
                         child: EdgeAutoHideScrollbar(
@@ -152,20 +129,10 @@ extension _PlaylistsPageGrid on _PlaylistsPageState {
                                 child: GridView.builder(
                                   key: const ValueKey('Playlists.GridView'),
                                   controller: scrollController,
-                                  padding: EdgeInsets.fromLTRB(
-                                    38,
-                                    useWorkspaceAppBar ? 20 : 8,
-                                    14,
-                                    116,
+                                  padding: _playlistGridPadding(
+                                    useWorkspaceAppBar,
                                   ),
-                                  gridDelegate:
-                                      SliverGridDelegateWithFixedCrossAxisCount(
-                                        crossAxisCount: columns,
-                                        mainAxisExtent: gridViewHolderHeight,
-                                        crossAxisSpacing:
-                                            _playlistGridCrossAxisSpacing,
-                                        mainAxisSpacing: 26,
-                                      ),
+                                  gridDelegate: _playlistGridDelegate(columns),
                                   itemCount: visiblePlaylists.length,
                                   itemBuilder: (context, index) {
                                     final playlist = visiblePlaylists[index];

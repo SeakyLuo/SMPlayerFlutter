@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:path/path.dart' as p;
 
 import '../library/data/library_models.dart';
@@ -17,9 +18,14 @@ import 'music_share_identity.dart';
 import 'music_share_models.dart';
 import 'remote_directory_refresh.dart';
 import 'music_share_server.dart';
+import 'music_share_host.dart';
+import 'music_share_background_host.dart';
+import 'music_share_background_platform.dart';
+import 'music_share_connection_store.dart';
 import 'music_share_playlist_client.dart';
 
 part 'music_share_controller_authorization.dart';
+part 'music_share_controller_host.dart';
 part 'music_share_controller_connections.dart';
 part 'music_share_controller_events.dart';
 part 'music_share_controller_page_data.dart';
@@ -36,6 +42,7 @@ class MusicShareController extends ChangeNotifier
     this.onCatalogChanged, {
     required this.loadLibrary,
     required this.onPlaylistsChanged,
+    required this.onHostDataChanged,
   }) {
     ready = _load();
     initialConnection = ready.then((_) => checkConnections()).whenComplete(() {
@@ -45,7 +52,10 @@ class MusicShareController extends ChangeNotifier
     startup = ready.then((_) async {
       busy = true;
       try {
-        if (sharing) await server.start(port: port);
+        if (sharing) await _startSharingHost();
+      } catch (error, stack) {
+        hostFailure = (error: error, stack: stack);
+        SystemLog.error('Music sharing host startup failed', error, stack);
       } finally {
         busy = false;
         _notify();
@@ -57,12 +67,13 @@ class MusicShareController extends ChangeNotifier
   final void Function(String source) onCatalogChanged;
   final Future<LibraryContentData> Function() loadLibrary;
   final void Function(List<LibraryPlaylist>) onPlaylistsChanged;
+  final void Function(List<String>) onHostDataChanged;
   late final Future<void> ready;
   late final Future<void> initialConnection;
   late final Future<void> startup;
   late MusicShareIdentity identity;
   @override
-  late MusicShareServer server;
+  late MusicShareHost server;
   late String databasePath;
   final peers = <MusicPeer>[];
   final discovered = <DiscoveredMusicHost>[];
@@ -77,8 +88,12 @@ class MusicShareController extends ChangeNotifier
   @override
   var selectedSource = 'local';
   var sharing = false;
+  var backgroundSharing = false;
+  ({Object error, StackTrace stack})? hostFailure;
   ({int revision, String name})? incomingConnection;
   var autoConnect = true;
+  var updatingAutoConnect = false;
+  var updatingBackgroundSharing = false;
   String? lastConnectedPeerId;
   var port = musicSharePort;
   var busy = false;
@@ -87,6 +102,7 @@ class MusicShareController extends ChangeNotifier
   var _disposed = false;
   Future<void>? _shutdownFuture;
   Future<void> _savePending = Future.value();
+  Future<void> _hostMutations = Future.value();
   Timer? _connectionTimer;
   var _checking = false;
   final _events = <String, _MusicShareEventConnection>{};
@@ -97,6 +113,7 @@ class MusicShareController extends ChangeNotifier
   final _pendingCatalogPeers = <String>{};
   final _pendingSongIds = <String, Set<int>>{};
   final _peerDataEpochs = <String, int>{};
+  final _accessedPeerDataEpochs = <String, int>{};
   Timer? _localChangeTimer;
   final _localChanges = <String>{};
   final _remoteDataChanges = StreamController<String>.broadcast();
@@ -183,10 +200,12 @@ class MusicShareController extends ChangeNotifier
   }) => _searchLyrics(device, query, folderPath, offset: offset, order: order);
 
   void notifyLibraryAccess(String device) {
-    if (_pendingCatalogPeers.contains(device) ||
-        _pendingPlaylistPeers.contains(device) ||
-        (_pendingSongIds[device]?.isNotEmpty ?? false))
-      onCatalogChanged(device);
+    final epoch = _peerDataEpochs[device];
+    if (epoch == null || _accessedPeerDataEpochs[device] == epoch) return;
+    // One notification invalidates every affected query once. Pending playlist
+    // or song reads must not invalidate unrelated pages again on every visit.
+    _accessedPeerDataEpochs[device] = epoch;
+    onCatalogChanged(device);
   }
 
   @override
@@ -277,38 +296,44 @@ class MusicShareController extends ChangeNotifier
     if (!_disposed) notifyListeners();
   }
 
+  Future<void> save() => _saveConnections();
+
   @override
-  Future<void> save() {
-    final value = jsonEncode({
-      'name': name,
-      'source': selectedSource,
-      'sharing': sharing,
-      'autoConnect': autoConnect,
-      'lastConnectedPeerId': lastConnectedPeerId,
-      'port': port,
-      'grants': grants,
-      'grantIdentities': grantIdentities,
-      'mobileGrants': mobileGrants.toList(),
-      'writeGrants': writeGrants.toList(),
-      'peers': peers.map((peer) => peer.toJson()).toList(),
-    });
-    final operation = _savePending.then(
-      (_) => MusicShareIdentity.storage.write(
-        key: 'music-share-connections-v1',
-        value: value,
-      ),
-    );
-    _savePending = operation.then<void>(
+  Future<void> syncSharingConfiguration() =>
+      _runHostMutation(_syncSharingConfiguration);
+
+  @override
+  Future<T> withSharingSuspended<T>(Future<T> Function() operation) =>
+      _runHostMutation(() => _withSharingSuspended(operation));
+
+  @override
+  Future<void> _persistHostSettings() async {
+    if (server is MusicShareServer)
+      await MusicShareConnectionStore.writeHost(_hostConfiguration);
+  }
+
+  @override
+  Future<T> _runHostMutation<T>(Future<T> Function() action) {
+    final operation = _hostMutations.then((_) => action());
+    _hostMutations = operation.then<void>(
       (_) {},
       onError: (Object _, StackTrace __) {},
     );
     return operation;
   }
 
+  Future<void> setSharing(bool enabled) =>
+      _runHostMutation(() => _setSharing(enabled));
+  Future<void> setBackgroundSharing(bool enabled) =>
+      _runHostMutation(() => _setBackgroundSharing(enabled));
+  Future<void> setHostName(String value) =>
+      _runHostMutation(() => _setHostName(value));
+  Future<void> setPort(int value) => _runHostMutation(() => _setPort(value));
+
   Future<void> setAutoConnect(bool enabled) async {
     final previous = autoConnect;
     autoConnect = enabled;
-    busy = true;
+    updatingAutoConnect = true;
     _notify();
     try {
       await save();
@@ -316,7 +341,7 @@ class MusicShareController extends ChangeNotifier
       autoConnect = previous;
       rethrow;
     } finally {
-      busy = false;
+      updatingAutoConnect = false;
       _notify();
     }
     if (enabled) unawaited(checkConnections());
@@ -341,44 +366,6 @@ class MusicShareController extends ChangeNotifier
     if (selectedSource == 'local') return !isRemoteMusicPath(song.path);
     return isRemoteMusicPath(song.path) &&
         Uri.parse(song.path).host == selectedSource;
-  }
-
-  Future<void> setSharing(bool enabled) async {
-    if (!initialized) await ready;
-    busy = true;
-    _notify();
-    try {
-      if (enabled) {
-        await server.start(port: port);
-      } else {
-        await server.stop();
-      }
-      sharing = enabled;
-      await save();
-    } finally {
-      busy = false;
-      _notify();
-    }
-  }
-
-  Future<void> setPort(int value) async {
-    busy = true;
-    _notify();
-    final previous = port;
-    try {
-      if (server.running) await server.changePort(value);
-      port = value;
-      try {
-        await save();
-      } catch (_) {
-        port = previous;
-        if (server.running) await server.changePort(previous);
-        rethrow;
-      }
-    } finally {
-      busy = false;
-      _notify();
-    }
   }
 
   @override
@@ -408,6 +395,8 @@ class MusicShareController extends ChangeNotifier
     _pendingPlaylistPeers.remove(peer.id);
     _pendingCatalogPeers.remove(peer.id);
     _pendingSongIds.remove(peer.id);
+    _peerDataEpochs.remove(peer.id);
+    _accessedPeerDataEpochs.remove(peer.id);
     _disconnectEvents(peer.id);
     _requestRecoveryPeers.remove(peer.id);
     _heartbeatSilence.remove(peer.id);
@@ -767,7 +756,7 @@ class MusicShareController extends ChangeNotifier
     }
     await Future.wait([
       if (_proxy != null) _proxy!.close(force: true),
-      if (initialized) server.stop(),
+      if (initialized) server.disconnect(),
     ]);
   }
 

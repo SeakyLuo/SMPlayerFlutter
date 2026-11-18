@@ -32,6 +32,9 @@
 		A71D9B032E5F000100C0D001 /* DesktopLyricsWindowGeometry.swift in Sources */ = {isa = PBXBuildFile; fileRef = A71D9B012E5F000100C0D001 /* DesktopLyricsWindowGeometry.swift */; };
 		4D804E7325F4C8059DFDC46E /* Pods_RunnerTests.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B6542B95D75E55E4D03966D9 /* Pods_RunnerTests.framework */; };
 		B3D2C5A5A39F303F525883D5 /* Pods_Runner.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 94183A7AFD82C5E9642D03A9 /* Pods_Runner.framework */; };
+		AAF375A6733C461B8C46811F /* BackgroundSharing.swift in Sources */ = {isa = PBXBuildFile; fileRef = 131267060F4B4560BB52446A /* BackgroundSharing.swift */; };
+		B5D2FF233C544D5F9207C6AC /* main.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D8E29ED084F47EB9299599A /* main.swift */; };
+		E48A3A992E71000100000001 /* TrackNotifications.swift in Sources */ = {isa = PBXBuildFile; fileRef = E48A3A992E71000100000002 /* TrackNotifications.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -95,6 +98,9 @@
 		ADCCE67C4A306497B74B5A1B /* Pods-RunnerTests.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-RunnerTests.debug.xcconfig"; path = "Target Support Files/Pods-RunnerTests/Pods-RunnerTests.debug.xcconfig"; sourceTree = "<group>"; };
 		B6542B95D75E55E4D03966D9 /* Pods_RunnerTests.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_RunnerTests.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		CC31D2245A3F29B2509196E1 /* Pods-RunnerTests.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-RunnerTests.release.xcconfig"; path = "Target Support Files/Pods-RunnerTests/Pods-RunnerTests.release.xcconfig"; sourceTree = "<group>"; };
+		131267060F4B4560BB52446A /* BackgroundSharing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackgroundSharing.swift; sourceTree = "<group>"; };
+		0D8E29ED084F47EB9299599A /* main.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = main.swift; sourceTree = "<group>"; };
+		E48A3A992E71000100000002 /* TrackNotifications.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrackNotifications.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -184,7 +190,10 @@
 			isa = PBXGroup;
 			children = (
 				33CC10F02044A3C60003C045 /* AppDelegate.swift */,
+				131267060F4B4560BB52446A /* BackgroundSharing.swift */,
+				0D8E29ED084F47EB9299599A /* main.swift */,
 				33CC11122044BFA00003C045 /* MainFlutterWindow.swift */,
+				E48A3A992E71000100000002 /* TrackNotifications.swift */,
 				A71D9B012E5F000100C0D001 /* DesktopLyricsWindowGeometry.swift */,
 				33E51913231747F40026EE4D /* DebugProfile.entitlements */,
 				33E51914231749380026EE4D /* Release.entitlements */,
@@ -364,7 +373,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "echo \"$PRODUCT_NAME.app\" > \"$PROJECT_DIR\"/Flutter/ephemeral/.app_filename && \"$FLUTTER_ROOT\"/packages/flutter_tools/bin/macos_assemble.sh embed\n";
+			shellScript = "echo \"$PRODUCT_NAME.app\" > \"$PROJECT_DIR\"/Flutter/ephemeral/.app_filename && \"$FLUTTER_ROOT\"/packages/flutter_tools/bin/macos_assemble.sh embed\nmkdir -p \"$TARGET_BUILD_DIR/$CONTENTS_FOLDER_PATH/Library/LaunchAgents\"\ncp \"$PROJECT_DIR/Runner/LaunchAgents/com.seaky.smplayer.sharing.plist\" \"$TARGET_BUILD_DIR/$CONTENTS_FOLDER_PATH/Library/LaunchAgents/\"\n";
 		};
 		33CC111E2044C6BF0003C045 /* ShellScript */ = {
 			isa = PBXShellScriptBuildPhase;
@@ -483,7 +492,10 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				AAF375A6733C461B8C46811F /* BackgroundSharing.swift in Sources */,
+				B5D2FF233C544D5F9207C6AC /* main.swift in Sources */,
 				33CC11132044BFA00003C045 /* MainFlutterWindow.swift in Sources */,
+				E48A3A992E71000100000001 /* TrackNotifications.swift in Sources */,
 				A71D9B022E5F000100C0D001 /* DesktopLyricsWindowGeometry.swift in Sources */,
 				33CC10F12044A3C60003C045 /* AppDelegate.swift in Sources */,
 				335BBD1B22A9A15E00E9071D /* GeneratedPluginRegistrant.swift in Sources */,

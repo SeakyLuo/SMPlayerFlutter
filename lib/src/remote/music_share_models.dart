@@ -69,20 +69,19 @@ class DiscoveredMusicHost {
 
 class MusicPairRequest {
   MusicPairRequest({
-    required this.secret,
     required this.name,
     required this.code,
     this.deviceIdentity,
     this.previousGrant,
     this.isMobile = false,
-  });
-  final String secret;
+    DateTime? expires,
+  }) : expires = expires ?? DateTime.now().add(const Duration(minutes: 2));
   final String name;
   final String code;
   final String? deviceIdentity;
   final String? previousGrant;
   final bool isMobile;
-  final expires = DateTime.now().add(const Duration(minutes: 2));
+  final DateTime expires;
   String state = 'pending';
   String? token;
 }

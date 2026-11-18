@@ -28,11 +28,7 @@ extension _LibraryLyricsInternet on LibraryLyricsService {
       return '';
     }
 
-    try {
-      return await _getRawLyricsBySongMid(songMid);
-    } catch (_) {
-      return '';
-    }
+    return _getRawLyricsBySongMid(songMid);
   }
 
   Future<String> _getRawLyricsBySongMid(String songMid) async {
@@ -207,28 +203,24 @@ extension _LibraryLyricsInternet on LibraryLyricsService {
         'key': keyword,
       },
     );
-    try {
-      final response = await _fetchLyricsJson(uri);
-      final data = response['data'] as Map<String, Object?>?;
-      final song = data?['song'] as Map<String, Object?>?;
-      final items = song?['itemlist'] as List<Object?>? ?? const [];
-      Map<String, Object?>? bestMatch;
-      var bestScore = -1;
+    final response = await _fetchLyricsJson(uri);
+    final data = response['data'] as Map<String, Object?>?;
+    final song = data?['song'] as Map<String, Object?>?;
+    final items = song?['itemlist'] as List<Object?>? ?? const [];
+    Map<String, Object?>? bestMatch;
+    var bestScore = -1;
 
-      for (final item in items.whereType<Map<String, Object?>>()) {
-        final score =
-            _evaluateLyricsMatch(title, item['name'] as String? ?? '') * 2 +
-            _evaluateLyricsMatch(artist, item['singer'] as String? ?? '');
-        if (score > bestScore) {
-          bestScore = score;
-          bestMatch = item;
-        }
+    for (final item in items.whereType<Map<String, Object?>>()) {
+      final score =
+          _evaluateLyricsMatch(title, item['name'] as String? ?? '') * 2 +
+          _evaluateLyricsMatch(artist, item['singer'] as String? ?? '');
+      if (score > bestScore) {
+        bestScore = score;
+        bestMatch = item;
       }
-
-      return bestScore > 0 ? (bestMatch?['mid'] as String? ?? '') : '';
-    } catch (_) {
-      return '';
     }
+
+    return bestScore > 0 ? (bestMatch?['mid'] as String? ?? '') : '';
   }
 
   Future<Map<String, Object?>> _fetchLyricsJson(Uri uri) async {

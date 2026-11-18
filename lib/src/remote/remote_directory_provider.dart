@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../platform/system_log.dart';
+import '../library/data/library_providers.dart';
 import 'music_share_identity.dart';
 import 'music_share_models.dart';
 import 'music_source_providers.dart';
@@ -20,6 +21,14 @@ class RemoteDirectoryIndex {
 // the local library snapshot. Rebuilding the page does not restart the request.
 final remoteDirectoryProvider = FutureProvider.autoDispose
     .family<RemoteDirectoryIndex, String>((ref, device) async {
+      ref.watch(
+        libraryQueryInvalidationProvider((
+          LibraryQueryKind.directoryIndex,
+          device,
+        )),
+      );
+      var active = true;
+      ref.onDispose(() => active = false);
       final share = ref.read(musicShareProvider);
       await share.ready;
       final peer = share.peers.firstWhere((peer) => peer.id == device);
@@ -40,6 +49,7 @@ final remoteDirectoryProvider = FutureProvider.autoDispose
           'Remote directory loaded: device=${peer.name}; '
           'folders=${directory.folders.length}',
         );
+        if (active) retainLibraryQuery(ref);
         return directory;
       } catch (error, stack) {
         SystemLog.error(

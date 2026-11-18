@@ -32,15 +32,8 @@ class _SettingsDeviceNameState extends ConsumerState<_SettingsDeviceName> {
     setState(() => _saving = true);
     final share = ref.read(musicShareProvider);
     await runMusicShareAction(context, () async {
-      final previous = share.name;
-      share.name = value;
-      try {
-        await share.save();
-        share.localDataChanged('library');
-      } catch (_) {
-        share.name = previous;
-        rethrow;
-      }
+      await share.setHostName(value);
+      share.localDataChanged('library');
       if (mounted) setState(() => _editing = false);
     });
     if (mounted) setState(() => _saving = false);

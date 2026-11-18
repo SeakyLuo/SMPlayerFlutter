@@ -6,7 +6,6 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:smplayer_flutter/src/app/loading_state.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/data/library_models.dart';
 import 'package:smplayer_flutter/src/library/data/library_providers.dart';
@@ -36,7 +35,9 @@ class MyFavoritesPage extends ConsumerWidget {
 
     if ((i18nValue.isLoading && !i18nValue.hasValue) ||
         (snapshotValue.isLoading && !snapshotValue.hasValue)) {
-      return const _FavoritesPagePanel(child: SmPlayerLoadingState());
+      return const HeaderedPlaylistLoadingState(
+        type: HeaderedPlaylistType.favorites,
+      );
     }
 
     final i18n = i18nValue.valueOrNull;
@@ -46,7 +47,10 @@ class MyFavoritesPage extends ConsumerWidget {
 
     return snapshotValue.when(
       skipLoadingOnReload: true,
-      loading: () => const _FavoritesPagePanel(child: SmPlayerLoadingState()),
+      loading:
+          () => const HeaderedPlaylistLoadingState(
+            type: HeaderedPlaylistType.favorites,
+          ),
       error: (_, _) => const _FavoritesPagePanel(child: LibraryLoadFailure()),
       data: (rawSnapshot) {
         final snapshot = applyLibraryFavoriteOverrides(

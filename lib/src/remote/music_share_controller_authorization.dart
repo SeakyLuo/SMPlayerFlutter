@@ -1,42 +1,47 @@
 part of 'music_share_controller.dart';
 
 mixin _MusicShareAuthorization {
-  MusicShareServer get server;
+  MusicShareHost get server;
   Set<String> get writeGrants;
   Set<String> get permissionChanges;
-  Future<void> save();
+  Future<void> _persistHostSettings();
+  Future<T> _runHostMutation<T>(Future<T> Function() action);
   void _notify();
 
-  Future<void> approve(String key, bool allow, {bool canWrite = false}) async {
-    await server.approve(key, allow, persist: save, canWrite: canWrite);
-  }
+  Future<void> approve(String key, bool allow, {bool canWrite = false}) =>
+      _runHostMutation(
+        () => server.approve(
+          key,
+          allow,
+          persist: _persistHostSettings,
+          canWrite: canWrite,
+        ),
+      );
 
   Future<void> revoke(String hash) async {
     permissionChanges.add(hash);
     _notify();
     try {
-      await server.revoke(hash);
+      await _runHostMutation(() async {
+        await server.revoke(hash, persist: _persistHostSettings);
+      });
     } finally {
-      try {
-        await save();
-      } finally {
-        permissionChanges.remove(hash);
-        _notify();
-      }
+      permissionChanges.remove(hash);
+      _notify();
     }
   }
 
   Future<void> setWritePermission(String hash, bool enabled) async {
-    final previous = writeGrants.contains(hash);
     permissionChanges.add(hash);
-    enabled ? writeGrants.add(hash) : writeGrants.remove(hash);
     _notify();
     try {
-      await save();
-      server.events.permissionChanged(hash, enabled);
-    } catch (_) {
-      previous ? writeGrants.add(hash) : writeGrants.remove(hash);
-      rethrow;
+      await _runHostMutation(
+        () => server.setWritePermission(
+          hash,
+          enabled,
+          persist: _persistHostSettings,
+        ),
+      );
     } finally {
       permissionChanges.remove(hash);
       _notify();

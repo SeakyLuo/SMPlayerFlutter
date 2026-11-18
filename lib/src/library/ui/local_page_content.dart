@@ -298,7 +298,7 @@ extension _LocalPageContent on _LocalPageState {
                       child:
                           contentUnavailable
                               ? (contentLoading
-                                  ? const SmPlayerLoadingState()
+                                  ? const LocalDirectorySkeleton()
                                   : const SizedBox.shrink())
                               : childFolders.isEmpty &&
                                   currentNode.directCount == 0

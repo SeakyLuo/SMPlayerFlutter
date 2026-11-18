@@ -50,7 +50,6 @@ extension _MusicShareServerHttp on MusicShareServer {
           '${identity.fingerprint}:$secret',
         ).substring(0, 8);
         requests[key] = MusicPairRequest(
-          secret: secret,
           name: clientName,
           code: code,
           deviceIdentity: deviceIdentity,

@@ -26,7 +26,10 @@ class _SettingsMusicSharingState extends ConsumerState<_SettingsMusicSharing> {
   Widget build(BuildContext context) {
     final share = ref.watch(musicShareProvider);
     final i18n = context.smPlayerI18n;
-    final running = share.initialized && share.server.running;
+    final running =
+        share.initialized &&
+        (share.server.running ||
+            share.updatingBackgroundSharing && share.sharing);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -49,6 +52,7 @@ class _SettingsMusicSharingState extends ConsumerState<_SettingsMusicSharing> {
                 }
               }),
         ),
+        const _SettingsBackgroundSharing(),
         const SizedBox(height: 16),
         if (share.initialized)
           _PortSettingRow(

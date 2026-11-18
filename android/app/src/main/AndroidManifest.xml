@@ -3,6 +3,11 @@
     <uses-permission android:name="android.permission.CAMERA"/>
     <uses-feature android:name="android.hardware.camera" android:required="false"/>
     <uses-permission android:name="android.permission.INTERNET"/>
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE"/>
+    <uses-permission android:name="android.permission.CHANGE_NETWORK_STATE"/>
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
 
     <application
         android:networkSecurityConfig="@xml/music_network_security"
@@ -11,6 +16,11 @@
         android:label="Simple Melody Player"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
+        <service android:name=".MusicSharingService" android:exported="false"
+            android:process=":sharing" android:foregroundServiceType="connectedDevice" android:stopWithTask="false" />
+        <receiver android:name=".MusicSharingBootReceiver" android:exported="false">
+            <intent-filter><action android:name="android.intent.action.BOOT_COMPLETED" /></intent-filter>
+        </receiver>
         <activity
             android:name=".MainActivity"
             android:exported="true"

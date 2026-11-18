@@ -79,7 +79,7 @@ class _PlaylistsToolbarState extends State<_PlaylistsToolbar> {
   Widget build(BuildContext context) {
     _syncDropdown();
     return Padding(
-      padding: const EdgeInsets.fromLTRB(0, 10, 0, 12),
+      padding: const EdgeInsets.fromLTRB(0, 4, 0, 6),
       child: CommandBar(
         overflowLabel: widget.i18n.t('player.more'),
         content: OverlayPortal.overlayChildLayoutBuilder(

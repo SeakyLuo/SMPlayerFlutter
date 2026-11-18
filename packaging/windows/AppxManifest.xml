@@ -1,9 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Package xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
+  xmlns:desktop="http://schemas.microsoft.com/appx/manifest/desktop/windows10"
   xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
   xmlns:uap3="http://schemas.microsoft.com/appx/manifest/uap/windows10/3"
   xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
-  IgnorableNamespaces="uap uap3 rescap">
+  IgnorableNamespaces="desktop uap uap3 rescap">
   <Identity Name="23778SeakyTheLoner.SMPlayer" Publisher="CN=CFBE922A-0341-4A7E-B15B-A6DEF6C9E3AF"
     Version="0.0.0.0" ProcessorArchitecture="x64" />
   <Properties>
@@ -31,6 +32,10 @@
         Square150x150Logo="Assets\Square150x150Logo.png" Square44x44Logo="Assets\Square44x44Logo.png"
         BackgroundColor="transparent" />
       <Extensions>
+        <desktop:Extension Category="windows.startupTask" Executable="smplayer_flutter.exe" EntryPoint="Windows.FullTrustApplication">
+          <desktop:StartupTask TaskId="SMPlayerBackgroundSharing" Enabled="false" DisplayName="Simple Melody Player" />
+        </desktop:Extension>
+
         <uap:Extension Category="windows.fileTypeAssociation">
           <uap3:FileTypeAssociation Name="music_player" Parameters="&quot;%1&quot;">
             <uap:DisplayName>Simple Melody Player</uap:DisplayName>

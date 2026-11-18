@@ -48,6 +48,8 @@ part 'playlists_page_toolbar.dart';
 part 'playlists_app_bar_actions.dart';
 part 'playlists_empty_state.dart';
 part 'playlists_page_grid.dart';
+part 'playlists_page_loading.dart';
+part 'playlists_grid_layout.dart';
 part 'playlists_page_helpers.dart';
 part 'playlist_drop_placeholder.dart';
 part 'playlists_colors.dart';
@@ -154,7 +156,7 @@ class _PlaylistsPageState extends ConsumerState<PlaylistsPage> {
     required VoidCallback? onCreatePlaylist,
   }) {
     final signature =
-        '$showPortal:$routePath:$title:$_appBarSearchOpen:$_searchDraft:$_searchQuery:$_searchFocused:${searchSuggestions.length}:${searchHistoryEntries.length}';
+        '$showPortal:$routePath:$title:$_appBarSearchOpen:$_searchDraft:$_searchQuery:$_searchFocused:${searchSuggestions.length}:${searchHistoryEntries.length}:${onCreatePlaylist != null}';
     if (_appBarPortalSignature == signature) {
       return;
     }
@@ -236,20 +238,17 @@ class _PlaylistsPageState extends ConsumerState<PlaylistsPage> {
       nowPlayingQueueOverrideProvider,
     );
 
-    if ((i18nValue.isLoading && !i18nValue.hasValue) ||
-        (snapshotValue.isLoading && !snapshotValue.hasValue)) {
-      return const SmPlayerLoadingState(layout: SmPlayerLoadingLayout.grid);
-    }
-
     final i18n = i18nValue.valueOrNull;
     if (i18n == null) {
       return const SizedBox.shrink();
     }
 
     final remotePlaylists = ref.watch(remotePlaylistLoadStateProvider);
-    if (remotePlaylists.remote && !remotePlaylists.loaded) {
+    if (!snapshotValue.hasError &&
+        remotePlaylists.remote &&
+        !remotePlaylists.loaded) {
       if (remotePlaylists.loading) {
-        return const SmPlayerLoadingState(layout: SmPlayerLoadingLayout.grid);
+        return _buildLoading(context, i18n);
       }
       return _PlaylistsEmptyState(
         title: i18n.t('share.connectComputer'),
@@ -263,8 +262,7 @@ class _PlaylistsPageState extends ConsumerState<PlaylistsPage> {
 
     return snapshotValue.when(
       skipLoadingOnReload: true,
-      loading:
-          () => const SmPlayerLoadingState(layout: SmPlayerLoadingLayout.grid),
+      loading: () => _buildLoading(context, i18n),
       error: (error, _) {
         if (!identical(_lastPlaylistLoadError, error)) {
           _lastPlaylistLoadError = error;

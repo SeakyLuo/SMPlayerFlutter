@@ -21,6 +21,8 @@ abstract class MusicShareAccess {
     MusicLibrarySortCriterion? order,
   });
   void localDataChanged(String scope);
+  Future<void> syncSharingConfiguration();
+  Future<T> withSharingSuspended<T>(Future<T> Function() operation);
   Stream<String> get remoteDataChanges;
   List<LibraryPlaylist> get remotePlaylists;
   Future<LibraryContentData> queryLibraryData(

@@ -76,9 +76,10 @@ class RemoteDirectoryPageDataCache {
 
 LibraryContentData unavailableRemoteDirectorySnapshot(
   String device,
-  String path,
-) {
-  final root = '$remoteMusicScheme://$device';
+  String path, {
+  String? rootPath,
+}) {
+  final root = rootPath ?? '$remoteMusicScheme://$device';
   final segments = path.isEmpty ? <String>[] : path.split('/');
   return LibraryContentData(
     songs: const [],

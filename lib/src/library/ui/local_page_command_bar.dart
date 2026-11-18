@@ -29,15 +29,10 @@ extension _LocalPageCommandBar on _LocalPageState {
               ),
             ]
             : const [],
-    content: Text(
-      formatFolderCardStats(i18n, folderCount, songCount),
-      overflow: TextOverflow.ellipsis,
-      style: TextStyle(
-        color: colors.textMuted,
-        fontSize: 14,
-        fontWeight: FontWeight.w600,
-        fontVariations: const [FontVariation.weight(650)],
-      ),
+    content: LocalDirectoryCount(
+      loading: contentUnavailable,
+      folders: folderCount,
+      songs: songCount,
     ),
     children: [
       CommandBarButton(

@@ -559,7 +559,7 @@ class _AppNotificationOverlay extends StatelessWidget {
             ),
           ),
           child: Padding(
-            padding: EdgeInsets.fromLTRB(16, 8, actions.isEmpty ? 16 : 10, 8),
+            padding: EdgeInsets.fromLTRB(16, 15, actions.isEmpty ? 16 : 10, 15),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [

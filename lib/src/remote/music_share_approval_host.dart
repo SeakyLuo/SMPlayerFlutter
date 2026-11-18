@@ -23,6 +23,7 @@ class MusicShareApprovalHost extends ConsumerStatefulWidget {
 class _MusicShareApprovalHostState
     extends ConsumerState<MusicShareApprovalHost> {
   var _showing = false;
+  Object? _shownHostFailure;
 
   @override
   Widget build(BuildContext context) {
@@ -42,6 +43,21 @@ class _MusicShareApprovalHostState
       });
     });
     final share = ref.watch(musicShareProvider);
+    final failure = share.hostFailure;
+    if (failure != null && !identical(_shownHostFailure, failure)) {
+      _shownHostFailure = failure;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        showAppNotification(
+          context: context,
+          message: context.smPlayerI18n.t(
+            share.backgroundSharing
+                ? 'share.backgroundOperationFailed'
+                : 'share.sharingStartFailed',
+          ),
+        );
+      });
+    }
     if (!_showing && share.initialized) {
       final pending =
           share.server.requests.entries

@@ -271,8 +271,10 @@ class LyricsSnapshot {
     required this.isSynced,
     required this.rawText,
     required this.lines,
+    this.cacheable = true,
   });
 
+  final bool cacheable;
   final LyricsSource source;
   final bool isSynced;
   final String rawText;

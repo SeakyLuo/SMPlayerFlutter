@@ -37,6 +37,9 @@ class _RemotePageAccessState extends ConsumerState<RemotePageAccess> {
     if (widget.device == 'local') return false;
     final path = Uri.parse(widget.location).path;
     return [
+      '/local',
+      '/hidden-folders',
+      '/recent',
       '/songs',
       '/artists',
       '/albums',

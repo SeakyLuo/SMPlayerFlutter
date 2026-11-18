@@ -351,14 +351,12 @@ class TrayWindowDesktopFeatureService
   Future<void> showTrackNotification(TrackNotificationPayload payload) async {
     final body = desktopNotificationBody(payload);
     if (Platform.isMacOS) {
-      await _ignorePlatformErrors(
-        _desktopFeatureChannel.invokeMethod<void>('showTrackNotification', {
-          'title': payload.title,
-          'body': body,
-          'songId': payload.songId,
-          'silent': payload.silent,
-        }),
-      );
+      await _desktopFeatureChannel.invokeMethod<void>('showTrackNotification', {
+        'title': payload.title,
+        'body': body,
+        'songId': payload.songId,
+        'silent': payload.silent,
+      });
       return;
     }
 
@@ -577,14 +575,16 @@ class TrayWindowDesktopFeatureService
     if (!_shownTrayHint && state != null) {
       _shownTrayHint = true;
       unawaited(
-        showTrackNotification(
-          TrackNotificationPayload(
-            songId: 0,
-            title: state.labels.trayRunningTitle,
-            artist: state.labels.trayRunningBody,
-            album: '',
-            artworkPath: '',
-            silent: true,
+        _ignorePlatformErrors(
+          showTrackNotification(
+            TrackNotificationPayload(
+              songId: 0,
+              title: state.labels.trayRunningTitle,
+              artist: state.labels.trayRunningBody,
+              album: '',
+              artworkPath: '',
+              silent: true,
+            ),
           ),
         ),
       );

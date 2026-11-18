@@ -13,12 +13,15 @@ class SongArtwork extends StatelessWidget {
     this.fit = BoxFit.cover,
     this.fallback = const DefaultAlbumArtwork(),
     this.onError,
+    this.decodeWidth,
   });
 
   final String? artworkPath;
   final BoxFit fit;
   final Widget fallback;
   final VoidCallback? onError;
+  // Logical-pixel decode width for artwork whose displayed size is animated.
+  final double? decodeWidth;
 
   @override
   Widget build(BuildContext context) {
@@ -28,7 +31,12 @@ class SongArtwork extends StatelessWidget {
     }
 
     if (isRemoteMusicPath(path)) {
-      return _RemoteArtwork(path: path, fit: fit, fallback: fallback);
+      return _RemoteArtwork(
+        path: path,
+        fit: fit,
+        fallback: fallback,
+        decodeWidth: decodeWidth,
+      );
     }
     final file = File(path);
     return RepaintBoundary(
@@ -36,7 +44,9 @@ class SongArtwork extends StatelessWidget {
         builder: (context, constraints) {
           final devicePixelRatio = MediaQuery.devicePixelRatioOf(context);
           final cacheWidth =
-              constraints.hasBoundedWidth && constraints.maxWidth > 0
+              decodeWidth != null
+                  ? (decodeWidth! * devicePixelRatio).ceil()
+                  : constraints.hasBoundedWidth && constraints.maxWidth > 0
                   ? (constraints.maxWidth * devicePixelRatio).ceil()
                   : null;
           final cacheHeight =
@@ -202,7 +212,9 @@ class _RemoteArtwork extends StatefulWidget {
     required this.path,
     required this.fit,
     required this.fallback,
+    required this.decodeWidth,
   });
+  final double? decodeWidth;
   final String path;
   final BoxFit fit;
   final Widget fallback;
@@ -248,6 +260,7 @@ class _RemoteArtworkState extends State<_RemoteArtwork> {
         if (file == null) return widget.fallback;
         return SongArtwork(
           artworkPath: file.path,
+          decodeWidth: widget.decodeWidth,
           fit: widget.fit,
           fallback: widget.fallback,
         );

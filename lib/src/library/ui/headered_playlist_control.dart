@@ -1,4 +1,5 @@
 import 'library_scope_access.dart';
+import '../../app/loading_state.dart';
 import '../data/library_repository.dart';
 import '../../playback/source_group_play.dart';
 import '../../playback/media_control_model.dart' show formatDuration;
@@ -50,6 +51,7 @@ part 'headered_playlist_command_bar.dart';
 part 'headered_playlist_cover.dart';
 part 'headered_playlist_hero.dart';
 part 'headered_playlist_layout.dart';
+part 'headered_playlist_loading.dart';
 part 'headered_playlist_list.dart';
 part 'headered_playlist_portal.dart';
 part 'headered_playlist_song_menu.dart';

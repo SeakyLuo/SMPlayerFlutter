@@ -31,6 +31,7 @@ class LibraryDirectoryWindows
         _windows[(entry.key, entry.value)] =
             page.folderSongRows[entry.key] ?? const {};
       await ref.read(libraryLoadedDataProvider.notifier).publish(page, query);
+      if (generation == _generation) retainLibraryQuery(ref);
     }
     return page;
   }

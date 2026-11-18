@@ -261,15 +261,17 @@ extension _SmPlayerShellDesktopMethods on _SmPlayerShellPageState {
       return;
     }
 
-    _showTrackChangedNotification(currentSong: currentSong, i18n: i18n);
+    unawaited(
+      _showTrackChangedNotification(currentSong: currentSong, i18n: i18n),
+    );
   }
 
-  void _showTrackChangedNotification({
+  Future<void> _showTrackChangedNotification({
     required LibrarySong currentSong,
     required SmPlayerI18n i18n,
-  }) {
-    unawaited(
-      _desktopFeatureService.showTrackNotification(
+  }) async {
+    try {
+      await _desktopFeatureService.showTrackNotification(
         TrackNotificationPayload(
           songId: currentSong.id,
           title: currentSong.title,
@@ -277,8 +279,19 @@ extension _SmPlayerShellDesktopMethods on _SmPlayerShellPageState {
           album: desktopNotificationAlbum(currentSong, i18n),
           artworkPath: currentSong.thumbnailPath,
         ),
-      ),
-    );
+      );
+    } on PlatformException catch (error, stack) {
+      SystemLog.error('System notification failed', error, stack);
+      if (!mounted) return;
+      showAppNotification(
+        context: context,
+        message: i18n.t(
+          error.code == 'notifications_denied'
+              ? 'notification.systemPermissionDenied'
+              : 'notification.systemDeliveryFailed',
+        ),
+      );
+    }
   }
 
   void _handleDesktopFeatureAction(DesktopFeatureAction action) {

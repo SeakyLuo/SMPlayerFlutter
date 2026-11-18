@@ -4,6 +4,8 @@ final _searchIndexProvider = FutureProvider.autoDispose.family<
   LibraryContentData,
   LibraryDataQuery
 >((ref, query) async {
+  var active = true;
+  ref.onDispose(() => active = false);
   ref.watch(
     libraryQueryInvalidationProvider((
       LibraryQueryKind.artistIndex,
@@ -42,6 +44,7 @@ final _searchIndexProvider = FutureProvider.autoDispose.family<
         source.query(const LibraryDataQuery(LibraryQueryKind.directoryIndex)),
         source.query(const LibraryDataQuery(LibraryQueryKind.playlistIndex)),
       ).wait;
+  if (active) retainLibraryQuery(ref);
   return directories
       .withPlaylists(lists.playlists)
       .withPage(

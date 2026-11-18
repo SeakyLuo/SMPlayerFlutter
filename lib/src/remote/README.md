@@ -11,7 +11,8 @@ source-independent song identities. File browsing keeps the selected music sourc
 Sharing is off by default. Open Settings > External control and enable sharing for the configured local
 music library. The connection QR code is displayed immediately. Both screens show
 an eight-character code; approve a request only when those codes match.
-The provider must remain awake with SMPlayer running.
+The provider must remain awake. Without background sharing, SMPlayer must stay running;
+with background sharing enabled, the independent host continues after the UI closes.
 
 Android and iOS clients can choose Scan to connect in Connect device.
 The code contains only the HTTPS address and certificate fingerprint; scanning
@@ -123,3 +124,34 @@ agent with filesystem write access can still modify that database directly.
   "songIds": [12, 34]
 }
 ```
+
+## Independent background sharing
+
+`Background sharing` is subordinate to `Share local music`. With sharing off,
+no listener runs and login/reboot startup is unregistered. With sharing on and
+background sharing off, the existing in-app listener is used. With both on,
+exactly one independent headless host owns the listener, pending approvals and
+grants; closing the management UI only disconnects its private control channel.
+
+- Windows registers the packaged StartupTask (or the current-user Run entry for
+  unpackaged builds) and runs a windowless Flutter engine in a separate process.
+- macOS 13+ registers the bundled SMAppService launch agent. It uses the same
+  signed executable in headless mode and restores sandbox directory bookmarks.
+- Linux registers an XDG login entry and starts a separate engine without a view.
+- Android 8+ runs a `connectedDevice` foreground service in the `:sharing`
+  process. Android 13+ notification permission is required before switching from
+  the in-app listener. The notification opens the manager or stops sharing;
+  stopping also clears reboot startup. System force-stop and battery/network
+  restrictions still apply.
+- iOS does not expose the background-sharing switch.
+
+Desktop startup means user login, not availability before login. New pairing
+requests still require approval in the UI and expire after two minutes; reopening
+the UI reads the host's pending requests. Host restarts invalidate pending
+requests, but preserve device identity and existing grants.
+
+The authenticated management endpoint binds only to loopback. Its random token
+is stored in the private runtime directory, never in playback URLs. Host
+configuration has a separate secure-storage record. Android uses an atomic file
+encrypted with an Android Keystore key; it does not share cached preferences
+between processes. No database schema or song-cache columns are added.

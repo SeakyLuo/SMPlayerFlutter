@@ -1,5 +1,7 @@
 {
   "notification.operationDone": "操作完成",
+  "notification.systemPermissionDenied": "系統未允許 Simple Melody Player 傳送通知，請前往「系統設定 → 通知」開啟。",
+  "notification.systemDeliveryFailed": "系統通知傳送失敗，請稍後重試。",
   "settings.importRestoreQueue": "同時還原正在播放",
   "settings.importQueueHelp": "還原備份中的佇列和進度，保持暫停。取消勾選則保留目前佇列，並按檔案路徑重新配對歌曲。",
   "settings.importLegacyQueue": "此備份不含正在播放佇列，已保留目前佇列並按檔案路徑重新配對。",

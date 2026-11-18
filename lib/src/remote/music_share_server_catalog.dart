@@ -1,11 +1,6 @@
 part of 'music_share_server.dart';
 
 extension SharedCatalogQueries on MusicShareServer {
-  void markCatalogChanged() {
-    _catalogGeneration++;
-    if (running) events.dataChanged('library');
-  }
-
   Future<void> _readSharedSongsOnAccess(List<int> ids) async {
     final (metadata, songs) =
         await (

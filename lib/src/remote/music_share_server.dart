@@ -1,4 +1,5 @@
 import 'music_share_directory_index.dart';
+import 'music_share_host.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
@@ -34,7 +35,7 @@ part 'music_share_http_files.dart';
 part 'music_share_server_catalog.dart';
 part 'music_share_server_http.dart';
 
-class MusicShareServer {
+class MusicShareServer implements MusicShareHost {
   MusicShareServer({
     required this.identity,
     required this.repository,
@@ -46,7 +47,8 @@ class MusicShareServer {
     required this.onChanged,
     required this.onLibraryChanged,
     required this.onPeerConnected,
-  });
+    MusicShareEventHub? eventHub,
+  }) : events = eventHub ?? MusicShareEventHub();
 
   final MusicShareIdentity identity;
   final LibraryRepository repository;
@@ -61,6 +63,7 @@ class MusicShareServer {
   final _connectedClients = <String>{};
   final requests = <String, MusicPairRequest>{};
   final _streams = <String, Set<HttpResponse>>{};
+  final _handlers = <Future<void>>{};
   HttpServer? _server;
   RawDatagramSocket? _discovery;
   Timer? _expiryTimer;
@@ -72,7 +75,7 @@ class MusicShareServer {
   var _catalogGeneration = 0;
   String get catalogRevision =>
       shareDigest('$_catalogIdentity:$_catalogGeneration');
-  final events = MusicShareEventHub();
+  final MusicShareEventHub events;
 
   late final _files = MusicShareFiles(repository, () {
     onLibraryChanged();
@@ -90,6 +93,32 @@ class MusicShareServer {
     if (notify) markCatalogChanged();
   }
 
+  @override
+  void markCatalogChanged() {
+    _catalogGeneration++;
+    if (running) events.dataChanged('library');
+  }
+
+  @override
+  Future<void> disconnect() => stop();
+
+  @override
+  Future<void> setWritePermission(
+    String hash,
+    bool enabled, {
+    required Future<void> Function() persist,
+  }) async {
+    final previous = writeGrants.contains(hash);
+    enabled ? writeGrants.add(hash) : writeGrants.remove(hash);
+    try {
+      await persist();
+      events.permissionChanged(hash, enabled);
+    } catch (_) {
+      previous ? writeGrants.add(hash) : writeGrants.remove(hash);
+      rethrow;
+    }
+  }
+
   bool get running => _server != null;
 
   Future<void> start({int port = musicSharePort}) async {
@@ -102,7 +131,7 @@ class MusicShareServer {
       port,
       identity.serverContext(),
     );
-    _server!.listen((request) => unawaited(_handle(request)));
+    _server!.listen(_acceptRequest);
     try {
       _discovery = await RawDatagramSocket.bind(
         InternetAddress.anyIPv4,
@@ -142,6 +171,17 @@ class MusicShareServer {
     }
   }
 
+  void _acceptRequest(HttpRequest request) {
+    late Future<void> handler;
+    handler = _handle(request).whenComplete(() => _handlers.remove(handler));
+    _handlers.add(handler);
+    unawaited(
+      handler.catchError((Object error, StackTrace stack) {
+        SystemLog.error('Shared request cleanup failed', error, stack);
+      }),
+    );
+  }
+
   Future<void> changePort(int port) async {
     final replacement = await HttpServer.bindSecure(
       InternetAddress.anyIPv4,
@@ -150,7 +190,7 @@ class MusicShareServer {
     );
     final previous = _server!;
     _server = replacement;
-    replacement.listen((request) => unawaited(_handle(request)));
+    replacement.listen(_acceptRequest);
     await events.close();
     await previous.close(force: true);
     _streams.clear();
@@ -230,17 +270,33 @@ class MusicShareServer {
     request.state = 'approved';
     onChanged();
     for (final old in replaced.keys) {
-      await revoke(old);
+      await _disconnectGrant(old);
     }
   }
 
-  Future<void> revoke(String hash) async {
-    _connectedClients.remove(hash);
-    grants.remove(hash);
-    grantIdentities.remove(hash);
-    writeGrants.remove(hash);
-    mobileGrants.remove(hash);
+  Future<void> revoke(
+    String hash, {
+    required Future<void> Function() persist,
+  }) async {
+    final name = grants.remove(hash)!;
+    final device = grantIdentities.remove(hash);
+    final canWrite = writeGrants.remove(hash);
+    final mobile = mobileGrants.remove(hash);
+    try {
+      await persist();
+    } catch (_) {
+      grants[hash] = name;
+      if (device != null) grantIdentities[hash] = device;
+      if (canWrite) writeGrants.add(hash);
+      if (mobile) mobileGrants.add(hash);
+      rethrow;
+    }
     onChanged();
+    await _disconnectGrant(hash);
+  }
+
+  Future<void> _disconnectGrant(String hash) async {
+    _connectedClients.remove(hash);
     final responses = _streams.remove(hash) ?? {};
     for (final response in responses) {
       // The client may have closed this response while revocation started.
@@ -260,6 +316,9 @@ class MusicShareServer {
     _server = null;
     await _files.close();
     await _directoryCommands.close();
+    // A closed socket does not cancel an asynchronous database write. Drain
+    // old requests before a host changes the repository's database binding.
+    await Future.wait(_handlers.toList());
     requests.clear();
     _connectedClients.clear();
     _streams.clear();

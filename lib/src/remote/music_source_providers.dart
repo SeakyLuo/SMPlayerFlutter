@@ -16,6 +16,20 @@ final ChangeNotifierProvider<MusicShareController> musicShareProvider =
           invalidateLibraryQueries(ref.invalidate, source: source);
         },
         loadLibrary: () => ref.read(libraryContentDataProvider.future),
+        onHostDataChanged: (scopes) {
+          if (scopes.contains('library') ||
+              scopes.any((scope) => scope.startsWith('song:'))) {
+            invalidateLibraryQueries(ref.invalidate);
+          } else if (scopes.contains('playlists')) {
+            invalidateLibraryQueries(
+              ref.invalidate,
+              kinds: {
+                LibraryQueryKind.playlists,
+                LibraryQueryKind.playlistIndex,
+              },
+            );
+          }
+        },
         onPlaylistsChanged:
             (lists) => ref
                 .read(libraryLoadedDataProvider.notifier)

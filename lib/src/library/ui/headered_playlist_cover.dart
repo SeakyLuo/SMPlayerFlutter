@@ -41,13 +41,13 @@ class HeaderedPlaylistCover extends StatelessWidget {
               padding: EdgeInsets.zero,
               children: [
                 for (final artworkUrl in artworkUrls.take(4))
-                  _CoverImage(artworkUrl: artworkUrl),
+                  _CoverImage(artworkUrl: artworkUrl, decodeWidth: 120),
                 if (artworkUrls.length == 3) const _CoverMosaicFallback(),
               ],
             )
             : artworkUrls.isEmpty
             ? const _CoverFallback()
-            : _CoverImage(artworkUrl: artworkUrls.first);
+            : _CoverImage(artworkUrl: artworkUrls.first, decodeWidth: 240);
 
     return TweenAnimationBuilder<double>(
       tween: Tween(begin: 0, end: 1),
@@ -79,14 +79,17 @@ class HeaderedPlaylistCover extends StatelessWidget {
 }
 
 class _CoverImage extends StatelessWidget {
-  const _CoverImage({required this.artworkUrl});
+  const _CoverImage({required this.artworkUrl, required this.decodeWidth});
 
   final String artworkUrl;
+  // Keep the cache key stable while the header shrinks during scrolling.
+  final double decodeWidth;
 
   @override
   Widget build(BuildContext context) {
     return SongArtwork(
       artworkPath: artworkUrl,
+      decodeWidth: decodeWidth,
       fallback: const _CoverFallback(),
     );
   }

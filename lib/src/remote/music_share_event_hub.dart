@@ -4,6 +4,8 @@ import 'dart:io';
 
 /// Authenticated event connections use the same TLS listener as data requests.
 class MusicShareEventHub {
+  MusicShareEventHub({this.onDataChanged});
+  final void Function(List<String>)? onDataChanged;
   final _clients = <String, Set<WebSocket>>{};
   final _changes = <String>{};
   Timer? _broadcastTimer;
@@ -39,7 +41,9 @@ class MusicShareEventHub {
   void dataChanged(String scope) {
     _changes.add(scope);
     _broadcastTimer ??= Timer(const Duration(milliseconds: 100), () {
-      final event = {'type': 'data-changed', 'scopes': _changes.toList()};
+      final scopes = _changes.toList();
+      final event = {'type': 'data-changed', 'scopes': scopes};
+      onDataChanged?.call(scopes);
       _changes.clear();
       _broadcastTimer = null;
       for (final grant in _clients.keys) {
