@@ -86,7 +86,7 @@ class MusicShareBackgroundRuntime {
     await _lock!.lock(FileLock.exclusive);
     descriptor = File(p.join(directory.path, 'host.json'));
     config = (await MusicShareConnectionStore.readHost())!;
-    if (config['sharing'] != true || config['backgroundSharing'] != true) {
+    if (config['backgroundSharing'] != true) {
       await close();
       exit(0);
     }
@@ -120,7 +120,8 @@ class MusicShareBackgroundRuntime {
       const LibraryDataQuery(LibraryQueryKind.context),
     );
     server.updateLibrary(_library, notify: false);
-    await server.start(port: config['port'] as int);
+    if (config['sharing'] as bool)
+      await server.start(port: config['port'] as int);
     _agent = AiAgentBackgroundGateway(
       databasePath: () => databasePath,
       sharing:
@@ -281,6 +282,8 @@ class MusicShareBackgroundRuntime {
         );
       case 'agent-disconnect':
         _agent!.disconnectUI(stop: body['stop'] as bool);
+      case 'sharing':
+        await _setSharingEnabled(body['enabled'] as bool);
       case 'status':
         break;
       case 'approve':
@@ -336,6 +339,7 @@ class MusicShareBackgroundRuntime {
       case 'handoff':
         await server.stop();
       case 'stop':
+        config['backgroundSharing'] = false;
         config['sharing'] = false;
         await server.stop();
         await _persist();
@@ -343,6 +347,23 @@ class MusicShareBackgroundRuntime {
         throw const FormatException('Unknown background sharing command');
     }
     _broadcast();
+  }
+
+  Future<void> _setSharingEnabled(bool enabled) async {
+    final previous = config['sharing'] as bool;
+    try {
+      if (enabled && !server.running)
+        await server.start(port: config['port'] as int);
+      if (!enabled && server.running) await server.stop();
+      config['sharing'] = enabled;
+      await _persist();
+    } catch (_) {
+      config['sharing'] = previous;
+      if (previous && !server.running)
+        await server.start(port: config['port'] as int);
+      if (!previous && server.running) await server.stop();
+      rethrow;
+    }
   }
 
   Future<void> _configure(String name, int port, String path) async {
@@ -367,7 +388,7 @@ class MusicShareBackgroundRuntime {
       });
       await _persist();
       server.updateLibrary(library);
-      if (!server.running) {
+      if (config['sharing'] == true && !server.running) {
         await server.start(port: port);
         server.events.dataChanged('library');
       }

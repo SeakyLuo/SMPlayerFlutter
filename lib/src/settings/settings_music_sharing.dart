@@ -35,9 +35,14 @@ class _SettingsMusicSharingState extends ConsumerState<_SettingsMusicSharing> {
       children: [
         ToggleSettingRow(
           label: i18n.t('share.shareLibrary'),
+          loading: share.sharingTarget != null,
           hint: i18n.t('share.sharingHint'),
           checked: running,
-          enabled: share.initialized && !share.busy && !_editingPort,
+          enabled:
+              share.initialized &&
+              !share.busy &&
+              !_editingPort &&
+              share.sharingTarget == null,
           onChange:
               (enabled) => runMusicShareAction(context, () async {
                 await share.setSharing(enabled);
@@ -52,7 +57,6 @@ class _SettingsMusicSharingState extends ConsumerState<_SettingsMusicSharing> {
                 }
               }),
         ),
-        const _SettingsBackgroundSharing(),
         const SizedBox(height: 16),
         if (share.initialized)
           _PortSettingRow(

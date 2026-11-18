@@ -32,7 +32,7 @@ class MusicSharingService : Service() {
         val chinese = resources.configuration.locales[0].language == "zh"
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             manager.createNotificationChannel(NotificationChannel(CHANNEL,
-                if (chinese) "后台音乐共享" else "Background music sharing", NotificationManager.IMPORTANCE_LOW))
+                if (chinese) "后台服务" else "Background service", NotificationManager.IMPORTANCE_LOW))
         }
         val open = PendingIntent.getActivity(this, 0,
             Intent(this, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
@@ -42,11 +42,11 @@ class MusicSharingService : Service() {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
         val notification = Notification.Builder(this, CHANNEL)
             .setSmallIcon(applicationInfo.icon)
-            .setContentTitle(if (chinese) "音乐共享正在运行" else "Music sharing is running")
-            .setContentText(if (chinese) "已配对设备可连接，点击打开播放器管理共享" else "Paired devices can connect. Tap to manage sharing.")
+            .setContentTitle(if (chinese) "后台服务正在运行" else "Background service is running")
+            .setContentText(if (chinese) "已开启的 AI 控制和音乐共享继续运行，点击打开播放器" else "Enabled AI control and music sharing remain available. Tap to open the player.")
             .setContentIntent(open).setOngoing(true)
             .addAction(Notification.Action.Builder(null,
-                if (chinese) "停止共享" else "Stop sharing", stop).build()).build()
+                if (chinese) "停止服务" else "Stop service", stop).build()).build()
         startForeground(4521, notification)
         val loader = FlutterInjector.instance().flutterLoader()
         loader.startInitialization(applicationContext)

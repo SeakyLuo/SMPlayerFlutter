@@ -47,6 +47,7 @@ import 'package:smplayer_flutter/src/settings/settings_formatters.dart';
 import 'package:smplayer_flutter/src/settings/settings_model.dart';
 
 part 'settings_controls.dart';
+part 'settings_toggle_row.dart';
 part 'settings_port_setting_row.dart';
 part 'batch_add_lyrics_control.dart';
 part 'preference_page.dart';

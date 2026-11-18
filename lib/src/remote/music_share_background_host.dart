@@ -36,6 +36,7 @@ class MusicShareBackgroundHost implements MusicShareHost {
   var _running = false;
   @override
   bool get running => _running;
+  bool get connected => _socket != null;
 
   Future<void> connect() async {
     final directory = await sharingRuntimeDirectory();
@@ -178,6 +179,9 @@ class MusicShareBackgroundHost implements MusicShareHost {
       if (bookmark != null) 'directoryBookmark': bookmark,
     });
   }
+
+  Future<void> setSharingEnabled(bool enabled) =>
+      _send({'operation': 'sharing', 'enabled': enabled});
 
   Future<void> configureAgent({
     required bool enabled,

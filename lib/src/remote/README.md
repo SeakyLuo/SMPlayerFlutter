@@ -57,8 +57,8 @@ closes. The port is configurable in Settings and defaults to `29643`.
 - `GET /sharing` returns sharing/background mode, listener state, device name
   and music-sharing port without opening the player.
 - `POST /sharing/update` accepts `enabled` and/or `background` booleans through
-  the same controller operations as Settings. Enable sharing before background
-  mode. A background gateway redirects this mutation with HTTP 307 to the
+  the same controller operations as Settings. The background service and music
+  sharing are independent switches. A background gateway redirects this mutation with HTTP 307 to the
   foreground endpoint so stopping the worker cannot interrupt its own result.
   Open the player first and preserve the POST method/body when following it.
 - `GET /agent` returns the active SQLite database path, the `Music.Id` song
@@ -141,11 +141,13 @@ agent with filesystem write access can still modify that database directly.
 
 ## Independent background sharing
 
-`Background sharing` is subordinate to `Share local music`. With sharing off,
-no listener runs and login/reboot startup is unregistered. With sharing on and
-background sharing off, the existing in-app listener is used. With both on,
-exactly one independent headless host owns the listener, pending approvals and
-grants; closing the management UI only disconnects its private control channel.
+`Start background service` is the first switch in External control. It starts
+an independent host even when local music sharing is off. The AI control and
+music-sharing switches remain independent: each enables only its own listener.
+Closing the management UI only disconnects its private control channel; enabled
+listeners stay available in the service. Turning off music sharing does not stop
+the service or its AI API. Turning off the background service hands enabled
+listeners back to the open player and unregisters login/reboot startup.
 
 - Windows registers the packaged StartupTask (or the current-user Run entry for
   unpackaged builds) and runs a windowless Flutter engine in a separate process.

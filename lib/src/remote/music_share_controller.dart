@@ -54,7 +54,7 @@ class MusicShareController extends ChangeNotifier
     startup = ready.then((_) async {
       busy = true;
       try {
-        if (sharing) await _startSharingHost();
+        if (sharing || backgroundSharing) await _startSharingHost();
       } catch (error, stack) {
         hostFailure = (error: error, stack: stack);
         SystemLog.error('Music sharing host startup failed', error, stack);
@@ -96,6 +96,9 @@ class MusicShareController extends ChangeNotifier
   var autoConnect = true;
   var updatingAutoConnect = false;
   var updatingBackgroundSharing = false;
+  var _backgroundUpdateRevision = 0;
+  bool? sharingTarget;
+  var _sharingUpdateRevision = 0;
   String? lastConnectedPeerId;
   var port = musicSharePort;
   var busy = false;
@@ -331,10 +334,9 @@ class MusicShareController extends ChangeNotifier
     return operation;
   }
 
-  Future<void> setSharing(bool enabled) =>
-      _runHostMutation(() => _setSharing(enabled));
+  Future<void> setSharing(bool enabled) => _updateSharing(enabled);
   Future<void> setBackgroundSharing(bool enabled) =>
-      _runHostMutation(() => _setBackgroundSharing(enabled));
+      _updateBackgroundSharing(enabled);
   Future<void> setHostName(String value) =>
       _runHostMutation(() => _setHostName(value));
   Future<void> setPort(int value) => _runHostMutation(() => _setPort(value));

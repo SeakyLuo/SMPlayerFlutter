@@ -16,6 +16,9 @@
 #include <winrt/Windows.Foundation.h>
 #include <algorithm>
 #include <future>
+#include <cstdlib>
+#include <cwchar>
+#include <vector>
 #include <memory>
 #include <stdexcept>
 #include <string>
@@ -88,6 +91,22 @@ bool IsBackgroundSharingLaunch() {
 }
 
 int RunBackgroundSharingWorker() {
+  // Remove debugger configuration inherited from the UI process before creating
+  // an independent engine, which has no debugger to resume a paused isolate.
+  std::vector<std::wstring> engine_variables;
+  LPWCH environment = GetEnvironmentStringsW();
+  for (const wchar_t* entry = environment; *entry; entry += wcslen(entry) + 1) {
+    const std::wstring variable(entry, wcschr(entry, L'='));
+    if (variable == L"FLUTTER_ENGINE_SWITCHES" ||
+        variable.rfind(L"FLUTTER_ENGINE_SWITCH_", 0) == 0) {
+      engine_variables.push_back(variable);
+    }
+  }
+  FreeEnvironmentStringsW(environment);
+  for (const auto& variable : engine_variables) {
+    SetEnvironmentVariableW(variable.c_str(), nullptr);
+    _wputenv_s(variable.c_str(), L"");
+  }
   flutter::DartProject project(L"data");
   project.set_dart_entrypoint("backgroundSharingMain");
   flutter::FlutterEngine engine(project);

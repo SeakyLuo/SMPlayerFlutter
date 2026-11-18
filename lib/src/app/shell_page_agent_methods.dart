@@ -32,18 +32,9 @@ extension _SmPlayerShellAgentMethods on _SmPlayerShellPageState {
         updateSharing: (update) async {
           final share = ref.read(musicShareProvider);
           await share.startup;
-          if (update['enabled'] == false && update['background'] == true) {
-            throw const FormatException(
-              'Background sharing requires sharing to be enabled',
-            );
-          }
           if (update['enabled'] == true && !share.sharing)
             await share.setSharing(true);
           if (update.containsKey('background')) {
-            if (!share.sharing)
-              throw const FormatException(
-                'Enable sharing before background sharing',
-              );
             if (!await MusicShareBackgroundPlatform.available()) {
               throw const FormatException(
                 'Background sharing is not supported on this platform',

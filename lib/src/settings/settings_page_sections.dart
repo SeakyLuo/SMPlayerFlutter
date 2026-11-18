@@ -476,74 +476,86 @@ extension _SettingsPageSections on _SettingsPageState {
           ),
         ],
       ),
-      SettingsCard(
-        title: i18n.t('settings.aiAgent'),
-        children: [
-          const _SettingsDeviceName(),
-          ToggleSettingRow(
-            label: i18n.t('settings.aiAgentEnabled'),
-            hint: i18n.t('settings.aiAgentEnabledHint'),
-            checked: _snapshot.aiAgentEnabled,
-            enabled:
-                !_updatingAiAgent &&
-                !_editingAiAgentPort &&
-                !aiAgentRemoteController.isBusy &&
-                aiAgentRemoteController.databasePath != null,
-            onChange: (checked) {
-              unawaited(_setAiAgentEnabled(checked, i18n));
-            },
-          ),
-          _PortSettingRow(
-            label: i18n.t('settings.aiAgentPort'),
-            value: _snapshot.aiAgentPort,
-            enabled: !_updatingAiAgent && !aiAgentRemoteController.isBusy,
-            editTooltip: i18n.t('common.edit'),
-            confirmTooltip: i18n.t('settings.saveChanges'),
-            cancelTooltip: i18n.t('common.cancel'),
-            onConfirm: (port) => _setAiAgentPort(port, i18n),
-            onInvalid: () {
-              _showMessage(i18n.t('settings.aiAgentPortInvalid'));
-            },
-            onEditingChanged: (editing) {
-              _updateSettingsPageState(() {
-                _editingAiAgentPort = editing;
-              });
-            },
-          ),
-          SettingsButtonRow(
-            children: [
-              SettingsActionButton(
-                icon: FluentIcons.copy_20_regular,
-                tooltip: i18n.t('settings.aiAgentCopyPromptTooltip'),
-                onClick: () {
-                  unawaited(_copyAiAgentPrompt(i18n));
-                },
-                child: Text(i18n.t('settings.aiAgentCopyPrompt')),
-              ),
-              SettingsActionButton(
-                icon: FluentIcons.share_ios_20_regular,
-                tooltip: i18n.t('settings.aiAgentExportSkillTooltip'),
-                loading: _exportingAiSkill,
-                onClick: () {
-                  unawaited(_exportAiSkill(i18n));
-                },
-                child: Text(i18n.t('settings.aiAgentExportSkill')),
-              ),
-              SettingsActionButton(
-                icon: FluentIcons.copy_20_regular,
-                tooltip: i18n.t('settings.aiAgentCopyEndpointTooltip'),
-                onClick: () {
-                  unawaited(
-                    _copyAiAgentValue(aiAgentRemoteController.endpoint, i18n),
-                  );
-                },
-                child: Text(i18n.t('settings.aiAgentCopyEndpoint')),
-              ),
-            ],
-          ),
-          const _SettingsMusicSharing(),
-          const _SettingsDownloadLocation(),
-        ],
+      Consumer(
+        builder:
+            (context, ref, _) => SettingsCard(
+              title: i18n.t('settings.aiAgent'),
+              children: [
+                const _SettingsDeviceName(),
+                if (MusicShareBackgroundPlatform.supported &&
+                    ref
+                            .watch(_backgroundSharingAvailableProvider)
+                            .valueOrNull ==
+                        true)
+                  const _SettingsBackgroundSharing(),
+                ToggleSettingRow(
+                  label: i18n.t('settings.aiAgentEnabled'),
+                  hint: i18n.t('settings.aiAgentEnabledHint'),
+                  checked: _snapshot.aiAgentEnabled,
+                  enabled:
+                      !_updatingAiAgent &&
+                      !_editingAiAgentPort &&
+                      !aiAgentRemoteController.isBusy &&
+                      aiAgentRemoteController.databasePath != null,
+                  onChange: (checked) {
+                    unawaited(_setAiAgentEnabled(checked, i18n));
+                  },
+                ),
+                _PortSettingRow(
+                  label: i18n.t('settings.aiAgentPort'),
+                  value: _snapshot.aiAgentPort,
+                  enabled: !_updatingAiAgent && !aiAgentRemoteController.isBusy,
+                  editTooltip: i18n.t('common.edit'),
+                  confirmTooltip: i18n.t('settings.saveChanges'),
+                  cancelTooltip: i18n.t('common.cancel'),
+                  onConfirm: (port) => _setAiAgentPort(port, i18n),
+                  onInvalid: () {
+                    _showMessage(i18n.t('settings.aiAgentPortInvalid'));
+                  },
+                  onEditingChanged: (editing) {
+                    _updateSettingsPageState(() {
+                      _editingAiAgentPort = editing;
+                    });
+                  },
+                ),
+                SettingsButtonRow(
+                  children: [
+                    SettingsActionButton(
+                      icon: FluentIcons.copy_20_regular,
+                      tooltip: i18n.t('settings.aiAgentCopyPromptTooltip'),
+                      onClick: () {
+                        unawaited(_copyAiAgentPrompt(i18n));
+                      },
+                      child: Text(i18n.t('settings.aiAgentCopyPrompt')),
+                    ),
+                    SettingsActionButton(
+                      icon: FluentIcons.share_ios_20_regular,
+                      tooltip: i18n.t('settings.aiAgentExportSkillTooltip'),
+                      loading: _exportingAiSkill,
+                      onClick: () {
+                        unawaited(_exportAiSkill(i18n));
+                      },
+                      child: Text(i18n.t('settings.aiAgentExportSkill')),
+                    ),
+                    SettingsActionButton(
+                      icon: FluentIcons.copy_20_regular,
+                      tooltip: i18n.t('settings.aiAgentCopyEndpointTooltip'),
+                      onClick: () {
+                        unawaited(
+                          _copyAiAgentValue(
+                            aiAgentRemoteController.endpoint,
+                            i18n,
+                          ),
+                        );
+                      },
+                      child: Text(i18n.t('settings.aiAgentCopyEndpoint')),
+                    ),
+                  ],
+                ),
+                const _SettingsMusicSharing(),
+                const _SettingsDownloadLocation(),
+              ],
+            ),
       ),
     ];
   }

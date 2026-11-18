@@ -62,14 +62,20 @@ extension MusicShareHostManagement on MusicShareController {
       await server.start(port: port);
       return;
     }
-    server = await _connectBackgroundHost();
+    await aiAgentRemoteController.prepareBackground();
+    try {
+      server = await _connectBackgroundHost();
+    } catch (_) {
+      await aiAgentRemoteController.restoreForeground();
+      rethrow;
+    }
     _notify();
   }
 
   Future<MusicShareBackgroundHost> _connectBackgroundHost() async {
     final host = _backgroundHost();
-    await host.connect();
     try {
+      await host.connect();
       final library = await repository.queryLibrary(
         const LibraryDataQuery(LibraryQueryKind.context),
       );
@@ -83,7 +89,12 @@ extension MusicShareHostManagement on MusicShareController {
       return host;
     } catch (error, stack) {
       try {
-        await host.handoff();
+        if (host.connected) {
+          await host.handoff();
+        } else {
+          await host.disconnect();
+          await MusicShareBackgroundPlatform.stop();
+        }
       } catch (cleanupError, cleanupStack) {
         SystemLog.error(
           'Stopping failed sharing host failed',
@@ -114,65 +125,46 @@ extension MusicShareHostManagement on MusicShareController {
     return operation;
   }
 
+  Future<void> _updateSharing(bool enabled) async {
+    final revision = ++_sharingUpdateRevision;
+    sharingTarget = enabled;
+    _notify();
+    try {
+      await _runHostMutation(() => _setSharing(enabled));
+    } finally {
+      if (revision == _sharingUpdateRevision) {
+        sharingTarget = null;
+        _notify();
+      }
+    }
+  }
+
   Future<void> _setSharing(bool enabled) async {
     if (!initialized) await ready;
     await startup;
+    if (backgroundSharing) {
+      if (server is! MusicShareBackgroundHost) await _startSharingHost();
+      await (server as MusicShareBackgroundHost).setSharingEnabled(enabled);
+      sharing = enabled;
+      _notify();
+      return;
+    }
     busy = true;
     _notify();
     final previousSharing = sharing;
     try {
       if (enabled) {
-        if (backgroundSharing) {
-          await aiAgentRemoteController.prepareBackground();
-          await MusicShareBackgroundPlatform.setLoginEnabled(true);
-          sharing = true;
-          await MusicShareConnectionStore.writeHost(_hostConfiguration);
-        }
-        await _startSharingHost();
+        await server.start(port: port);
       } else {
-        if (backgroundSharing) {
-          await aiAgentRemoteController.restoreForeground();
-        }
         await server.stop();
-        if (MusicShareBackgroundPlatform.supported &&
-            await MusicShareBackgroundPlatform.available()) {
-          await MusicShareBackgroundPlatform.setLoginEnabled(false);
-        }
-        server = _localHost(
-          await repository.queryLibrary(
-            const LibraryDataQuery(LibraryQueryKind.context),
-          ),
-        );
       }
       sharing = enabled;
       await _persistHostSettings();
     } catch (error, stack) {
       sharing = previousSharing;
-      if (backgroundSharing) {
-        await MusicShareConnectionStore.writeHost(_hostConfiguration);
-        final awaitingApproval =
-            error is PlatformException &&
-            error.code == 'background_approval_required';
-        if (!awaitingApproval) {
-          await MusicShareBackgroundPlatform.setLoginEnabled(previousSharing);
-        }
-        if (previousSharing) {
-          await aiAgentRemoteController.prepareBackground();
-          if (!server.running) {
-            server = await _connectBackgroundHost();
-          } else {
-            await aiAgentRemoteController.attachBackground(
-              server as MusicShareBackgroundHost,
-            );
-          }
-        } else {
-          await aiAgentRemoteController.restoreForeground();
-        }
-      } else {
-        if (!previousSharing && server.running) await server.stop();
-        if (previousSharing && !server.running) await server.start(port: port);
-        await _persistHostSettings();
-      }
+      if (!previousSharing && server.running) await server.stop();
+      if (previousSharing && !server.running) await server.start(port: port);
+      await _persistHostSettings();
       Error.throwWithStackTrace(error, stack);
     } finally {
       busy = false;
@@ -180,10 +172,22 @@ extension MusicShareHostManagement on MusicShareController {
     }
   }
 
-  Future<void> _setBackgroundSharing(bool enabled) async {
-    if (enabled == backgroundSharing) return;
+  Future<void> _updateBackgroundSharing(bool enabled) async {
+    final revision = ++_backgroundUpdateRevision;
     updatingBackgroundSharing = true;
     _notify();
+    try {
+      await _runHostMutation(() => _setBackgroundSharing(enabled));
+    } finally {
+      if (revision == _backgroundUpdateRevision) {
+        updatingBackgroundSharing = false;
+        _notify();
+      }
+    }
+  }
+
+  Future<void> _setBackgroundSharing(bool enabled) async {
+    if (enabled == backgroundSharing) return;
     final previous = server;
     final original = backgroundSharing;
     try {
@@ -199,14 +203,18 @@ extension MusicShareHostManagement on MusicShareController {
         server = await _connectBackgroundHost();
       } else {
         await aiAgentRemoteController.restoreForeground();
-        await (previous as MusicShareBackgroundHost).handoff();
+        if (previous is MusicShareBackgroundHost) {
+          await previous.handoff();
+        } else {
+          await previous.stop();
+        }
         await MusicShareBackgroundPlatform.setLoginEnabled(false);
         server = _localHost(
           await repository.queryLibrary(
             const LibraryDataQuery(LibraryQueryKind.context),
           ),
         );
-        await server.start(port: port);
+        if (sharing) await server.start(port: port);
       }
       backgroundSharing = enabled;
       await _persistHostSettings();
@@ -233,9 +241,6 @@ extension MusicShareHostManagement on MusicShareController {
         server = await _connectBackgroundHost();
       }
       rethrow;
-    } finally {
-      updatingBackgroundSharing = false;
-      _notify();
     }
   }
 
@@ -255,9 +260,9 @@ extension MusicShareHostManagement on MusicShareController {
       return await operation();
     } finally {
       try {
-        if (resume) {
+        if (resume || backgroundSharing) {
           await _syncSharingConfiguration();
-          if (!server.running) await server.start(port: port);
+          if (resume && !server.running) await server.start(port: port);
         }
       } catch (error, stack) {
         // A successful import remains successful if resuming sharing fails.
@@ -315,13 +320,15 @@ extension MusicShareHostManagement on MusicShareController {
     _notify();
     final previous = port;
     try {
-      if (server.running) await server.changePort(value);
+      if (server.running || server is MusicShareBackgroundHost)
+        await server.changePort(value);
       port = value;
       try {
         await _persistHostSettings();
       } catch (_) {
         port = previous;
-        if (server.running) await server.changePort(previous);
+        if (server.running || server is MusicShareBackgroundHost)
+          await server.changePort(previous);
         rethrow;
       }
     } finally {

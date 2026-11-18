@@ -5,6 +5,14 @@
 #include <sqlite3_flutter_libs/sqlite3_flutter_libs_plugin.h>
 
 int run_background_sharing_worker() {
+  // This independent engine is not attached to the UI's debugger.
+  g_auto(GStrv) environment_names = g_listenv();
+  for (gchar** name = environment_names; *name != nullptr; ++name) {
+    if (g_str_equal(*name, "FLUTTER_ENGINE_SWITCHES") ||
+        g_str_has_prefix(*name, "FLUTTER_ENGINE_SWITCH_")) {
+      g_unsetenv(*name);
+    }
+  }
   gtk_init(nullptr, nullptr);
   g_autoptr(FlDartProject) project = fl_dart_project_new();
   gchar worker_argument[] = "--sharing-worker";

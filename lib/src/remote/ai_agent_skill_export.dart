@@ -18,7 +18,7 @@ environment cannot reach this device's loopback address.
 Discovery URL: `$endpoint`
 
 Enable Settings > External control > AI control. If background sharing is
-also enabled, discovery and sharing queries remain available after the player
+also enabled through Start background service, discovery and sharing queries remain available after the player
 closes. GET /agent reports the supported operations.
 GET the discovery URL before performing a task. Read its current `endpoints`
 and `database` fields for supported request bodies and the SQLite library path.
@@ -50,8 +50,10 @@ Use the discovered routes and JSON body schemas:
   API returns `open_player_from_notification`, ask the user to tap the sharing
   notification; do not claim that the player opened.
 - Query `/sharing`, or update `/sharing/update` with `enabled` and/or `background`
-  booleans. Only change sharing when the user asks. Disabling sharing also stops
-  its independent background AI listener; the open player keeps its AI API.
+  booleans. `background` controls the independent background service and does not
+  require music sharing to be enabled. Only change these switches when asked.
+  Turning off music sharing leaves the background AI API available. Turning off
+  the background service returns AI control to the open player.
 - Play a song with `/song/play`.
 - Replace and play a queue with `/queue/play`; `startIndex` is zero-based.
 - Resume, pause, skip forward, or skip backward with `/player/play`,
