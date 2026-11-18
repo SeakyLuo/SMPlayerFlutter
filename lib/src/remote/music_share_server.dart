@@ -10,7 +10,6 @@ import 'package:path/path.dart' as p;
 import '../library/data/library_repository.dart';
 import '../library/data/library_models.dart';
 import '../library/data/library_queries.dart';
-import '../settings/settings_model.dart' hide MusicLibrarySortCriterion;
 import 'music_share_catalog.dart';
 import 'music_share_random_play.dart';
 import 'music_share_library_queries.dart';

@@ -580,6 +580,9 @@ class LibraryRepository
     return _lyricsService.getSongLyrics(databaseFile, songId, mode: mode);
   }
 
+  Future<LyricsSnapshot> getLocalLyricsForPath(String songPath) =>
+      _lyricsService.getLocalLyricsForPath(songPath);
+
   Future<String> readLyricsFromFile(String filePath) async {
     return _lyricsService.readLyricsFromFile(filePath);
   }

@@ -1,5 +1,11 @@
 part of 'desktop_feature_service.dart';
 
+Future<String> desktopNotificationArtworkPath(String artworkPath) async {
+  if (!isRemoteMusicPath(artworkPath)) return artworkPath;
+  final file = await activeMusicShareAccess!.artwork(artworkPath);
+  return file?.path ?? '';
+}
+
 String desktopNotificationArtist(LibrarySong song, SmPlayerI18n i18n) {
   return displayArtists(song, i18n);
 }

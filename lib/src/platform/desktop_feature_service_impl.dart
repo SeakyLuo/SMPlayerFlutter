@@ -356,6 +356,9 @@ class TrayWindowDesktopFeatureService
         'body': body,
         'songId': payload.songId,
         'silent': payload.silent,
+        'artworkPath': await desktopNotificationArtworkPath(
+          payload.artworkPath,
+        ),
       });
       return;
     }

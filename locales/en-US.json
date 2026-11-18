@@ -1,6 +1,6 @@
 {
   "notification.operationDone": "Operation completed.",
-  "notification.systemPermissionDenied": "Notifications are disabled for Simple Melody Player. Allow them in System Settings → Notifications.",
+  "notification.systemPermissionDenied": "macOS has not allowed notifications for this app. Allow notifications for Simple Melody Player in System Settings → Notifications.",
   "notification.systemDeliveryFailed": "Could not send the system notification. Please try again later.",
   "settings.importRestoreQueue": "Restore Now Playing too",
   "settings.importQueueHelp": "Restore the saved queue and position, paused. Uncheck to keep the current queue and match songs by file path.",

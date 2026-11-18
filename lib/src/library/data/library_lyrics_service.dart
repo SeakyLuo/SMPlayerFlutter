@@ -12,6 +12,7 @@ import 'package:sqlite3/sqlite3.dart';
 import 'id3_tag_service.dart';
 import 'library_lyrics_encoding.dart';
 import 'library_models.dart';
+import 'library_snapshot_service.dart';
 import 'package:smplayer_flutter/src/settings/settings_model.dart' as settings;
 
 part 'library_lyrics_candidate_search.dart';
@@ -310,7 +311,7 @@ class LibraryLyricsService {
   }
 
   String _getSongPath(File databaseFile, int songId) {
-    final db = sqlite3.open(databaseFile.path);
+    final db = LibrarySnapshotService.openReadDatabase(databaseFile.path);
     try {
       final rows = db.select(
         '''
@@ -337,7 +338,7 @@ class LibraryLyricsService {
     File databaseFile,
     int songId,
   ) {
-    final db = sqlite3.open(databaseFile.path);
+    final db = LibrarySnapshotService.openReadDatabase(databaseFile.path);
     try {
       final rows = db.select(
         '''

@@ -175,6 +175,7 @@ class LibrarySettingsService {
 
     final db = sqlite3.open(databaseFile.path);
     try {
+      db.execute('PRAGMA busy_timeout = 150');
       final snapshot = settingsSnapshotFromRow(
         db.select('SELECT * FROM Settings ORDER BY Id DESC LIMIT 1').single,
       );

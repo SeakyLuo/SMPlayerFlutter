@@ -224,16 +224,38 @@ extension _SmPlayerShellDesktopMethods on _SmPlayerShellPageState {
     _desktopLyricsLoadingSongId = songId;
     _desktopLyricsMode = mode;
     unawaited(
-      repository.getSongLyrics(songId, mode: mode).then((lyrics) {
-        if (!mounted || _desktopLyricsLoadRevision != loadRevision) {
-          return;
-        }
-        _desktopLyricsSongId = songId;
-        _desktopLyricsLoadingSongId = null;
-        _desktopLyrics = lyrics;
-        _lastDesktopLyricsSignature = null;
-        setState(() {});
-      }),
+      repository
+          .getSongLyrics(songId, mode: mode)
+          .then(
+            (lyrics) {
+              if (!mounted || _desktopLyricsLoadRevision != loadRevision) {
+                return;
+              }
+              _desktopLyricsSongId = songId;
+              _desktopLyricsLoadingSongId = null;
+              _desktopLyrics = lyrics;
+              _lastDesktopLyricsSignature = null;
+              setState(() {});
+            },
+            onError: (Object error, StackTrace stack) {
+              SystemLog.error('Desktop lyrics load failed', error, stack);
+              if (!mounted || _desktopLyricsLoadRevision != loadRevision) {
+                return;
+              }
+              setState(() {
+                _desktopLyricsSongId = songId;
+                _desktopLyricsLoadingSongId = null;
+                _desktopLyrics = null;
+                _lastDesktopLyricsSignature = null;
+              });
+              showAppNotification(
+                context: context,
+                message: context.smPlayerI18n.t(
+                  'settings.lyricsBatchDetailLoadFailed',
+                ),
+              );
+            },
+          ),
     );
   }
 
@@ -280,13 +302,13 @@ extension _SmPlayerShellDesktopMethods on _SmPlayerShellPageState {
           artworkPath: currentSong.thumbnailPath,
         ),
       );
-    } on PlatformException catch (error, stack) {
+    } on Exception catch (error, stack) {
       SystemLog.error('System notification failed', error, stack);
       if (!mounted) return;
       showAppNotification(
         context: context,
         message: i18n.t(
-          error.code == 'notifications_denied'
+          error is PlatformException && error.code == 'notifications_denied'
               ? 'notification.systemPermissionDenied'
               : 'notification.systemDeliveryFailed',
         ),

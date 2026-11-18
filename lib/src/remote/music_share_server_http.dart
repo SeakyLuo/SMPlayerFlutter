@@ -474,10 +474,7 @@ extension _MusicShareServerHttp on MusicShareServer {
         return;
       }
       if (kind == 'lyrics') {
-        final lyrics = await repository.getSongLyrics(
-          songId,
-          mode: LyricsRequestMode.local,
-        );
+        final lyrics = await repository.getLocalLyricsForPath(song.path);
         _json(response, {
           'rawText': lyrics.rawText,
           'isSynced': lyrics.isSynced,

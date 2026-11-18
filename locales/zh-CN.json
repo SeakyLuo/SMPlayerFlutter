@@ -1,6 +1,6 @@
 {
   "notification.operationDone": "操作完成",
-  "notification.systemPermissionDenied": "系统未允许 Simple Melody Player 发送通知，请前往「系统设置 → 通知」开启。",
+  "notification.systemPermissionDenied": "macOS 未允许此应用发送通知，请在「系统设置 → 通知」中允许 Simple Melody Player 发送通知。",
   "notification.systemDeliveryFailed": "系统通知发送失败，请稍后重试。",
   "settings.importRestoreQueue": "同时恢复正在播放",
   "settings.importQueueHelp": "恢复备份中的队列和进度，保持暂停。取消勾选则保留当前队列，并按文件路径重新匹配歌曲。",
