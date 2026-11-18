@@ -68,6 +68,10 @@ mixin _LibraryRepositoryQueries on _LibraryDataSources {
                   )
                   .map((row) => row['id'] as int)
                   .toSet(),
+              ...LibraryRepository._browseHistoryService
+                  .read(db)
+                  .where((entry) => entry.type == RecentBrowseType.song)
+                  .map((entry) => int.parse(entry.itemId)),
               for (final record in LibraryRepository._playbackHistoryService
                   .readRecentNowPlaying(db))
                 ...record.songIds.take(4),

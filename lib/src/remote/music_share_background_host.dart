@@ -179,6 +179,20 @@ class MusicShareBackgroundHost implements MusicShareHost {
     });
   }
 
+  Future<void> configureAgent({
+    required bool enabled,
+    required int port,
+    int? uiPort,
+  }) => _send({
+    'operation': 'agent',
+    'enabled': enabled,
+    'port': port,
+    'uiPort': uiPort,
+  });
+
+  Future<void> disconnectAgent({required bool stop}) =>
+      _send({'operation': 'agent-disconnect', 'stop': stop});
+
   Future<void> markChanged(List<String> scopes) =>
       _send({'operation': 'changed', 'scopes': scopes});
 
@@ -205,7 +219,6 @@ class MusicShareBackgroundHost implements MusicShareHost {
   Future<void> stop() async {
     await _send({'operation': 'stop'});
     await disconnect();
-    await MusicShareBackgroundPlatform.stop();
   }
 
   Future<void> suspend() => _send({'operation': 'pause'});
@@ -213,7 +226,6 @@ class MusicShareBackgroundHost implements MusicShareHost {
   Future<void> handoff() async {
     await _send({'operation': 'handoff'});
     await disconnect();
-    await MusicShareBackgroundPlatform.stop();
   }
 
   @override

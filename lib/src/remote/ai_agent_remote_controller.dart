@@ -8,6 +8,9 @@ import 'package:shelf/shelf_io.dart' as shelf_io;
 import 'package:shelf_router/shelf_router.dart';
 
 import 'ai_agent_api.dart';
+import 'ai_agent_background_bridge.dart';
+import 'ai_agent_discovery.dart';
+import 'music_share_background_host.dart';
 import 'ai_agent_settings_codec.dart';
 import '../settings/settings_model.dart';
 
@@ -16,6 +19,9 @@ enum AiAgentRemoteState { stopped, starting, running, stopping }
 class AiAgentControlBindings {
   const AiAgentControlBindings({
     required this.databasePath,
+    required this.sharing,
+    required this.openPlayer,
+    required this.updateSharing,
     required this.playerState,
     required this.playSong,
     required this.playQueue,
@@ -33,9 +39,12 @@ class AiAgentControlBindings {
   });
 
   final String databasePath;
+  final Future<void> Function() openPlayer;
+  final Future<Map<String, Object?>> Function() sharing;
+  final Future<void> Function(Map<String, dynamic>) updateSharing;
   final Map<String, Object?> Function() playerState;
-  final bool Function(int songId) playSong;
-  final bool Function(List<int> songIds, int startIndex) playQueue;
+  final Future<bool> Function(int songId) playSong;
+  final Future<bool> Function(List<int> songIds, int startIndex) playQueue;
   final bool Function() play;
   final bool Function() pause;
   final bool Function() next;
@@ -57,6 +66,20 @@ class AiAgentRemoteController extends ChangeNotifier {
   var _state = AiAgentRemoteState.stopped;
   var _port = defaultAiAgentApiPort;
   Future<List<String>>? _systemFonts;
+  final background = AiAgentBackgroundBridge();
+  Future<void>? _detaching;
+  var _relay = false;
+  var _backgroundPending = false;
+  Future<void> _transition = Future.value();
+
+  Future<T> _runTransition<T>(Future<T> Function() action) {
+    final operation = _transition.then((_) => action());
+    _transition = operation.then<void>(
+      (_) {},
+      onError: (Object _, StackTrace __) {},
+    );
+    return operation;
+  }
 
   AiAgentRemoteState get state => _state;
   bool get isRunning => _state == AiAgentRemoteState.running;
@@ -69,12 +92,15 @@ class AiAgentRemoteController extends ChangeNotifier {
 
   void attach(AiAgentControlBindings bindings) {
     _bindings = bindings;
+    _detaching = null;
     _systemFonts = null;
     notifyListeners();
   }
 
-  Future<void> detach() async {
-    await stop();
+  Future<void> detach() => _detaching ??= _detach();
+
+  Future<void> _detach() async {
+    await stop(detach: true);
     _bindings = null;
     notifyListeners();
   }
@@ -84,7 +110,9 @@ class AiAgentRemoteController extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> start({required int port}) async {
+  Future<void> start({required int port}) => _runTransition(() => _start(port));
+
+  Future<void> _start(int port) async {
     if (isRunning) {
       return;
     }
@@ -94,23 +122,42 @@ class AiAgentRemoteController extends ChangeNotifier {
     try {
       _systemFonts ??= bindings.loadSystemFonts();
       await _systemFonts;
-      _server = await _serve(_port);
+      _server = await _serve(
+        background.active || _backgroundPending ? 0 : _port,
+      );
+      _relay = background.active || _backgroundPending;
+      await background.configure(
+        enabled: true,
+        port: _port,
+        uiPort: _server!.port,
+      );
       _bindings = bindings;
       _setState(AiAgentRemoteState.running);
     } on Object {
+      await _server?.close(force: true);
       _server = null;
       _setState(AiAgentRemoteState.stopped);
       rethrow;
     }
   }
 
-  Future<void> changePort(int port) async {
+  Future<void> changePort(int port) => _runTransition(() => _changePort(port));
+
+  Future<void> _changePort(int port) async {
     final previousServer = _server!;
     _setState(AiAgentRemoteState.starting);
-    final HttpServer nextServer;
+    HttpServer? nextServer;
     try {
-      nextServer = await _serve(port);
+      nextServer = await _serve(
+        background.active || _backgroundPending ? 0 : port,
+      );
+      await background.configure(
+        enabled: true,
+        port: port,
+        uiPort: nextServer.port,
+      );
     } on Object {
+      await nextServer?.close(force: true);
       _setState(AiAgentRemoteState.running);
       rethrow;
     }
@@ -120,7 +167,15 @@ class AiAgentRemoteController extends ChangeNotifier {
     _setState(AiAgentRemoteState.running);
   }
 
-  Future<void> stop() async {
+  Future<void> stop({bool detach = false}) =>
+      _runTransition(() => _stop(detach: detach));
+
+  Future<void> _stop({required bool detach}) async {
+    if (detach) {
+      await background.disconnect();
+    } else {
+      await background.configure(enabled: false, port: _port);
+    }
     final server = _server;
     if (server == null) {
       _setState(AiAgentRemoteState.stopped);
@@ -136,6 +191,12 @@ class AiAgentRemoteController extends ChangeNotifier {
     final router =
         Router()
           ..get('/agent', _handleInfo)
+          ..post('/app/open', (request) async {
+            await _bindings!.openPlayer();
+            return _jsonResponse(200, {'ok': true, 'playerReady': true});
+          })
+          ..get('/sharing', _handleSharing)
+          ..post('/sharing/update', _handleSharingUpdate)
           ..get('/player/state', _handlePlayerState)
           ..get('/settings', _handleSettings)
           ..post('/settings/update', _handleSettingsUpdate)
@@ -176,88 +237,79 @@ class AiAgentRemoteController extends ChangeNotifier {
     };
   }
 
-  Response _handleInfo(Request request) {
-    final bindings = _bindings!;
-    return _jsonResponse(HttpStatus.ok, {
-      'endpoint': endpoint,
-      'guidance':
-          'Read the database for song selection. Use API actions for '
-          'writes so application state, audio tags and native features stay '
-          'in sync. After direct database writes, commit before POST /app/sync '
-          'with the changed setting keys and existing song IDs. '
-          'Sync does not reload pages, write audio tags or run library scans. '
-          'GET /settings returns editable values and allowed options.',
-      'endpoints': {
-        'info': {'method': 'GET', 'path': '/agent'},
-        'playerState': {'method': 'GET', 'path': '/player/state'},
-        'settings': {'method': 'GET', 'path': '/settings'},
-        'settingsUpdate': {
-          'method': 'POST',
-          'path': '/settings/update',
-          'body': {
-            'properties': 'partial object matching GET /settings schema',
-          },
-        },
-        'appSync': {
-          'method': 'POST',
-          'path': '/app/sync',
-          'body': {
-            'settings': 'editable setting key[] (optional)',
-            'songIds': 'existing active song ID[] (optional, maximum 128)',
-          },
-        },
-        'songPlay': {
-          'method': 'POST',
-          'path': '/song/play',
-          'body': {'songId': 'integer'},
-        },
-        'queuePlay': {
-          'method': 'POST',
-          'path': '/queue/play',
-          'body': {'songIds': 'integer[]', 'startIndex': 'integer'},
-        },
-        'playerPlay': {'method': 'POST', 'path': '/player/play'},
-        'playerPause': {'method': 'POST', 'path': '/player/pause'},
-        'playerNext': {'method': 'POST', 'path': '/player/next'},
-        'playerPrevious': {'method': 'POST', 'path': '/player/previous'},
-        'playerSeek': {
-          'method': 'POST',
-          'path': '/player/seek',
-          'body': {'seconds': 'number'},
-        },
-        'playerVolume': {
-          'method': 'POST',
-          'path': '/player/volume',
-          'body': {'value': 'integer (0-100)'},
-        },
-        'songUpdate': {
-          'method': 'POST',
-          'path': '/song/update',
-          'body': {
-            'songId': 'integer',
-            'properties': {
-              'title': 'string',
-              'subtitle': 'string',
-              'artists': 'string[] (maximum 6)',
-              'album': 'string',
-              'albumArtist': 'string',
-              'publisher': 'string',
-              'trackNumber': 'integer',
-              'year': 'integer',
-              'genre': 'string',
-              'composers': 'string',
-              'playCount': 'integer',
-            },
-          },
-        },
-      },
-      'database': {
-        'type': 'sqlite',
-        'path': bindings.databasePath,
-        'songTable': 'Music',
-        'songIdColumn': 'Id',
-      },
-    });
+  Response _handleInfo(Request request) => _jsonResponse(
+    HttpStatus.ok,
+    aiAgentDiscovery(_bindings!.databasePath, endpoint),
+  );
+
+  Future<Response> _handleSharing(Request request) async =>
+      _jsonResponse(HttpStatus.ok, await _bindings!.sharing());
+
+  Future<Response> _handleSharingUpdate(Request request) async {
+    final decoded = await _readRequestBody(request);
+    if (decoded is Response) return decoded;
+    final body = decoded as Map<String, dynamic>;
+    if (body.isEmpty ||
+        body.entries.any(
+          (entry) =>
+              !{'enabled', 'background'}.contains(entry.key) ||
+              entry.value is! bool,
+        )) {
+      return _invalidRequest('invalid_sharing_settings');
+    }
+    try {
+      await _bindings!.updateSharing(body);
+      return _jsonResponse(HttpStatus.ok, {
+        'ok': true,
+        ...await _bindings!.sharing(),
+      });
+    } catch (error) {
+      return _jsonResponse(HttpStatus.unprocessableEntity, {
+        'ok': false,
+        'error': 'sharing_update_failed',
+        'message': '$error',
+      });
+    }
+  }
+
+  Future<void> prepareBackground() => _runTransition(_prepareBackground);
+
+  Future<void> _prepareBackground() async {
+    _backgroundPending = true;
+    if (!isRunning || _relay) return;
+    final previous = _server!;
+    _server = await _serve(0);
+    _relay = true;
+    // Stop accepting on the public port without aborting the AI request that
+    // initiated this handoff. Its response finishes on the original socket.
+    unawaited(previous.close());
+  }
+
+  Future<void> attachBackground(MusicShareBackgroundHost host) =>
+      _runTransition(() => _attachBackground(host));
+
+  Future<void> _attachBackground(MusicShareBackgroundHost host) async {
+    if (isRunning) {
+      await host.configureAgent(
+        enabled: true,
+        port: _port,
+        uiPort: _server!.port,
+      );
+    }
+    background.host = host;
+    _backgroundPending = false;
+  }
+
+  Future<void> restoreForeground() => _runTransition(_restoreForeground);
+
+  Future<void> _restoreForeground() async {
+    _backgroundPending = false;
+    await background.disconnect(stop: true);
+    if (!isRunning || !_relay) return;
+    final previous = _server!;
+    _server = await _serve(_port);
+    _relay = false;
+    unawaited(previous.close());
   }
 
   Response _handlePlayerState(Request request) {
@@ -383,7 +435,10 @@ class AiAgentRemoteController extends ChangeNotifier {
     if (songId is! int) {
       return _invalidRequest('invalid_song_id');
     }
-    return _playerOperationResponse('song_play', _bindings!.playSong(songId));
+    return _playerOperationResponse(
+      'song_play',
+      await _bindings!.playSong(songId),
+    );
   }
 
   Future<Response> _handleQueuePlay(Request request) async {
@@ -401,7 +456,7 @@ class AiAgentRemoteController extends ChangeNotifier {
     }
     return _playerOperationResponse(
       'queue_play',
-      _bindings!.playQueue(rawSongIds.cast<int>(), startIndex),
+      await _bindings!.playQueue(rawSongIds.cast<int>(), startIndex),
     );
   }
 

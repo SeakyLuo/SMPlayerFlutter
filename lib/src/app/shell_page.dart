@@ -1,3 +1,5 @@
+import 'package:window_manager/window_manager.dart';
+import '../remote/music_share_background_platform.dart';
 import 'package:smplayer_flutter/src/playback/source_quick_play.dart';
 import '../remote/music_share_access.dart';
 import '../remote/music_share_models.dart';

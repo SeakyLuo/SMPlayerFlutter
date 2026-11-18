@@ -85,7 +85,7 @@ class _CatalogImport {
       INSERT INTO Music (Path, Name, Artist, Album, Duration, DateAdded, ThumbnailPath, State)
       VALUES (?, ?, ?, ?, ?, ?, ?, 1)
       ON CONFLICT(Path) DO UPDATE SET Name = excluded.Name,
-        Artist = excluded.Artist, Album = excluded.Album,
+        Artist = excluded.Artist, Album = excluded.Album, DateAdded = excluded.DateAdded,
         Duration = excluded.Duration, ThumbnailPath = excluded.ThumbnailPath, State = 1
     ''');
       final updateOffset = db.prepare(

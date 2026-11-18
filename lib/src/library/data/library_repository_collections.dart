@@ -49,35 +49,4 @@ mixin _LibraryRepositoryCollections on _LibraryDataSources {
   ]) => _playlistDataSource(
     playlistId,
   ).reorderPlaylistSongs(playlistId, songIds, sortCriterion);
-
-  Future<RecentPlaylistPlayback> recordPlaylistPlayed(int playlistId) async {
-    if (playlistId < 0) {
-      return RecentPlaylistPlayback(
-        id: playlistId,
-        playlistId: playlistId,
-        playedAt: DateTime.now().millisecondsSinceEpoch.toString(),
-      );
-    }
-    final databaseFile = await _resolveDatabaseFile();
-    return LibraryRepository._playbackHistoryService.recordPlaylistPlayed(
-      databaseFile,
-      playlistId,
-    );
-  }
-
-  Future<RecentAlbumPlayback> recordAlbumPlayed(String album) async {
-    final databaseFile = await _resolveDatabaseFile();
-    return LibraryRepository._playbackHistoryService.recordAlbumPlayed(
-      databaseFile,
-      album,
-    );
-  }
-
-  Future<RecentArtistPlayback> recordArtistPlayed(String artist) async {
-    final databaseFile = await _resolveDatabaseFile();
-    return LibraryRepository._playbackHistoryService.recordArtistPlayed(
-      databaseFile,
-      artist,
-    );
-  }
 }

@@ -55,6 +55,13 @@ class MusicSharingService : Service() {
         engine = next
         MusicSharingConfiguration.register(this, next.dartExecutor.binaryMessenger)
         management = MethodChannel(next.dartExecutor.binaryMessenger, "smplayer_flutter/background_sharing")
+        management?.setMethodCallHandler { call, result ->
+            if (call.method == "openPlayer") {
+                // Android restricts background activity launches. The existing
+                // notification provides the user-initiated route into the UI.
+                result.error("open_player_from_notification", "Open the player using the sharing notification", null)
+            } else result.notImplemented()
+        }
         next.dartExecutor.executeDartEntrypoint(DartExecutor.DartEntrypoint(
             loader.findAppBundlePath(), "backgroundSharingMain"))
         return START_NOT_STICKY

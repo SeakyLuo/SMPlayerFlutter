@@ -572,12 +572,14 @@ extension _SmPlayerShellPlaybackMethods on _SmPlayerShellPageState {
     if (song != null) {
       final playedSong = song.copyWith(playCount: song.playCount + 1);
       patchLibrarySongOverride(ref, playedSong);
-      ref
-          .read(recentSongsProvider.notifier)
-          .recordPlayed(
-            playedSong,
-            playedAt: DateTime.now().millisecondsSinceEpoch.toString(),
-          );
+      if (ref.read(musicShareProvider).includes(playedSong)) {
+        ref
+            .read(recentSongsProvider.notifier)
+            .recordPlayed(
+              playedSong,
+              playedAt: DateTime.now().millisecondsSinceEpoch.toString(),
+            );
+      }
     }
   }
 

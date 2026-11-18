@@ -272,7 +272,7 @@ class _LocalPageState extends ConsumerState<LocalPage> {
     );
     if (_remote) {
       final access = RemotePageAccessScope.of(context);
-      if (access.loading || access.failed) {
+      if ((access.loading || access.failed) && !snapshotValue.hasValue) {
         return _buildRemoteDirectoryPlaceholder(
           context,
           loading: access.loading,
@@ -299,14 +299,21 @@ class _LocalPageState extends ConsumerState<LocalPage> {
         }
       });
       final directory = ref.watch(directoryProvider);
-      if (directory.isLoading || directory.hasError) {
+      if (!directory.hasValue) {
         return _buildRemoteDirectoryPlaceholder(
           context,
           loading: directory.isLoading,
         );
       }
+      if (snapshotValue.hasValue) {
+        snapshotValue = AsyncData(snapshotValue.requireValue);
+      }
       snapshotValue = snapshotValue.whenData((snapshot) {
-        final data = _remoteDataCache.read(snapshot, directory.value!, source);
+        final data = _remoteDataCache.read(
+          snapshot,
+          directory.requireValue,
+          source,
+        );
         _remoteSongFolders = data.songFolders;
         return data.snapshot;
       });

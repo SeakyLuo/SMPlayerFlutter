@@ -11,6 +11,49 @@ extension _SmPlayerShellAgentMethods on _SmPlayerShellPageState {
     aiAgentRemoteController.attach(
       AiAgentControlBindings(
         databasePath: databasePath,
+        openPlayer: () async {
+          if (Platform.isWindows || Platform.isMacOS || Platform.isLinux) {
+            await windowManager.restore();
+            await windowManager.show();
+            await windowManager.focus();
+          }
+        },
+        sharing: () async {
+          final share = ref.read(musicShareProvider);
+          await share.ready;
+          return {
+            'enabled': share.sharing,
+            'background': share.backgroundSharing,
+            'running': share.server.running,
+            'port': share.port,
+            'name': share.name,
+          };
+        },
+        updateSharing: (update) async {
+          final share = ref.read(musicShareProvider);
+          await share.startup;
+          if (update['enabled'] == false && update['background'] == true) {
+            throw const FormatException(
+              'Background sharing requires sharing to be enabled',
+            );
+          }
+          if (update['enabled'] == true && !share.sharing)
+            await share.setSharing(true);
+          if (update.containsKey('background')) {
+            if (!share.sharing)
+              throw const FormatException(
+                'Enable sharing before background sharing',
+              );
+            if (!await MusicShareBackgroundPlatform.available()) {
+              throw const FormatException(
+                'Background sharing is not supported on this platform',
+              );
+            }
+            await share.setBackgroundSharing(update['background'] as bool);
+          }
+          if (update['enabled'] == false && share.sharing)
+            await share.setSharing(false);
+        },
         settings: () => _settingsController.snapshot,
         updateSettings: _settingsController.updateSettings,
         loadSystemFonts: loadDesktopSystemFonts,
@@ -51,6 +94,8 @@ extension _SmPlayerShellAgentMethods on _SmPlayerShellPageState {
                 _updateSongFromAgent(repository, songId, properties),
       ),
     );
+    await ref.read(musicShareProvider).startup;
+    if (!mounted) return;
     if (!_settingsController.snapshot.aiAgentEnabled) {
       return;
     }
@@ -163,28 +208,24 @@ extension _SmPlayerShellAgentMethods on _SmPlayerShellPageState {
     }
   }
 
-  bool _playAgentQueue(List<int> songIds, int startIndex) {
-    final snapshot = ref.read(libraryContentDataProvider).valueOrNull;
-    if (snapshot == null ||
-        songIds.isEmpty ||
-        startIndex < 0 ||
-        startIndex >= songIds.length) {
+  Future<bool> _playAgentQueue(List<int> songIds, int startIndex) async {
+    if (songIds.isEmpty || startIndex < 0 || startIndex >= songIds.length)
       return false;
-    }
-    final librarySongIds = snapshot.songs.map((song) => song.id).toSet();
-    if (songIds.any((songId) => !librarySongIds.contains(songId))) {
-      return false;
-    }
-    unawaited(
-      replaceNowPlayingQueueAndPlayIndex(
-        ref: ref,
-        snapshot: snapshot,
-        i18n: context.smPlayerI18n,
-        songIds: songIds,
-        queueIndex: startIndex,
-        mediaController: _mediaControlController,
-        showQueueUpdatedNotification: false,
-      ),
+    final repository = ref.read(libraryRepositoryProvider);
+    final songs = await repository.getLibrarySongs(songIds: songIds);
+    final found = songs.map((song) => song.id).toSet();
+    if (songIds.any((id) => !found.contains(id))) return false;
+    await ref.read(libraryLoadedDataProvider.notifier).addSongs(songs);
+    if (!mounted) return false;
+    final snapshot = ref.read(libraryLoadedDataProvider).requireValue;
+    await replaceNowPlayingQueueAndPlayIndex(
+      ref: ref,
+      snapshot: snapshot,
+      i18n: context.smPlayerI18n,
+      songIds: songIds,
+      queueIndex: startIndex,
+      mediaController: _mediaControlController,
+      showQueueUpdatedNotification: false,
     );
     return true;
   }
@@ -194,8 +235,8 @@ extension _SmPlayerShellAgentMethods on _SmPlayerShellPageState {
     int songId,
     Map<String, Object?> properties,
   ) async {
-    final library = ref.read(libraryContentDataProvider).valueOrNull;
-    final song = library?.songs.where((song) => song.id == songId).firstOrNull;
+    final songs = await repository.getLibrarySongs(songIds: [songId]);
+    final song = songs.firstOrNull;
     if (song == null) {
       return false;
     }

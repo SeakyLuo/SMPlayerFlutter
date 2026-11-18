@@ -72,6 +72,11 @@ final currentLibraryPlaylistsProvider =
           ),
         );
       }
+      if (source != 'local') {
+        return ref.watch(
+          musicShareProvider.select((share) => share.selectedPlaylists),
+        );
+      }
       return ref
               .watch(libraryLoadedDataProvider)
               .valueOrNull
@@ -128,7 +133,11 @@ AsyncValue<LibraryContentData> _browse(
           ? ref.watch(libraryPageQueryProvider(sourceQuery))
           : ref.watch(libraryPagedQueryProvider(sourceQuery));
   final playlists = ref.watch(currentLibraryPlaylistsProvider);
-  return libraryValue.whenData((source) {
+  final visibleValue =
+      sourceQuery.source != 'local' && libraryValue.hasValue
+          ? AsyncData(libraryValue.requireValue)
+          : libraryValue;
+  return visibleValue.whenData((source) {
     return LibraryContentData(
       songs: source.songs,
       totalSongCount: source.totalSongCount,

@@ -74,40 +74,42 @@ class LibraryPlaybackHistoryService {
     }
   });
 
-  Future<void> removeRecentPlayed(File databaseFile, List<int> songIds) async {
-    if (songIds.isEmpty) {
-      return;
-    }
-    if (!databaseFile.existsSync()) {
-      return;
-    }
+  Future<void> removeRecentPlayed(File databaseFile, List<int> songIds) =>
+      LibrarySnapshotService.run(() {
+        if (songIds.isEmpty) {
+          return;
+        }
+        if (!databaseFile.existsSync()) {
+          return;
+        }
 
-    final placeholders = List.filled(songIds.length, '?').join(', ');
-    final db = sqlite3.open(databaseFile.path);
-    try {
-      db.execute(
-        '''
+        final placeholders = List.filled(songIds.length, '?').join(', ');
+        final db = sqlite3.open(databaseFile.path);
+        try {
+          db.execute(
+            '''
         UPDATE RecentRecord
         SET State = ?
         WHERE Type = $_recentRecordTypeSong
           AND ItemId IN ($placeholders)
       ''',
-        [_inactiveState, ...songIds.map((songId) => songId.toString())],
-      );
-    } finally {
-      db.dispose();
-    }
-  }
+            [_inactiveState, ...songIds.map((songId) => songId.toString())],
+          );
+        } finally {
+          db.dispose();
+        }
+      });
 
-  Future<void> clearRecentPlayed(File databaseFile) async {
-    if (!databaseFile.existsSync()) {
-      return;
-    }
+  Future<void> clearRecentPlayed(File databaseFile) =>
+      LibrarySnapshotService.run(() {
+        if (!databaseFile.existsSync()) {
+          return;
+        }
 
-    final db = sqlite3.open(databaseFile.path);
-    try {
-      db.execute(
-        '''
+        final db = sqlite3.open(databaseFile.path);
+        try {
+          db.execute(
+            '''
         UPDATE RecentRecord
         SET State = ?
         WHERE Type IN (
@@ -118,38 +120,39 @@ class LibraryPlaybackHistoryService {
           $_recentRecordTypeNowPlaying
         )
       ''',
-        [_inactiveState],
-      );
-      _deactivateUnusedHistoryPlaylists(db);
-    } finally {
-      db.dispose();
-    }
-  }
+            [_inactiveState],
+          );
+          _deactivateUnusedHistoryPlaylists(db);
+        } finally {
+          db.dispose();
+        }
+      });
 
-  Future<void> restoreRecentPlayed(File databaseFile, List<int> songIds) async {
-    if (songIds.isEmpty) {
-      return;
-    }
-    if (!databaseFile.existsSync()) {
-      return;
-    }
+  Future<void> restoreRecentPlayed(File databaseFile, List<int> songIds) =>
+      LibrarySnapshotService.run(() {
+        if (songIds.isEmpty) {
+          return;
+        }
+        if (!databaseFile.existsSync()) {
+          return;
+        }
 
-    final placeholders = List.filled(songIds.length, '?').join(', ');
-    final db = sqlite3.open(databaseFile.path);
-    try {
-      db.execute(
-        '''
+        final placeholders = List.filled(songIds.length, '?').join(', ');
+        final db = sqlite3.open(databaseFile.path);
+        try {
+          db.execute(
+            '''
         UPDATE RecentRecord
         SET State = ?
         WHERE Type = $_recentRecordTypeSong
           AND ItemId IN ($placeholders)
       ''',
-        [_activeState, ...songIds.map((songId) => songId.toString())],
-      );
-    } finally {
-      db.dispose();
-    }
-  }
+            [_activeState, ...songIds.map((songId) => songId.toString())],
+          );
+        } finally {
+          db.dispose();
+        }
+      });
 
   Future<void> markSongPlayed(File databaseFile, int songId) =>
       LibrarySnapshotService.run(() {
@@ -450,7 +453,7 @@ class LibraryPlaybackHistoryService {
     File databaseFile,
     String itemId,
     int type,
-  ) async {
+  ) => LibrarySnapshotService.run(() {
     final db = sqlite3.open(databaseFile.path);
     try {
       db.execute('BEGIN');
@@ -465,7 +468,7 @@ class LibraryPlaybackHistoryService {
     } finally {
       db.dispose();
     }
-  }
+  });
 
   ({int id, String playedAt}) _recordRecentItemPlayed(
     Database db,

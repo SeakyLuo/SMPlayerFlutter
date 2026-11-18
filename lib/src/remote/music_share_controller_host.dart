@@ -79,6 +79,7 @@ extension MusicShareHostManagement on MusicShareController {
         databasePath: databasePath,
         rootPath: library.rootPath,
       );
+      await aiAgentRemoteController.attachBackground(host);
       return host;
     } catch (error, stack) {
       try {
@@ -122,12 +123,16 @@ extension MusicShareHostManagement on MusicShareController {
     try {
       if (enabled) {
         if (backgroundSharing) {
+          await aiAgentRemoteController.prepareBackground();
           await MusicShareBackgroundPlatform.setLoginEnabled(true);
           sharing = true;
           await MusicShareConnectionStore.writeHost(_hostConfiguration);
         }
         await _startSharingHost();
       } else {
+        if (backgroundSharing) {
+          await aiAgentRemoteController.restoreForeground();
+        }
         await server.stop();
         if (MusicShareBackgroundPlatform.supported &&
             await MusicShareBackgroundPlatform.available()) {
@@ -151,8 +156,17 @@ extension MusicShareHostManagement on MusicShareController {
         if (!awaitingApproval) {
           await MusicShareBackgroundPlatform.setLoginEnabled(previousSharing);
         }
-        if (previousSharing && !server.running) {
-          server = await _connectBackgroundHost();
+        if (previousSharing) {
+          await aiAgentRemoteController.prepareBackground();
+          if (!server.running) {
+            server = await _connectBackgroundHost();
+          } else {
+            await aiAgentRemoteController.attachBackground(
+              server as MusicShareBackgroundHost,
+            );
+          }
+        } else {
+          await aiAgentRemoteController.restoreForeground();
         }
       } else {
         if (!previousSharing && server.running) await server.stop();
@@ -176,6 +190,7 @@ extension MusicShareHostManagement on MusicShareController {
       if (enabled) {
         // Registration must succeed before handing away the working listener.
         await MusicShareBackgroundPlatform.setLoginEnabled(true);
+        await aiAgentRemoteController.prepareBackground();
         await previous.stop();
         await MusicShareConnectionStore.writeHost({
           ..._hostConfiguration,
@@ -183,6 +198,7 @@ extension MusicShareHostManagement on MusicShareController {
         });
         server = await _connectBackgroundHost();
       } else {
+        await aiAgentRemoteController.restoreForeground();
         await (previous as MusicShareBackgroundHost).handoff();
         await MusicShareBackgroundPlatform.setLoginEnabled(false);
         server = _localHost(
@@ -205,11 +221,13 @@ extension MusicShareHostManagement on MusicShareController {
           await MusicShareBackgroundPlatform.setLoginEnabled(false);
         }
         await MusicShareBackgroundPlatform.stop();
+        await aiAgentRemoteController.restoreForeground();
         await MusicShareConnectionStore.writeHost(_hostConfiguration);
         server = previous;
         if (sharing && !previous.running) await previous.start(port: port);
       } else {
         if (server is MusicShareServer) await server.stop();
+        await aiAgentRemoteController.prepareBackground();
         await MusicShareConnectionStore.writeHost(_hostConfiguration);
         await MusicShareBackgroundPlatform.setLoginEnabled(true);
         server = await _connectBackgroundHost();

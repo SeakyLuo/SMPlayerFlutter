@@ -5,6 +5,9 @@ final class RemoteLibraryDataSource
     implements LibraryDataSource {
   const RemoteLibraryDataSource(this.source, this.access, this.repository);
   @override
+  Future<RecentPageData> readRecentData() =>
+      readRemoteRecentData(repository, source.deviceId);
+  @override
   final RemoteLibrarySource source;
   @override
   final MusicShareAccess access;

@@ -98,6 +98,7 @@ extension _MusicShareServerHttp on MusicShareServer {
       }
       if (request.method != 'GET' &&
           request.method != 'HEAD' &&
+          path != '/history' &&
           path != '/random-play' &&
           path != '/library/query' &&
           path != '/library/ids' &&
@@ -254,6 +255,20 @@ extension _MusicShareServerHttp on MusicShareServer {
                   .toList()
               : [int.parse(match.group(1)!)],
         );
+      }
+      if (path == '/history' &&
+          (request.method == 'GET' || request.method == 'POST')) {
+        final result = await handleSharedHistory(
+          request,
+          repository,
+          () => grants.containsKey(hash) && writeGrants.contains(hash),
+        );
+        if (request.method == 'POST') {
+          libraryHistoryChanges.add('local');
+          events.dataChanged('history');
+        }
+        _json(response, result);
+        return;
       }
       if (path == '/hidden-storage') {
         final before = Map<int, LibrarySong>.of(_songs);

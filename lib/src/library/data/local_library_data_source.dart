@@ -7,6 +7,8 @@ final class LocalLibraryDataSource
   @override
   final LibraryRepository repository;
   @override
+  Future<RecentPageData> readRecentData() => readLocalRecentData(repository);
+  @override
   LocalLibrarySource get source => const LocalLibrarySource();
   @override
   bool get canWrite => true;

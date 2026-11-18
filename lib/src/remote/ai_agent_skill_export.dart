@@ -17,7 +17,9 @@ environment cannot reach this device's loopback address.
 
 Discovery URL: `$endpoint`
 
-SMPlayer must be running with Settings > External control > AI control enabled.
+Enable Settings > External control > AI control. If background sharing is
+also enabled, discovery and sharing queries remain available after the player
+closes. GET /agent reports the supported operations.
 GET the discovery URL before performing a task. Read its current `endpoints`
 and `database` fields for supported request bodies and the SQLite library path.
 Resolve API paths against the discovery URL's origin, not its `/agent` path.
@@ -40,6 +42,16 @@ Keep internal IDs out of user-facing responses; never ask users to supply IDs.
 
 Use the discovered routes and JSON body schemas:
 
+- Call `/app/open` before playback or editing if the player is closed. Wait for
+  `playerReady: true`, then use the existing playback APIs. When the response
+  includes `endpoint`, resolve subsequent player and sharing-update paths against
+  that endpoint's origin. `/sharing/update` may return HTTP 307 to the player's
+  local endpoint; follow that redirect preserving the method and request body. On Android, if the
+  API returns `open_player_from_notification`, ask the user to tap the sharing
+  notification; do not claim that the player opened.
+- Query `/sharing`, or update `/sharing/update` with `enabled` and/or `background`
+  booleans. Only change sharing when the user asks. Disabling sharing also stops
+  its independent background AI listener; the open player keeps its AI API.
 - Play a song with `/song/play`.
 - Replace and play a queue with `/queue/play`; `startIndex` is zero-based.
 - Resume, pause, skip forward, or skip backward with `/player/play`,

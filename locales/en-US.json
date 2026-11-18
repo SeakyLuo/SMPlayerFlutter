@@ -721,7 +721,7 @@
   "settings.aiAgentCopyPromptTooltip": "Copy complete AI instructions including the API address, database access, playback controls, and song information editing",
   "settings.aiAgentCopyEndpoint": "Copy API address",
   "settings.aiAgentCopyEndpointTooltip": "Copy the local API address currently in use",
-  "settings.aiAgentPrompt": "Control {appName} through its local AI control API. API entry point: {endpoint}\nFirst request GET {endpoint} to discover the SQLite database path, Music.Id song identifier, and supported actions. Query that database when selecting songs, then call the control operation returned by the API.",
+  "settings.aiAgentPrompt": "Control {appName} through its local AI control API. API entry point: {endpoint}\nFirst request GET {endpoint} to discover the SQLite database path, Music.Id song identifier, and supported actions. Query that database when selecting songs, then call the control operation returned by the API.\nIf the player is closed, POST /app/open and wait for playerReady before playback; use the returned endpoint when supplied. GET /sharing reads sharing status; POST /sharing/update changes enabled/background booleans.",
   "settings.aiAgentPort": "AI control port",
   "settings.aiAgentPortInvalid": "The port must be between 1 and 65535.",
   "settings.aiAgentPortUpdateFailed": "Could not use this port. Make sure it is not already in use.",

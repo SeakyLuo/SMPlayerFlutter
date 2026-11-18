@@ -1,3 +1,4 @@
+import 'library_history_changes.dart';
 import '../../remote/music_source_providers.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -27,12 +28,13 @@ final recentPageDataProvider = FutureProvider.autoDispose<RecentPageData>((
   final source = ref.watch(
     musicShareProvider.select((share) => share.selectedSource),
   );
-  final content = await ref.watch(
-    libraryPageQueryProvider(
-      LibraryDataQuery(LibraryQueryKind.recent, source: source),
-    ).future,
-  );
-  return repository.getRecentPageData(content);
+  final changes = libraryHistoryChanges.stream.listen((device) {
+    if (device == source) ref.invalidateSelf();
+  });
+  ref.onDispose(changes.cancel);
+  return repository
+      .dataSource(LibrarySource.fromDevice(source))
+      .readRecentData();
 });
 
 final recentSongsProvider =
@@ -209,6 +211,13 @@ final recentSearchesProvider =
 class RecentSearchesNotifier extends AsyncNotifier<List<SearchHistoryEntry>> {
   @override
   Future<List<SearchHistoryEntry>> build() {
+    final source = ref.watch(
+      musicShareProvider.select((share) => share.selectedSource),
+    );
+    final changes = libraryHistoryChanges.stream.listen((device) {
+      if (device == source) ref.invalidateSelf();
+    });
+    ref.onDispose(changes.cancel);
     return ref.watch(libraryRepositoryProvider).getRecentSearches();
   }
 

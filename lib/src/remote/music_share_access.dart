@@ -7,6 +7,11 @@ import '../library/data/library_repository.dart';
 import 'music_share_models.dart';
 
 abstract class MusicShareAccess {
+  Future<Map<String, dynamic>> historyRequest(
+    String device,
+    String operation,
+    Map<String, dynamic> values,
+  );
   String get selectedSource;
   Future<List<int>> resolveSongIds(String device, LibraryDataQuery query);
   Future<ArtistSplitAnalysisResult> analyzeArtists(

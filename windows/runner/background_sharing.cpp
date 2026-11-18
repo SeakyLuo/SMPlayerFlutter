@@ -94,6 +94,7 @@ int RunBackgroundSharingWorker() {
   if (!engine.Run()) return EXIT_FAILURE;
   FlutterSecureStorageWindowsPluginRegisterWithRegistrar(engine.GetRegistrarForPlugin("FlutterSecureStorageWindowsPlugin"));
   Sqlite3FlutterLibsPluginRegisterWithRegistrar(engine.GetRegistrarForPlugin("Sqlite3FlutterLibsPlugin"));
+  RegisterBackgroundSharingChannel(engine.messenger());
   auto desktop = std::make_unique<flutter::MethodChannel<flutter::EncodableValue>>(
       engine.messenger(), "smplayer_flutter/desktop_features", &flutter::StandardMethodCodec::GetInstance());
   desktop->SetMethodCallHandler([](const auto& call, auto result) {
@@ -114,6 +115,14 @@ void RegisterBackgroundSharingChannel(flutter::BinaryMessenger* messenger) {
   channel->SetMethodCallHandler([](const auto& call, auto result) {
     try {
       if (call.method_name() == "supported") result->Success(flutter::EncodableValue(true));
+      else if (call.method_name() == "openPlayer") {
+        wchar_t path[32768];
+        const DWORD length = GetModuleFileNameW(nullptr, path, 32768);
+        if (length == 0 || length == 32768) throw std::runtime_error("Cannot read executable path");
+        const auto opened = reinterpret_cast<INT_PTR>(ShellExecuteW(nullptr, L"open", path, nullptr, nullptr, SW_SHOWNORMAL));
+        if (opened <= 32) throw std::runtime_error("player_open_failed");
+        result->Success();
+      }
       else if (call.method_name() == "start") {
         wchar_t path[32768];
         const DWORD length = GetModuleFileNameW(nullptr, path, 32768);

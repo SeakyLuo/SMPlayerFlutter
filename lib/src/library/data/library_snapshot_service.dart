@@ -1,6 +1,8 @@
 import 'dart:isolate';
 
 import 'library_browse_history_service.dart';
+import 'library_search_history_service.dart';
+import 'library_database_service.dart';
 import 'package:sqlite3/sqlite3.dart';
 import 'library_models.dart';
 import 'library_playback_history_service.dart';
@@ -90,6 +92,9 @@ class LibrarySnapshotService {
           artists: _history.readRecentArtists(db),
           nowPlaying: _history.readRecentNowPlaying(db),
           browses: _browse.read(db),
+          searches: const LibrarySearchHistoryService(
+            database: LibraryDatabaseService(),
+          ).readRecentSearches(db),
         );
       } finally {
         db.dispose();
@@ -103,7 +108,7 @@ class LibrarySnapshotService {
       recentArtists: recent.artists,
       recentNowPlaying: recent.nowPlaying,
       recentBrowses: recent.browses,
-      recentSearches: content.recentSearches,
+      recentSearches: recent.searches,
       playlists: content.playlists,
       favoritePlaylistId: content.favoritePlaylistId,
       nowPlaying: content.nowPlaying,

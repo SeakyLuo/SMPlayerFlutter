@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:sqlite3/sqlite3.dart';
 
 import 'library_models.dart';
+import 'library_snapshot_service.dart';
 import 'library_time_codec.dart';
 
 const _activeState = 1;
@@ -20,7 +21,7 @@ class LibraryBrowseHistoryService {
     File databaseFile,
     RecentBrowseType type,
     String itemId,
-  ) async {
+  ) => LibrarySnapshotService.run(() {
     final db = sqlite3.open(databaseFile.path);
     try {
       db.execute('BEGIN');
@@ -60,7 +61,7 @@ class LibraryBrowseHistoryService {
     } finally {
       db.dispose();
     }
-  }
+  });
 
   List<RecentBrowseEntry> read(Database db) {
     final rows = db.select(
@@ -89,31 +90,33 @@ class LibraryBrowseHistoryService {
     }).toList();
   }
 
-  Future<void> remove(File databaseFile, List<int> entryIds) async {
-    final placeholders = List.filled(entryIds.length, '?').join(', ');
-    final db = sqlite3.open(databaseFile.path);
-    try {
-      db.execute(
-        '''
+  Future<void> remove(File databaseFile, List<int> entryIds) =>
+      LibrarySnapshotService.run(() {
+        final placeholders = List.filled(entryIds.length, '?').join(', ');
+        final db = sqlite3.open(databaseFile.path);
+        try {
+          db.execute(
+            '''
         UPDATE RecentRecord
         SET State = ?
         WHERE Id IN ($placeholders)
       ''',
-        [_inactiveState, ...entryIds],
-      );
-    } finally {
-      db.dispose();
-    }
-  }
+            [_inactiveState, ...entryIds],
+          );
+        } finally {
+          db.dispose();
+        }
+      });
 
-  Future<void> restore(File databaseFile, List<int> entryIds) async {
-    final placeholders = List.filled(entryIds.length, '?').join(', ');
-    final db = sqlite3.open(databaseFile.path);
-    try {
-      db.execute('BEGIN');
-      try {
-        db.execute(
-          '''
+  Future<void> restore(File databaseFile, List<int> entryIds) =>
+      LibrarySnapshotService.run(() {
+        final placeholders = List.filled(entryIds.length, '?').join(', ');
+        final db = sqlite3.open(databaseFile.path);
+        try {
+          db.execute('BEGIN');
+          try {
+            db.execute(
+              '''
           UPDATE RecentRecord AS current
           SET State = ?
           WHERE current.State = ?
@@ -125,10 +128,10 @@ class LibraryBrowseHistoryService {
                 AND restoring.ItemId = current.ItemId
             )
         ''',
-          [_inactiveState, _activeState, ...entryIds],
-        );
-        db.execute(
-          '''
+              [_inactiveState, _activeState, ...entryIds],
+            );
+            db.execute(
+              '''
           UPDATE RecentRecord
           SET State = ?
           WHERE Id IN (
@@ -138,20 +141,20 @@ class LibraryBrowseHistoryService {
             GROUP BY Type, ItemId
           )
         ''',
-          [_activeState, ...entryIds],
-        );
-        _trimActiveBrowseRecords(db);
-        db.execute('COMMIT');
-      } on Object {
-        db.execute('ROLLBACK');
-        rethrow;
-      }
-    } finally {
-      db.dispose();
-    }
-  }
+              [_activeState, ...entryIds],
+            );
+            _trimActiveBrowseRecords(db);
+            db.execute('COMMIT');
+          } on Object {
+            db.execute('ROLLBACK');
+            rethrow;
+          }
+        } finally {
+          db.dispose();
+        }
+      });
 
-  Future<void> clear(File databaseFile) async {
+  Future<void> clear(File databaseFile) => LibrarySnapshotService.run(() {
     final db = sqlite3.open(databaseFile.path);
     try {
       db.execute(
@@ -170,7 +173,7 @@ class LibraryBrowseHistoryService {
     } finally {
       db.dispose();
     }
-  }
+  });
 }
 
 void _trimActiveBrowseRecords(Database db) {

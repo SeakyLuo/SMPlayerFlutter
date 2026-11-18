@@ -13,6 +13,7 @@ import '../library/data/library_repository.dart';
 import '../library/data/library_repository_paths.dart';
 import '../platform/system_log.dart';
 import 'music_share_connection_store.dart';
+import 'ai_agent_background_gateway.dart';
 import 'music_share_event_hub.dart';
 import 'music_share_identity.dart';
 import 'music_share_models.dart';
@@ -52,6 +53,7 @@ class MusicShareBackgroundRuntime {
   late File descriptor;
   RandomAccessFile? _lock;
   HttpServer? _control;
+  AiAgentBackgroundGateway? _agent;
   final _token = newShareSecret();
   final _clients = <WebSocket>{};
   Future<void> _commands = Future.value();
@@ -119,6 +121,22 @@ class MusicShareBackgroundRuntime {
     );
     server.updateLibrary(_library, notify: false);
     await server.start(port: config['port'] as int);
+    _agent = AiAgentBackgroundGateway(
+      databasePath: () => databasePath,
+      sharing:
+          () => {
+            'enabled': config['sharing'],
+            'background': config['backgroundSharing'],
+            'running': server.running,
+            'port': config['port'],
+            'name': config['name'],
+          },
+    );
+    final settings = await repository.readSettingsSnapshot();
+    await _agent!.configure(
+      enabled: settings.aiAgentEnabled,
+      port: settings.aiAgentPort,
+    );
     _control = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     _control!.listen(_handle);
     if (!Platform.isWindows) {
@@ -180,6 +198,11 @@ class MusicShareBackgroundRuntime {
     }
   }
 
+  void _removeClient(WebSocket socket) {
+    _clients.remove(socket);
+    if (_clients.isEmpty) _agent?.disconnectUI(stop: false);
+  }
+
   Future<void> _handle(HttpRequest request) async {
     if (request.headers.value(HttpHeaders.authorizationHeader) !=
             'Bearer $_token' ||
@@ -194,8 +217,8 @@ class MusicShareBackgroundRuntime {
       socket.add(jsonEncode(state));
       socket.listen(
         (_) {},
-        onDone: () => _clients.remove(socket),
-        onError: (Object _) => _clients.remove(socket),
+        onDone: () => _removeClient(socket),
+        onError: (Object _) => _removeClient(socket),
       );
       return;
     }
@@ -250,6 +273,14 @@ class MusicShareBackgroundRuntime {
 
   Future<void> _command(Map<String, dynamic> body) async {
     switch (body['operation']) {
+      case 'agent':
+        await _agent!.configure(
+          enabled: body['enabled'] as bool,
+          port: body['port'] as int,
+          uiPort: body['uiPort'] as int?,
+        );
+      case 'agent-disconnect':
+        _agent!.disconnectUI(stop: body['stop'] as bool);
       case 'status':
         break;
       case 'approve':
@@ -357,6 +388,7 @@ class MusicShareBackgroundRuntime {
   }
 
   Future<void> close() async {
+    await _agent?.close();
     if (_initialized) await server.stop();
     for (final socket in _clients) {
       await socket.close();

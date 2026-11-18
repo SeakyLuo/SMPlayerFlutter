@@ -44,9 +44,23 @@ devices retain their last known metadata.
 ## AI Agent API
 
 The API is disabled by default and can be enabled from Settings > AI Agent. It
-listens on `http://127.0.0.1:<port>/agent` only while the player is running. The
-port is configurable in Settings and defaults to `29643`.
+listens on `http://127.0.0.1:<port>/agent`. With independent background sharing
+also enabled, the host keeps that loopback endpoint available after the player
+closes. The port is configurable in Settings and defaults to `29643`.
 
+- `POST /app/open` opens the player explicitly and waits for its API to be ready.
+  Desktop hosts launch the installed player. Android background activity rules
+  require tapping the existing sharing notification when the UI is closed;
+  the API returns `open_player_from_notification` in that case. No duplicate
+  playback engine is started in the sharing process. A background-host response
+  includes the foreground `endpoint`; resolve subsequent paths against its origin.
+- `GET /sharing` returns sharing/background mode, listener state, device name
+  and music-sharing port without opening the player.
+- `POST /sharing/update` accepts `enabled` and/or `background` booleans through
+  the same controller operations as Settings. Enable sharing before background
+  mode. A background gateway redirects this mutation with HTTP 307 to the
+  foreground endpoint so stopping the worker cannot interrupt its own result.
+  Open the player first and preserve the POST method/body when following it.
 - `GET /agent` returns the active SQLite database path, the `Music.Id` song
   identifier mapping, and supported actions.
 - `GET /player/state` returns playback state and the current queue.

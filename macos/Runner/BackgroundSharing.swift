@@ -86,6 +86,17 @@ final class SharingWorkerDelegate: NSObject, NSApplicationDelegate {
     Sqlite3FlutterLibsPlugin.register(with: engine.registrar(forPlugin: "Sqlite3FlutterLibsPlugin"))
     channel = FlutterMethodChannel(name: "smplayer_flutter/background_sharing", binaryMessenger: engine.binaryMessenger)
     channel?.setMethodCallHandler { call, result in
+      if call.method == "openPlayer" {
+        let configuration = NSWorkspace.OpenConfiguration()
+        configuration.activates = true
+        configuration.createsNewApplicationInstance = true
+        NSWorkspace.shared.openApplication(at: Bundle.main.bundleURL, configuration: configuration) { _, error in
+          if let error = error {
+            result(FlutterError(code: "player_open_failed", message: error.localizedDescription, details: nil))
+          } else { result(nil) }
+        }
+        return
+      }
       guard call.method == "updateFileAccess" else { result(FlutterMethodNotImplemented); return }
       do {
         try self.restoreDirectoryAccess(call.arguments as! String)

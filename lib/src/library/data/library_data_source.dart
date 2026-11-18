@@ -1,8 +1,9 @@
 part of 'library_repository.dart';
 
-/// Operations on library-owned data. Application settings and playback history
-/// remain local and do not follow the selected browsing source.
+/// Operations on library-owned data, including library usage history.
+/// Application settings and the current playback session remain local.
 abstract interface class LibraryDataSource {
+  Future<RecentPageData> readRecentData();
   LibrarySource get source;
   bool get canWrite;
   Future<LibraryContentData> query(LibraryDataQuery query);

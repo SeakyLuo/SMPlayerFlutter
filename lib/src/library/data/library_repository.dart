@@ -1,3 +1,6 @@
+import 'library_recent_data.dart';
+import '../../remote/remote_history.dart';
+import '../../remote/music_share_history.dart';
 import '../../platform/system_log.dart';
 import 'library_sql_functions.dart';
 import 'artist_split_model.dart' as artist_rules;
@@ -95,6 +98,7 @@ part 'library_repository_shared_files.dart';
 part 'library_repository_platform.dart';
 part 'library_repository_local_operations.dart';
 part 'library_repository_collections.dart';
+part 'library_repository_history.dart';
 part 'library_repository_data_transfer.dart';
 part 'library_repository_queries.dart';
 part 'library_source_reading.dart';
@@ -117,6 +121,7 @@ typedef _LyricsCacheKey =
 class LibraryRepository
     with
         _LibraryDataSources,
+        _LibraryRepositoryHistory,
         _LibraryRepositoryLocalOperations,
         _LibraryRepositoryCollections,
         _LibraryRepositorySongEditing,
@@ -250,38 +255,6 @@ class LibraryRepository
       _startupArtistSplitPendingDatabasePaths.add(databaseFile.path);
     }
     return result.snapshot;
-  }
-
-  Future<RecentPageData> getRecentPageData(LibraryContentData content) {
-    return const LibrarySnapshotService().readRecent(content);
-  }
-
-  Future<List<SearchHistoryEntry>> getRecentSearches() async {
-    final databaseFile = await _resolveDatabaseFile();
-    return _searchHistoryService.getRecentSearches(databaseFile);
-  }
-
-  Future<RecentBrowseEntry> recordRecentBrowse(
-    RecentBrowseType type,
-    String itemId,
-  ) async {
-    final databaseFile = await _resolveDatabaseFile();
-    return _browseHistoryService.record(databaseFile, type, itemId);
-  }
-
-  Future<void> removeRecentBrowses(List<int> entryIds) async {
-    final databaseFile = await _resolveDatabaseFile();
-    await _browseHistoryService.remove(databaseFile, entryIds);
-  }
-
-  Future<void> restoreRecentBrowses(List<int> entryIds) async {
-    final databaseFile = await _resolveDatabaseFile();
-    await _browseHistoryService.restore(databaseFile, entryIds);
-  }
-
-  Future<void> clearRecentBrowses() async {
-    final databaseFile = await _resolveDatabaseFile();
-    await _browseHistoryService.clear(databaseFile);
   }
 
   Future<int> getLibrarySongCount() async {
@@ -425,44 +398,6 @@ class LibraryRepository
     );
   }
 
-  Future<void> removeRecentPlayed(List<int> songIds) async {
-    final databaseFile = await _resolveDatabaseFile();
-    await _playbackHistoryService.removeRecentPlayed(databaseFile, songIds);
-  }
-
-  Future<void> clearRecentPlayed() async {
-    final databaseFile = await _resolveDatabaseFile();
-    await _playbackHistoryService.clearRecentPlayed(databaseFile);
-  }
-
-  Future<void> removeRecentSearches(List<int> entryIds) async {
-    final databaseFile = await _resolveDatabaseFile();
-    await _searchHistoryService.removeRecentSearches(databaseFile, entryIds);
-  }
-
-  Future<void> restoreRecentSearches(List<SearchHistoryEntry> entries) async {
-    final databaseFile = await _resolveDatabaseFile();
-    await _searchHistoryService.restoreRecentSearches(databaseFile, entries);
-  }
-
-  Future<void> restoreRecentPlayed(List<int> songIds) async {
-    final databaseFile = await _resolveDatabaseFile();
-    await _playbackHistoryService.restoreRecentPlayed(databaseFile, songIds);
-  }
-
-  Future<void> clearRecentSearches() async {
-    final databaseFile = await _resolveDatabaseFile();
-    await _searchHistoryService.clearRecentSearches(databaseFile);
-  }
-
-  Future<SearchHistoryEntry?> addRecentSearch(
-    String query, [
-    SearchHistoryType type = SearchHistoryType.sidebar,
-  ]) async {
-    final databaseFile = await _resolveDatabaseFile();
-    return _searchHistoryService.addRecentSearch(databaseFile, query, type);
-  }
-
   Future<void> updateMusicLibrarySort(
     MusicLibrarySortCriterion criterion,
   ) async {
@@ -518,11 +453,6 @@ class LibraryRepository
         ),
       ),
     );
-  }
-
-  Future<void> markSongPlayed(int songId) async {
-    final databaseFile = await _resolveDatabaseFile();
-    await _playbackHistoryService.markSongPlayed(databaseFile, songId);
   }
 
   Future<LyricsSnapshot> getSongLyrics(

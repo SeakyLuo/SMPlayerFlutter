@@ -5,7 +5,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../app/undoable_notification.dart';
 import '../i18n/app_i18n.dart';
-import '../library/ui/library_load_failure.dart';
 import '../library/data/library_providers.dart';
 import '../platform/system_log.dart';
 import 'music_share_models.dart';
@@ -116,27 +115,11 @@ class _RemotePageAccessState extends ConsumerState<RemotePageAccess> {
 
   @override
   Widget build(BuildContext context) {
-    final blocked = _failed;
-    final directoryPage = Uri.parse(widget.location).path == '/local';
     return RemotePageAccessScope(
       retry: _retry,
       loading: _loading,
       failed: _failed,
-      child: Stack(
-        fit: StackFit.expand,
-        children: [
-          // Keep navigation state mounted, but prevent hidden content from making
-          // visibility-driven artwork requests or accepting user input.
-          TickerMode(
-            enabled: directoryPage || !blocked,
-            child: Offstage(
-              offstage: !directoryPage && blocked,
-              child: widget.child,
-            ),
-          ),
-          if (!directoryPage && _failed) LibraryLoadFailure(onRetry: _retry),
-        ],
-      ),
+      child: widget.child,
     );
   }
 }

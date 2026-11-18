@@ -1,3 +1,4 @@
+import '../library/data/library_history_changes.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
@@ -12,6 +13,7 @@ import '../library/data/library_repository.dart';
 import '../library/data/library_snapshot_service.dart';
 import '../platform/system_log.dart';
 import 'music_share_access.dart';
+import 'ai_agent_remote_controller.dart';
 import 'music_share_artwork_cache.dart';
 import 'music_share_catalog.dart';
 import 'music_share_identity.dart';
@@ -183,6 +185,13 @@ class MusicShareController extends ChangeNotifier
     if (!_playlistClient.isFresh(device)) await readPlaylistData(device);
     return _playlistClient.forDevice(device);
   }
+
+  @override
+  Future<Map<String, dynamic>> historyRequest(
+    String device,
+    String operation,
+    Map<String, dynamic> values,
+  ) => _historyRequest(device, operation, values);
 
   @override
   Future<LibraryContentData> queryLibraryData(
@@ -754,6 +763,7 @@ class MusicShareController extends ChangeNotifier
     for (final transport in _proxyTransports) {
       transport.close();
     }
+    await aiAgentRemoteController.detach();
     await Future.wait([
       if (_proxy != null) _proxy!.close(force: true),
       if (initialized) server.disconnect(),

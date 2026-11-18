@@ -4,6 +4,7 @@ import 'package:sqlite3/sqlite3.dart';
 
 import 'library_database_service.dart';
 import 'library_models.dart';
+import 'library_snapshot_service.dart';
 import 'library_time_codec.dart';
 
 class LibrarySearchHistoryService {
@@ -25,32 +26,30 @@ class LibrarySearchHistoryService {
     }
   }
 
-  Future<void> removeRecentSearches(
-    File databaseFile,
-    List<int> entryIds,
-  ) async {
-    if (entryIds.isEmpty) {
-      return;
-    }
-    if (!databaseFile.existsSync()) {
-      return;
-    }
+  Future<void> removeRecentSearches(File databaseFile, List<int> entryIds) =>
+      LibrarySnapshotService.run(() {
+        if (entryIds.isEmpty) {
+          return;
+        }
+        if (!databaseFile.existsSync()) {
+          return;
+        }
 
-    final placeholders = List.filled(entryIds.length, '?').join(', ');
-    final db = sqlite3.open(databaseFile.path);
-    try {
-      db.execute('DELETE FROM SearchHistory WHERE Id IN ($placeholders)', [
-        ...entryIds,
-      ]);
-    } finally {
-      db.dispose();
-    }
-  }
+        final placeholders = List.filled(entryIds.length, '?').join(', ');
+        final db = sqlite3.open(databaseFile.path);
+        try {
+          db.execute('DELETE FROM SearchHistory WHERE Id IN ($placeholders)', [
+            ...entryIds,
+          ]);
+        } finally {
+          db.dispose();
+        }
+      });
 
   Future<void> restoreRecentSearches(
     File databaseFile,
     List<SearchHistoryEntry> entries,
-  ) async {
+  ) => LibrarySnapshotService.run(() {
     if (entries.isEmpty) {
       return;
     }
@@ -94,26 +93,27 @@ class LibrarySearchHistoryService {
     } finally {
       db.dispose();
     }
-  }
+  });
 
-  Future<void> clearRecentSearches(File databaseFile) async {
-    if (!databaseFile.existsSync()) {
-      return;
-    }
+  Future<void> clearRecentSearches(File databaseFile) =>
+      LibrarySnapshotService.run(() {
+        if (!databaseFile.existsSync()) {
+          return;
+        }
 
-    final db = sqlite3.open(databaseFile.path);
-    try {
-      db.execute('DELETE FROM SearchHistory');
-    } finally {
-      db.dispose();
-    }
-  }
+        final db = sqlite3.open(databaseFile.path);
+        try {
+          db.execute('DELETE FROM SearchHistory');
+        } finally {
+          db.dispose();
+        }
+      });
 
   Future<SearchHistoryEntry?> addRecentSearch(
     File databaseFile,
     String query, [
     SearchHistoryType type = SearchHistoryType.sidebar,
-  ]) async {
+  ]) => LibrarySnapshotService.run(() {
     final nextQuery = query.trim();
     if (nextQuery.isEmpty) {
       return null;
@@ -158,7 +158,7 @@ class LibrarySearchHistoryService {
     } finally {
       db.dispose();
     }
-  }
+  });
 
   List<SearchHistoryEntry> readRecentSearches(Database db) {
     final rows = db.select('''

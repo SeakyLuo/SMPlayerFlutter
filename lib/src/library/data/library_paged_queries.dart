@@ -102,7 +102,7 @@ class LibraryPagedQuery
             for (final page in _pages.values) ...page,
           };
           final positions = rows.keys.toList()..sort();
-          if (state.hasError) return;
+          if (!state.hasValue) return;
           final current = state.requireValue;
           final next = current.withPage(
             songs: [for (final position in positions) rows[position]!],
@@ -114,8 +114,10 @@ class LibraryPagedQuery
           await ref.read(libraryLoadedDataProvider.notifier).publish(next, arg);
         } catch (error, stack) {
           if (generation == _generation) {
-            _releaseCache?.call();
-            state = AsyncError(error, stack);
+            state = AsyncError<LibraryContentData>(
+              error,
+              stack,
+            ).copyWithPrevious(state);
           }
         } finally {
           if (identical(_requests[offset], request)) _requests.remove(offset);

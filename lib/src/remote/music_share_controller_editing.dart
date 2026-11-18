@@ -1,6 +1,32 @@
 part of 'music_share_controller.dart';
 
 extension MusicShareEditing on MusicShareController {
+  Future<Map<String, dynamic>> _historyRequest(
+    String device,
+    String operation,
+    Map<String, dynamic> values,
+  ) async {
+    await ready;
+    final peer = peerFor(remoteMusicPath(device, 0));
+    final transport = MusicShareTransport(
+      peer.address,
+      fingerprint: peer.fingerprint,
+      token: peer.token,
+      onNetworkError:
+          (error, stack) => _requestConnectionRecovery(peer, error, stack),
+    );
+    try {
+      final reading = operation == 'get' || operation == 'getSearches';
+      return await transport.json(
+        operation == 'getSearches' ? '/history?section=searches' : '/history',
+        method: reading ? 'GET' : 'POST',
+        body: reading ? null : {'operation': operation, ...values},
+      );
+    } finally {
+      transport.close();
+    }
+  }
+
   Future<Map<String, dynamic>> _editRequest(
     String path,
     String endpoint, {

@@ -1,3 +1,5 @@
+import '../library/data/library_history_changes.dart';
+import 'music_share_history.dart';
 import 'music_share_directory_index.dart';
 import 'music_share_host.dart';
 import 'dart:async';

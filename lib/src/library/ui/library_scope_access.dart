@@ -28,13 +28,19 @@ void listenLibraryPageFailure(WidgetRef ref, LibraryDataQuery query) {
           : ref.read(selectedLibraryDataSourceProvider).source.deviceId;
   final bound = query.withPage(source: source);
   final container = ProviderScope.containerOf(ref.context, listen: false);
-  listenLibraryQueryFailure(ref, browsingLibraryPageProvider(query), () {
-    container.invalidate(
-      query.limit == null
-          ? libraryPageQueryProvider(bound)
-          : libraryPagedQueryProvider(bound),
-    );
-  });
+  listenLibraryQueryFailure(
+    ref,
+    query.limit == null
+        ? libraryPageQueryProvider(bound)
+        : libraryPagedQueryProvider(bound),
+    () {
+      container.invalidate(
+        query.limit == null
+            ? libraryPageQueryProvider(bound)
+            : libraryPagedQueryProvider(bound),
+      );
+    },
+  );
 }
 
 void listenLibraryQueryFailure<T>(
@@ -45,7 +51,8 @@ void listenLibraryQueryFailure<T>(
   ref.listen(provider, (previous, next) {
     if (next.isLoading ||
         !next.hasError ||
-        previous?.isLoading == false && identical(previous?.error, next.error)) {
+        previous?.isLoading == false &&
+            identical(previous?.error, next.error)) {
       return;
     }
     final context = ref.context;

@@ -58,6 +58,9 @@ extension MusicShareEvents on MusicShareController {
             case 'data-changed':
               _remoteDataChanges.add(peer.id);
               final scopes = (event['scopes'] as List).cast<String>();
+              if (scopes.contains('history')) {
+                libraryHistoryChanges.add(peer.id);
+              }
               final ids =
                   scopes
                       .where((scope) => scope.startsWith('song:'))

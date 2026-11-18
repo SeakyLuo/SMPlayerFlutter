@@ -720,7 +720,7 @@
   "settings.aiAgentCopyPromptTooltip": "复制包含接口地址、数据库访问方式、播放控制和歌曲信息修改方法的完整说明，可直接交给 AI",
   "settings.aiAgentCopyEndpoint": "复制接口地址",
   "settings.aiAgentCopyEndpointTooltip": "复制当前正在使用的本地接口地址",
-  "settings.aiAgentPrompt": "请通过{appName}的本地 AI 控制接口控制播放器。接口入口：{endpoint}\n先请求 GET {endpoint} 获取 SQLite 数据库路径、Music.Id 歌曲标识和支持的操作；需要选歌时查询该数据库，再调用接口返回的控制操作。",
+  "settings.aiAgentPrompt": "请通过{appName}的本地 AI 控制接口控制播放器。接口入口：{endpoint}\n先请求 GET {endpoint} 获取 SQLite 数据库路径、Music.Id 歌曲标识和支持的操作；需要选歌时查询该数据库，再调用接口返回的控制操作。\n播放器未打开时先调用 POST /app/open，等待 playerReady 为 true，再按返回的 endpoint 调用播放操作。可用 GET /sharing 查询共享状态，用 POST /sharing/update 修改 enabled、background 开关。",
   "settings.aiAgentPort": "AI 控制端口",
   "settings.aiAgentPortInvalid": "端口必须在 1 至 65535 之间。",
   "settings.aiAgentPortUpdateFailed": "无法使用此端口，请确认端口未被占用。",
