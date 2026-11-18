@@ -8,6 +8,9 @@ class RecentNowPlayingDetailPage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final i18nValue = ref.watch(smPlayerI18nProvider);
+    final container = ProviderScope.containerOf(context, listen: false);
+    void retry() => container.invalidate(recentPageDataProvider);
+    listenLibraryQueryFailure(ref, recentPageDataProvider, retry);
     final snapshotValue = ref.watch(recentPageDataProvider);
     if ((i18nValue.isLoading && !i18nValue.hasValue) ||
         (snapshotValue.isLoading && !snapshotValue.hasValue)) {
@@ -21,11 +24,8 @@ class RecentNowPlayingDetailPage extends ConsumerWidget {
         skipLoadingOnReload: true,
         loading: () => const _RecentPagePanel(child: SmPlayerLoadingState()),
         error:
-            (_, _) => _RecentPagePanel(
-              child: LibraryLoadFailure(
-                onRetry: () => ref.invalidate(recentPageDataProvider),
-              ),
-            ),
+            (_, _) =>
+                _RecentPagePanel(child: LibraryLoadFailure(onRetry: retry)),
         data: (snapshot) {
           final record = snapshot.recentNowPlaying.singleWhere(
             (entry) => entry.id == recordId,

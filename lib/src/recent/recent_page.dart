@@ -1,3 +1,4 @@
+import '../library/ui/library_scope_access.dart';
 import 'package:smplayer_flutter/src/library/ui/library_load_failure.dart';
 import '../remote/music_source_providers.dart';
 import 'dart:async';
@@ -187,6 +188,10 @@ class _RecentPageState extends ConsumerState<RecentPage>
   Widget build(BuildContext context) {
     if (!TickerMode.valuesOf(context).enabled) return const SizedBox.shrink();
     final i18nValue = ref.watch(smPlayerI18nProvider);
+    final container = ProviderScope.containerOf(context, listen: false);
+    void retry() => container.invalidate(recentPageDataProvider);
+
+    listenLibraryQueryFailure(ref, recentPageDataProvider, retry);
     final snapshotValue = ref.watch(recentPageDataProvider);
     final queueOverride = ref.watch(nowPlayingQueueOverrideProvider);
     final source = ref.watch(musicShareProvider);
@@ -234,11 +239,7 @@ class _RecentPageState extends ConsumerState<RecentPage>
       skipLoadingOnReload: true,
       loading: () => const _RecentPagePanel(child: SmPlayerLoadingState()),
       error:
-          (_, _) => _RecentPagePanel(
-            child: LibraryLoadFailure(
-              onRetry: () => ref.invalidate(recentPageDataProvider),
-            ),
-          ),
+          (_, _) => _RecentPagePanel(child: LibraryLoadFailure(onRetry: retry)),
       data: (snapshot) {
         final songs = applyFavoriteOverridesToSongs(
           snapshot.songs.where(source.includes).toList(),
