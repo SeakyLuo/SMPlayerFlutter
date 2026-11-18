@@ -1,3 +1,7 @@
 import 'dart:async';
 
-final libraryHistoryChanges = StreamController<String>.broadcast();
+const recentHistoryScope = 'history:recent';
+const searchHistoryScope = 'history:search';
+
+final libraryHistoryChanges =
+    StreamController<({String device, String scope})>.broadcast();

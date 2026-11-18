@@ -47,7 +47,6 @@ extension _LocalPageScanActions on _LocalPageState {
   }
 
   Future<void> _runRefreshFolder(FolderNode folder, SmPlayerI18n i18n) async {
-    final previousSnapshot = ref.read(libraryContentDataProvider).value!;
     final cancellation = LocalFolderScanCancellation();
     final completion = Completer<void>();
     _updateLocalPageState(() {
@@ -75,9 +74,7 @@ extension _LocalPageScanActions on _LocalPageState {
         onProgress: _setScanProgress,
         onLibraryCommitted:
             (result) => _reloadCommittedLibrary(
-              previousSnapshot,
               result,
-              i18n,
               source: LibrarySource.fromPath(folder.path).deviceId,
             ),
       );
@@ -187,7 +184,6 @@ extension _LocalPageScanActions on _LocalPageState {
     if (_rootScanRunning) {
       return;
     }
-    final previousSnapshot = ref.read(libraryContentDataProvider).value!;
     final cancellation = LocalFolderScanCancellation();
     _updateLocalPageState(() {
       _rootScanRunning = true;
@@ -210,12 +206,7 @@ extension _LocalPageScanActions on _LocalPageState {
                     rootPath,
                     cancellation: cancellation,
                     onProgress: _setScanProgress,
-                    onLibraryCommitted:
-                        (result) => _reloadCommittedLibrary(
-                          previousSnapshot,
-                          result,
-                          i18n,
-                        ),
+                    onLibraryCommitted: _reloadCommittedLibrary,
                   )
               : await widget.onScanLibrary!(
                 rootPath,
@@ -223,7 +214,7 @@ extension _LocalPageScanActions on _LocalPageState {
                 onProgress: _setScanProgress,
               );
       if (widget.onScanLibrary != null && result.libraryChanged) {
-        await _reloadCommittedLibrary(previousSnapshot, result, i18n);
+        await _reloadCommittedLibrary(result);
       }
       if (mounted) {
         await finishLocalFolderRefreshProgress(
@@ -254,9 +245,7 @@ extension _LocalPageScanActions on _LocalPageState {
   }
 
   Future<void> _reloadCommittedLibrary(
-    LibraryContentData previousSnapshot,
-    LocalFolderRefreshResult result,
-    SmPlayerI18n i18n, {
+    LocalFolderRefreshResult result, {
     String source = 'local',
   }) async {
     if (!result.libraryChanged) return;
@@ -273,10 +262,8 @@ extension _LocalPageScanActions on _LocalPageState {
         missingCount: progress.missingCount,
       ),
     );
-    invalidateLibraryQueries(ref.invalidate, source: source);
-    ref.invalidate(recentPageDataProvider);
-    ref.invalidate(shellNavigationDataProvider);
-    ref.invalidate(librarySongCountProvider);
+    final container = ProviderScope.containerOf(context, listen: false);
+    await updateLibraryAfterFolderScan(container, result, source: source);
     if (!mounted) return;
     _setScanProgress(
       LocalFolderRefreshProgress(
@@ -384,8 +371,11 @@ extension _LocalPageScanActions on _LocalPageState {
       return;
     }
 
-    await ref.read(libraryRepositoryProvider).applyArtistSplits(splits);
-    invalidateLibraryQueries(ref.invalidate);
+    final sources = await ref
+        .read(libraryRepositoryProvider)
+        .applyArtistSplits(splits);
+    if (!mounted) return;
+    await refreshArtistSplitData(ref, sources, splits);
     if (!mounted) {
       return;
     }

@@ -262,39 +262,38 @@ extension _MusicShareServerHttp on MusicShareServer {
           request,
           repository,
           () => grants.containsKey(hash) && writeGrants.contains(hash),
+          onChanged: (operation) {
+            final scope =
+                operation == 'search' || operation.endsWith('Searches')
+                    ? searchHistoryScope
+                    : recentHistoryScope;
+            libraryHistoryChanges.add((device: 'local', scope: scope));
+            events.dataChanged(scope);
+          },
         );
-        if (request.method == 'POST') {
-          libraryHistoryChanges.add('local');
-          events.dataChanged('history');
-        }
         _json(response, result);
         return;
       }
       if (path == '/hidden-storage') {
-        final before = Map<int, LibrarySong>.of(_songs);
         late String resumedPath;
         final result = await MusicShareHiddenStorage(
           repository,
           _rootPath,
         ).handle(request, onResumed: (path) => resumedPath = path);
         if (request.method == 'POST' && response.statusCode == HttpStatus.ok) {
-          await _refreshSharedEntries(
-            before.values
-                .where((song) => song.path == resumedPath)
-                .map((song) => song.id)
-                .toList(),
+          final changed = await _refreshSharedEntries(
+            const [],
             folder: resumedPath,
             directoriesChanged: true,
           );
           onLibraryChanged();
-          _json(response, {...result, ...sharedCatalogChanges(before, _songs)});
+          _json(response, {...result, ...sharedCatalogChanges(changed)});
         } else {
           _json(response, result);
         }
         return;
       }
       if (path == '/directory-refresh') {
-        var before = Map<int, LibrarySong>.of(_songs);
         (_streams[hash] ??= {}).add(response);
         try {
           await refreshSharedDirectory(
@@ -304,17 +303,14 @@ extension _MusicShareServerHttp on MusicShareServer {
             () => grants.containsKey(hash) && writeGrants.contains(hash),
             (folder) async {},
             (result, folder) async {
-              await _refreshSharedEntries(
-                before.values
-                    .where((song) => p.isWithin(folder, song.path))
-                    .map((song) => song.id)
-                    .toList(),
+              final changed = await _refreshSharedEntries(
+                const [],
                 folder: folder,
                 directoriesChanged: true,
               );
               onLibraryChanged();
               return {
-                ...sharedCatalogChanges(before, _songs),
+                ...sharedCatalogChanges(changed),
                 'songPaths': {
                   for (final entry in result.songIdsByPath.entries)
                     p
@@ -332,8 +328,7 @@ extension _MusicShareServerHttp on MusicShareServer {
       }
       if (path == '/directories') {
         if (request.method == 'POST') {
-          final before = Map<int, LibrarySong>.of(_songs);
-          var changedIds = <int>[];
+          List<int>? changedIds;
           String? refreshedFolder;
           final result = await _directoryCommands.handle(
             request,
@@ -349,16 +344,17 @@ extension _MusicShareServerHttp on MusicShareServer {
             _json(response, result);
             return;
           }
-          await _refreshSharedEntries(
-            changedIds,
-            folder: refreshedFolder,
-            directoriesChanged: true,
-          );
-          onLibraryChanged();
-          _json(response, {
-            ...result,
-            ...sharedCatalogChanges(before, _songs, affectedIds: changedIds),
-          });
+          final ids = changedIds;
+          final changed =
+              ids == null
+                  ? const <int>{}
+                  : await _refreshSharedEntries(
+                    ids,
+                    folder: refreshedFolder,
+                    directoriesChanged: true,
+                  );
+          if (ids != null) onLibraryChanged();
+          _json(response, {...result, ...sharedCatalogChanges(changed)});
           return;
         }
         if (request.method != 'GET' && request.method != 'HEAD') {
@@ -388,7 +384,6 @@ extension _MusicShareServerHttp on MusicShareServer {
         return;
       }
       if (path == '/files') {
-        final before = Map<int, LibrarySong>.of(_songs);
         final changedIds = <int>[];
         final result = await _files.handle(
           request,
@@ -399,11 +394,11 @@ extension _MusicShareServerHttp on MusicShareServer {
         if (request.method == 'POST' &&
             !result.containsKey('error') &&
             response.statusCode == HttpStatus.ok) {
-          await _refreshSharedEntries(changedIds, directoriesChanged: true);
-          _json(response, {
-            ...result,
-            ...sharedCatalogChanges(before, _songs, affectedIds: changedIds),
-          });
+          final changed = await _refreshSharedEntries(
+            changedIds,
+            directoriesChanged: true,
+          );
+          _json(response, {...result, ...sharedCatalogChanges(changed)});
         } else {
           _json(response, result);
         }
@@ -471,7 +466,6 @@ extension _MusicShareServerHttp on MusicShareServer {
           kind == 'play-count' ||
           request.method == 'POST' ||
           request.method == 'DELETE') {
-        final before = Map<int, LibrarySong>.of(_songs);
         final result = await handleSharedSongEdit(
           request,
           song,
@@ -481,8 +475,8 @@ extension _MusicShareServerHttp on MusicShareServer {
               () => grants.containsKey(hash) && writeGrants.contains(hash),
         );
         if (response.statusCode == HttpStatus.ok && request.method != 'GET') {
-          await _refreshSharedEntries([song.id]);
-          result.addAll(sharedCatalogChanges(before, _songs));
+          final changed = await _refreshSharedEntries([song.id]);
+          result.addAll(sharedCatalogChanges(changed));
           onLibraryChanged();
         }
         _json(response, result);

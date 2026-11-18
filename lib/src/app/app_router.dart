@@ -272,9 +272,12 @@ GoRouter createSmPlayerRouter({
                               libraryRepository: ref.read(
                                 libraryRepositoryProvider,
                               ),
-                              onArtistDataChanged: () {
-                                _invalidateLibraryData(ref);
-                              },
+                              onArtistDataChanged:
+                                  (sources, splits) => refreshArtistSplitData(
+                                    ref,
+                                    sources,
+                                    splits,
+                                  ),
                               onScanLibrary:
                                   (rootPath, {cancellation, onProgress}) =>
                                       _scanLibraryRoot(

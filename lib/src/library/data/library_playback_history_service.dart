@@ -18,23 +18,24 @@ const _recentRecordTypeNowPlaying = 6;
 const _playlistTypeHistory = 3;
 const _recentSongLimit = 500;
 const _recentCollectionLimit = 200;
-const _recentNowPlayingLimit = 10;
+const _recentNowPlayingLimit = RecentNowPlayingSnapshot.limit;
 
 class LibraryPlaybackHistoryService {
   const LibraryPlaybackHistoryService();
 
-  Future<void> replaceNowPlaying(
+  Future<RecentNowPlayingSnapshot?> replaceNowPlaying(
     File databaseFile,
     File nowPlayingFile,
     List<int> songIds, {
     bool recordHistory = false,
   }) => LibrarySnapshotService.run(() {
     if (!databaseFile.existsSync()) {
-      return;
+      return null;
     }
 
     final db = sqlite3.open(databaseFile.path);
     try {
+      RecentNowPlayingSnapshot? history;
       if (recordHistory) {
         final previousPaths = _readNowPlayingPaths(nowPlayingFile);
         final previousSongIds = _readNowPlayingSongIdsFromPaths(
@@ -43,10 +44,11 @@ class LibraryPlaybackHistoryService {
         );
         if (previousSongIds.isNotEmpty &&
             !listEquals(previousSongIds, songIds)) {
-          _recordNowPlaying(db, previousPaths, previousSongIds);
+          history = _recordNowPlaying(db, previousPaths, previousSongIds);
         }
       }
       _writeNowPlayingSongIds(db, nowPlayingFile, songIds);
+      return history;
     } finally {
       db.dispose();
     }
@@ -594,7 +596,7 @@ class LibraryPlaybackHistoryService {
     return (songPaths: songPaths, songIds: validSongIds);
   }
 
-  void _recordNowPlaying(
+  RecentNowPlayingSnapshot _recordNowPlaying(
     Database db,
     List<String> songPaths,
     List<int> songIds,
@@ -644,6 +646,7 @@ class LibraryPlaybackHistoryService {
       ''',
         [_inactiveState, _activeState, playlistId.toString()],
       );
+      final createdAt = LibraryTimeCodec.nowUnixMillisecondsString();
       db.execute(
         '''
         INSERT INTO RecentRecord (Type, ItemId, Time, State)
@@ -652,10 +655,11 @@ class LibraryPlaybackHistoryService {
         [
           _recentRecordTypeNowPlaying,
           playlistId.toString(),
-          LibraryTimeCodec.nowUnixMillisecondsString(),
+          createdAt,
           _activeState,
         ],
       );
+      final historyId = db.lastInsertRowId;
       db.execute('''
         UPDATE RecentRecord
         SET State = $_inactiveState
@@ -672,6 +676,12 @@ class LibraryPlaybackHistoryService {
       ''');
       _deactivateUnusedHistoryPlaylists(db);
       db.execute('COMMIT');
+      return RecentNowPlayingSnapshot(
+        id: historyId,
+        playlistId: playlistId,
+        createdAt: createdAt,
+        songIds: songIds,
+      );
     } on Object {
       db.execute('ROLLBACK');
       rethrow;

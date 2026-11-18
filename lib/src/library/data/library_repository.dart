@@ -1,6 +1,7 @@
 import 'library_recent_data.dart';
 import '../../remote/remote_history.dart';
 import '../../remote/music_share_history.dart';
+import 'library_history_changes.dart';
 import '../../platform/system_log.dart';
 import 'library_sql_functions.dart';
 import 'artist_split_model.dart' as artist_rules;
@@ -372,12 +373,12 @@ class LibraryRepository
     );
   }
 
-  Future<void> replaceNowPlaying(
+  Future<RecentNowPlayingSnapshot?> replaceNowPlaying(
     List<int> songIds, {
     bool recordHistory = false,
   }) async {
     final databaseFile = await _resolveDatabaseFile();
-    await _playbackHistoryService.replaceNowPlaying(
+    return _playbackHistoryService.replaceNowPlaying(
       databaseFile,
       _resolveNowPlayingFile(databaseFile),
       songIds,
@@ -435,8 +436,10 @@ class LibraryRepository
     return dataSource(source).analyzeArtists(onProgress: onProgress);
   }
 
-  Future<void> applyArtistSplits(List<ArtistSplitResultItem> splits) async {
-    if (splits.isEmpty) return;
+  Future<Set<LibrarySource>> applyArtistSplits(
+    List<ArtistSplitResultItem> splits,
+  ) async {
+    if (splits.isEmpty) return {};
     final references = await songReferences(
       splits.map((split) => split.songId).toList(),
     );
@@ -453,6 +456,7 @@ class LibraryRepository
         ),
       ),
     );
+    return groups.keys.toSet();
   }
 
   Future<LyricsSnapshot> getSongLyrics(

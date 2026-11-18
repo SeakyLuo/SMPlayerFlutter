@@ -116,6 +116,7 @@ Future<void> replaceNowPlayingQueueAndPlayIndexFromSongs({
   bool showQueueUpdatedNotification = true,
 }) async {
   final previousSongIds = effectiveNowPlayingSongIds(ref, persistedSongIds);
+  final container = ProviderScope.containerOf(ref.context, listen: false);
   final MediaControlController controller =
       mediaController ?? ref.read(mediaControlControllerProvider);
   final previousMediaState = controller.state;
@@ -144,10 +145,7 @@ Future<void> replaceNowPlayingQueueAndPlayIndexFromSongs({
     progressSeconds: progressSeconds,
     autoplay: autoplay,
   );
-  await persistQueue;
-  if (queueChanged) {
-    ref.invalidate(recentPageDataProvider);
-  }
+  await _updateRecentQueueHistory(container, await persistQueue);
   if (!showQueueUpdatedNotification ||
       !queueChanged ||
       previousSongIds.isEmpty ||
@@ -176,10 +174,23 @@ Future<void> replaceNowPlayingQueueAndPlayIndexFromSongs({
           autoplay: previousMediaState.isPlaying,
         );
       }
-      await restoreQueue;
-      ref.invalidate(recentPageDataProvider);
+      await _updateRecentQueueHistory(container, await restoreQueue);
     },
   );
+}
+
+Future<void> _updateRecentQueueHistory(
+  ProviderContainer container,
+  RecentNowPlayingSnapshot? history,
+) async {
+  if (history != null &&
+      container.exists(recentPageDataProvider) &&
+      container.read(selectedLibraryDataSourceProvider).source.deviceId ==
+          'local') {
+    await container
+        .read(recentPageDataProvider.notifier)
+        .updateQueueHistory(history);
+  }
 }
 
 Future<QueuePlayResult> playQueueIndex({

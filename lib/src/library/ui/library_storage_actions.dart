@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../i18n/app_i18n.dart';
 import '../../remote/music_share_models.dart';
+import '../../remote/music_source_providers.dart';
 import '../../remote/remote_directory_provider.dart';
 import '../data/library_models.dart';
 import '../data/library_providers.dart';
@@ -16,25 +17,51 @@ class LibraryStorageActions {
   final ProviderContainer container;
   LibraryRepository get repository => container.read(libraryRepositoryProvider);
 
-  void _changed(LibrarySource source) {
-    invalidateLibraryQueries(container.invalidate, source: source.deviceId);
-    container.invalidate(remoteDirectoryProvider(source.deviceId));
-  }
+  void _changed(LibrarySource source) =>
+      invalidateLibraryQueries(container.invalidate, source: source.deviceId);
+
+  void _directoryChanged(LibrarySource source) => invalidateLibraryQueries(
+    container.invalidate,
+    source: source.deviceId,
+    kinds: const {LibraryQueryKind.folders, LibraryQueryKind.directoryIndex},
+  );
 
   Future<LibraryStorageChange> _change(
     Future<LibraryStorageChange> action,
   ) async {
     final change = await action;
+    final deletedIds = change.deletedSongIds;
+    final deletedPaths = change.deletedSongPaths;
+    final recent =
+        deletedIds.isEmpty && deletedPaths.isEmpty
+            ? null
+            : _loadedRecent(change.source);
+    final removedSongs = recent?.removeDeletedSongs(deletedIds, deletedPaths);
     _changed(change.source);
     return LibraryStorageChange(
       source: change.source,
       count: change.count,
       undo: () async {
         await change.undo();
+        if (removedSongs != null) {
+          _loadedRecent(change.source)?.restoreDeletedSongs(
+            songs: removedSongs.songs,
+            recentSongs: removedSongs.recentSongs,
+            recentQueueSongs: removedSongs.recentQueueSongs,
+          );
+        }
         _changed(change.source);
       },
       commit: change.commit,
     );
+  }
+
+  RecentPageNotifier? _loadedRecent(LibrarySource source) {
+    if (!container.exists(recentPageDataProvider) ||
+        container.read(musicShareProvider).selectedSource != source.deviceId) {
+      return null;
+    }
+    return container.read(recentPageDataProvider.notifier);
   }
 
   LibraryDataSource _sourceOf(Map<int, String> songs, List<String> folders) {
@@ -124,7 +151,7 @@ class LibraryStorageActions {
   Future<void> createFolder(String root, String parent, String name) async {
     final source = LibrarySource.fromPath(root);
     await repository.dataSource(source).createStorageFolder(root, parent, name);
-    _changed(source);
+    _directoryChanged(source);
   }
 
   Future<LibraryStorageChange> renameFolder(String path, String name) =>
@@ -146,7 +173,7 @@ class LibraryStorageActions {
     await repository
         .dataSource(source)
         .updateStorageFolderSort(path, criterion);
-    _changed(source);
+    _directoryChanged(source);
   }
 
   Future<List<HiddenStorageItem>> hiddenItems(LibrarySource source) =>

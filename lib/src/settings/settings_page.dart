@@ -140,7 +140,11 @@ class SettingsPage extends StatefulWidget {
   final SettingsScanLibraryCallback? onScanLibrary;
   final List<LibrarySong> librarySongs;
   final VoidCallback? onRequestSmartArtistFix;
-  final FutureOr<void> Function()? onArtistDataChanged;
+  final FutureOr<void> Function(
+    Set<LibrarySource> sources,
+    List<ArtistSplitResultItem> splits,
+  )?
+  onArtistDataChanged;
   final FutureOr<bool> Function()? onImportData;
   final FutureOr<void> Function()? onPrepareDataImport;
   final FutureOr<void> Function()? onDataImported;

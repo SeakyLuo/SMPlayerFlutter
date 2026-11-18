@@ -20,6 +20,7 @@ class LibraryPagedQuery
     final generation = ++_generation;
     ref.onDispose(() => _generation++);
     ref.watch(libraryQueryInvalidationProvider((query.kind, query.source)));
+    _watchLibraryAlbumQuery(ref, query);
     if (query.kind == LibraryQueryKind.playlists && query.playlistId != null)
       ref.watch(
         libraryPlaylistQueryInvalidationProvider((

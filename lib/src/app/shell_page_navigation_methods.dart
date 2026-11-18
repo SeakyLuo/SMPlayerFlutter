@@ -519,8 +519,11 @@ extension _SmPlayerShellNavigationMethods on _SmPlayerShellPageState {
       _startupArtistSplitApplying = true;
     });
     try {
-      await ref.read(libraryRepositoryProvider).applyArtistSplits(splits);
-      invalidateLibraryQueries(ref.invalidate);
+      final sources = await ref
+          .read(libraryRepositoryProvider)
+          .applyArtistSplits(splits);
+      if (!mounted) return;
+      await refreshArtistSplitData(ref, sources, splits);
       if (!mounted) {
         return;
       }

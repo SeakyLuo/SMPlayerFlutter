@@ -162,27 +162,10 @@ extension _SmPlayerShellAgentMethods on _SmPlayerShellPageState {
         _settingsController.snapshot.apply(update),
       );
     }
-    final visible =
-        ref
-            .read(libraryLoadedDataProvider)
-            .requireValue
-            .songs
-            .map((song) => song.id)
-            .toSet();
-    final requested = references.keys.where(visible.contains).toList();
-    final songs =
-        requested.isEmpty
-            ? const <LibrarySong>[]
-            : await repository.getLibrarySongs(songIds: requested);
+    final container = ProviderScope.containerOf(context, listen: false);
+    final songs = await refreshLibrarySongChanges(container, references);
     if (!mounted) return;
-    for (final source
-        in references.values
-            .map((path) => LibrarySource.fromPath(path).deviceId)
-            .toSet()) {
-      invalidateLibraryQueries(ref.invalidate, source: source);
-    }
     if (songs.isEmpty) return;
-    patchLibrarySongOverrides(ref, songs);
     final favorites = ref.read(libraryFavoriteOverridesProvider.notifier);
     favorites.state = {
       ...favorites.state,

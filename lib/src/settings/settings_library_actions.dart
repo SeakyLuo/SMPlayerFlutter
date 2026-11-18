@@ -190,8 +190,8 @@ extension _SettingsLibraryActions on _SettingsPageState {
     });
 
     try {
-      await widget.libraryRepository.applyArtistSplits(splits);
-      await widget.onArtistDataChanged?.call();
+      final sources = await widget.libraryRepository.applyArtistSplits(splits);
+      await widget.onArtistDataChanged?.call(sources, splits);
       if (!mounted) {
         return;
       }
@@ -216,8 +216,8 @@ extension _SettingsLibraryActions on _SettingsPageState {
       return;
     }
 
-    await widget.libraryRepository.applyArtistSplits(splits);
-    await widget.onArtistDataChanged?.call();
+    final sources = await widget.libraryRepository.applyArtistSplits(splits);
+    await widget.onArtistDataChanged?.call(sources, splits);
     if (!mounted) {
       return;
     }

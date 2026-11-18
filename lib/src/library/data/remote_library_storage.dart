@@ -19,11 +19,18 @@ mixin _RemoteLibraryStorage implements LibraryDataSource {
     values: values,
   );
 
-  LibraryStorageChange _change(Map<String, dynamic> result, int count) {
+  LibraryStorageChange _change(
+    Map<String, dynamic> result,
+    int count, {
+    Set<int> deletedSongIds = const {},
+    Set<String> deletedSongPaths = const {},
+  }) {
     final ticket = result['ticket'] as String;
     return LibraryStorageChange(
       source: source,
       count: count,
+      deletedSongIds: deletedSongIds,
+      deletedSongPaths: deletedSongPaths,
       undo: () async {
         await _storage('', 'undo', values: {'ticket': ticket});
       },
@@ -52,7 +59,17 @@ mixin _RemoteLibraryStorage implements LibraryDataSource {
                 .toList(),
       },
     );
-    return _change(result, result['count'] as int);
+    return _change(
+      result,
+      result['count'] as int,
+      deletedSongIds: songs.keys.toSet(),
+      deletedSongPaths: {
+        // Hosts that predate this field only report the explicit selection.
+        if (result['deletedSongIds'] case final List ids)
+          for (final id in ids.cast<int>())
+            remoteMusicPath(source.deviceId, id),
+      },
+    );
   }
 
   @override

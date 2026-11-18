@@ -7,20 +7,19 @@ extension MusicSharePageData on MusicShareController {
     bool notify = true,
   }) async {
     final changed = (result['changed'] as List?)?.cast<int>() ?? const <int>[];
-    if (changed.isEmpty &&
-        (result['songs'] as List).isEmpty &&
-        (result['removed'] as List).isEmpty) {
+    final songs = result['songs'] as List;
+    final removed = (result['removed'] as List).cast<int>();
+    if (songs.isEmpty && removed.isEmpty) {
+      if (notify && changed.isNotEmpty) onCatalogChanged(device);
       return;
     }
     try {
       await importMusicShareCatalog(
         databasePath,
         device,
-        (result['songs'] as List)
-            .map((song) => (song as Map).cast<String, dynamic>())
-            .toList(),
+        songs.map((song) => (song as Map).cast<String, dynamic>()).toList(),
         replace: false,
-        removedSongIds: (result['removed'] as List).cast<int>(),
+        removedSongIds: removed,
         isCurrent: () => !_disposed && peers.any((peer) => peer.id == device),
       );
       if (notify) onCatalogChanged(device);

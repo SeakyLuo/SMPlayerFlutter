@@ -42,7 +42,10 @@ extension _RecentPageMenus on _RecentPageState {
         isCurrentTrack: song.id == currentTrackId,
         isPlaying: mediaState.isPlaying,
         currentTrackId: currentTrackId,
-        nowPlayingSongIds: snapshot.nowPlaying.songIds,
+        nowPlayingSongIds: effectiveNowPlayingSongIds(
+          ref,
+          snapshot.nowPlaying.songIds,
+        ),
         songPath: song.path,
         playlists: playlists,
         preferenceLevel: preferenceLevel,
@@ -53,7 +56,6 @@ extension _RecentPageMenus on _RecentPageState {
                   await ref
                       .read(libraryRepositoryProvider)
                       .removePreferenceItem('song', '${song.id}');
-                  ref.invalidate(recentPageDataProvider);
                 },
         showRemove: canRemove,
         onPlay: () {
@@ -114,7 +116,6 @@ extension _RecentPageMenus on _RecentPageState {
           await ref
               .read(libraryRepositoryProvider)
               .addPreferenceItem('song', '${song.id}', song.title, level);
-          ref.invalidate(recentPageDataProvider);
         },
         onMoveToFolder: (folderPath) {
           moveSongToFolderWithUndo(
@@ -263,7 +264,10 @@ extension _RecentPageMenus on _RecentPageState {
       playlists: playlists,
       includeNowPlaying: shouldShowNowPlayingAddToTarget(
         songIds: songIds,
-        nowPlayingSongIds: snapshot.nowPlaying.songIds,
+        nowPlayingSongIds: effectiveNowPlayingSongIds(
+          ref,
+          snapshot.nowPlaying.songIds,
+        ),
         isNowPlayingContext: false,
       ),
       includeFavorites: favoriteSongIds.isNotEmpty,
@@ -347,13 +351,11 @@ extension _RecentPageMenus on _RecentPageState {
                     await ref
                         .read(libraryRepositoryProvider)
                         .removePreferenceItem('artist', artist.name);
-                    ref.invalidate(recentPageDataProvider);
                   },
           onSetPreference: (level) async {
             await ref
                 .read(libraryRepositoryProvider)
                 .addPreferenceItem('artist', artist.name, artist.name, level);
-            ref.invalidate(recentPageDataProvider);
           },
         ),
       ],

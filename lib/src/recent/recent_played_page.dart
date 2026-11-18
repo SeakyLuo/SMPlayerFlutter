@@ -234,7 +234,7 @@ class _RecentPlayedPage extends ConsumerWidget {
       return;
     }
     await repository.clearRecentPlayed();
-    ref.invalidate(recentPageDataProvider);
+    ref.read(recentPageDataProvider.notifier).clearPlayedHistory();
     recentSongs.clear();
     await recentCollections.clear();
     if (context.mounted) {

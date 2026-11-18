@@ -16,7 +16,7 @@ extension SharedCatalogQueries on MusicShareServer {
     updateLibrary(_sharedSnapshot, notify: false);
   }
 
-  Future<void> _refreshSharedEntries(
+  Future<Set<int>> _refreshSharedEntries(
     List<int> ids, {
     String? folder,
     bool directoriesChanged = false,
@@ -27,20 +27,20 @@ extension SharedCatalogQueries on MusicShareServer {
               const LibraryDataQuery(LibraryQueryKind.context),
             )
             : _sharedSnapshot;
-    final changed = ids.toSet();
-    final retained =
-        _songs.values
-            .where(
-              (song) =>
-                  !changed.contains(song.id) &&
-                  (folder == null ||
-                      !(song.path == folder || p.isWithin(folder, song.path))),
-            )
-            .toList();
-    _sharedSnapshot = libraryDataWithSongs(
-      metadata.withPlaylists(_sharedSnapshot.playlists),
-      retained,
-    );
-    updateLibrary(_sharedSnapshot);
+    final changed = {
+      ...ids,
+      if (folder != null)
+        for (final song in _songs.values)
+          if (song.path == folder || p.isWithin(folder, song.path)) song.id,
+    };
+    for (final id in changed) {
+      _songs.remove(id);
+    }
+    _sharedSnapshot = metadata
+        .withPlaylists(_sharedSnapshot.playlists)
+        .withPage(songs: const []);
+    _rootPath = metadata.rootPath;
+    markCatalogChanged();
+    return changed;
   }
 }

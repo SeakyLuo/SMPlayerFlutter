@@ -6,11 +6,15 @@ class LibraryStorageChange {
     required this.count,
     required this.undo,
     required this.commit,
+    this.deletedSongIds = const {},
+    this.deletedSongPaths = const {},
   });
   final LibrarySource source;
   final int count;
   final Future<void> Function() undo;
   final Future<void> Function() commit;
+  final Set<int> deletedSongIds;
+  final Set<String> deletedSongPaths;
 }
 
 class LibraryStorageFolder {

@@ -7,6 +7,7 @@ Future<LocalFolderRefreshResult> _scanLibraryRoot(
   LocalFolderScanCancellation? cancellation,
   void Function(LocalFolderRefreshProgress)? onProgress,
 }) async {
+  final container = ProviderScope.containerOf(ref.context, listen: false);
   final result = await ref
       .read(libraryRepositoryProvider)
       .scanAllMusicLibrary(
@@ -17,7 +18,7 @@ Future<LocalFolderRefreshResult> _scanLibraryRoot(
   await settingsController?.updateSettings(
     AppSettingsUpdate(rootPath: rootPath),
   );
-  _invalidateLibraryData(ref);
+  await updateLibraryAfterFolderScan(container, result);
   return result;
 }
 
@@ -102,10 +103,11 @@ class _LibraryRootGateState extends ConsumerState<_LibraryRootGate> {
             selectedTrackId: null,
             isPlaying: false,
             onApplyArtistSplits: (splits) async {
-              await ref
+              final sources = await ref
                   .read(libraryRepositoryProvider)
                   .applyArtistSplits(splits);
-              _invalidateLibraryData(ref);
+              if (!mounted) return;
+              await refreshArtistSplitData(ref, sources, splits);
               if (!mounted) return;
               _removeArtistSuggestions(
                 splits.map((item) => item.songId).toSet(),

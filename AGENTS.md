@@ -28,3 +28,4 @@
 1. 当一个类超过 800 行时要考虑拆分组件。
 2. 普通 Flutter 优化不强制按 Electron 命名；只有 Electron 对齐任务才需要参考原版命名。
 3. 未经允许，不得随意安装到设备，最多热更新。
+4. Codex 启动 Windows Flutter 调试时使用 `scripts/run-windows.cmd`，确保 MSBuild 和链接器继承 UTF-8 代码页；其他 Windows 构建命令也须在同一进程链先执行 `chcp 65001`，不能仅依赖用户终端配置。重新构建前检查目标 Debug exe 是否仍在运行，避免覆盖运行中的文件。

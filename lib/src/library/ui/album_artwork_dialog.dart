@@ -224,11 +224,21 @@ class _AlbumArtworkDialogState extends ConsumerState<AlbumArtworkDialog> {
       });
       final sourceSong =
           (await repository.getLibrarySongs(songIds: [widget.songId])).single;
+      await refreshCachedSongDetails(
+        container,
+        (song) =>
+            song.album == sourceSong.album && song.source == sourceSong.source,
+      );
+      container.invalidate(
+        libraryAlbumQueryInvalidationProvider((
+          sourceSong.source.deviceId,
+          sourceSong.album,
+        )),
+      );
       invalidateLibraryQueries(
         container.invalidate,
         source: sourceSong.source.deviceId,
         kinds: const {
-          LibraryQueryKind.album,
           LibraryQueryKind.albumIndex,
           LibraryQueryKind.artistIndex,
           LibraryQueryKind.folders,
@@ -237,24 +247,6 @@ class _AlbumArtworkDialogState extends ConsumerState<AlbumArtworkDialog> {
           LibraryQueryKind.artist,
         },
       );
-      final visible =
-          container
-              .read(libraryLoadedDataProvider)
-              .requireValue
-              .songs
-              .where(
-                (song) =>
-                    song.album == sourceSong.album &&
-                    song.source == sourceSong.source,
-              )
-              .map((song) => song.id)
-              .toList();
-      final songs = await repository.getLibrarySongs(songIds: visible);
-      final overrides = container.read(librarySongOverridesProvider.notifier);
-      overrides.state = {
-        ...overrides.state,
-        for (final song in songs) song.id: song,
-      };
       if (!mounted) return;
       showAppNotification(
         context: context,

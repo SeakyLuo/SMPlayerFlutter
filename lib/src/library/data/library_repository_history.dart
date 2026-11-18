@@ -3,9 +3,12 @@ part of 'library_repository.dart';
 mixin _LibraryRepositoryHistory on _LibraryDataSources {
   Future<File> _resolveDatabaseFile();
 
-  Future<T> _localHistory<T>(Future<T> operation) async {
+  Future<T> _localHistory<T>(
+    Future<T> operation, {
+    String scope = recentHistoryScope,
+  }) async {
     final result = await operation;
-    activeMusicShareAccess?.localDataChanged('history');
+    activeMusicShareAccess?.localDataChanged(scope);
     return result;
   }
 
@@ -152,6 +155,7 @@ mixin _LibraryRepositoryHistory on _LibraryDataSources {
         databaseFile,
         entryIds,
       ),
+      scope: searchHistoryScope,
     );
   }
 
@@ -169,6 +173,7 @@ mixin _LibraryRepositoryHistory on _LibraryDataSources {
         databaseFile,
         entries,
       ),
+      scope: searchHistoryScope,
     );
   }
 
@@ -204,6 +209,7 @@ mixin _LibraryRepositoryHistory on _LibraryDataSources {
     final databaseFile = await _resolveDatabaseFile();
     await _localHistory(
       LibraryRepository._searchHistoryService.clearRecentSearches(databaseFile),
+      scope: searchHistoryScope,
     );
   }
 
@@ -228,6 +234,7 @@ mixin _LibraryRepositoryHistory on _LibraryDataSources {
         query,
         type,
       ),
+      scope: searchHistoryScope,
     );
   }
 

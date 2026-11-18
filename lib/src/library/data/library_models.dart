@@ -595,6 +595,7 @@ class NowPlayingSnapshot {
 }
 
 class RecentNowPlayingSnapshot {
+  static const limit = 10;
   const RecentNowPlayingSnapshot({
     required this.id,
     required this.playlistId,
@@ -616,6 +617,7 @@ class RecentPageData {
     required this.recentAlbums,
     required this.recentArtists,
     required this.recentNowPlaying,
+    this.recentQueueSongs = const [],
     required this.recentSearches,
     this.recentBrowses = const [],
     required this.playlists,
@@ -631,6 +633,7 @@ class RecentPageData {
   final List<RecentAlbumPlayback> recentAlbums;
   final List<RecentArtistPlayback> recentArtists;
   final List<RecentNowPlayingSnapshot> recentNowPlaying;
+  final List<LibrarySong> recentQueueSongs;
   final List<SearchHistoryEntry> recentSearches;
   final List<RecentBrowseEntry> recentBrowses;
   final List<LibraryPlaylist> playlists;
@@ -638,6 +641,32 @@ class RecentPageData {
   final NowPlayingSnapshot nowPlaying;
   final bool showCount;
   final bool hideMultiSelectCommandBarAfterOperation;
+
+  RecentPageData copyWith({
+    List<LibrarySong>? songs,
+    List<RecentLibrarySong>? recentSongs,
+    List<RecentPlaylistPlayback>? recentPlaylists,
+    List<RecentAlbumPlayback>? recentAlbums,
+    List<RecentArtistPlayback>? recentArtists,
+    List<RecentNowPlayingSnapshot>? recentNowPlaying,
+    List<LibrarySong>? recentQueueSongs,
+  }) => RecentPageData(
+    songs: songs ?? this.songs,
+    recentSongs: recentSongs ?? this.recentSongs,
+    recentPlaylists: recentPlaylists ?? this.recentPlaylists,
+    recentAlbums: recentAlbums ?? this.recentAlbums,
+    recentArtists: recentArtists ?? this.recentArtists,
+    recentNowPlaying: recentNowPlaying ?? this.recentNowPlaying,
+    recentQueueSongs: recentQueueSongs ?? this.recentQueueSongs,
+    recentSearches: recentSearches,
+    recentBrowses: recentBrowses,
+    playlists: playlists,
+    favoritePlaylistId: favoritePlaylistId,
+    nowPlaying: nowPlaying,
+    showCount: showCount,
+    hideMultiSelectCommandBarAfterOperation:
+        hideMultiSelectCommandBarAfterOperation,
+  );
 }
 
 class ShellNavigationData {

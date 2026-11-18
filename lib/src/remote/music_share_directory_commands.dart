@@ -111,6 +111,7 @@ class MusicShareDirectoryCommands {
     final affectedIds = selectionSongs.keys.toSet();
     String? refreshedFolder;
     int? itemCount;
+    List<int>? deletedSongIds;
     Future<void> Function()? undo;
     Future<void> Function() commit = () async {};
     switch (operation) {
@@ -202,6 +203,7 @@ class MusicShareDirectoryCommands {
             songIds,
             paths,
           );
+          deletedSongIds = pending.songIds;
           undo = () => repository.undoDeleteLocalItems(pending.id);
           itemCount = songIds.length + paths.length;
           commit = () async {
@@ -268,7 +270,11 @@ class MusicShareDirectoryCommands {
         }),
       );
     });
-    return {'ticket': ticket, if (itemCount != null) 'count': itemCount};
+    return {
+      'ticket': ticket,
+      if (itemCount != null) 'count': itemCount,
+      if (deletedSongIds != null) 'deletedSongIds': deletedSongIds,
+    };
   }
 
   Future<void> _insideFile(String path, String root) async {

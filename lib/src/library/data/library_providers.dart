@@ -12,6 +12,7 @@ import 'library_repository.dart';
 part 'library_query_providers.dart';
 part 'library_paged_queries.dart';
 part 'library_directory_windows.dart';
+part 'library_recent_provider.dart';
 
 final libraryRepositoryProvider = Provider<LibraryRepository>((ref) {
   return const LibraryRepository();
@@ -19,22 +20,6 @@ final libraryRepositoryProvider = Provider<LibraryRepository>((ref) {
 
 final libraryDatabaseInitializationProvider = FutureProvider<void>((ref) {
   return ref.watch(libraryRepositoryProvider).initializeLibraryDatabase();
-});
-
-final recentPageDataProvider = FutureProvider.autoDispose<RecentPageData>((
-  ref,
-) async {
-  final repository = ref.watch(libraryRepositoryProvider);
-  final source = ref.watch(
-    musicShareProvider.select((share) => share.selectedSource),
-  );
-  final changes = libraryHistoryChanges.stream.listen((device) {
-    if (device == source) ref.invalidateSelf();
-  });
-  ref.onDispose(changes.cancel);
-  return repository
-      .dataSource(LibrarySource.fromDevice(source))
-      .readRecentData();
 });
 
 final recentSongsProvider =
@@ -47,7 +32,11 @@ class RecentSongsNotifier extends Notifier<List<RecentLibrarySong>> {
 
   @override
   List<RecentLibrarySong> build() {
-    return ref.watch(recentPageDataProvider).valueOrNull?.recentSongs ??
+    return ref.watch(
+          recentPageDataProvider.select(
+            (value) => value.valueOrNull?.recentSongs,
+          ),
+        ) ??
         const [];
   }
 
@@ -104,11 +93,19 @@ class RecentPlayedCollectionsNotifier
 
   @override
   Future<RecentPlayedCollections> build() async {
-    final snapshot = await ref.watch(recentPageDataProvider.future);
+    final snapshot = await ref.watch(
+      recentPageDataProvider.selectAsync(
+        (data) => (
+          playlists: data.recentPlaylists,
+          albums: data.recentAlbums,
+          artists: data.recentArtists,
+        ),
+      ),
+    );
     return RecentPlayedCollections(
-      playlists: snapshot.recentPlaylists,
-      albums: snapshot.recentAlbums,
-      artists: snapshot.recentArtists,
+      playlists: snapshot.playlists,
+      albums: snapshot.albums,
+      artists: snapshot.artists,
     );
   }
 
@@ -214,8 +211,10 @@ class RecentSearchesNotifier extends AsyncNotifier<List<SearchHistoryEntry>> {
     final source = ref.watch(
       musicShareProvider.select((share) => share.selectedSource),
     );
-    final changes = libraryHistoryChanges.stream.listen((device) {
-      if (device == source) ref.invalidateSelf();
+    final changes = libraryHistoryChanges.stream.listen((change) {
+      if (change.device == source && change.scope == searchHistoryScope) {
+        ref.invalidateSelf();
+      }
     });
     ref.onDispose(changes.cancel);
     return ref.watch(libraryRepositoryProvider).getRecentSearches();
@@ -278,9 +277,9 @@ class RecentBrowsesNotifier extends AsyncNotifier<List<RecentBrowseEntry>> {
   static const _limit = 500;
 
   @override
-  Future<List<RecentBrowseEntry>> build() async {
-    return (await ref.watch(recentPageDataProvider.future)).recentBrowses;
-  }
+  Future<List<RecentBrowseEntry>> build() => ref.watch(
+    recentPageDataProvider.selectAsync((data) => data.recentBrowses),
+  );
 
   Future<void> record(RecentBrowseEntry entry) async {
     final entries = await future;

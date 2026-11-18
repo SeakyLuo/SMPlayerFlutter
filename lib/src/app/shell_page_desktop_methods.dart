@@ -552,7 +552,6 @@ extension _SmPlayerShellDesktopMethods on _SmPlayerShellPageState {
       queueIndex: 0,
       mediaController: _mediaControlController,
     );
-    invalidateLibraryQueries(ref.invalidate);
   }
 
   void _toggleDesktopLyricsLock() {

@@ -21,6 +21,7 @@ mixin _LocalLibraryStorage implements LibraryDataSource {
     return LibraryStorageChange(
       source: source,
       count: songs.length + folders.length,
+      deletedSongIds: pending.songIds.toSet(),
       undo:
           () => _storageChanged(
             () => repository.undoDeleteLocalItems(pending.id),

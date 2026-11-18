@@ -38,8 +38,9 @@ RecentBrowseEntry browseHistoryFromJson(Map e) => RecentBrowseEntry(
 Future<Map<String, dynamic>> handleSharedHistory(
   HttpRequest request,
   LibraryRepository repository,
-  bool Function() canWrite,
-) async {
+  bool Function() canWrite, {
+  required void Function(String operation) onChanged,
+}) async {
   if (request.method == 'GET') {
     if (request.uri.queryParameters['section'] == 'searches') {
       final entries = await const LibrarySearchHistoryService(
@@ -88,7 +89,7 @@ Future<Map<String, dynamic>> handleSharedHistory(
       throw const MusicShareException('share.readOnlyPermission');
     }
   }
-  return () async {
+  final result = await () async {
     const history = LibraryPlaybackHistoryService();
     const browse = LibraryBrowseHistoryService();
     const search = LibrarySearchHistoryService(
@@ -160,4 +161,6 @@ Future<Map<String, dynamic>> handleSharedHistory(
     }
     return <String, dynamic>{};
   }();
+  onChanged(operation);
+  return result;
 }

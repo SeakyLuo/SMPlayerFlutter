@@ -161,23 +161,8 @@ class _CatalogImport {
   }
 }
 
-Map<String, dynamic> sharedCatalogChanges(
-  Map<int, LibrarySong> before,
-  Map<int, LibrarySong> after, {
-  Iterable<int> affectedIds = const [],
-}) {
-  final changed =
-      affectedIds.toSet()
-        ..addAll(before.keys.where((id) => !after.containsKey(id)));
-  for (final song in after.values) {
-    if (!before.containsKey(song.id) ||
-        jsonEncode(sharedSongJson(song)) !=
-            jsonEncode(sharedSongJson(before[song.id]!)))
-      changed.add(song.id);
-  }
-  return {
-    'songs': <Map<String, dynamic>>[],
-    'removed': <int>[],
-    'changed': changed.toList(),
-  };
-}
+Map<String, dynamic> sharedCatalogChanges(Iterable<int> ids) => {
+  'songs': <Map<String, dynamic>>[],
+  'removed': <int>[],
+  'changed': ids.toList(),
+};

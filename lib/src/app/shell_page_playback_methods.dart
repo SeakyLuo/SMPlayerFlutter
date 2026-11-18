@@ -597,6 +597,7 @@ extension _SmPlayerShellPlaybackMethods on _SmPlayerShellPageState {
   }
 
   Future<void> _authorizeAudioFileAccess(SmPlayerI18n i18n) async {
+    final container = ProviderScope.containerOf(context, listen: false);
     final snapshot = ref.read(libraryContentDataProvider).valueOrNull;
     final rootPath =
         snapshot?.rootPath ?? _settingsController.snapshot.rootPath;
@@ -620,18 +621,13 @@ extension _SmPlayerShellPlaybackMethods on _SmPlayerShellPageState {
     if (selectedRootPath == null || selectedRootPath.isEmpty) {
       return;
     }
-    await ref
+    final result = await container
         .read(libraryRepositoryProvider)
         .scanAllMusicLibrary(selectedRootPath);
     await _settingsController.updateSettings(
       AppSettingsUpdate(rootPath: selectedRootPath),
     );
-    invalidateLibraryQueries(ref.invalidate);
-    ref
-      ..invalidate(librarySongCountProvider)
-      ..invalidate(recentPageDataProvider)
-      ..invalidate(shellNavigationDataProvider)
-      ..invalidate(recentSearchesProvider);
+    await updateLibraryAfterFolderScan(container, result);
   }
 
   void _startPlaybackStallTimer() {

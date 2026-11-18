@@ -82,6 +82,17 @@ class LibraryLoadedData extends AsyncNotifier<LibraryContentData> {
 final libraryPlaylistQueryInvalidationProvider = Provider.autoDispose
     .family<Object, (String, int)>((ref, scope) => Object());
 
+final libraryAlbumQueryInvalidationProvider = Provider.autoDispose
+    .family<Object, (String, String)>((ref, scope) => Object());
+
+void _watchLibraryAlbumQuery(Ref ref, LibraryDataQuery query) {
+  if (query.kind != LibraryQueryKind.album) return;
+  final albums = query.albumNames.isEmpty ? [query.album] : query.albumNames;
+  for (final album in albums) {
+    ref.watch(libraryAlbumQueryInvalidationProvider((query.source, album)));
+  }
+}
+
 final libraryQueryInvalidationProvider = Provider.autoDispose
     .family<Object, (LibraryQueryKind, String)>((ref, scope) => Object());
 
@@ -89,6 +100,7 @@ final libraryQueryInvalidationProvider = Provider.autoDispose
 final libraryPageQueryProvider = FutureProvider.autoDispose
     .family<LibraryContentData, LibraryDataQuery>((ref, query) async {
       ref.watch(libraryQueryInvalidationProvider((query.kind, query.source)));
+      _watchLibraryAlbumQuery(ref, query);
       if (query.kind == LibraryQueryKind.playlists && query.playlistId != null)
         ref.watch(
           libraryPlaylistQueryInvalidationProvider((
@@ -187,6 +199,139 @@ Future<List<LibrarySong>> reloadRequestedLibrarySongs(
     ...favorites.state,
     for (final song in songs) song.id: song.favorite,
   };
+  return songs;
+}
+
+Future<void> refreshArtistSplitData(
+  WidgetRef ref,
+  Set<LibrarySource> sources,
+  List<ArtistSplitResultItem> splits,
+) async {
+  if (sources.isEmpty) return;
+  final container = ProviderScope.containerOf(ref.context, listen: false);
+  final changed = splits.map((split) => split.songId).toSet();
+  await refreshCachedSongDetails(
+    container,
+    (song) => changed.contains(song.id),
+  );
+  for (final source in sources) {
+    invalidateLibraryQueries(
+      container.invalidate,
+      source: source.deviceId,
+      kinds: const {
+        LibraryQueryKind.songs,
+        LibraryQueryKind.artistIndex,
+        LibraryQueryKind.artist,
+        LibraryQueryKind.album,
+        LibraryQueryKind.folders,
+        LibraryQueryKind.playlists,
+        LibraryQueryKind.favorites,
+      },
+    );
+  }
+}
+
+Future<void> updateLibraryAfterFolderScan(
+  ProviderContainer container,
+  LocalFolderRefreshResult result, {
+  String source = 'local',
+}) async {
+  if (!result.libraryChanged) return;
+  if (result.requiresFullReload) {
+    invalidateLibraryQueries(container.invalidate, source: source);
+    if (container.read(musicShareProvider).selectedSource == source) {
+      container.invalidate(recentPageDataProvider);
+    }
+    if (source == 'local') {
+      container.invalidate(shellNavigationDataProvider);
+      container.invalidate(librarySongCountProvider);
+    }
+    return;
+  }
+  final paths = result.filesUpdated.toSet();
+  final ids = {
+    for (final path in paths)
+      if (result.songIdsByPath[path] case final id?) id,
+    for (final split in result.artistSplitsApplied) split.songId,
+  };
+  await refreshCachedSongDetails(
+    container,
+    (song) => ids.contains(song.id) || paths.contains(song.path),
+  );
+  _invalidateSongMetadataQueries(container, source);
+}
+
+void _invalidateSongMetadataQueries(
+  ProviderContainer container,
+  String source,
+) {
+  invalidateLibraryQueries(
+    container.invalidate,
+    source: source,
+    kinds: const {
+      LibraryQueryKind.songs,
+      LibraryQueryKind.artistIndex,
+      LibraryQueryKind.albumIndex,
+      LibraryQueryKind.artist,
+      LibraryQueryKind.album,
+      LibraryQueryKind.folders,
+      LibraryQueryKind.playlists,
+      LibraryQueryKind.playlistIndex,
+      LibraryQueryKind.favorites,
+      LibraryQueryKind.lyrics,
+    },
+  );
+}
+
+Future<List<LibrarySong>> refreshLibrarySongChanges(
+  ProviderContainer container,
+  Map<int, String> references,
+) async {
+  if (references.isEmpty) return const [];
+  final songs = await refreshCachedSongDetails(
+    container,
+    (song) => references.containsKey(song.id),
+  );
+  final sources = references.values.map(LibrarySource.fromPath).toSet();
+  for (final source in sources) {
+    _invalidateSongMetadataQueries(container, source.deviceId);
+  }
+  return songs;
+}
+
+Future<List<LibrarySong>> refreshCachedSongDetails(
+  ProviderContainer container,
+  bool Function(LibrarySong) changed,
+) async {
+  final recent =
+      container.exists(recentPageDataProvider)
+          ? container.read(recentPageDataProvider).valueOrNull
+          : null;
+  final cached =
+      container.exists(libraryLoadedDataProvider)
+          ? container.read(libraryLoadedDataProvider).valueOrNull
+          : null;
+  final visible = {
+    for (final song in [
+      ...?cached?.songs,
+      ...?recent?.songs,
+      ...?recent?.recentSongs,
+      ...?recent?.recentQueueSongs,
+    ])
+      if (changed(song)) song.id,
+  };
+  if (visible.isEmpty) return const [];
+  final songs = await container
+      .read(libraryRepositoryProvider)
+      .getLibrarySongs(songIds: visible.toList());
+  final overrides = container.read(librarySongOverridesProvider.notifier);
+  overrides.state = {
+    ...overrides.state,
+    for (final song in songs) song.id: song,
+  };
+  if (recent != null && container.exists(recentPageDataProvider)) {
+    container.read(recentPageDataProvider.notifier).updateSongDetails(songs);
+  }
   return songs;
 }
 

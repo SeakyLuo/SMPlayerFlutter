@@ -130,8 +130,10 @@ Future<void> downloadRemoteMusic(
     if (count > 0 &&
         (p.equals(destination, library.rootPath) ||
             p.isWithin(library.rootPath, destination))) {
-      await container.read(libraryRepositoryProvider).refreshLocalFolder(base);
-      invalidateLibraryQueries(container.invalidate);
+      final result = await container
+          .read(libraryRepositoryProvider)
+          .refreshLocalFolder(base);
+      await updateLibraryAfterFolderScan(container, result);
     }
     if (context.mounted) {
       showAppNotification(

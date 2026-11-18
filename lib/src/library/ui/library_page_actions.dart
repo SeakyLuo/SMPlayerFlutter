@@ -315,11 +315,6 @@ Future<void> setSongsFavoriteFromControl(
   () => setSongsFavorite(ref, songIds, favorite),
 );
 
-void invalidateLibraryMutationData(WidgetRef ref) {
-  ref.invalidate(recentPageDataProvider);
-  ref.invalidate(shellNavigationDataProvider);
-}
-
 Future<void> setSongsFavoriteWithUndo({
   required BuildContext context,
   required WidgetRef ref,

@@ -20,7 +20,12 @@ class RecentNowPlayingDetailPage extends ConsumerWidget {
       child: snapshotValue.when(
         skipLoadingOnReload: true,
         loading: () => const _RecentPagePanel(child: SmPlayerLoadingState()),
-        error: (_, _) => const _RecentPagePanel(child: LibraryLoadFailure()),
+        error:
+            (_, _) => _RecentPagePanel(
+              child: LibraryLoadFailure(
+                onRetry: () => ref.invalidate(recentPageDataProvider),
+              ),
+            ),
         data: (snapshot) {
           final record = snapshot.recentNowPlaying.singleWhere(
             (entry) => entry.id == recordId,
@@ -99,7 +104,6 @@ class RecentNowPlayingDetailPage extends ConsumerWidget {
                 songIds: queueSongIds,
                 queueIndex: queueSongIds.indexOf(trackId),
               );
-              ref.invalidate(recentPageDataProvider);
             },
             onTogglePlayPause:
                 ref.read(mediaControlControllerProvider).onTogglePlayPause,
@@ -116,7 +120,13 @@ class RecentNowPlayingDetailPage extends ConsumerWidget {
               _insertOrPlayRecentNowPlayingSong(ref, snapshot, i18n, songId);
             },
             onPlayNext: (songId) {
-              _playRecentNowPlayingNext(context, ref, snapshot, i18n, songId);
+              _playRecentNowPlayingNext(
+                context,
+                ref,
+                snapshot,
+                i18n,
+                page.songs.firstWhere((song) => song.id == songId),
+              );
             },
             onArtistClick: (artist) {
               context.go('/artists?artist=${Uri.encodeQueryComponent(artist)}');
@@ -154,7 +164,6 @@ void _insertOrPlayRecentNowPlayingSong(
     queueIndex: queueIndex,
     showQueueUpdatedNotification: false,
   );
-  ref.invalidate(recentPageDataProvider);
 }
 
 void _playRecentNowPlayingNext(
@@ -162,7 +171,7 @@ void _playRecentNowPlayingNext(
   WidgetRef ref,
   RecentPageData snapshot,
   SmPlayerI18n i18n,
-  int songId,
+  LibrarySong song,
 ) {
   final previousSongIds = effectiveNowPlayingSongIds(
     ref,
@@ -173,17 +182,14 @@ void _playRecentNowPlayingNext(
     ref.read(mediaControlControllerProvider).state,
     queueSongIds,
   );
-  queueSongIds.insert(insertIndex, songId);
+  queueSongIds.insert(insertIndex, song.id);
   setNowPlayingQueue(ref, queueSongIds);
-  ref.invalidate(recentPageDataProvider);
-  final song = snapshot.songs.singleWhere((song) => song.id == songId);
   showPlayNextUndoNotification(
     context: context,
     i18n: i18n,
     songTitle: song.title,
     onUndo: () {
       setNowPlayingQueue(ref, previousSongIds);
-      ref.invalidate(recentPageDataProvider);
     },
   );
 }

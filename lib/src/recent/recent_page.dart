@@ -188,6 +188,7 @@ class _RecentPageState extends ConsumerState<RecentPage>
     if (!TickerMode.valuesOf(context).enabled) return const SizedBox.shrink();
     final i18nValue = ref.watch(smPlayerI18nProvider);
     final snapshotValue = ref.watch(recentPageDataProvider);
+    final queueOverride = ref.watch(nowPlayingQueueOverrideProvider);
     final source = ref.watch(musicShareProvider);
     final songOverrides = ref.watch(librarySongOverridesProvider);
     final favoriteOverrides = ref.watch(libraryFavoriteOverridesProvider);
@@ -232,7 +233,12 @@ class _RecentPageState extends ConsumerState<RecentPage>
     return snapshotValue.when(
       skipLoadingOnReload: true,
       loading: () => const _RecentPagePanel(child: SmPlayerLoadingState()),
-      error: (_, _) => const _RecentPagePanel(child: LibraryLoadFailure()),
+      error:
+          (_, _) => _RecentPagePanel(
+            child: LibraryLoadFailure(
+              onRetry: () => ref.invalidate(recentPageDataProvider),
+            ),
+          ),
       data: (snapshot) {
         final songs = applyFavoriteOverridesToSongs(
           snapshot.songs.where(source.includes).toList(),
@@ -276,10 +282,15 @@ class _RecentPageState extends ConsumerState<RecentPage>
           recentPlayedCollections.artists,
           i18n,
         );
-        final recentNowPlayingViews = buildRecentNowPlayingViews(
-          snapshot.recentNowPlaying,
-          songs,
-        );
+        final recentNowPlayingViews =
+            buildRecentNowPlayingViews(snapshot.recentNowPlaying, [
+              ...applyFavoriteOverridesToSongs(
+                snapshot.recentQueueSongs.where(source.includes).toList(),
+                favoriteOverrides,
+                songOverrides,
+              ),
+              ...songs,
+            ]);
         final recentPlayedCount =
             recentSongs.length +
             recentPlayedCollections.playlists.length +
@@ -561,7 +572,8 @@ class _RecentPageState extends ConsumerState<RecentPage>
                         _activeTab != RecentTab.searches &&
                         _activeTab != RecentTab.browsed,
                     addToSongIds: selectedOperationSongIds,
-                    nowPlayingSongIds: snapshot.nowPlaying.songIds,
+                    nowPlayingSongIds:
+                        queueOverride ?? snapshot.nowPlaying.songIds,
                     includeNowPlayingInAddTo: true,
                     includeFavoritesInAddTo: hasNotFavoriteSongs(
                       selectedOperationSongIds,
@@ -742,7 +754,7 @@ class _RecentPageState extends ConsumerState<RecentPage>
                         unawaited(revealItemInFolder(path));
                       },
                       onSaved: () {
-                        ref.invalidate(recentPageDataProvider);
+                        notifyLyricsSaved(ref, dialog.song.id);
                       },
                       onClose: () {
                         setState(() {

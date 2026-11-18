@@ -66,7 +66,6 @@ extension _RecentPagePlaybackActions on _RecentPageState {
       songIds: songIds,
       queueIndex: 0,
     );
-    ref.invalidate(recentPageDataProvider);
   }
 
   void _playShuffledSongIds(List<int> songIds) {
@@ -108,7 +107,6 @@ extension _RecentPagePlaybackActions on _RecentPageState {
     );
     queueSongIds.insert(insertIndex, songId);
     setNowPlayingQueue(ref, queueSongIds);
-    ref.invalidate(recentPageDataProvider);
     final songsById = {for (final song in snapshot.songs) song.id: song};
     showPlayNextUndoNotification(
       context: context,
@@ -116,7 +114,6 @@ extension _RecentPagePlaybackActions on _RecentPageState {
       songTitle: songsById[songId]!.title,
       onUndo: () {
         setNowPlayingQueue(ref, previousSongIds);
-        ref.invalidate(recentPageDataProvider);
       },
     );
   }

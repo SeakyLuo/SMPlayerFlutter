@@ -41,7 +41,11 @@ class MusicShareEventHub {
   void dataChanged(String scope) {
     _changes.add(scope);
     _broadcastTimer ??= Timer(const Duration(milliseconds: 100), () {
-      final scopes = _changes.toList();
+      final scopes = [
+        ..._changes,
+        // Older clients subscribe to the combined history event.
+        if (_changes.any((scope) => scope.startsWith('history:'))) 'history',
+      ];
       final event = {'type': 'data-changed', 'scopes': scopes};
       onDataChanged?.call(scopes);
       _changes.clear();
