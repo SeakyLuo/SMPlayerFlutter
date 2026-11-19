@@ -64,6 +64,7 @@ class RecentPageNotifier extends AutoDisposeAsyncNotifier<RecentPageData> {
             recentAlbums: data.albums,
             recentArtists: data.artists,
             recentNowPlaying: data.nowPlaying,
+            recentQueueSongs: data.queueSongs,
           ),
         );
       }

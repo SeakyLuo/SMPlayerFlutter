@@ -54,7 +54,7 @@ Future<RecentPageData> readRemoteRecentData(
             .map(searchHistoryFromJson)
             .toList(),
     recentBrowses: _recentBrowses(json, byHost, device),
-    recentNowPlaying: const [],
+    recentNowPlaying: _recentQueueHistory(json, byHost, device),
     playlists: playlists,
     favoritePlaylistId: 0,
     nowPlaying: const NowPlayingSnapshot(playlistId: 0, songIds: []),
@@ -157,6 +157,25 @@ List<RecentArtistPlayback> _recentArtists(Map<String, dynamic> json) => [
     ),
 ];
 
+List<RecentNowPlayingSnapshot> _recentQueueHistory(
+  Map<String, dynamic> json,
+  Map<int, LibrarySong> byHost,
+  String device,
+) => [
+  // Queue history is absent on older sharing hosts.
+  if (json['nowPlayingHistory'] case final List entries)
+    for (final entry in entries.cast<Map>())
+      RecentNowPlayingSnapshot(
+        id: entry['id'] as int,
+        playlistId: remotePlaylistHistoryId(device, entry['playlist'] as int),
+        songIds: [
+          for (final id in (entry['songs'] as List).cast<int>())
+            if (byHost[id] case final song?) song.id,
+        ],
+        createdAt: entry['time'] as String,
+      ),
+];
+
 Future<({List<RecentBrowseEntry> entries, List<LibrarySong> songs})>
 readRecentBrowseSection(LibraryRepository repository, String device) async {
   if (device == 'local') return readLocalRecentBrowses(repository);
@@ -175,6 +194,7 @@ Future<
     List<RecentAlbumPlayback> albums,
     List<RecentArtistPlayback> artists,
     List<RecentNowPlayingSnapshot> nowPlaying,
+    List<LibrarySong> queueSongs,
   })
 >
 readRecentPlayedSection(LibraryRepository repository, String device) async {
@@ -186,6 +206,7 @@ readRecentPlayedSection(LibraryRepository repository, String device) async {
     playlists: _recentPlaylists(json, device),
     albums: _recentAlbums(json),
     artists: _recentArtists(json),
-    nowPlaying: const <RecentNowPlayingSnapshot>[],
+    nowPlaying: _recentQueueHistory(json, songs, device),
+    queueSongs: songs.values.toList(),
   );
 }

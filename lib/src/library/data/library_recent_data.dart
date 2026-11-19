@@ -42,6 +42,7 @@ Future<
     List<RecentAlbumPlayback> albums,
     List<RecentArtistPlayback> artists,
     List<RecentNowPlayingSnapshot> nowPlaying,
+    List<LibrarySong> queueSongs,
   })
 >
 readLocalRecentPlayed(LibraryRepository repository) async {
@@ -62,7 +63,8 @@ readLocalRecentPlayed(LibraryRepository repository) async {
       db.dispose();
     }
   });
-  final ids = data.references.map((entry) => entry.id).toSet();
+  final queueIds = {for (final record in data.nowPlaying) ...record.songIds};
+  final ids = {...data.references.map((entry) => entry.id), ...queueIds};
   final songs =
       ids.isEmpty
           ? const <LibrarySong>[]
@@ -84,6 +86,10 @@ readLocalRecentPlayed(LibraryRepository repository) async {
     albums: data.albums,
     artists: data.artists,
     nowPlaying: data.nowPlaying,
+    queueSongs: [
+      for (final song in byId.values)
+        if (queueIds.contains(song.id)) song,
+    ],
   );
 }
 

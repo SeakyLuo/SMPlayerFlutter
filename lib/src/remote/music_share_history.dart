@@ -35,6 +35,18 @@ RecentBrowseEntry browseHistoryFromJson(Map e) => RecentBrowseEntry(
   browsedAt: e['time'] as String,
 );
 
+List<Map<String, Object>> _queueHistoryJson(
+  List<RecentNowPlayingSnapshot> records,
+) => [
+  for (final entry in records)
+    {
+      'id': entry.id,
+      'playlist': entry.playlistId,
+      'songs': entry.songIds,
+      'time': entry.createdAt,
+    },
+];
+
 Future<Map<String, dynamic>> handleSharedHistory(
   HttpRequest request,
   LibraryRepository repository,
@@ -59,7 +71,12 @@ Future<Map<String, dynamic>> handleSharedHistory(
     if (section == 'played') {
       final data = await readLocalRecentPlayed(repository);
       return {
-        'songs': data.songs.map(sharedSongJson).toList(),
+        'songs':
+            {
+              for (final song in [...data.songs, ...data.queueSongs])
+                song.id: sharedSongJson(song),
+            }.values.toList(),
+        'nowPlayingHistory': _queueHistoryJson(data.nowPlaying),
         'played': [
           for (final s in data.songs) {'song': s.id, 'time': s.playedAt},
         ],
@@ -95,6 +112,7 @@ Future<Map<String, dynamic>> handleSharedHistory(
         for (final e in data.recentArtists)
           {'id': e.id, 'item': e.artist, 'time': e.playedAt},
       ],
+      'nowPlayingHistory': _queueHistoryJson(data.recentNowPlaying),
       'searches': data.recentSearches.map(searchHistoryJson).toList(),
       'browses': data.recentBrowses.map(browseHistoryJson).toList(),
     };
