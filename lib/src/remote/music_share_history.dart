@@ -65,6 +65,15 @@ Future<Map<String, dynamic>> handleSharedHistory(
         for (final e in data.recentArtists)
           {'id': e.id, 'item': e.artist, 'time': e.playedAt},
       ],
+      'nowPlayingHistory': [
+        for (final entry in data.recentNowPlaying)
+          {
+            'id': entry.id,
+            'playlist': entry.playlistId,
+            'songs': entry.songIds,
+            'time': entry.createdAt,
+          },
+      ],
       'searches': data.recentSearches.map(searchHistoryJson).toList(),
       'browses': data.recentBrowses.map(browseHistoryJson).toList(),
     };

@@ -114,7 +114,18 @@ Future<RecentPageData> readRemoteRecentData(
             browsedAt: e.browsedAt,
           ),
     ],
-    recentNowPlaying: const [],
+    recentNowPlaying: [
+      for (final entry in (json['nowPlayingHistory'] as List).cast<Map>())
+        RecentNowPlayingSnapshot(
+          id: entry['id'] as int,
+          playlistId: remotePlaylistHistoryId(device, entry['playlist'] as int),
+          songIds: [
+            for (final id in (entry['songs'] as List).cast<int>())
+              if (byHost.containsKey(id)) byHost[id]!.id,
+          ],
+          createdAt: entry['time'] as String,
+        ),
+    ],
     playlists: playlists,
     favoritePlaylistId: 0,
     nowPlaying: const NowPlayingSnapshot(playlistId: 0, songIds: []),

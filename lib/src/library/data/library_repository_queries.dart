@@ -74,7 +74,7 @@ mixin _LibraryRepositoryQueries on _LibraryDataSources {
                   .map((entry) => int.parse(entry.itemId)),
               for (final record in LibraryRepository._playbackHistoryService
                   .readRecentNowPlaying(db))
-                ...record.songIds.take(4),
+                ...record.songIds,
             }.toList(),
           LibraryQueryKind.queue =>
             (query.useSongIds || query.songIds.isNotEmpty
