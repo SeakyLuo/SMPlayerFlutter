@@ -1,5 +1,6 @@
 import '../library/data/library_models.dart';
 import '../library/data/library_repository.dart';
+import '../library/data/library_recent_data.dart';
 import 'music_share_access.dart';
 import 'music_share_catalog.dart';
 import 'music_share_models.dart';
@@ -33,10 +34,45 @@ Future<RecentPageData> readRemoteRecentData(
   String device,
 ) async {
   final json = await remoteHistory(device, 'get');
+  final byHost = await _readRemoteHistorySongs(repository, device, json);
+  final songs = byHost.values.toList();
+  final playlists = await activeMusicShareAccess!.readPlaylists(device);
+  final playlistIds = playlists.map((playlist) => playlist.id).toSet();
+  return RecentPageData(
+    songs: songs,
+    recentSongs: _recentSongs(json, byHost),
+    recentPlaylists:
+        _recentPlaylists(
+          json,
+          device,
+        ).where((entry) => playlistIds.contains(entry.playlistId)).toList(),
+    recentAlbums: _recentAlbums(json),
+    recentArtists: _recentArtists(json),
+    recentSearches:
+        (json['searches'] as List)
+            .cast<Map>()
+            .map(searchHistoryFromJson)
+            .toList(),
+    recentBrowses: _recentBrowses(json, byHost, device),
+    recentNowPlaying: const [],
+    playlists: playlists,
+    favoritePlaylistId: 0,
+    nowPlaying: const NowPlayingSnapshot(playlistId: 0, songIds: []),
+    showCount: true,
+    hideMultiSelectCommandBarAfterOperation: true,
+  );
+}
+
+Future<Map<int, LibrarySong>> _readRemoteHistorySongs(
+  LibraryRepository repository,
+  String device,
+  Map<String, dynamic> json,
+) async {
   final raw =
       (json['songs'] as List)
           .map((e) => (e as Map).cast<String, dynamic>())
           .toList();
+  if (raw.isEmpty) return {};
   await importMusicShareCatalog(
     await repository.getDatabasePath(),
     device,
@@ -48,13 +84,16 @@ Future<RecentPageData> readRemoteRecentData(
     device,
     raw.map((e) => e['id'] as int).toList(),
   );
-  final byHost = {
+  return {
     for (final s in songs) int.parse(Uri.parse(s.path).pathSegments.single): s,
   };
-  final playlists = await activeMusicShareAccess!.readPlaylists(device);
-  final byPlaylist = {
-    for (final p in playlists) hostPlaylistHistoryId(p.id): p.id,
-  };
+}
+
+List<RecentBrowseEntry> _recentBrowses(
+  Map<String, dynamic> json,
+  Map<int, LibrarySong> byHost,
+  String device,
+) {
   final browses =
       (json['browses'] as List).cast<Map>().map(browseHistoryFromJson).toList();
   String item(RecentBrowseEntry e) => switch (e.type) {
@@ -63,62 +102,90 @@ Future<RecentPageData> readRemoteRecentData(
       remotePlaylistHistoryId(device, int.parse(e.itemId)).toString(),
     _ => e.itemId,
   };
-  return RecentPageData(
-    songs: songs,
-    recentSongs: [
-      for (final e in (json['played'] as List).cast<Map>())
-        if (byHost.containsKey(e['song']))
-          RecentLibrarySong.fromSong(
-            byHost[e['song']]!,
-            playedAt: e['time'] as String,
-          ),
-    ],
-    recentPlaylists: [
-      for (final e in (json['playlists'] as List).cast<Map>())
-        if (byPlaylist.containsKey(e['item']))
-          RecentPlaylistPlayback(
-            id: e['id'] as int,
-            playlistId: byPlaylist[e['item']]!,
-            playedAt: e['time'] as String,
-          ),
-    ],
-    recentAlbums: [
-      for (final e in (json['albums'] as List).cast<Map>())
-        RecentAlbumPlayback(
-          id: e['id'] as int,
-          album: e['item'] as String,
-          playedAt: e['time'] as String,
+  return [
+    for (final e in browses)
+      if (e.type != RecentBrowseType.song ||
+          byHost.containsKey(int.parse(e.itemId)))
+        RecentBrowseEntry(
+          id: e.id,
+          type: e.type,
+          itemId: item(e),
+          browsedAt: e.browsedAt,
         ),
-    ],
-    recentArtists: [
-      for (final e in (json['artists'] as List).cast<Map>())
-        RecentArtistPlayback(
-          id: e['id'] as int,
-          artist: e['item'] as String,
-          playedAt: e['time'] as String,
-        ),
-    ],
-    recentSearches:
-        (json['searches'] as List)
-            .cast<Map>()
-            .map(searchHistoryFromJson)
-            .toList(),
-    recentBrowses: [
-      for (final e in browses)
-        if (e.type != RecentBrowseType.song ||
-            byHost.containsKey(int.parse(e.itemId)))
-          RecentBrowseEntry(
-            id: e.id,
-            type: e.type,
-            itemId: item(e),
-            browsedAt: e.browsedAt,
-          ),
-    ],
-    recentNowPlaying: const [],
-    playlists: playlists,
-    favoritePlaylistId: 0,
-    nowPlaying: const NowPlayingSnapshot(playlistId: 0, songIds: []),
-    showCount: true,
-    hideMultiSelectCommandBarAfterOperation: true,
+  ];
+}
+
+List<RecentLibrarySong> _recentSongs(
+  Map<String, dynamic> json,
+  Map<int, LibrarySong> byHost,
+) => [
+  for (final e in (json['played'] as List).cast<Map>())
+    if (byHost.containsKey(e['song']))
+      RecentLibrarySong.fromSong(
+        byHost[e['song']]!,
+        playedAt: e['time'] as String,
+      ),
+];
+
+List<RecentPlaylistPlayback> _recentPlaylists(
+  Map<String, dynamic> json,
+  String device,
+) => [
+  for (final e in (json['playlists'] as List).cast<Map>())
+    RecentPlaylistPlayback(
+      id: e['id'] as int,
+      playlistId: remotePlaylistHistoryId(device, e['item'] as int),
+      playedAt: e['time'] as String,
+    ),
+];
+
+List<RecentAlbumPlayback> _recentAlbums(Map<String, dynamic> json) => [
+  for (final e in (json['albums'] as List).cast<Map>())
+    RecentAlbumPlayback(
+      id: e['id'] as int,
+      album: e['item'] as String,
+      playedAt: e['time'] as String,
+    ),
+];
+
+List<RecentArtistPlayback> _recentArtists(Map<String, dynamic> json) => [
+  for (final e in (json['artists'] as List).cast<Map>())
+    RecentArtistPlayback(
+      id: e['id'] as int,
+      artist: e['item'] as String,
+      playedAt: e['time'] as String,
+    ),
+];
+
+Future<({List<RecentBrowseEntry> entries, List<LibrarySong> songs})>
+readRecentBrowseSection(LibraryRepository repository, String device) async {
+  if (device == 'local') return readLocalRecentBrowses(repository);
+  final json = await remoteHistory(device, 'getBrowses');
+  final songs = await _readRemoteHistorySongs(repository, device, json);
+  return (
+    entries: _recentBrowses(json, songs, device),
+    songs: songs.values.toList(),
+  );
+}
+
+Future<
+  ({
+    List<RecentLibrarySong> songs,
+    List<RecentPlaylistPlayback> playlists,
+    List<RecentAlbumPlayback> albums,
+    List<RecentArtistPlayback> artists,
+    List<RecentNowPlayingSnapshot> nowPlaying,
+  })
+>
+readRecentPlayedSection(LibraryRepository repository, String device) async {
+  if (device == 'local') return readLocalRecentPlayed(repository);
+  final json = await remoteHistory(device, 'getPlayed');
+  final songs = await _readRemoteHistorySongs(repository, device, json);
+  return (
+    songs: _recentSongs(json, songs),
+    playlists: _recentPlaylists(json, device),
+    albums: _recentAlbums(json),
+    artists: _recentArtists(json),
+    nowPlaying: const <RecentNowPlayingSnapshot>[],
   );
 }

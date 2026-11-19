@@ -333,7 +333,11 @@ class MusicShareBackgroundRuntime {
           if (scope == 'library') {
             server.markCatalogChanged();
           } else {
-            server.events.dataChanged(scope);
+            server.events.dataChanged(
+              scope,
+              notifyHost:
+                  (body['notifyHost'] as bool) && !scope.startsWith('history:'),
+            );
           }
         }
       case 'handoff':

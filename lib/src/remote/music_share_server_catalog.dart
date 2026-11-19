@@ -40,7 +40,16 @@ extension SharedCatalogQueries on MusicShareServer {
         .withPlaylists(_sharedSnapshot.playlists)
         .withPage(songs: const []);
     _rootPath = metadata.rootPath;
-    markCatalogChanged();
+    if (!directoriesChanged && changed.isNotEmpty) {
+      _catalogGeneration++;
+      if (running) {
+        for (final id in changed) {
+          events.dataChanged('song:$id');
+        }
+      }
+    } else {
+      markCatalogChanged();
+    }
     return changed;
   }
 }

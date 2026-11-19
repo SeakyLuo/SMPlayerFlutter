@@ -241,7 +241,7 @@ class _RecentPageState extends ConsumerState<RecentPage>
       error:
           (_, _) => _RecentPagePanel(child: LibraryLoadFailure(onRetry: retry)),
       data: (snapshot) {
-        final songs = applyFavoriteOverridesToSongs(
+        final catalogSongs = applyFavoriteOverridesToSongs(
           snapshot.songs.where(source.includes).toList(),
           favoriteOverrides,
           songOverrides,
@@ -264,10 +264,23 @@ class _RecentPageState extends ConsumerState<RecentPage>
               artists: snapshot.recentArtists,
             );
         final addedSongs =
-            songs.toList()..sort(
+            catalogSongs.toList()..sort(
               (left, right) =>
                   dateValue(right.dateAdded) - dateValue(left.dateAdded),
             );
+        final songs =
+            {
+              for (final song in [
+                ...recentSongs,
+                ...applyFavoriteOverridesToSongs(
+                  snapshot.recentBrowseSongs.where(source.includes).toList(),
+                  favoriteOverrides,
+                  songOverrides,
+                ),
+                ...catalogSongs,
+              ])
+                song.id: song,
+            }.values.toList();
         final recentPlaylistViews = buildRecentPlaylistViews(
           playlists,
           songs,
@@ -741,9 +754,7 @@ class _RecentPageState extends ConsumerState<RecentPage>
                               .onTogglePlayPause,
                       onPlayTrack: (trackId, queueSongIds) {
                         final songsById = {
-                          for (final song
-                              in ref.read(recentPageDataProvider).value!.songs)
-                            song.id: song,
+                          for (final song in songs) song.id: song,
                         };
                         _playSong(
                           songsById[trackId]!,

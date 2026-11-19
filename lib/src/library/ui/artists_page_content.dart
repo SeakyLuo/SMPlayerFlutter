@@ -125,7 +125,13 @@ extension _ArtistsPageContent on _ArtistsPageState {
           ),
         );
       },
-      error: (_, _) => const _ArtistsPagePanel(child: LibraryLoadFailure()),
+      error:
+          (_, _) => _ArtistsPagePanel(
+            child: LibraryLoadFailure.forQuery(
+              ref,
+              const LibraryDataQuery(LibraryQueryKind.artistIndex),
+            ),
+          ),
       data: (rawSnapshot) {
         final libraryData = ref.watch(
           _artistsLibraryDataProvider((

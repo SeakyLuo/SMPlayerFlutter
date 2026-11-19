@@ -176,7 +176,10 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
       skipLoadingOnReload: true,
       skipError: true,
       loading: () => const _NowPlayingPagePanel(child: SmPlayerLoadingState()),
-      error: (_, _) => const _NowPlayingPagePanel(child: LibraryLoadFailure()),
+      error:
+          (_, _) => _NowPlayingPagePanel(
+            child: LibraryLoadFailure.forQuery(ref, query),
+          ),
       data: (snapshot) {
         final songsById = {for (final song in snapshot.songs) song.id: song};
         final sourceQueueSongIds = allQueueIds;

@@ -91,7 +91,10 @@ class _AlbumDetailPageState extends ConsumerState<AlbumDetailPage> {
             () => const _AlbumDetailPanel(
               child: SmPlayerLoadingState(layout: SmPlayerLoadingLayout.detail),
             ),
-        error: (_, _) => const _AlbumDetailPanel(child: LibraryLoadFailure()),
+        error:
+            (_, _) => _AlbumDetailPanel(
+              child: LibraryLoadFailure.forQuery(ref, pageQuery),
+            ),
         data: (rawSnapshot) {
           final snapshot = applyLibraryFavoriteOverrides(
             rawSnapshot,
@@ -118,7 +121,9 @@ class _AlbumDetailPageState extends ConsumerState<AlbumDetailPage> {
             );
           }
           if (albumSongs.isEmpty && snapshotValue.hasError) {
-            return const _AlbumDetailPanel(child: LibraryLoadFailure());
+            return _AlbumDetailPanel(
+              child: LibraryLoadFailure.forQuery(ref, pageQuery),
+            );
           }
           if (routeAlbumName.isEmpty || albumSongs.isEmpty) {
             return _AlbumDetailPanel(

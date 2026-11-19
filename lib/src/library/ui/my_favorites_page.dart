@@ -51,7 +51,13 @@ class MyFavoritesPage extends ConsumerWidget {
           () => const HeaderedPlaylistLoadingState(
             type: HeaderedPlaylistType.favorites,
           ),
-      error: (_, _) => const _FavoritesPagePanel(child: LibraryLoadFailure()),
+      error:
+          (_, _) => _FavoritesPagePanel(
+            child: LibraryLoadFailure.forQuery(
+              ref,
+              const LibraryDataQuery(LibraryQueryKind.favorites, limit: 200),
+            ),
+          ),
       data: (rawSnapshot) {
         final snapshot = applyLibraryFavoriteOverrides(
           rawSnapshot,

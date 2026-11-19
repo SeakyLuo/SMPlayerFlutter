@@ -5,7 +5,7 @@ mixin _LibraryRepositoryHistory on _LibraryDataSources {
 
   Future<T> _localHistory<T>(
     Future<T> operation, {
-    String scope = recentHistoryScope,
+    String scope = playedHistoryScope,
   }) async {
     final result = await operation;
     activeMusicShareAccess?.localDataChanged(scope);
@@ -69,6 +69,7 @@ mixin _LibraryRepositoryHistory on _LibraryDataSources {
         type,
         itemId,
       ),
+      scope: browsedHistoryScope,
     );
   }
 
@@ -81,6 +82,7 @@ mixin _LibraryRepositoryHistory on _LibraryDataSources {
     final databaseFile = await _resolveDatabaseFile();
     await _localHistory(
       LibraryRepository._browseHistoryService.remove(databaseFile, entryIds),
+      scope: browsedHistoryScope,
     );
   }
 
@@ -93,6 +95,7 @@ mixin _LibraryRepositoryHistory on _LibraryDataSources {
     final databaseFile = await _resolveDatabaseFile();
     await _localHistory(
       LibraryRepository._browseHistoryService.restore(databaseFile, entryIds),
+      scope: browsedHistoryScope,
     );
   }
 
@@ -105,6 +108,7 @@ mixin _LibraryRepositoryHistory on _LibraryDataSources {
     final databaseFile = await _resolveDatabaseFile();
     await _localHistory(
       LibraryRepository._browseHistoryService.clear(databaseFile),
+      scope: browsedHistoryScope,
     );
   }
 

@@ -266,7 +266,9 @@ extension _MusicShareServerHttp on MusicShareServer {
             final scope =
                 operation == 'search' || operation.endsWith('Searches')
                     ? searchHistoryScope
-                    : recentHistoryScope;
+                    : operation == 'browse' || operation.endsWith('Browses')
+                    ? browsedHistoryScope
+                    : playedHistoryScope;
             libraryHistoryChanges.add((device: 'local', scope: scope));
             events.dataChanged(scope);
           },

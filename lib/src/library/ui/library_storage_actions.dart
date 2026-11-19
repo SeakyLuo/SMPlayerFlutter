@@ -27,17 +27,29 @@ class LibraryStorageActions {
   );
 
   Future<LibraryStorageChange> _change(
-    Future<LibraryStorageChange> action,
-  ) async {
+    Future<LibraryStorageChange> action, {
+    LibrarySong? removedSong,
+  }) async {
     final change = await action;
-    final deletedIds = change.deletedSongIds;
+    final deletedIds = {
+      ...change.deletedSongIds,
+      if (removedSong != null) removedSong.id,
+    };
+    void invalidate() {
+      if (removedSong case final song?) {
+        invalidateSongMembershipQueries(container, song);
+      } else {
+        _changed(change.source);
+      }
+    }
+
     final deletedPaths = change.deletedSongPaths;
     final recent =
         deletedIds.isEmpty && deletedPaths.isEmpty
             ? null
             : _loadedRecent(change.source);
     final removedSongs = recent?.removeDeletedSongs(deletedIds, deletedPaths);
-    _changed(change.source);
+    invalidate();
     return LibraryStorageChange(
       source: change.source,
       count: change.count,
@@ -48,9 +60,10 @@ class LibraryStorageActions {
             songs: removedSongs.songs,
             recentSongs: removedSongs.recentSongs,
             recentQueueSongs: removedSongs.recentQueueSongs,
+            recentBrowseSongs: removedSongs.recentBrowseSongs,
           );
         }
-        _changed(change.source);
+        invalidate();
       },
       commit: change.commit,
     );
@@ -79,10 +92,13 @@ class LibraryStorageActions {
     repository.dataSource(song.source).deleteStorageItems({
       song.id: song.path,
     }, const []),
+    removedSong: song,
   );
 
-  Future<LibraryStorageChange> hide(LibrarySong song) =>
-      _change(repository.dataSource(song.source).hideSongFile(song));
+  Future<LibraryStorageChange> hide(LibrarySong song) => _change(
+    repository.dataSource(song.source).hideSongFile(song),
+    removedSong: song,
+  );
 
   Future<LibraryStorageChange> move(
     BuildContext context,

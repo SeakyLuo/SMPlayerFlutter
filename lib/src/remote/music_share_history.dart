@@ -42,11 +42,40 @@ Future<Map<String, dynamic>> handleSharedHistory(
   required void Function(String operation) onChanged,
 }) async {
   if (request.method == 'GET') {
-    if (request.uri.queryParameters['section'] == 'searches') {
+    final section = request.uri.queryParameters['section'];
+    if (section == 'searches') {
       final entries = await const LibrarySearchHistoryService(
         database: LibraryDatabaseService(),
       ).getRecentSearches(File(await repository.getDatabasePath()));
       return {'searches': entries.map(searchHistoryJson).toList()};
+    }
+    if (section == 'browses') {
+      final data = await readLocalRecentBrowses(repository);
+      return {
+        'songs': data.songs.map(sharedSongJson).toList(),
+        'browses': data.entries.map(browseHistoryJson).toList(),
+      };
+    }
+    if (section == 'played') {
+      final data = await readLocalRecentPlayed(repository);
+      return {
+        'songs': data.songs.map(sharedSongJson).toList(),
+        'played': [
+          for (final s in data.songs) {'song': s.id, 'time': s.playedAt},
+        ],
+        'playlists': [
+          for (final e in data.playlists)
+            {'id': e.id, 'item': e.playlistId, 'time': e.playedAt},
+        ],
+        'albums': [
+          for (final e in data.albums)
+            {'id': e.id, 'item': e.album, 'time': e.playedAt},
+        ],
+        'artists': [
+          for (final e in data.artists)
+            {'id': e.id, 'item': e.artist, 'time': e.playedAt},
+        ],
+      };
     }
     final data = await readLocalRecentData(repository);
     return {

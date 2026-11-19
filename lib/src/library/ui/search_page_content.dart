@@ -53,15 +53,14 @@ extension _SearchPageContent on _SearchPageState {
       () => ref.invalidate(libraryPagedQueryProvider(songQuery)),
     );
     final songsValue = ref.watch(libraryPagedQueryProvider(songQuery));
-    final indexValue = ref.watch(
-      _searchIndexProvider(
-        LibraryDataQuery(
-          LibraryQueryKind.context,
-          source: selectedSource,
-          folder: folder,
-        ),
+    final indexProvider = _searchIndexProvider(
+      LibraryDataQuery(
+        LibraryQueryKind.context,
+        source: selectedSource,
+        folder: folder,
       ),
     );
+    final indexValue = ref.watch(indexProvider);
     var snapshotValue = indexValue.whenData((index) {
       final songs = songsValue.valueOrNull;
       return index.withPage(
@@ -152,7 +151,18 @@ extension _SearchPageContent on _SearchPageState {
               _searchPageHorizontalInset,
               22,
             ),
-            child: const LibraryLoadFailure(),
+            child: LibraryLoadFailure(
+              onRetry: () {
+                if (songsValue.hasError) {
+                  ref.invalidate(libraryPagedQueryProvider(songQuery));
+                }
+                if (indexValue.hasError) ref.invalidate(indexProvider);
+                if (source != 'local' &&
+                    ref.read(remoteDirectoryProvider(source)).hasError) {
+                  ref.invalidate(remoteDirectoryProvider(source));
+                }
+              },
+            ),
           ),
         );
       },

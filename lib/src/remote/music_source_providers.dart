@@ -1,10 +1,12 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../library/data/library_history_changes.dart';
 import '../library/data/library_models.dart';
 import '../library/data/library_providers.dart';
 import '../library/data/library_repository.dart';
 import 'music_share_access.dart';
 import 'music_share_controller.dart';
+import 'music_share_models.dart';
 
 final ChangeNotifierProvider<MusicShareController> musicShareProvider =
     ChangeNotifierProvider<MusicShareController>((ref) {
@@ -16,7 +18,28 @@ final ChangeNotifierProvider<MusicShareController> musicShareProvider =
           invalidateLibraryQueries(ref.invalidate, source: source);
         },
         loadLibrary: () => ref.read(libraryContentDataProvider.future),
+        onScopedPeerChange: (device, ids, playlists) async {
+          if (playlists) {
+            invalidateLibraryQueries(
+              ref.invalidate,
+              source: device,
+              kinds: const {
+                LibraryQueryKind.playlists,
+                LibraryQueryKind.playlistIndex,
+              },
+            );
+          }
+          if (ids.isNotEmpty) {
+            final paths = {for (final id in ids) remoteMusicPath(device, id)};
+            await refreshCachedSongDetails(
+              ref.container,
+              (song) => paths.contains(song.path),
+            );
+            invalidateSongMetadataQueries(ref.container, device);
+          }
+        },
         onHostDataChanged: (scopes) {
+          notifyLibraryHistoryChanges('local', scopes);
           if (scopes.contains('library') ||
               scopes.any((scope) => scope.startsWith('song:'))) {
             invalidateLibraryQueries(ref.invalidate);

@@ -284,7 +284,6 @@ extension _MusicShareReading on MusicShareController {
     if (query.kind == LibraryQueryKind.songs ||
         query.kind == LibraryQueryKind.folders) {
       _pendingCatalogPeers.remove(device);
-      _pendingSongIds.remove(device);
     }
     final localSongs =
         songs.isEmpty

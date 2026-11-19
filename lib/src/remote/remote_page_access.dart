@@ -5,7 +5,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../app/undoable_notification.dart';
 import '../i18n/app_i18n.dart';
-import '../library/data/library_providers.dart';
 import '../platform/system_log.dart';
 import 'music_share_models.dart';
 import 'music_source_providers.dart';
@@ -78,7 +77,6 @@ class _RemotePageAccessState extends ConsumerState<RemotePageAccess> {
   }
 
   void _retry() {
-    invalidateLibraryQueries(ref.invalidate, source: widget.device);
     if (_visible && !_loading) unawaited(_access());
   }
 
@@ -93,7 +91,7 @@ class _RemotePageAccessState extends ConsumerState<RemotePageAccess> {
     try {
       final share = ref.read(musicShareProvider);
       await share.ready;
-      if (current()) share.notifyLibraryAccess(widget.device);
+      if (current()) await share.notifyLibraryAccess(widget.device);
       if (current()) setState(() => _loading = false);
     } catch (error, stack) {
       if (!mounted || !_visible || generation != _generation) return;

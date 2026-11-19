@@ -58,15 +58,7 @@ extension MusicShareEvents on MusicShareController {
             case 'data-changed':
               _remoteDataChanges.add(peer.id);
               final scopes = (event['scopes'] as List).cast<String>();
-              final hasTypedHistory =
-                  scopes.contains(recentHistoryScope) ||
-                  scopes.contains(searchHistoryScope);
-              for (final scope in [recentHistoryScope, searchHistoryScope]) {
-                if (scopes.contains(scope) ||
-                    (!hasTypedHistory && scopes.contains('history'))) {
-                  libraryHistoryChanges.add((device: peer.id, scope: scope));
-                }
-              }
+              notifyLibraryHistoryChanges(peer.id, scopes);
               final ids =
                   scopes
                       .where((scope) => scope.startsWith('song:'))
@@ -79,6 +71,7 @@ extension MusicShareEvents on MusicShareController {
                   peer,
                   catalog: scopes.contains('library'),
                   songIds: ids,
+                  playlists: scopes.contains('playlists'),
                 );
               }
           }
@@ -117,6 +110,7 @@ extension MusicShareEvents on MusicShareController {
     MusicPeer peer, {
     bool catalog = true,
     List<int> songIds = const [],
+    bool playlists = false,
   }) {
     // The database catalog and playlist list are caches owned by this device.
     // Changes are recorded only; the next explicit page access reads them.
@@ -125,9 +119,33 @@ extension MusicShareEvents on MusicShareController {
       peer.catalogRevision = null;
       _pendingCatalogPeers.add(peer.id);
     }
-    _pendingSongIds.putIfAbsent(peer.id, () => {}).addAll(songIds);
-    _pendingPlaylistPeers.add(peer.id);
-    _playlistClient.invalidate(peer.id);
+    _pendingPageChanges
+        .putIfAbsent(peer.id, _PeerPageChanges.new)
+        .add(catalog: catalog, songIds: songIds, playlists: playlists);
+    if (catalog || playlists) {
+      _pendingPlaylistPeers.add(peer.id);
+      _playlistClient.invalidate(peer.id);
+    }
+  }
+}
+
+class _PeerPageChanges {
+  bool catalog = false;
+  bool playlists = false;
+  final songIds = <int>{};
+
+  void add({
+    required bool catalog,
+    required Iterable<int> songIds,
+    required bool playlists,
+  }) {
+    this.catalog |= catalog;
+    this.playlists |= playlists;
+    if (this.catalog) {
+      this.songIds.clear();
+    } else {
+      this.songIds.addAll(songIds);
+    }
   }
 }
 

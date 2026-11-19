@@ -45,6 +45,7 @@ class MusicShareController extends ChangeNotifier
     required this.loadLibrary,
     required this.onPlaylistsChanged,
     required this.onHostDataChanged,
+    required this.onScopedPeerChange,
   }) {
     ready = _load();
     initialConnection = ready.then((_) => checkConnections()).whenComplete(() {
@@ -70,6 +71,7 @@ class MusicShareController extends ChangeNotifier
   final Future<LibraryContentData> Function() loadLibrary;
   final void Function(List<LibraryPlaylist>) onPlaylistsChanged;
   final void Function(List<String>) onHostDataChanged;
+  final Future<void> Function(String, Set<int>, bool) onScopedPeerChange;
   late final Future<void> ready;
   late final Future<void> initialConnection;
   late final Future<void> startup;
@@ -116,9 +118,8 @@ class MusicShareController extends ChangeNotifier
   final _peerSyncs = <String, Future<void>>{};
   final _pendingPlaylistPeers = <String>{};
   final _pendingCatalogPeers = <String>{};
-  final _pendingSongIds = <String, Set<int>>{};
+  final _pendingPageChanges = <String, _PeerPageChanges>{};
   final _peerDataEpochs = <String, int>{};
-  final _accessedPeerDataEpochs = <String, int>{};
   Timer? _localChangeTimer;
   final _localChanges = <String>{};
   final _remoteDataChanges = StreamController<String>.broadcast();
@@ -211,13 +212,29 @@ class MusicShareController extends ChangeNotifier
     MusicLibrarySortCriterion? order,
   }) => _searchLyrics(device, query, folderPath, offset: offset, order: order);
 
-  void notifyLibraryAccess(String device) {
-    final epoch = _peerDataEpochs[device];
-    if (epoch == null || _accessedPeerDataEpochs[device] == epoch) return;
+  Future<void> notifyLibraryAccess(String device) async {
+    final changes = _pendingPageChanges.remove(device);
+    if (changes == null) return;
     // One notification invalidates every affected query once. Pending playlist
     // or song reads must not invalidate unrelated pages again on every visit.
-    _accessedPeerDataEpochs[device] = epoch;
-    onCatalogChanged(device);
+    if (changes.catalog) {
+      onCatalogChanged(device);
+    } else {
+      try {
+        await onScopedPeerChange(device, changes.songIds, changes.playlists);
+      } catch (_) {
+        if (!_disposed && peers.any((peer) => peer.id == device)) {
+          _pendingPageChanges
+              .putIfAbsent(device, _PeerPageChanges.new)
+              .add(
+                catalog: false,
+                songIds: changes.songIds,
+                playlists: changes.playlists,
+              );
+        }
+        rethrow;
+      }
+    }
   }
 
   @override
@@ -405,9 +422,8 @@ class MusicShareController extends ChangeNotifier
     }
     _pendingPlaylistPeers.remove(peer.id);
     _pendingCatalogPeers.remove(peer.id);
-    _pendingSongIds.remove(peer.id);
+    _pendingPageChanges.remove(peer.id);
     _peerDataEpochs.remove(peer.id);
-    _accessedPeerDataEpochs.remove(peer.id);
     _disconnectEvents(peer.id);
     _requestRecoveryPeers.remove(peer.id);
     _heartbeatSilence.remove(peer.id);

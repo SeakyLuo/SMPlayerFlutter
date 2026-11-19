@@ -39,7 +39,10 @@ extension _MusicLibraryLayout on _MusicLibraryPageState {
               sortDirection: _sortDirection,
             ),
           ),
-      error: (_, _) => const _LibraryScaffold(child: LibraryLoadFailure()),
+      error:
+          (_, _) => _LibraryScaffold(
+            child: LibraryLoadFailure.forQuery(ref, _pageQuery),
+          ),
       data: (snapshot) {
         final anchor = (
           _pageQuery.withPage(

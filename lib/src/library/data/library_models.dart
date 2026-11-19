@@ -618,6 +618,7 @@ class RecentPageData {
     required this.recentArtists,
     required this.recentNowPlaying,
     this.recentQueueSongs = const [],
+    this.recentBrowseSongs = const [],
     required this.recentSearches,
     this.recentBrowses = const [],
     required this.playlists,
@@ -634,6 +635,7 @@ class RecentPageData {
   final List<RecentArtistPlayback> recentArtists;
   final List<RecentNowPlayingSnapshot> recentNowPlaying;
   final List<LibrarySong> recentQueueSongs;
+  final List<LibrarySong> recentBrowseSongs;
   final List<SearchHistoryEntry> recentSearches;
   final List<RecentBrowseEntry> recentBrowses;
   final List<LibraryPlaylist> playlists;
@@ -650,6 +652,8 @@ class RecentPageData {
     List<RecentArtistPlayback>? recentArtists,
     List<RecentNowPlayingSnapshot>? recentNowPlaying,
     List<LibrarySong>? recentQueueSongs,
+    List<LibrarySong>? recentBrowseSongs,
+    List<RecentBrowseEntry>? recentBrowses,
   }) => RecentPageData(
     songs: songs ?? this.songs,
     recentSongs: recentSongs ?? this.recentSongs,
@@ -658,8 +662,9 @@ class RecentPageData {
     recentArtists: recentArtists ?? this.recentArtists,
     recentNowPlaying: recentNowPlaying ?? this.recentNowPlaying,
     recentQueueSongs: recentQueueSongs ?? this.recentQueueSongs,
+    recentBrowseSongs: recentBrowseSongs ?? this.recentBrowseSongs,
     recentSearches: recentSearches,
-    recentBrowses: recentBrowses,
+    recentBrowses: recentBrowses ?? this.recentBrowses,
     playlists: playlists,
     favoritePlaylistId: favoritePlaylistId,
     nowPlaying: nowPlaying,

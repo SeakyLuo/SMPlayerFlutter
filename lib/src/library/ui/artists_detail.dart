@@ -78,17 +78,14 @@ class _ArtistsDetail extends ConsumerWidget {
       );
     }
 
-    final value = ref.watch(
-      browsingLibraryPageProvider(
-        LibraryDataQuery(
-          LibraryQueryKind.albumIndex,
-          artists: [artist.sourceName],
-        ),
-      ),
+    final query = LibraryDataQuery(
+      LibraryQueryKind.albumIndex,
+      artists: [artist.sourceName],
     );
+    final value = ref.watch(browsingLibraryPageProvider(query));
     if (!value.hasValue) {
       return value.hasError
-          ? const LibraryLoadFailure()
+          ? LibraryLoadFailure.forQuery(ref, query)
           : const SmPlayerLoadingState(layout: SmPlayerLoadingLayout.detail);
     }
     final albums = [

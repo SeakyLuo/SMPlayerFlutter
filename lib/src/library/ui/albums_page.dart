@@ -303,7 +303,13 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
           ),
         );
       },
-      error: (_, _) => const _AlbumsPagePanel(child: LibraryLoadFailure()),
+      error:
+          (_, _) => _AlbumsPagePanel(
+            child: LibraryLoadFailure.forQuery(
+              ref,
+              const LibraryDataQuery(LibraryQueryKind.albumIndex),
+            ),
+          ),
       data: (rawPage) {
         final selectedNames =
             rawPage.albumSummaries

@@ -256,10 +256,7 @@ class LibraryPlaybackHistoryService {
     );
   }
 
-  List<RecentLibrarySong> readRecentSongs(
-    Database db,
-    List<LibrarySong> songs,
-  ) {
+  List<({int id, String playedAt})> readRecentSongReferences(Database db) {
     final rows = db.select(
       '''
       SELECT
@@ -276,17 +273,25 @@ class LibraryPlaybackHistoryService {
     ''',
       [_activeState, _activeState, _recentSongLimit],
     );
+    return [
+      for (final row in rows)
+        (
+          id: int.parse(row['itemId'] as String),
+          playedAt: row['playedAt'] as String,
+        ),
+    ];
+  }
+
+  List<RecentLibrarySong> readRecentSongs(
+    Database db,
+    List<LibrarySong> songs,
+  ) {
     final songsById = {for (final song in songs) song.id: song};
-    return rows.expand((row) {
-      final song = songsById[int.parse(row['itemId'] as String)];
+    return readRecentSongReferences(db).expand((row) {
+      final song = songsById[row.id];
       return song == null
           ? const <RecentLibrarySong>[]
-          : [
-            RecentLibrarySong.fromSong(
-              song,
-              playedAt: row['playedAt'] as String,
-            ),
-          ];
+          : [RecentLibrarySong.fromSong(song, playedAt: row.playedAt)];
     }).toList();
   }
 

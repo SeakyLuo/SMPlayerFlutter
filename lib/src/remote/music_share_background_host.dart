@@ -20,7 +20,9 @@ class MusicShareBackgroundHost implements MusicShareHost {
     required this.writeGrants,
     required this.onState,
   }) {
-    events = _BackgroundHostEvents((scope) => markChanged([scope]));
+    events = _BackgroundHostEvents(
+      (scope, notifyHost) => markChanged([scope], notifyHost: notifyHost),
+    );
   }
   final Map<String, String> grants, grantIdentities;
   final Set<String> mobileGrants, writeGrants;
@@ -197,8 +199,12 @@ class MusicShareBackgroundHost implements MusicShareHost {
   Future<void> disconnectAgent({required bool stop}) =>
       _send({'operation': 'agent-disconnect', 'stop': stop});
 
-  Future<void> markChanged(List<String> scopes) =>
-      _send({'operation': 'changed', 'scopes': scopes});
+  Future<void> markChanged(List<String> scopes, {bool notifyHost = true}) =>
+      _send({
+        'operation': 'changed',
+        'scopes': scopes,
+        'notifyHost': notifyHost,
+      });
 
   @override
   void markCatalogChanged() {
@@ -266,11 +272,11 @@ class MusicShareBackgroundHost implements MusicShareHost {
 
 class _BackgroundHostEvents extends MusicShareEventHub {
   _BackgroundHostEvents(this.changed);
-  final Future<void> Function(String) changed;
+  final Future<void> Function(String, bool) changed;
   @override
-  void dataChanged(String scope) {
+  void dataChanged(String scope, {bool notifyHost = true}) {
     unawaited(
-      changed(scope).catchError((Object error, StackTrace stack) {
+      changed(scope, notifyHost).catchError((Object error, StackTrace stack) {
         SystemLog.error('Background sharing event failed', error, stack);
       }),
     );

@@ -358,7 +358,14 @@ class _LocalPageState extends ConsumerState<LocalPage> {
           (_, _) =>
               _remote
                   ? _buildRemoteDirectoryPlaceholder(context, loading: false)
-                  : const LocalPageScaffold(child: LibraryLoadFailure()),
+                  : LocalPageScaffold(
+                    child: LibraryLoadFailure(
+                      onRetry:
+                          () => ref.invalidate(
+                            libraryDirectoryWindowsProvider(directoryQuery),
+                          ),
+                    ),
+                  ),
       data: (rawSnapshot) {
         final snapshot = _dataCache.snapshot(
           rawSnapshot,

@@ -16,9 +16,15 @@ extension MusicShareEditing on MusicShareController {
           (error, stack) => _requestConnectionRecovery(peer, error, stack),
     );
     try {
-      final reading = operation == 'get' || operation == 'getSearches';
+      final section = switch (operation) {
+        'getSearches' => 'searches',
+        'getBrowses' => 'browses',
+        'getPlayed' => 'played',
+        _ => null,
+      };
+      final reading = operation == 'get' || section != null;
       return await transport.json(
-        operation == 'getSearches' ? '/history?section=searches' : '/history',
+        section == null ? '/history' : '/history?section=$section',
         method: reading ? 'GET' : 'POST',
         body: reading ? null : {'operation': operation, ...values},
       );

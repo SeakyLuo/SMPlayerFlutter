@@ -85,11 +85,19 @@ final libraryPlaylistQueryInvalidationProvider = Provider.autoDispose
 final libraryAlbumQueryInvalidationProvider = Provider.autoDispose
     .family<Object, (String, String)>((ref, scope) => Object());
 
-void _watchLibraryAlbumQuery(Ref ref, LibraryDataQuery query) {
-  if (query.kind != LibraryQueryKind.album) return;
-  final albums = query.albumNames.isEmpty ? [query.album] : query.albumNames;
-  for (final album in albums) {
-    ref.watch(libraryAlbumQueryInvalidationProvider((query.source, album)));
+final libraryArtistQueryInvalidationProvider = Provider.autoDispose
+    .family<Object, (String, String?)>((ref, scope) => Object());
+
+void _watchLibraryCollectionQuery(Ref ref, LibraryDataQuery query) {
+  if (query.kind == LibraryQueryKind.album) {
+    final albums = query.albumNames.isEmpty ? [query.album] : query.albumNames;
+    for (final album in albums) {
+      ref.watch(libraryAlbumQueryInvalidationProvider((query.source, album)));
+    }
+  } else if (query.kind == LibraryQueryKind.artist) {
+    for (final artist in query.artists.isEmpty ? [null] : query.artists) {
+      ref.watch(libraryArtistQueryInvalidationProvider((query.source, artist)));
+    }
   }
 }
 
@@ -100,7 +108,7 @@ final libraryQueryInvalidationProvider = Provider.autoDispose
 final libraryPageQueryProvider = FutureProvider.autoDispose
     .family<LibraryContentData, LibraryDataQuery>((ref, query) async {
       ref.watch(libraryQueryInvalidationProvider((query.kind, query.source)));
-      _watchLibraryAlbumQuery(ref, query);
+      _watchLibraryCollectionQuery(ref, query);
       if (query.kind == LibraryQueryKind.playlists && query.playlistId != null)
         ref.watch(
           libraryPlaylistQueryInvalidationProvider((
@@ -146,27 +154,52 @@ final libraryPageQueryProvider = FutureProvider.autoDispose
 void invalidateLibraryQueries(
   void Function(ProviderOrFamily) invalidate, {
   String source = 'local',
-  Set<LibraryQueryKind> kinds = const {
-    LibraryQueryKind.context,
-    LibraryQueryKind.songs,
-    LibraryQueryKind.artistIndex,
-    LibraryQueryKind.albumIndex,
-    LibraryQueryKind.folders,
-    LibraryQueryKind.playlists,
-    LibraryQueryKind.playlistIndex,
-    LibraryQueryKind.directoryIndex,
-    LibraryQueryKind.recent,
-    LibraryQueryKind.favorites,
-    LibraryQueryKind.album,
-    LibraryQueryKind.artist,
-    LibraryQueryKind.lyrics,
-  },
+  Set<LibraryQueryKind> kinds = libraryCatalogQueryKinds,
 }) {
   // Invalidating a family only re-queries its currently accessed instances.
   // The entity cache used by the player and inactive pages remains available.
   for (final kind in kinds) {
     invalidate(libraryQueryInvalidationProvider((kind, source)));
   }
+}
+
+const libraryCatalogQueryKinds = {
+  LibraryQueryKind.context,
+  LibraryQueryKind.songs,
+  LibraryQueryKind.artistIndex,
+  LibraryQueryKind.albumIndex,
+  LibraryQueryKind.folders,
+  LibraryQueryKind.playlists,
+  LibraryQueryKind.playlistIndex,
+  LibraryQueryKind.directoryIndex,
+  LibraryQueryKind.recent,
+  LibraryQueryKind.favorites,
+  LibraryQueryKind.album,
+  LibraryQueryKind.artist,
+  LibraryQueryKind.lyrics,
+};
+
+void invalidateSongMembershipQueries(
+  ProviderContainer container,
+  LibrarySong song,
+) {
+  final source = song.source.deviceId;
+  container.invalidate(
+    libraryAlbumQueryInvalidationProvider((source, song.album)),
+  );
+  for (final artist in <String?>{null, song.artist, ...song.artists}) {
+    container.invalidate(
+      libraryArtistQueryInvalidationProvider((source, artist)),
+    );
+  }
+  invalidateLibraryQueries(
+    container.invalidate,
+    source: source,
+    kinds: libraryCatalogQueryKinds.difference(const {
+      LibraryQueryKind.album,
+      LibraryQueryKind.artist,
+    }),
+  );
 }
 
 Future<List<LibrarySong>> reloadRequestedLibrarySongs(
@@ -258,13 +291,10 @@ Future<void> updateLibraryAfterFolderScan(
     container,
     (song) => ids.contains(song.id) || paths.contains(song.path),
   );
-  _invalidateSongMetadataQueries(container, source);
+  invalidateSongMetadataQueries(container, source);
 }
 
-void _invalidateSongMetadataQueries(
-  ProviderContainer container,
-  String source,
-) {
+void invalidateSongMetadataQueries(ProviderContainer container, String source) {
   invalidateLibraryQueries(
     container.invalidate,
     source: source,
@@ -294,7 +324,7 @@ Future<List<LibrarySong>> refreshLibrarySongChanges(
   );
   final sources = references.values.map(LibrarySource.fromPath).toSet();
   for (final source in sources) {
-    _invalidateSongMetadataQueries(container, source.deviceId);
+    invalidateSongMetadataQueries(container, source.deviceId);
   }
   return songs;
 }
@@ -317,6 +347,7 @@ Future<List<LibrarySong>> refreshCachedSongDetails(
       ...?recent?.songs,
       ...?recent?.recentSongs,
       ...?recent?.recentQueueSongs,
+      ...?recent?.recentBrowseSongs,
     ])
       if (changed(song)) song.id,
   };
@@ -338,6 +369,7 @@ Future<List<LibrarySong>> refreshCachedSongDetails(
 final libraryScopeIdsProvider = FutureProvider.autoDispose
     .family<List<int>, LibraryDataQuery>((ref, query) {
       ref.watch(libraryQueryInvalidationProvider((query.kind, query.source)));
+      _watchLibraryCollectionQuery(ref, query);
       if (query.kind == LibraryQueryKind.playlists && query.playlistId != null)
         ref.watch(
           libraryPlaylistQueryInvalidationProvider((

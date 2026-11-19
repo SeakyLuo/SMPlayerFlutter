@@ -230,9 +230,19 @@ extension _LocalPageContent on _LocalPageState {
                             contentUnavailable
                                 ? () {
                                   RemotePageAccessScope.of(context).retry();
-                                  ref.invalidate(
-                                    remoteDirectoryProvider(_source),
+                                  final directory = remoteDirectoryProvider(
+                                    _source,
                                   );
+                                  final windows =
+                                      libraryDirectoryWindowsProvider(
+                                        _windowQuery!,
+                                      );
+                                  if (ref.read(directory).hasError) {
+                                    ref.invalidate(directory);
+                                  }
+                                  if (ref.read(windows).hasError) {
+                                    ref.invalidate(windows);
+                                  }
                                 }
                                 : _scrollCurrentFolderToTop,
                         onOpenFolder: _openFolder,

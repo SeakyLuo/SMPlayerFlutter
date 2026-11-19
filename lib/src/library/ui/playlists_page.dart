@@ -278,7 +278,7 @@ class _PlaylistsPageState extends ConsumerState<PlaylistsPage> {
             );
           });
         }
-        return const LibraryLoadFailure();
+        return LibraryLoadFailure.forQuery(ref, pageQuery);
       },
       data: (rawSnapshot) {
         _lastPlaylistLoadError = null;
