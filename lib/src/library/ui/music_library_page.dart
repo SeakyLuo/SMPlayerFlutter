@@ -181,13 +181,14 @@ class _MusicLibraryPageState extends ConsumerState<MusicLibraryPage> {
     required bool showPortal,
     required String routePath,
     required String title,
+    bool showActions = true,
     required bool quickJumpActive,
     required bool multiSelect,
     required String multiSelectLabel,
     required String exitMultiSelectTooltip,
   }) {
     final signature =
-        '$showPortal:$routePath:$title:$quickJumpActive:$multiSelect';
+        '$showPortal:$routePath:$title:$showActions:$quickJumpActive:$multiSelect';
     if (_appBarPortalSignature == signature) {
       return;
     }
@@ -208,45 +209,51 @@ class _MusicLibraryPageState extends ConsumerState<MusicLibraryPage> {
         owner: _appBarPortalOwner,
         routePath: routePath,
         title: title,
-        content: CommandBar(
-          style: CommandBarStyleVariant.appBar,
-          dynamicOverflow: false,
-          children: [
-            CommandBarButton(
-              key: const ValueKey('MusicLibrary.MultiSelectToggle'),
-              icon: FluentIcons.multiselect_ltr_24_regular,
-              label: multiSelectLabel,
-              showLabel: false,
-              active: multiSelect,
-              activeMatchesHover: true,
-              tooltip: multiSelect ? exitMultiSelectTooltip : multiSelectLabel,
-              canOverflow: false,
-              minWidth: 40,
-              maxWidth: 40,
-              horizontalPadding: 0,
-              onPressed: () {
-                setState(() {
-                  _quickJumpPanelOpen = false;
-                  _selection.toggleMultiSelect();
-                });
-              },
-            ),
-            CommandBarButton(
-              key: const ValueKey('MusicLibrary.QuickJumpToggle'),
-              label: '#-Z',
-              active: quickJumpActive,
-              canOverflow: false,
-              minWidth: 40,
-              maxWidth: 40,
-              horizontalPadding: 0,
-              onPressed: () {
-                setState(() {
-                  _quickJumpPanelOpen = !_quickJumpPanelOpen;
-                });
-              },
-            ),
-          ],
-        ),
+        content:
+            !showActions
+                ? const SizedBox.shrink()
+                : CommandBar(
+                  style: CommandBarStyleVariant.appBar,
+                  dynamicOverflow: false,
+                  children: [
+                    CommandBarButton(
+                      key: const ValueKey('MusicLibrary.MultiSelectToggle'),
+                      icon: FluentIcons.multiselect_ltr_24_regular,
+                      label: multiSelectLabel,
+                      showLabel: false,
+                      active: multiSelect,
+                      activeMatchesHover: true,
+                      tooltip:
+                          multiSelect
+                              ? exitMultiSelectTooltip
+                              : multiSelectLabel,
+                      canOverflow: false,
+                      minWidth: 40,
+                      maxWidth: 40,
+                      horizontalPadding: 0,
+                      onPressed: () {
+                        setState(() {
+                          _quickJumpPanelOpen = false;
+                          _selection.toggleMultiSelect();
+                        });
+                      },
+                    ),
+                    CommandBarButton(
+                      key: const ValueKey('MusicLibrary.QuickJumpToggle'),
+                      label: '#-Z',
+                      active: quickJumpActive,
+                      canOverflow: false,
+                      minWidth: 40,
+                      maxWidth: 40,
+                      horizontalPadding: 0,
+                      onPressed: () {
+                        setState(() {
+                          _quickJumpPanelOpen = !_quickJumpPanelOpen;
+                        });
+                      },
+                    ),
+                  ],
+                ),
       );
     });
   }

@@ -28,11 +28,25 @@ extension _MusicLibraryLayout on _MusicLibraryPageState {
       return const _LibraryScaffold(child: SmPlayerLoadingState());
     }
 
+    Widget withoutSongs(Widget child) {
+      _syncAppBarPortal(
+        showPortal: true,
+        routePath: '/songs',
+        title: i18n.t('library.allSongs'),
+        showActions: false,
+        quickJumpActive: false,
+        multiSelect: false,
+        multiSelectLabel: i18n.t('albums.multiSelect'),
+        exitMultiSelectTooltip: i18n.t('common.exitMultiSelectTooltip'),
+      );
+      return _LibraryScaffold(child: child);
+    }
+
     return snapshotValue.when(
       skipLoadingOnReload: true,
       loading:
-          () => _LibraryScaffold(
-            child: _MusicLibraryLoadingState(
+          () => withoutSongs(
+            _MusicLibraryLoadingState(
               i18n: i18n,
               columnWidths: _columnWidths,
               sortCriterion: _sortCriterion,
@@ -40,9 +54,7 @@ extension _MusicLibraryLayout on _MusicLibraryPageState {
             ),
           ),
       error:
-          (_, _) => _LibraryScaffold(
-            child: LibraryLoadFailure.forQuery(ref, _pageQuery),
-          ),
+          (_, _) => withoutSongs(LibraryLoadFailure.forQuery(ref, _pageQuery)),
       data: (snapshot) {
         final anchor = (
           _pageQuery.withPage(
@@ -90,8 +102,8 @@ extension _MusicLibraryLayout on _MusicLibraryPageState {
         }
 
         if (snapshot.totalSongCount == 0) {
-          return _LibraryScaffold(
-            child: _EmptyState(
+          return withoutSongs(
+            _EmptyState(
               title:
                   snapshot.hasLibrary
                       ? i18n.t('library.noSearchMatch', {

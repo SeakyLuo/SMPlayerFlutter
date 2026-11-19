@@ -546,7 +546,10 @@ extension _PlaylistControlItemLayout on _PlaylistControlItemState {
       button: true,
       child: MouseRegion(
         opaque: false,
-        cursor: available ? SystemMouseCursors.click : SystemMouseCursors.basic,
+        cursor:
+            widget.current || available
+                ? SystemMouseCursors.click
+                : SystemMouseCursors.basic,
         child: row,
       ),
     );

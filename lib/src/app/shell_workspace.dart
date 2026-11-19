@@ -722,12 +722,7 @@ String? _synchronousWorkspaceAppBarTitle({
 
   return switch (path) {
     '/artists' => i18n.t('library.allArtists'),
-    '/songs' =>
-      snapshot.showCount
-          ? i18n.t('library.allSongsWithCount', {
-            'count': snapshot.songs.length,
-          })
-          : i18n.t('library.allSongs'),
+    '/songs' => i18n.t('library.allSongs'),
     '/albums' => i18n.t('library.allAlbums'),
     '/playlists' =>
       snapshot.showCount

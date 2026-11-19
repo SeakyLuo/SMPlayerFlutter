@@ -141,13 +141,12 @@ extension _SmPlayerShellPlaybackMethods on _SmPlayerShellPageState {
       return;
     }
 
-    if (isRemoteMusicPath(song.path) &&
-        !canPlayLibrarySong(song) &&
-        !state.isPlaying) {
-      return;
-    }
-
     if (_loadedAudioTrackId != song.id || _loadedAudioPath != song.path) {
+      if (isRemoteMusicPath(song.path) &&
+          !canPlayLibrarySong(song) &&
+          !state.isPlaying) {
+        return;
+      }
       if (_loadingAudioTrackId == song.id && _loadingAudioPath == song.path) {
         _pendingAudioAutoplay = state.isPlaying;
         return;
@@ -270,9 +269,11 @@ extension _SmPlayerShellPlaybackMethods on _SmPlayerShellPageState {
       await _audioPlayer.seek(targetPosition);
     }
     await _audioPlayer.setVolume(state.isMuted ? 0 : state.volume / 100);
-    if (state.isPlaying) {
-      await _audioPlayer.play();
+    final current = _mediaControlController.state;
+    if (!mounted || current.track.id != state.track.id) return;
+    if (current.isPlaying) {
       _startPlaybackStallTimer();
+      await _audioPlayer.play();
     } else {
       await _audioPlayer.pause();
       _stopPlaybackStallTimer();
@@ -538,9 +539,9 @@ extension _SmPlayerShellPlaybackMethods on _SmPlayerShellPageState {
   }
 
   Future<void> _restartCompletedAudioTrack(int? activeTrackId) async {
+    await _audioPlayer.seek(Duration.zero);
     _syncingAudioPlayer = true;
     try {
-      await _audioPlayer.seek(Duration.zero);
       final state = _mediaControlController.state;
       if (!mounted ||
           state.track.id != activeTrackId ||
@@ -549,7 +550,7 @@ extension _SmPlayerShellPlaybackMethods on _SmPlayerShellPageState {
         return;
       }
       _mediaControlController.syncPlaybackProgress(0);
-      await _audioPlayer.play();
+      unawaited(_audioPlayer.play());
     } finally {
       _syncingAudioPlayer = false;
     }

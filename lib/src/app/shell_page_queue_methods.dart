@@ -33,7 +33,8 @@ extension _SmPlayerShellQueueMethods on _SmPlayerShellPageState {
             .firstOrNull;
     if (!forcePrevious &&
         current != null &&
-        canPlayLibrarySong(current) &&
+        _loadedAudioTrackId == current.id &&
+        _loadedAudioPath == current.path &&
         shouldRestartCurrentTrackForPrevious(
           progressSeconds: progressSeconds,
           queueLength: playbackSongIds.length,
@@ -92,8 +93,14 @@ extension _SmPlayerShellQueueMethods on _SmPlayerShellPageState {
       return false;
     }
     if (automatic && nextIndex == currentIndex) {
+      final trackId = _mediaControlController.state.track.id;
       unawaited(
-        _audioPlayer.seek(Duration.zero).then((_) => _audioPlayer.play()),
+        _audioPlayer.seek(Duration.zero).then((_) {
+          final current = _mediaControlController.state;
+          if (mounted && current.track.id == trackId && current.isPlaying) {
+            unawaited(_audioPlayer.play());
+          }
+        }),
       );
       _syncingAudioPlayer = true;
       _mediaControlController.syncPlaybackProgress(0);

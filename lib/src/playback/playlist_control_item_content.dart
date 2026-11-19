@@ -258,7 +258,7 @@ class _QueueArtwork extends StatelessWidget {
               ),
             ),
           )
-        else if (current && available)
+        else if (current)
           Positioned.fill(
             key: const ValueKey('PlaylistControlItem.PlayingOverlay'),
             child: _QueuePlayingOverlay(playing: playing),
@@ -286,7 +286,7 @@ class _QueueArtwork extends StatelessWidget {
               ),
             ),
           ),
-        if (available && !selectionMode && hovered)
+        if ((current || available) && !selectionMode && hovered)
           Positioned.fill(
             child: Center(
               child: _QueuePlayOverlayButton(

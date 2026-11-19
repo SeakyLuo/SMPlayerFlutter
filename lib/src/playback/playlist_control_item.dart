@@ -295,7 +295,12 @@ class _PlaylistControlItemState extends ConsumerState<PlaylistControlItem> {
       _resetSwipe();
       return;
     }
-    if (!canPlayLibrarySong(widget.song)) return;
+    if (!canPlayLibrarySong(widget.song)) {
+      if (widget.current) {
+        widget.onTogglePlayPause();
+      }
+      return;
+    }
     if (widget.onActivateRow case final onActivateRow?) {
       onActivateRow();
       return;
