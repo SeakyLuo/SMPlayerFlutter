@@ -4,6 +4,7 @@ typedef _ScanWriteResult =
     ({LocalFolderRefreshResult result, int updatedCount});
 
 abstract class _ScanWriteTask {
+  String get databasePath;
   SendPort? progressPort;
   void onProgress(LocalFolderRefreshProgress progress) =>
       progressPort?.send(progress);
@@ -20,7 +21,7 @@ Future<_ScanWriteResult> _runScanWrite(
     onProgress?.call(message as LocalFolderRefreshProgress);
   });
   try {
-    return await Isolate.run(task.call);
+    return await LibraryDatabaseService.runWrite(task.databasePath, task.call);
   } finally {
     await subscription.cancel();
     port.close();
@@ -52,6 +53,7 @@ class _FolderScanWriteTask extends _ScanWriteTask {
   });
 
   final _LibraryLocalFolderRefresh service;
+  @override
   final String databasePath;
   final String rootPath;
   final LibraryReadSettings settings;
@@ -74,7 +76,7 @@ class _FolderScanWriteTask extends _ScanWriteTask {
 
   @override
   Future<_ScanWriteResult> call() async {
-    final db = sqlite3.open(databasePath);
+    final db = LibraryDatabaseService.openQueuedWriteDatabase(databasePath);
     try {
       db.execute('BEGIN');
       try {
@@ -230,6 +232,7 @@ class _LibraryScanWriteTask extends _ScanWriteTask {
   });
 
   final LibraryLocalRefreshService service;
+  @override
   final String databasePath;
   final String rootPath;
   final LibraryReadSettings settings;
@@ -251,7 +254,7 @@ class _LibraryScanWriteTask extends _ScanWriteTask {
 
   @override
   Future<_ScanWriteResult> call() async {
-    final db = sqlite3.open(databasePath);
+    final db = LibraryDatabaseService.openQueuedWriteDatabase(databasePath);
     try {
       db.execute('BEGIN');
       try {

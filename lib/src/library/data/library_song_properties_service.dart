@@ -9,7 +9,6 @@ import 'id3_tag_service.dart';
 import 'library_artist_tag_normalizer.dart' as artist_tags;
 import 'library_database_service.dart';
 import 'library_models.dart';
-import 'library_snapshot_service.dart';
 
 const _activeState = 1;
 const _inactiveState = 0;
@@ -22,12 +21,14 @@ class LibrarySongPropertiesService {
     File databaseFile,
     int songId,
     int durationSeconds,
-  ) => LibrarySnapshotService.run(() {
+  ) => LibraryDatabaseService.runWrite(databaseFile.path, () {
     if (!databaseFile.existsSync()) {
       return;
     }
 
-    final db = LibraryDatabaseService.openDatabase(databaseFile.path);
+    final db = LibraryDatabaseService.openQueuedWriteDatabase(
+      databaseFile.path,
+    );
     try {
       db.execute(
         '''

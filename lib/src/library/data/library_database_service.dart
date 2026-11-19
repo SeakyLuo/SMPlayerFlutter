@@ -1,4 +1,6 @@
+import 'dart:async';
 import 'dart:io';
+import 'dart:isolate';
 
 import 'package:sqlite3/sqlite3.dart';
 
@@ -10,20 +12,49 @@ class LibraryDatabaseService {
   // Increment when changing tables, columns, indexes, or the lyrics FTS schema.
   static const schemaVersion = 8;
 
+  static const queuedWriteBusyTimeout = Duration(seconds: 3);
+  static const _defaultBusyTimeout = Duration(milliseconds: 150);
+  static final _pendingWrites = <String, Future<void>>{};
+
+  static Future<T> runWrite<T>(String path, FutureOr<T> Function() operation) {
+    final previous = _pendingWrites[path] ?? Future<void>.value();
+    final result = previous.then((_) => Isolate.run(operation));
+    final settled = result.then<void>(
+      (_) {},
+      onError: (Object _, StackTrace __) {},
+    );
+    _pendingWrites[path] = settled;
+    unawaited(
+      settled.then((_) {
+        if (identical(_pendingWrites[path], settled)) {
+          _pendingWrites.remove(path);
+        }
+      }),
+    );
+    return result;
+  }
+
   static Database openDatabase(
     String path, {
     OpenMode mode = OpenMode.readWriteCreate,
+    Duration busyTimeout = _defaultBusyTimeout,
   }) {
     final db = sqlite3.open(path, mode: mode);
     // WAL recovery/checkpoint can briefly hold a lock when concurrent readers
     // open the file. Keep lock waiting bounded within the query time budget.
-    db.execute('PRAGMA busy_timeout = 150');
+    db.execute('PRAGMA busy_timeout = ${busyTimeout.inMilliseconds}');
     return db;
   }
 
-  Database openInitializedLibraryDatabase(File databaseFile) {
+  static Database openQueuedWriteDatabase(String path) =>
+      openDatabase(path, busyTimeout: queuedWriteBusyTimeout);
+
+  Database openInitializedLibraryDatabase(
+    File databaseFile, {
+    Duration busyTimeout = _defaultBusyTimeout,
+  }) {
     databaseFile.parent.createSync(recursive: true);
-    final db = openDatabase(databaseFile.path);
+    final db = openDatabase(databaseFile.path, busyTimeout: busyTimeout);
     try {
       initializeLibrarySchema(db);
       return db;

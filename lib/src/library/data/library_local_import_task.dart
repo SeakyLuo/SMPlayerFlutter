@@ -11,7 +11,7 @@ class _ImportLocalAudioTask {
   final Map<String, AudioFileMetadata> metadataByPath;
 
   List<int> call() {
-    final db = LibraryDatabaseService.openDatabase(databasePath);
+    final db = LibraryDatabaseService.openQueuedWriteDatabase(databasePath);
     final openedSongIds = <int>[];
     try {
       db.execute('BEGIN IMMEDIATE');

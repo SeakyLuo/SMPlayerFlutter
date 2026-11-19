@@ -53,12 +53,14 @@ class LibrarySettingsService {
   Future<void> updateSettings(
     File databaseFile,
     settings.AppSettingsUpdate update,
-  ) async {
+  ) => LibraryDatabaseService.runWrite(databaseFile.path, () {
     if (!databaseFile.existsSync()) {
       return;
     }
 
-    final db = LibraryDatabaseService.openDatabase(databaseFile.path);
+    final db = LibraryDatabaseService.openQueuedWriteDatabase(
+      databaseFile.path,
+    );
     try {
       final snapshot = settingsSnapshotFromRow(
         db.select('SELECT * FROM Settings ORDER BY Id DESC LIMIT 1').single,
@@ -163,17 +165,19 @@ class LibrarySettingsService {
     } finally {
       db.dispose();
     }
-  }
+  });
 
   Future<void> savePlaybackSettings(
     File databaseFile,
     settings.PlaybackSettingsUpdate update,
-  ) async {
+  ) => LibraryDatabaseService.runWrite(databaseFile.path, () {
     if (!databaseFile.existsSync()) {
       return;
     }
 
-    final db = LibraryDatabaseService.openDatabase(databaseFile.path);
+    final db = LibraryDatabaseService.openQueuedWriteDatabase(
+      databaseFile.path,
+    );
     try {
       final snapshot = settingsSnapshotFromRow(
         db.select('SELECT * FROM Settings ORDER BY Id DESC LIMIT 1').single,
@@ -204,7 +208,7 @@ class LibrarySettingsService {
     } finally {
       db.dispose();
     }
-  }
+  });
 
   Future<void> updateMusicLibrarySort(
     File databaseFile,
@@ -273,12 +277,14 @@ class LibrarySettingsService {
     File databaseFile, {
     String? lastPage,
     int? lastPlaylistId,
-  }) async {
+  }) => LibraryDatabaseService.runWrite(databaseFile.path, () {
     if (!databaseFile.existsSync()) {
       return;
     }
 
-    final db = LibraryDatabaseService.openDatabase(databaseFile.path);
+    final db = LibraryDatabaseService.openQueuedWriteDatabase(
+      databaseFile.path,
+    );
     try {
       db.execute(
         '''
@@ -293,18 +299,20 @@ class LibrarySettingsService {
     } finally {
       db.dispose();
     }
-  }
+  });
 
   Future<void> saveMainWindowState(
     File databaseFile, {
     required String bounds,
     required bool maximized,
-  }) async {
+  }) => LibraryDatabaseService.runWrite(databaseFile.path, () {
     if (!databaseFile.existsSync()) {
       return;
     }
 
-    final db = sqlite3.open(databaseFile.path);
+    final db = LibraryDatabaseService.openQueuedWriteDatabase(
+      databaseFile.path,
+    );
     try {
       db.execute(
         '''
@@ -324,17 +332,19 @@ class LibrarySettingsService {
     } finally {
       db.dispose();
     }
-  }
+  });
 
   Future<void> saveDisplayModeState(
     File databaseFile, {
     required settings.SmPlayerDisplayMode lastDisplayMode,
-  }) async {
+  }) => LibraryDatabaseService.runWrite(databaseFile.path, () {
     if (!databaseFile.existsSync()) {
       return;
     }
 
-    final db = sqlite3.open(databaseFile.path);
+    final db = LibraryDatabaseService.openQueuedWriteDatabase(
+      databaseFile.path,
+    );
     try {
       db.execute(
         '''
@@ -353,7 +363,7 @@ class LibrarySettingsService {
     } finally {
       db.dispose();
     }
-  }
+  });
 
   settings.SettingsSnapshot settingsSnapshotFromRow(Row row) {
     final notificationSend = _notificationSendFromValue(

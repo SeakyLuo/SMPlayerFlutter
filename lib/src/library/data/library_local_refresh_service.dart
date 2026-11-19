@@ -78,7 +78,8 @@ class LibraryLocalRefreshService
           cacheSongArtwork: cacheSongArtwork,
         );
 
-    return Isolate.run(
+    return LibraryDatabaseService.runWrite(
+      databaseFile.path,
       _ImportLocalAudioTask(this, databaseFile.path, metadataByPath).call,
     );
   }

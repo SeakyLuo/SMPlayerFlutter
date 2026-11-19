@@ -371,7 +371,8 @@ class LibraryLyricsSearchService {
     String? where,
     List<Object?> parameters,
   ) {
-    return Isolate.run(
+    return LibraryDatabaseService.runWrite(
+      databasePath,
       () => _readCandidatesSync(database, databasePath, where, parameters),
     );
   }
@@ -382,7 +383,10 @@ class LibraryLyricsSearchService {
     String? where,
     List<Object?> parameters,
   ) {
-    final db = database.openInitializedLibraryDatabase(File(databasePath));
+    final db = database.openInitializedLibraryDatabase(
+      File(databasePath),
+      busyTimeout: LibraryDatabaseService.queuedWriteBusyTimeout,
+    );
     try {
       _removeInactiveSongs(db);
       final rows = db.select(
@@ -493,7 +497,7 @@ class LibraryLyricsSearchService {
     String databasePath,
     List<_LyricsIndexEntry> entries,
   ) {
-    return Isolate.run(() {
+    return LibraryDatabaseService.runWrite(databasePath, () {
       final rows = _encodeIndexBatch(entries);
       _writeIndexBatchSync(databasePath, rows);
     });
@@ -523,7 +527,7 @@ class LibraryLyricsSearchService {
     String databasePath,
     List<List<Object?>> rows,
   ) {
-    final db = LibraryDatabaseService.openDatabase(databasePath);
+    final db = LibraryDatabaseService.openQueuedWriteDatabase(databasePath);
     try {
       db.execute('BEGIN');
       try {
