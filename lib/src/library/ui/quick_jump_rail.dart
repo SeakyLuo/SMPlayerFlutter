@@ -50,13 +50,11 @@ class _QuickJumpRailState extends State<QuickJumpRail> {
   @override
   Widget build(BuildContext context) {
     _scheduleStickStartSync();
-    final controller = widget.scrollController;
-    final offset =
-        controller != null && controller.hasClients ? controller.offset : 0.0;
+    final position = Scrollable.maybeOf(context)?.position;
     final translateY =
-        _stickStartOffset == null
-            ? 0.0
-            : (offset - _stickStartOffset!).clamp(0.0, double.infinity);
+        position != null && position.hasPixels && _stickStartOffset != null
+            ? (position.pixels - _stickStartOffset!).clamp(0.0, double.infinity)
+            : 0.0;
     return SizedBox(
       key: ValueKey('${widget.keyPrefix}.StickyHost'),
       height: widget.height,
@@ -76,20 +74,19 @@ class _QuickJumpRailState extends State<QuickJumpRail> {
   }
 
   void _syncStickStart() {
-    final controller = widget.scrollController;
-    if (controller == null || !controller.hasClients) {
+    final scrollable = Scrollable.maybeOf(context);
+    if (scrollable == null || !scrollable.position.hasPixels) {
       return;
     }
-    final scrollable = Scrollable.maybeOf(context);
     final railRenderObject = context.findRenderObject();
-    final viewportRenderObject = scrollable?.context.findRenderObject();
+    final viewportRenderObject = scrollable.context.findRenderObject();
     if (railRenderObject is! RenderBox || viewportRenderObject is! RenderBox) {
       return;
     }
     final railTop = railRenderObject.localToGlobal(Offset.zero).dy;
     final viewportTop = viewportRenderObject.localToGlobal(Offset.zero).dy;
     final nextStickStartOffset =
-        controller.offset + railTop - viewportTop - _stickyTop;
+        scrollable.position.pixels + railTop - viewportTop - _stickyTop;
     if (_stickStartOffset == nextStickStartOffset) {
       return;
     }

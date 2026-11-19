@@ -11,12 +11,12 @@ class _ImportLocalAudioTask {
   final Map<String, AudioFileMetadata> metadataByPath;
 
   List<int> call() {
-    final db = sqlite3.open(databasePath);
+    final db = LibraryDatabaseService.openDatabase(databasePath);
     final openedSongIds = <int>[];
     try {
-      final settings = const LibraryReadService().readLibrarySettings(db);
-      db.execute('BEGIN');
+      db.execute('BEGIN IMMEDIATE');
       try {
+        final settings = const LibraryReadService().readLibrarySettings(db);
         for (final filePath in metadataByPath.keys) {
           openedSongIds.add(
             service.upsertExternalAudioFile(

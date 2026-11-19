@@ -270,6 +270,7 @@ class _LocalPageState extends ConsumerState<LocalPage> {
     var snapshotValue = ref.watch(
       libraryDirectoryWindowsProvider(directoryQuery),
     );
+    String? remoteRootName;
     if (_remote) {
       final access = RemotePageAccessScope.of(context);
       if ((access.loading || access.failed) && !snapshotValue.hasValue) {
@@ -305,15 +306,13 @@ class _LocalPageState extends ConsumerState<LocalPage> {
           loading: directory.isLoading,
         );
       }
+      final directoryIndex = directory.requireValue;
+      remoteRootName = directoryIndex.rootName;
       if (snapshotValue.hasValue) {
         snapshotValue = AsyncData(snapshotValue.requireValue);
       }
       snapshotValue = snapshotValue.whenData((snapshot) {
-        final data = _remoteDataCache.read(
-          snapshot,
-          directory.requireValue,
-          source,
-        );
+        final data = _remoteDataCache.read(snapshot, directoryIndex, source);
         _remoteSongFolders = data.songFolders;
         return data.snapshot;
       });
@@ -376,7 +375,7 @@ class _LocalPageState extends ConsumerState<LocalPage> {
         );
         return SmPlayerI18nScope(
           i18n: i18n,
-          child: _buildPage(context, snapshot, i18n),
+          child: _buildPage(context, snapshot, i18n, rootName: remoteRootName),
         );
       },
     );

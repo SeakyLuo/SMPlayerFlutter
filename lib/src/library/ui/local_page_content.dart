@@ -5,6 +5,7 @@ extension _LocalPageContent on _LocalPageState {
     BuildContext context,
     LibraryContentData snapshot,
     SmPlayerI18n i18n, {
+    String? rootName,
     bool contentUnavailable = false,
     bool contentLoading = false,
   }) {
@@ -41,10 +42,7 @@ extension _LocalPageContent on _LocalPageState {
       snapshot,
       created: _createdFolderPaths,
       songFolderPaths: _remoteSongFolders,
-      rootName:
-          _remote && !contentUnavailable && !contentLoading
-              ? ref.read(remoteDirectoryProvider(_source)).requireValue.rootName
-              : null,
+      rootName: rootName,
     );
     final nodes = folderIndex.nodes;
     final songsById = folderIndex.songsById;

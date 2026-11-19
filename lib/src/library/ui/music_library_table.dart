@@ -221,9 +221,12 @@ class _MusicLibraryTableScrollbarState
               38.0,
               (trackHeight / contentHeight) * trackHeight,
             );
+            final trackDistance = trackHeight - thumbHeight;
+            if (trackDistance <= 0) {
+              return const SizedBox.shrink();
+            }
             final thumbTop =
-                (position.pixels / maxScrollExtent) *
-                max(0.0, trackHeight - thumbHeight);
+                (position.pixels / maxScrollExtent) * trackDistance;
             final expanded = autoHideScrollbarExpanded;
 
             return MouseRegion(
@@ -242,7 +245,7 @@ class _MusicLibraryTableScrollbarState
                     child: Stack(
                       children: [
                         Positioned(
-                          top: thumbTop.clamp(0.0, trackHeight - thumbHeight),
+                          top: thumbTop.clamp(0.0, trackDistance),
                           right: expanded ? 1.5 : 2.5,
                           width: expanded ? 7 : 5,
                           height: thumbHeight,
@@ -252,10 +255,6 @@ class _MusicLibraryTableScrollbarState
                               beginAutoHideScrollbarDrag();
                             },
                             onVerticalDragUpdate: (details) {
-                              final trackDistance = max(
-                                1.0,
-                                trackHeight - thumbHeight,
-                              );
                               final scrollDelta =
                                   details.delta.dy *
                                   (maxScrollExtent / trackDistance);

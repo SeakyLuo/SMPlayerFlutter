@@ -58,7 +58,7 @@ class LibrarySettingsService {
       return;
     }
 
-    final db = sqlite3.open(databaseFile.path);
+    final db = LibraryDatabaseService.openDatabase(databaseFile.path);
     try {
       final snapshot = settingsSnapshotFromRow(
         db.select('SELECT * FROM Settings ORDER BY Id DESC LIMIT 1').single,
@@ -173,9 +173,8 @@ class LibrarySettingsService {
       return;
     }
 
-    final db = sqlite3.open(databaseFile.path);
+    final db = LibraryDatabaseService.openDatabase(databaseFile.path);
     try {
-      db.execute('PRAGMA busy_timeout = 150');
       final snapshot = settingsSnapshotFromRow(
         db.select('SELECT * FROM Settings ORDER BY Id DESC LIMIT 1').single,
       );
@@ -279,24 +278,17 @@ class LibrarySettingsService {
       return;
     }
 
-    final db = sqlite3.open(databaseFile.path);
+    final db = LibraryDatabaseService.openDatabase(databaseFile.path);
     try {
-      final snapshot = settingsSnapshotFromRow(
-        db.select('SELECT * FROM Settings ORDER BY Id DESC LIMIT 1').single,
-      );
       db.execute(
         '''
         UPDATE Settings
         SET
-          LastPage = ?,
-          LastPlaylist = ?
-        WHERE Id = ?
+          LastPage = COALESCE(?, NULLIF(LastPage, ''), '/songs'),
+          LastPlaylist = COALESCE(?, LastPlaylist)
+        WHERE Id = (SELECT Id FROM Settings ORDER BY Id DESC LIMIT 1)
       ''',
-        [
-          lastPage ?? snapshot.lastPage,
-          lastPlaylistId ?? snapshot.lastPlaylistId,
-          _settingsRowId(db),
-        ],
+        [lastPage, lastPlaylistId],
       );
     } finally {
       db.dispose();
@@ -450,7 +442,9 @@ class LibrarySettingsService {
               ? '/songs'
               : row['LastPage'] as String,
       lastPlaylistId: row['LastPlaylist'] as int,
-      lastReleaseNotesVersion: row['LastReleaseNotesVersion'] as String,
+      lastReleaseNotesVersion:
+          (row['LastReleaseNotesVersion'] as String?) ??
+          const settings.SettingsSnapshot.defaults().lastReleaseNotesVersion,
     );
   }
 

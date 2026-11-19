@@ -231,7 +231,7 @@ class LibraryRepository
     final databaseFile = await _resolveDatabaseFile();
     final result = await LibrarySnapshotService.run(() {
       databaseFile.parent.createSync(recursive: true);
-      final db = sqlite3.open(databaseFile.path);
+      final db = LibraryDatabaseService.openDatabase(databaseFile.path);
       try {
         final shouldCheck = _hasLegacyStartupArtistSplitCandidates(db);
         _database.initializeLibrarySchema(db);
@@ -276,7 +276,7 @@ class LibraryRepository
       return false;
     }
 
-    final db = sqlite3.open(databaseFile.path);
+    final db = LibraryDatabaseService.openDatabase(databaseFile.path);
     try {
       final shouldCheck =
           _startupArtistSplitPendingDatabasePaths.remove(databaseFile.path) ||

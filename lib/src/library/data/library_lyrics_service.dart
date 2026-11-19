@@ -22,6 +22,13 @@ part 'library_lyrics_batch.dart';
 
 const _activeState = 1;
 const _id3TagService = Id3TagService();
+const _uncacheableEmptyLyrics = LyricsSnapshot(
+  source: LyricsSource.none,
+  isSynced: false,
+  rawText: '',
+  lines: [],
+  cacheable: false,
+);
 
 const _audioFileExtensions = {
   '.aac',
@@ -58,6 +65,18 @@ class LibraryLyricsService {
     settings.LyricsRequestMode mode = settings.LyricsRequestMode.auto,
   }) async {
     final song = await _getLyricsSongLookup(databaseFile, songId);
+    if (song == null) return _uncacheableEmptyLyrics;
+    try {
+      return await _getLyricsForSong(song, mode);
+    } on PathNotFoundException {
+      return _uncacheableEmptyLyrics;
+    }
+  }
+
+  Future<LyricsSnapshot> _getLyricsForSong(
+    _LyricsSongLookup song,
+    settings.LyricsRequestMode mode,
+  ) async {
     if (mode == settings.LyricsRequestMode.internet) {
       try {
         final rawLyrics = await _searchInternetLyrics(song);
@@ -69,13 +88,7 @@ class LibraryLyricsService {
               : LyricsSource.internet,
         );
       } on Exception {
-        return const LyricsSnapshot(
-          source: LyricsSource.none,
-          isSynced: false,
-          rawText: '',
-          lines: [],
-          cacheable: false,
-        );
+        return _uncacheableEmptyLyrics;
       }
     }
 
@@ -191,6 +204,7 @@ class LibraryLyricsService {
     int songId,
   ) async {
     final song = await _getLyricsSongLookup(databaseFile, songId);
+    if (song == null) return _uncacheableEmptyLyrics;
     final rawLyrics = await _searchInternetLyrics(song);
     final internetLyrics = await _prepareInternetLyrics(rawLyrics);
     return _createLyricsSnapshot(
@@ -201,6 +215,7 @@ class LibraryLyricsService {
 
   Future<Uri> getLyricsSearchUri(File databaseFile, int songId) async {
     final song = await _getLyricsSongLookup(databaseFile, songId);
+    if (song == null) throw StateError('Song is no longer in the library.');
     final settingsSnapshot = await _settingsSnapshotResolver();
     final preferredLanguage =
         settingsSnapshot?.preferredLanguage ??
@@ -329,12 +344,12 @@ class LibraryLyricsService {
     }
   }
 
-  Future<_LyricsSongLookup> _getLyricsSongLookup(
+  Future<_LyricsSongLookup?> _getLyricsSongLookup(
     File databaseFile,
     int songId,
   ) => Isolate.run(() => _readLyricsSongLookup(databaseFile, songId));
 
-  static _LyricsSongLookup _readLyricsSongLookup(
+  static _LyricsSongLookup? _readLyricsSongLookup(
     File databaseFile,
     int songId,
   ) {
@@ -354,7 +369,8 @@ class LibraryLyricsService {
       ''',
         [songId, _activeState],
       );
-      final row = rows.first;
+      if (rows.isEmpty) return null;
+      final row = rows.single;
       return _LyricsSongLookup(
         id: songId,
         title: row['title'] as String,

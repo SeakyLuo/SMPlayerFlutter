@@ -157,9 +157,12 @@ class _SongDialogScrollbarHostState extends State<_SongDialogScrollbarHost>
                       38.0,
                       (trackHeight / scrollHeight) * trackHeight,
                     );
+                    final trackRange = trackHeight - thumbHeight;
+                    if (trackRange <= 0) {
+                      return const SizedBox.shrink();
+                    }
                     final thumbTop =
-                        (position.pixels / maxScrollTop) *
-                        math.max(0.0, trackHeight - thumbHeight);
+                        (position.pixels / maxScrollTop) * trackRange;
                     final expanded = autoHideScrollbarExpanded;
                     final brightness = Theme.of(context).brightness;
                     final thumbColor =
@@ -175,7 +178,7 @@ class _SongDialogScrollbarHostState extends State<_SongDialogScrollbarHost>
                         children: [
                           Positioned(
                             key: widget.thumbKey,
-                            top: thumbTop.clamp(0.0, trackHeight - thumbHeight),
+                            top: thumbTop.clamp(0.0, trackRange),
                             left:
                                 expanded
                                     ? widget.hoverThumbLeft
@@ -191,10 +194,6 @@ class _SongDialogScrollbarHostState extends State<_SongDialogScrollbarHost>
                                 beginAutoHideScrollbarDrag();
                               },
                               onVerticalDragUpdate: (details) {
-                                final trackRange = math.max(
-                                  1.0,
-                                  trackHeight - thumbHeight,
-                                );
                                 final scrollDelta =
                                     details.delta.dy *
                                     (maxScrollTop / trackRange);

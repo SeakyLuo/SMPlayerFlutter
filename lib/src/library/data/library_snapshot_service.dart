@@ -16,13 +16,8 @@ class LibrarySnapshotService {
   static const _browse = LibraryBrowseHistoryService();
   static Future<void> _pending = Future.value();
 
-  static Database openReadDatabase(String path) {
-    final db = sqlite3.open(path, mode: OpenMode.readOnly);
-    // WAL recovery/checkpoint can briefly hold a lock when concurrent readers
-    // open the file. Keep lock waiting bounded within the query time budget.
-    db.execute('PRAGMA busy_timeout = 150');
-    return db;
-  }
+  static Database openReadDatabase(String path) =>
+      LibraryDatabaseService.openDatabase(path, mode: OpenMode.readOnly);
 
   static Future<T> run<T>(T Function() operation) {
     final result = _pending.then((_) => Isolate.run(operation));

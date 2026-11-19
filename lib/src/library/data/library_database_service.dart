@@ -10,9 +10,20 @@ class LibraryDatabaseService {
   // Increment when changing tables, columns, indexes, or the lyrics FTS schema.
   static const schemaVersion = 8;
 
+  static Database openDatabase(
+    String path, {
+    OpenMode mode = OpenMode.readWriteCreate,
+  }) {
+    final db = sqlite3.open(path, mode: mode);
+    // WAL recovery/checkpoint can briefly hold a lock when concurrent readers
+    // open the file. Keep lock waiting bounded within the query time budget.
+    db.execute('PRAGMA busy_timeout = 150');
+    return db;
+  }
+
   Database openInitializedLibraryDatabase(File databaseFile) {
     databaseFile.parent.createSync(recursive: true);
-    final db = sqlite3.open(databaseFile.path);
+    final db = openDatabase(databaseFile.path);
     try {
       initializeLibrarySchema(db);
       return db;

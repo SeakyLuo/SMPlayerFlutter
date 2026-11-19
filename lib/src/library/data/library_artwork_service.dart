@@ -8,6 +8,7 @@ import 'package:path/path.dart' as p;
 import 'package:sqlite3/sqlite3.dart';
 
 import 'id3_tag_service.dart';
+import 'library_database_service.dart';
 import 'library_models.dart';
 
 const _activeState = 1;
@@ -37,7 +38,7 @@ class LibraryArtworkService {
     File databaseFile,
     int songId,
   ) async {
-    final db = sqlite3.open(databaseFile.path);
+    final db = LibraryDatabaseService.openDatabase(databaseFile.path);
     try {
       final rows = db.select(
         '''
@@ -74,7 +75,7 @@ class LibraryArtworkService {
     }
 
     final placeholders = List.filled(uniqueIds.length, '?').join(', ');
-    final db = sqlite3.open(databaseFile.path);
+    final db = LibraryDatabaseService.openDatabase(databaseFile.path);
     try {
       final rows = db.select(
         '''
@@ -381,7 +382,12 @@ class LibraryArtworkService {
       return _createSongArtworkSnapshot(songId, file?.path ?? '');
     }
 
-    final picture = await _id3TagService.readFirstPicture(songPath);
+    final Id3Picture? picture;
+    try {
+      picture = await _id3TagService.readFirstPicture(songPath);
+    } on PathNotFoundException {
+      return _createSongArtworkSnapshot(songId, '');
+    }
     if (picture == null) {
       return _createSongArtworkSnapshot(songId, '');
     }

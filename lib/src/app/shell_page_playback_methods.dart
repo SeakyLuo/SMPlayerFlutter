@@ -558,7 +558,12 @@ extension _SmPlayerShellPlaybackMethods on _SmPlayerShellPageState {
   }
 
   Future<void> _recordFinishedAudioTrack(int activeTrackId) async {
-    await ref.read(libraryRepositoryProvider).markSongPlayed(activeTrackId);
+    try {
+      await ref.read(libraryRepositoryProvider).markSongPlayed(activeTrackId);
+    } on MusicShareException catch (error, stack) {
+      SystemLog.error('Could not record remote playback history', error, stack);
+      return;
+    }
     if (!mounted) {
       return;
     }

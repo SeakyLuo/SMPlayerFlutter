@@ -7,6 +7,7 @@ import 'package:sqlite3/sqlite3.dart';
 
 import 'id3_tag_service.dart';
 import 'library_artist_tag_normalizer.dart' as artist_tags;
+import 'library_database_service.dart';
 import 'library_models.dart';
 import 'library_snapshot_service.dart';
 
@@ -26,7 +27,7 @@ class LibrarySongPropertiesService {
       return;
     }
 
-    final db = sqlite3.open(databaseFile.path);
+    final db = LibraryDatabaseService.openDatabase(databaseFile.path);
     try {
       db.execute(
         '''

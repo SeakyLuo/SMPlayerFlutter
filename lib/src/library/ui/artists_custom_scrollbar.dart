@@ -75,9 +75,11 @@ class _ArtistsCustomScrollbarState extends State<_ArtistsCustomScrollbar>
                 38.0,
                 (trackHeight / scrollHeight) * trackHeight,
               );
-              final thumbTop =
-                  (position.pixels / maxScrollTop) *
-                  max(0.0, trackHeight - thumbHeight);
+              final trackRange = trackHeight - thumbHeight;
+              if (trackRange <= 0) {
+                return const SizedBox.shrink();
+              }
+              final thumbTop = (position.pixels / maxScrollTop) * trackRange;
               final expanded = autoHideScrollbarExpanded;
               final brightness = Theme.of(context).brightness;
               final thumbColor =
@@ -102,7 +104,7 @@ class _ArtistsCustomScrollbarState extends State<_ArtistsCustomScrollbar>
                       child: Stack(
                         children: [
                           Positioned(
-                            top: thumbTop.clamp(0.0, trackHeight - thumbHeight),
+                            top: thumbTop.clamp(0.0, trackRange),
                             right: expanded ? 1 : 2,
                             left: expanded ? 1 : 2,
                             height: thumbHeight,
@@ -112,10 +114,6 @@ class _ArtistsCustomScrollbarState extends State<_ArtistsCustomScrollbar>
                                 beginAutoHideScrollbarDrag();
                               },
                               onVerticalDragUpdate: (details) {
-                                final trackRange = max(
-                                  1.0,
-                                  trackHeight - thumbHeight,
-                                );
                                 final scrollDelta =
                                     details.delta.dy *
                                     (maxScrollTop / trackRange);

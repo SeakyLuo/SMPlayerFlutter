@@ -523,7 +523,7 @@ class LibraryLyricsSearchService {
     String databasePath,
     List<List<Object?>> rows,
   ) {
-    final db = sqlite3.open(databasePath);
+    final db = LibraryDatabaseService.openDatabase(databasePath);
     try {
       db.execute('BEGIN');
       try {

@@ -10,6 +10,7 @@ import 'package:sqlite3/sqlite3.dart';
 import 'library_artist_split_service.dart';
 import 'library_artist_tag_normalizer.dart' as artist_tags;
 import 'library_audio_metadata_service.dart';
+import 'library_database_service.dart';
 import 'library_hidden_storage_service.dart';
 import 'library_local_delete_service.dart';
 import 'library_local_metadata_cache.dart';

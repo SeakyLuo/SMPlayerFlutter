@@ -425,5 +425,6 @@ List<String> systemFontFamilyNames(String fontName) {
 }
 
 String _powerShellString(String value) {
-  return "'${value.replaceAll("'", "''")}'";
+  final encoded = base64Encode(utf8.encode(value));
+  return "[Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('$encoded'))";
 }

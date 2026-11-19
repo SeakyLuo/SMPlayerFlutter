@@ -249,7 +249,10 @@ class Id3TagService {
     final file = await File(songPath).open();
     try {
       final header = await file.read(10);
-      if (header.length < 10 || ascii.decode(header.sublist(0, 3)) != 'ID3') {
+      if (header.length < 10 ||
+          header[0] != 0x49 ||
+          header[1] != 0x44 ||
+          header[2] != 0x33) {
         return '';
       }
       final tagBody = await file.read(_readSynchsafeSize(header, 6));
