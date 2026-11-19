@@ -88,6 +88,9 @@ class _RecentTimelineScrollViewState<T>
         return false;
       },
       child: CustomScrollView(
+        key: PageStorageKey(
+          'RecentTimeline.$T.${ProviderScope.containerOf(context, listen: false).read(musicShareProvider).selectedSource}',
+        ),
         controller: widget.controller,
         slivers: widget.slivers,
       ),

@@ -6,7 +6,6 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:smplayer_flutter/src/app/loading_state.dart';
 import 'package:smplayer_flutter/src/i18n/app_i18n.dart';
 import 'package:smplayer_flutter/src/library/data/library_models.dart';
 import 'package:smplayer_flutter/src/library/data/library_providers.dart';
@@ -73,8 +72,8 @@ class _AlbumDetailPageState extends ConsumerState<AlbumDetailPage> {
 
     if ((i18nValue.isLoading && !i18nValue.hasValue) ||
         (snapshotValue.isLoading && !snapshotValue.hasValue)) {
-      return const _AlbumDetailPanel(
-        child: SmPlayerLoadingState(layout: SmPlayerLoadingLayout.detail),
+      return const HeaderedPlaylistLoadingState(
+        type: HeaderedPlaylistType.album,
       );
     }
 
@@ -88,8 +87,8 @@ class _AlbumDetailPageState extends ConsumerState<AlbumDetailPage> {
       child: snapshotValue.when(
         skipLoadingOnReload: true,
         loading:
-            () => const _AlbumDetailPanel(
-              child: SmPlayerLoadingState(layout: SmPlayerLoadingLayout.detail),
+            () => const HeaderedPlaylistLoadingState(
+              type: HeaderedPlaylistType.album,
             ),
         error:
             (_, _) => _AlbumDetailPanel(
@@ -116,8 +115,8 @@ class _AlbumDetailPageState extends ConsumerState<AlbumDetailPage> {
                   (left, right) => compareArtistText(left.title, right.title),
                 );
           if (albumSongs.isEmpty && snapshotValue.isLoading) {
-            return const _AlbumDetailPanel(
-              child: SmPlayerLoadingState(layout: SmPlayerLoadingLayout.detail),
+            return const HeaderedPlaylistLoadingState(
+              type: HeaderedPlaylistType.album,
             );
           }
           if (albumSongs.isEmpty && snapshotValue.hasError) {

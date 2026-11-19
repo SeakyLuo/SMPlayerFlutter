@@ -86,7 +86,9 @@ class _ArtistsDetail extends ConsumerWidget {
     if (!value.hasValue) {
       return value.hasError
           ? LibraryLoadFailure.forQuery(ref, query)
-          : const SmPlayerLoadingState(layout: SmPlayerLoadingLayout.detail);
+          : const HeaderedPlaylistLoadingState(
+            type: HeaderedPlaylistType.playlist,
+          );
     }
     final albums = [
       for (final item in value.requireValue.albumSummaries)

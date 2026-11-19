@@ -5,5 +5,5 @@ class _ArtistsDetailLoadingState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) =>
-      const SmPlayerLoadingState(layout: SmPlayerLoadingLayout.detail);
+      const HeaderedPlaylistLoadingState(type: HeaderedPlaylistType.playlist);
 }

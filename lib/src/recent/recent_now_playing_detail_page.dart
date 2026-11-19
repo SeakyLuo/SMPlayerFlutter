@@ -14,7 +14,9 @@ class RecentNowPlayingDetailPage extends ConsumerWidget {
     final snapshotValue = ref.watch(recentPageDataProvider);
     if ((i18nValue.isLoading && !i18nValue.hasValue) ||
         (snapshotValue.isLoading && !snapshotValue.hasValue)) {
-      return const _RecentPagePanel(child: SmPlayerLoadingState());
+      return const HeaderedPlaylistLoadingState(
+        type: HeaderedPlaylistType.playlist,
+      );
     }
 
     final i18n = i18nValue.value!;
@@ -22,7 +24,10 @@ class RecentNowPlayingDetailPage extends ConsumerWidget {
       i18n: i18n,
       child: snapshotValue.when(
         skipLoadingOnReload: true,
-        loading: () => const _RecentPagePanel(child: SmPlayerLoadingState()),
+        loading:
+            () => const HeaderedPlaylistLoadingState(
+              type: HeaderedPlaylistType.playlist,
+            ),
         error:
             (_, _) =>
                 _RecentPagePanel(child: LibraryLoadFailure(onRetry: retry)),
@@ -43,7 +48,9 @@ class RecentNowPlayingDetailPage extends ConsumerWidget {
                   onRetry:
                       () => ref.invalidate(libraryPagedQueryProvider(query)),
                 )
-                : const SmPlayerLoadingState();
+                : const HeaderedPlaylistLoadingState(
+                  type: HeaderedPlaylistType.playlist,
+                );
           final page = pageValue.requireValue;
           final entry = RecentNowPlayingView(
             id: record.id,

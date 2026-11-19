@@ -25,7 +25,10 @@ Page<void> smPlayerLibraryDetailPage({
         curve: Curves.easeInOutCubic,
         reverseCurve: Curves.easeInCubic,
       );
-      return FadeTransition(opacity: curvedAnimation, child: child);
+      return ColoredBox(
+        color: Theme.of(context).scaffoldBackgroundColor,
+        child: FadeTransition(opacity: curvedAnimation, child: child),
+      );
     },
     child: child,
   );
