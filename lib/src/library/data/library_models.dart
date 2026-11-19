@@ -1,4 +1,5 @@
 import 'library_source.dart';
+import 'library_local_move_service.dart';
 import 'dart:async';
 
 import 'package:smplayer_flutter/src/settings/settings_model.dart'
@@ -98,6 +99,7 @@ class LibrarySong implements ArtistTagSource {
   final String thumbnailPath;
 
   LibrarySong copyWith({
+    String? path,
     String? title,
     String? artist,
     List<String>? artists,
@@ -112,7 +114,7 @@ class LibrarySong implements ArtistTagSource {
     return LibrarySong(
       id: id,
       isActive: isActive,
-      path: path,
+      path: path ?? this.path,
       title: title ?? this.title,
       artist: artist ?? this.artist,
       artists: artists ?? this.artists,

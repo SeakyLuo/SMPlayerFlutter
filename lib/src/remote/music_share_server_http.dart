@@ -356,7 +356,12 @@ extension _MusicShareServerHttp on MusicShareServer {
                     directoriesChanged: true,
                   );
           if (ids != null) onLibraryChanged();
-          _json(response, {...result, ...sharedCatalogChanges(changed)});
+          _json(response, {
+            ...result,
+            ...sharedCatalogChanges(changed),
+            if (result['overwrittenSongIds'] case final List overwritten)
+              'removed': overwritten,
+          });
           return;
         }
         if (request.method != 'GET' && request.method != 'HEAD') {

@@ -54,7 +54,11 @@ class MusicShareDirectoryCommands {
       }
       action.timer.cancel();
       _undo.remove(ticket);
-      return {};
+      return {
+        if (operation == 'undo')
+          if (action.overwrittenSongIds case final ids?)
+            'overwrittenSongIds': ids.toList(),
+      };
     }
 
     Future<String> folder(String relative, {bool allowRoot = true}) async {
@@ -112,6 +116,7 @@ class MusicShareDirectoryCommands {
     String? refreshedFolder;
     int? itemCount;
     List<int>? deletedSongIds;
+    Set<int>? overwrittenSongIds;
     Future<void> Function()? undo;
     Future<void> Function() commit = () async {};
     switch (operation) {
@@ -247,6 +252,8 @@ class MusicShareDirectoryCommands {
             },
           );
           itemCount = result.itemCount;
+          overwrittenSongIds = result.overwrittenSongIds;
+          affectedIds.addAll(overwrittenSongIds);
           undo = () => repository.undoMoveLocalItems(result);
         }
       default:
@@ -261,6 +268,7 @@ class MusicShareDirectoryCommands {
       undo,
       commit,
       affectedIds.toList(),
+      overwrittenSongIds,
     );
     _undo[ticket] = action;
     action.timer = Timer(const Duration(minutes: 2), () {
@@ -274,6 +282,8 @@ class MusicShareDirectoryCommands {
       'ticket': ticket,
       if (itemCount != null) 'count': itemCount,
       if (deletedSongIds != null) 'deletedSongIds': deletedSongIds,
+      if (overwrittenSongIds != null)
+        'overwrittenSongIds': overwrittenSongIds.toList(),
     };
   }
 
@@ -344,10 +354,18 @@ class MusicShareDirectoryCommands {
 }
 
 class _DirectoryUndo {
-  _DirectoryUndo(this.owner, this.root, this.undo, this.commit, this.songIds);
+  _DirectoryUndo(
+    this.owner,
+    this.root,
+    this.undo,
+    this.commit,
+    this.songIds,
+    this.overwrittenSongIds,
+  );
   final String owner;
   final String root;
   final List<int> songIds;
+  final Set<int>? overwrittenSongIds;
   final Future<void> Function() undo;
   final Future<void> Function() commit;
   late final Timer timer;

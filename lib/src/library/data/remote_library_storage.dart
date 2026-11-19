@@ -24,6 +24,8 @@ mixin _RemoteLibraryStorage implements LibraryDataSource {
     int count, {
     Set<int> deletedSongIds = const {},
     Set<String> deletedSongPaths = const {},
+    Set<String> overwrittenSongPaths = const {},
+    bool directoryOnly = false,
   }) {
     final ticket = result['ticket'] as String;
     return LibraryStorageChange(
@@ -31,6 +33,8 @@ mixin _RemoteLibraryStorage implements LibraryDataSource {
       count: count,
       deletedSongIds: deletedSongIds,
       deletedSongPaths: deletedSongPaths,
+      overwrittenSongPaths: overwrittenSongPaths,
+      directoryOnly: directoryOnly,
       undo: () async {
         await _storage('', 'undo', values: {'ticket': ticket});
       },
@@ -106,7 +110,16 @@ mixin _RemoteLibraryStorage implements LibraryDataSource {
         values: {...values, 'conflicts': choices},
       );
     }
-    return _change(result, result['count'] as int);
+    final overwritten = (result['overwrittenSongIds'] as List?)?.cast<int>();
+    return _change(
+      result,
+      result['count'] as int,
+      overwrittenSongPaths: {
+        if (overwritten != null)
+          for (final id in overwritten) remoteMusicPath(source.deviceId, id),
+      },
+      directoryOnly: overwritten != null && overwritten.isEmpty,
+    );
   }
 
   @override

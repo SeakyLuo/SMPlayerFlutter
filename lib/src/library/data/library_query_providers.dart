@@ -99,6 +99,17 @@ void _watchLibraryCollectionQuery(Ref ref, LibraryDataQuery query) {
       ref.watch(libraryArtistQueryInvalidationProvider((query.source, artist)));
     }
   }
+  if (query.kind == LibraryQueryKind.songs &&
+      (query.folder != null ||
+          query.directFolders.isNotEmpty ||
+          query.recursiveFolders.isNotEmpty)) {
+    ref.watch(
+      libraryQueryInvalidationProvider((
+        LibraryQueryKind.folders,
+        query.source,
+      )),
+    );
+  }
 }
 
 final libraryQueryInvalidationProvider = Provider.autoDispose
@@ -233,6 +244,93 @@ Future<List<LibrarySong>> reloadRequestedLibrarySongs(
     for (final song in songs) song.id: song.favorite,
   };
   return songs;
+}
+
+void updateLibraryAfterLocalMove(
+  ProviderContainer container,
+  LocalItemsMoveResult move, {
+  required bool undo,
+}) {
+  if (move.itemCount == 0 &&
+      move.inactiveFolders.isEmpty &&
+      move.overwrittenSongIds.isEmpty) {
+    return;
+  }
+  final cached =
+      container.exists(libraryLoadedDataProvider)
+          ? container.read(libraryLoadedDataProvider).valueOrNull
+          : null;
+  final recent =
+      container.exists(recentPageDataProvider)
+          ? container.read(recentPageDataProvider).valueOrNull
+          : null;
+  final paths = {
+    for (final song in move.songs) song.id: undo ? song.oldPath : song.newPath,
+  };
+  final folders = undo ? move.folders.reversed : move.folders;
+  final overrides = container.read(librarySongOverridesProvider.notifier);
+  final updated = <int, LibrarySong>{};
+  final known = {
+    for (final song in [
+      ...?cached?.songs,
+      ...?recent?.songs,
+      ...?recent?.recentSongs,
+      ...?recent?.recentQueueSongs,
+      ...?recent?.recentBrowseSongs,
+      ...overrides.state.values,
+    ])
+      song.id: song,
+  };
+  for (final song in known.values) {
+    if (song.source.deviceId != 'local' ||
+        move.overwrittenSongIds.contains(song.id)) {
+      continue;
+    }
+    var path = paths[song.id] ?? song.path;
+    for (final folder in folders) {
+      final from = undo ? folder.newPath : folder.oldPath;
+      final to = undo ? folder.oldPath : folder.newPath;
+      if (path.startsWith('$from/') || path.startsWith('$from\\')) {
+        path = to + path.substring(from.length);
+      }
+    }
+    if (path != song.path) updated[song.id] = song.copyWith(path: path);
+  }
+  if (updated.isNotEmpty) {
+    overrides.state = {...overrides.state, ...updated};
+    if (recent != null) {
+      container
+          .read(recentPageDataProvider.notifier)
+          .updateSongDetails(updated.values.toList());
+    }
+  }
+  if (!undo && move.overwrittenSongIds.isNotEmpty) {
+    if (recent != null) {
+      container
+          .read(recentPageDataProvider.notifier)
+          .removeDeletedSongs(move.overwrittenSongIds, const {});
+    }
+    container.invalidate(librarySongCountProvider);
+  }
+  invalidateLibraryQueries(
+    container.invalidate,
+    kinds: {
+      LibraryQueryKind.songs,
+      LibraryQueryKind.folders,
+      LibraryQueryKind.directoryIndex,
+      LibraryQueryKind.album,
+      LibraryQueryKind.artist,
+      LibraryQueryKind.playlists,
+      LibraryQueryKind.favorites,
+      LibraryQueryKind.queue,
+      LibraryQueryKind.lyrics,
+      if (!undo && move.overwrittenSongIds.isNotEmpty) ...{
+        LibraryQueryKind.albumIndex,
+        LibraryQueryKind.artistIndex,
+        LibraryQueryKind.playlistIndex,
+      },
+    },
+  );
 }
 
 Future<void> refreshArtistSplitData(

@@ -35,8 +35,12 @@ class LibraryStorageActions {
       ...change.deletedSongIds,
       if (removedSong != null) removedSong.id,
     };
-    void invalidate() {
-      if (removedSong case final song?) {
+    void invalidate({required bool undo}) {
+      if (change.localMove case final move?) {
+        updateLibraryAfterLocalMove(container, move, undo: undo);
+      } else if (change.directoryOnly) {
+        _directoryChanged(change.source);
+      } else if (removedSong case final song?) {
         invalidateSongMembershipQueries(container, song);
       } else {
         _changed(change.source);
@@ -49,7 +53,12 @@ class LibraryStorageActions {
             ? null
             : _loadedRecent(change.source);
     final removedSongs = recent?.removeDeletedSongs(deletedIds, deletedPaths);
-    invalidate();
+    if (change.overwrittenSongPaths.isNotEmpty) {
+      _loadedRecent(
+        change.source,
+      )?.removeDeletedSongs(const {}, change.overwrittenSongPaths);
+    }
+    invalidate(undo: false);
     return LibraryStorageChange(
       source: change.source,
       count: change.count,
@@ -63,7 +72,7 @@ class LibraryStorageActions {
             recentBrowseSongs: removedSongs.recentBrowseSongs,
           );
         }
-        invalidate();
+        invalidate(undo: true);
       },
       commit: change.commit,
     );

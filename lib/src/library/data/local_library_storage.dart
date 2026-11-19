@@ -43,10 +43,15 @@ mixin _LocalLibraryStorage implements LibraryDataSource {
       target,
       resolveConflict: resolveConflict,
     );
-    activeMusicShareAccess?.localDataChanged('library');
+    if (result.itemCount > 0 ||
+        result.inactiveFolders.isNotEmpty ||
+        result.overwrittenSongIds.isNotEmpty) {
+      activeMusicShareAccess?.localDataChanged('library');
+    }
     return LibraryStorageChange(
       source: source,
       count: result.itemCount,
+      localMove: result,
       undo: () => _storageChanged(() => repository.undoMoveLocalItems(result)),
       commit: () async {},
     );

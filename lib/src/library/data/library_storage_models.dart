@@ -8,6 +8,9 @@ class LibraryStorageChange {
     required this.commit,
     this.deletedSongIds = const {},
     this.deletedSongPaths = const {},
+    this.localMove,
+    this.overwrittenSongPaths = const {},
+    this.directoryOnly = false,
   });
   final LibrarySource source;
   final int count;
@@ -15,6 +18,9 @@ class LibraryStorageChange {
   final Future<void> Function() commit;
   final Set<int> deletedSongIds;
   final Set<String> deletedSongPaths;
+  final LocalItemsMoveResult? localMove;
+  final Set<String> overwrittenSongPaths;
+  final bool directoryOnly;
 }
 
 class LibraryStorageFolder {

@@ -25,7 +25,12 @@ extension MusicShareStorage on MusicShareController {
         throw const MusicShareException('share.deviceForgotten');
       }
       if (method != 'GET' && !result.containsKey('conflicts')) {
-        await applyDirectoryChanges(device, result);
+        final overwritten = result['overwrittenSongIds'] as List?;
+        await applyDirectoryChanges(
+          device,
+          result,
+          notify: overwritten == null || overwritten.isNotEmpty,
+        );
       }
       return result;
     } on MusicShareException catch (error) {

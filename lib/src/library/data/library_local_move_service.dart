@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'dart:isolate';
 
@@ -42,11 +43,13 @@ class LocalItemsMoveResult {
     required this.songs,
     required this.folders,
     this.inactiveFolders = const [],
+    this.overwrittenSongIds = const {},
   });
 
   final List<LocalSongMove> songs;
   final List<LocalFolderMove> folders;
   final List<String> inactiveFolders;
+  final Set<int> overwrittenSongIds;
 
   int get itemCount => songs.length + folders.length;
 }
@@ -185,13 +188,25 @@ class LibraryLocalMoveService {
         );
       }
 
+      final overwrittenSongIds = <int>{};
+      final touchedPaths = {
+        for (final file in movedFiles) file.oldPath,
+        for (final file in movedFiles)
+          if (file.replacedPath case final path?) path,
+      };
       db.execute('BEGIN');
       try {
-        final folderIds = _readActiveFolderIds(db);
+        final folderIds = _readActiveFolderIds(
+          db,
+          paths:
+              movedFolders.isEmpty
+                  ? {for (final file in movedFiles) p.dirname(file.newPath)}
+                  : null,
+        );
         final songIdsByPath = {
           for (final row in db.select(
-            'SELECT Id, Path FROM Music WHERE State = ?',
-            [_activeState],
+            'SELECT Id, Path FROM Music WHERE State = ? AND Path IN (SELECT value FROM json_each(?))',
+            [_activeState, jsonEncode(touchedPaths.toList())],
           ))
             row['Path'] as String: row['Id'] as int,
         };
@@ -199,13 +214,17 @@ class LibraryLocalMoveService {
         for (final movedFile in movedFiles) {
           final targetFolderId = folderIds[p.dirname(movedFile.newPath)] ?? 0;
           final sourceSongId = songIdsByPath[movedFile.oldPath];
+          final update =
+              movedFile.replacedPath == null ? 'UPDATE' : 'UPDATE OR REPLACE';
           if (movedFile.replacedPath != null) {
             _markLocalFilePathInactiveInsideTransaction(
               db,
               movedFile.replacedPath!,
               exceptSongId: sourceSongId,
             );
-            if (songIdsByPath[movedFile.replacedPath] != sourceSongId) {
+            if (songIdsByPath[movedFile.replacedPath] case final replacedId?
+                when replacedId != sourceSongId) {
+              overwrittenSongIds.add(replacedId);
               songIdsByPath.remove(movedFile.replacedPath);
             }
           }
@@ -221,7 +240,7 @@ class LibraryLocalMoveService {
             }
             db.execute(
               '''
-              UPDATE Music
+              $update Music
               SET Path = ?
               WHERE Id = ?
                 AND State = ?
@@ -233,7 +252,7 @@ class LibraryLocalMoveService {
           }
           db.execute(
             '''
-            UPDATE File
+            $update File
             SET Path = ?, ParentId = ?
             WHERE Path = ?
           ''',
@@ -288,6 +307,7 @@ class LibraryLocalMoveService {
         songs: movedSongs,
         folders: movedFolders,
         inactiveFolders: inactiveFolders,
+        overwrittenSongIds: overwrittenSongIds,
       );
     } finally {
       db.dispose();
@@ -330,7 +350,16 @@ class LibraryLocalMoveService {
             [_inactiveState, inactiveFolder],
           );
         }
-        final folderIds = _readActiveFolderIds(db);
+        final folderIds = _readActiveFolderIds(
+          db,
+          paths:
+              result.folders.isEmpty
+                  ? {
+                    for (final song in result.songs)
+                      _getFileParentPath(song.oldPath),
+                  }
+                  : null,
+        );
         for (final movedSong in result.songs) {
           final parentFolderId =
               folderIds[_getFileParentPath(movedSong.oldPath)] ?? 0;
@@ -397,10 +426,13 @@ class LibraryLocalMoveService {
     }
   }
 
-  Map<String, int> _readActiveFolderIds(Database db) => {
-    for (final row in db.select('SELECT Id, Path FROM Folder WHERE State = ?', [
-      _activeState,
-    ]))
+  Map<String, int> _readActiveFolderIds(Database db, {Set<String>? paths}) => {
+    for (final row in db.select(
+      paths == null
+          ? 'SELECT Id, Path FROM Folder WHERE State = ?'
+          : 'SELECT Id, Path FROM Folder WHERE State = ? AND Path IN (SELECT value FROM json_each(?))',
+      [_activeState, if (paths != null) jsonEncode(paths.toList())],
+    ))
       row['Path'] as String: row['Id'] as int,
   };
 
