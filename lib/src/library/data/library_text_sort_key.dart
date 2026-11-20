@@ -3,10 +3,10 @@ import 'dart:math';
 class ArtistTextSortKey {
   ArtistTextSortKey({
     required int bucketIndex,
-    required String pinyinKey,
+    required Iterable<String> pinyinParts,
     required String baseKey,
   }) : _bucketIndex = bucketIndex,
-       _pinyinKey = _NaturalTextSortKey(pinyinKey),
+       _pinyinKey = _NaturalTextSortKey.fromParts(pinyinParts),
        _baseKey = _NaturalTextSortKey(baseKey);
 
   final int _bucketIndex;
@@ -28,11 +28,12 @@ class ArtistTextSortKey {
 
 class _NaturalTextSortKey {
   _NaturalTextSortKey(String value)
-    : _parts =
-          _naturalTextPattern
-              .allMatches(value)
-              .map((match) => _NaturalTextPart(match.group(0)!))
-              .toList();
+    : this.fromParts(
+        _naturalTextPattern.allMatches(value).map((match) => match.group(0)!),
+      );
+
+  _NaturalTextSortKey.fromParts(Iterable<String> parts)
+    : _parts = parts.map(_NaturalTextPart.new).toList();
 
   final List<_NaturalTextPart> _parts;
 

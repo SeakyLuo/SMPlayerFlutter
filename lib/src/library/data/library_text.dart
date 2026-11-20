@@ -160,7 +160,7 @@ String _foldLatinFirstChar(String value) {
 ArtistTextSortKey buildArtistTextSortKey(String value) {
   return ArtistTextSortKey(
     bucketIndex: artistQuickJumpKeys.indexOf(getArtistQuickJumpBucket(value)),
-    pinyinKey: _baseCollationKey(_pinyinCompareKey(value)),
+    pinyinParts: _pinyinCompareParts(value),
     baseKey: _baseCollationKey(value),
   );
 }
@@ -202,24 +202,22 @@ bool _isCjkUnifiedIdeograph(String value) {
   return codePoint >= 0x3400 && codePoint <= 0x9fff;
 }
 
-String _pinyinCompareKey(String value) {
-  final buffer = StringBuffer();
-  for (final rune in value.runes) {
-    final character = String.fromCharCode(rune);
-    if (_isCjkUnifiedIdeograph(character)) {
-      buffer.write(
-        PinyinHelper.getPinyinE(
-          character,
-          separator: '',
-          defPinyin: character,
-          format: PinyinFormat.WITHOUT_TONE,
-        ),
-      );
-    } else {
-      buffer.write(character);
-    }
+final _pinyinPartPattern = RegExp(r'\d+|\D', unicode: true);
+
+Iterable<String> _pinyinCompareParts(String value) sync* {
+  for (final match in _pinyinPartPattern.allMatches(value)) {
+    final part = match.group(0)!;
+    final text =
+        _isCjkUnifiedIdeograph(part)
+            ? PinyinHelper.getPinyinE(
+              part,
+              separator: '',
+              defPinyin: part,
+              format: PinyinFormat.WITHOUT_TONE,
+            )
+            : part;
+    yield _baseCollationKey(text);
   }
-  return buffer.toString().toLowerCase();
 }
 
 String _localeCompareKey(String value) {
