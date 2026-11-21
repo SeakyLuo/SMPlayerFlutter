@@ -25,11 +25,13 @@ class LyricsBatchDetailsDialog extends StatefulWidget {
     required this.result,
     required this.onClose,
     this.onClear,
+    this.onChangeOverwrite,
   });
 
   final LyricsBatchResult result;
   final VoidCallback onClose;
   final VoidCallback? onClear;
+  final ValueChanged<LyricsBatchDetail>? onChangeOverwrite;
 
   @override
   State<LyricsBatchDetailsDialog> createState() =>
@@ -125,6 +127,7 @@ class _LyricsBatchDetailsDialogState extends State<LyricsBatchDetailsDialog> {
                         details: group.details,
                         collapsed: collapsed,
                         selectedDetailId: _selectedDetailId,
+                        onChangeOverwrite: widget.onChangeOverwrite,
                         onToggleGroup: () {
                           setState(() {
                             if (collapsed) {
@@ -163,6 +166,7 @@ class _LyricsBatchDetailGroup extends StatelessWidget {
     required this.selectedDetailId,
     required this.onToggleGroup,
     required this.onToggleDetail,
+    required this.onChangeOverwrite,
   });
 
   final LyricsBatchDetailResult result;
@@ -171,6 +175,7 @@ class _LyricsBatchDetailGroup extends StatelessWidget {
   final String? selectedDetailId;
   final VoidCallback onToggleGroup;
   final ValueChanged<String> onToggleDetail;
+  final ValueChanged<LyricsBatchDetail>? onChangeOverwrite;
 
   @override
   Widget build(BuildContext context) {
@@ -233,6 +238,10 @@ class _LyricsBatchDetailGroup extends StatelessWidget {
                 for (var index = 0; index < details.length; index++) ...[
                   _LyricsBatchDetailTile(
                     detail: details[index],
+                    onChangeOverwrite:
+                        onChangeOverwrite == null
+                            ? null
+                            : () => onChangeOverwrite!(details[index]),
                     expanded:
                         selectedDetailId == _lyricsBatchDetailId(result, index),
                     onToggle:
@@ -255,11 +264,13 @@ class _LyricsBatchDetailTile extends StatelessWidget {
     required this.detail,
     required this.expanded,
     required this.onToggle,
+    required this.onChangeOverwrite,
   });
 
   final LyricsBatchDetail detail;
   final bool expanded;
   final VoidCallback onToggle;
+  final VoidCallback? onChangeOverwrite;
 
   @override
   Widget build(BuildContext context) {
@@ -353,7 +364,10 @@ class _LyricsBatchDetailTile extends StatelessWidget {
           if (expanded)
             _LyricsBatchInlinePanel(
               overwritten: overwritten,
-              child: _LyricsBatchExpandedDetail(detail: detail),
+              child: _LyricsBatchExpandedDetail(
+                detail: detail,
+                onChangeOverwrite: onChangeOverwrite,
+              ),
             ),
         ],
       ),
@@ -432,9 +446,13 @@ class _LyricsBatchInlinePanel extends StatelessWidget {
 }
 
 class _LyricsBatchExpandedDetail extends StatelessWidget {
-  const _LyricsBatchExpandedDetail({required this.detail});
+  const _LyricsBatchExpandedDetail({
+    required this.detail,
+    required this.onChangeOverwrite,
+  });
 
   final LyricsBatchDetail detail;
+  final VoidCallback? onChangeOverwrite;
 
   @override
   Widget build(BuildContext context) {
@@ -442,7 +460,12 @@ class _LyricsBatchExpandedDetail extends StatelessWidget {
     final source = detail.sourceRawLyrics;
     final target = detail.targetRawLyrics;
     if (detail.result == LyricsBatchDetailResult.overwritten) {
-      return _LyricsBatchOverwriteDetail(source: source, target: target);
+      return _LyricsBatchOverwriteDetail(
+        source: source,
+        target: target,
+        restored: detail.backup?.restored ?? false,
+        onChangeOverwrite: detail.backup == null ? null : onChangeOverwrite,
+      );
     }
 
     return _LyricsTextPreview(
@@ -456,23 +479,18 @@ class _LyricsBatchExpandedDetail extends StatelessWidget {
   }
 }
 
-class _LyricsBatchOverwriteDetail extends StatefulWidget {
+class _LyricsBatchOverwriteDetail extends StatelessWidget {
   const _LyricsBatchOverwriteDetail({
     required this.source,
     required this.target,
+    required this.restored,
+    required this.onChangeOverwrite,
   });
 
   final String source;
   final String target;
-
-  @override
-  State<_LyricsBatchOverwriteDetail> createState() =>
-      _LyricsBatchOverwriteDetailState();
-}
-
-class _LyricsBatchOverwriteDetailState
-    extends State<_LyricsBatchOverwriteDetail> {
-  var _canceled = false;
+  final bool restored;
+  final VoidCallback? onChangeOverwrite;
 
   @override
   Widget build(BuildContext context) {
@@ -501,7 +519,11 @@ class _LyricsBatchOverwriteDetailState
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      i18n.t('settings.lyricsBatchOverwriteWarning'),
+                      i18n.t(
+                        restored
+                            ? 'settings.lyricsBatchOriginalRestored'
+                            : 'settings.lyricsBatchOverwriteWarning',
+                      ),
                       style: TextStyle(
                         color: colors.overwriteBannerText,
                         fontSize: 13,
@@ -513,16 +535,16 @@ class _LyricsBatchOverwriteDetailState
                   OutlinedButton(
                     style: OutlinedButton.styleFrom(
                       foregroundColor:
-                          _canceled
+                          restored
                               ? colors.overwriteCanceledText
                               : colors.overwriteButtonText,
                       backgroundColor:
-                          _canceled
+                          restored
                               ? colors.overwriteCanceledBackground
                               : colors.overwriteButtonBackground,
                       side: BorderSide(
                         color:
-                            _canceled
+                            restored
                                 ? colors.overwriteCanceledBorder
                                 : colors.overwriteButtonBorder,
                       ),
@@ -531,13 +553,9 @@ class _LyricsBatchOverwriteDetailState
                       ),
                       padding: const EdgeInsets.symmetric(horizontal: 12),
                     ),
-                    onPressed: () {
-                      setState(() {
-                        _canceled = !_canceled;
-                      });
-                    },
+                    onPressed: onChangeOverwrite,
                     child: Text(
-                      _canceled
+                      restored
                           ? i18n.t('settings.lyricsBatchAgainOverwrite')
                           : i18n.t('settings.lyricsBatchCancelOverwrite'),
                       style: const TextStyle(
@@ -556,9 +574,9 @@ class _LyricsBatchOverwriteDetailState
                       ? Column(
                         children: [
                           _LyricsTextPreview(
-                            title: i18n.t('settings.lyricsBatchCurrentLyrics'),
+                            title: i18n.t('settings.lyricsBatchDetailOriginalLyrics'),
                             badge: i18n.t('settings.lyricsBatchOldVersion'),
-                            text: widget.source,
+                            text: source,
                           ),
                           Padding(
                             padding: EdgeInsets.symmetric(vertical: 12),
@@ -573,10 +591,10 @@ class _LyricsBatchOverwriteDetailState
                             ),
                           ),
                           _LyricsTextPreview(
-                            title: i18n.t('settings.lyricsBatchNewLyrics'),
+                            title: i18n.t('settings.lyricsBatchDetailNewLyrics'),
                             badge: i18n.t('settings.lyricsBatchNewVersion'),
                             newBadge: true,
-                            text: widget.target,
+                            text: target,
                           ),
                         ],
                       )
@@ -586,10 +604,10 @@ class _LyricsBatchOverwriteDetailState
                           Expanded(
                             child: _LyricsTextPreview(
                               title: i18n.t(
-                                'settings.lyricsBatchCurrentLyrics',
+                                'settings.lyricsBatchDetailOriginalLyrics',
                               ),
                               badge: i18n.t('settings.lyricsBatchOldVersion'),
-                              text: widget.source,
+                              text: source,
                             ),
                           ),
                           Padding(
@@ -609,10 +627,10 @@ class _LyricsBatchOverwriteDetailState
                           ),
                           Expanded(
                             child: _LyricsTextPreview(
-                              title: i18n.t('settings.lyricsBatchNewLyrics'),
+                              title: i18n.t('settings.lyricsBatchDetailNewLyrics'),
                               badge: i18n.t('settings.lyricsBatchNewVersion'),
                               newBadge: true,
-                              text: widget.target,
+                              text: target,
                             ),
                           ),
                         ],

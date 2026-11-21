@@ -246,6 +246,10 @@ class Id3TagService {
       return (await readSongMetadata(songPath)).embeddedLyrics;
     }
 
+    return _embeddedLyricsFromId3Tag(await _readId3TagFromPath(songPath));
+  }
+
+  Future<_Id3Tag> _readId3TagFromPath(String songPath) async {
     final file = await File(songPath).open();
     try {
       final header = await file.read(10);
@@ -253,18 +257,96 @@ class Id3TagService {
           header[0] != 0x49 ||
           header[1] != 0x44 ||
           header[2] != 0x33) {
-        return '';
+        return _readId3Tag(header);
       }
       final tagBody = await file.read(_readSynchsafeSize(header, 6));
       final tagBytes =
           Uint8List(header.length + tagBody.length)
             ..setRange(0, header.length, header)
             ..setRange(header.length, header.length + tagBody.length, tagBody);
-      return _embeddedLyricsFromId3Tag(_readId3Tag(tagBytes));
+      return _readId3Tag(tagBytes);
     } finally {
       await file.close();
     }
   }
+
+  Future<Uint8List> readEmbeddedLyricsBackup(String songPath) async {
+    final tag = await _readId3TagFromPath(songPath);
+    final body = _lyricsFramesBytes(tag);
+    if (body.isEmpty) return Uint8List(0);
+
+    final header = Uint8List(10)
+      ..setRange(0, 3, ascii.encode('ID3'))
+      ..[3] = tag.version;
+    _writeSynchsafeSize(header, 6, body.length);
+    return Uint8List.fromList([...header, ...body]);
+  }
+
+  Future<bool> matchesBatchEmbeddedLyrics(
+    String songPath,
+    Uint8List backup,
+    String targetLyrics,
+  ) async {
+    final tag = await _readId3TagFromPath(songPath);
+    final version = tag.version == 4 ? 4 : 3;
+    final current = _lyricsFramesBytes(tag);
+    final original = _lyricsFramesBytes(_readId3Tag(backup));
+    final target = _createLyricsFrame(version, targetLyrics);
+    return _sameId3Bytes(current, original) || _sameId3Bytes(current, target);
+  }
+
+  Uint8List _lyricsFramesBytes(_Id3Tag tag) => Uint8List.fromList([
+    for (final frame in tag.frames.where(_isLyricsFrame)) ...frame.raw,
+  ]);
+
+  bool _sameId3Bytes(Uint8List first, Uint8List second) {
+    if (first.length != second.length) return false;
+    for (var i = 0; i < first.length; i++) {
+      if (first[i] != second[i]) return false;
+    }
+    return true;
+  }
+
+  Future<void> restoreEmbeddedLyrics(String songPath, Uint8List backup) =>
+      Isolate.run(() => _restoreEmbeddedLyricsInBackground(songPath, backup));
+
+  Future<void> _restoreEmbeddedLyricsDirect(
+    String songPath,
+    Uint8List backup,
+  ) async {
+    final frames = _readId3Tag(backup).frames;
+    final fileBytes = await File(songPath).readAsBytes();
+    final tag = _readId3Tag(fileBytes);
+    final version = tag.version == 4 ? 4 : 3;
+    final restoredFrames = [
+      for (final frame in frames) Uint8List.fromList(frame.raw),
+    ];
+    for (final frame in restoredFrames) {
+      if (version == 4) {
+        _writeSynchsafeSize(frame, 4, frame.length - 10);
+      } else {
+        _writeUint32Be(frame, 4, frame.length - 10);
+      }
+    }
+    await _writeTag(
+      songPath,
+      version,
+      tag.frames
+          .where((frame) => !_isLyricsFrame(frame))
+          .map((frame) => frame.raw)
+          .toList(),
+      restoredFrames,
+      Uint8List.sublistView(fileBytes, tag.endOffset),
+    );
+  }
+
+  Uint8List _createLyricsFrame(int version, String lyrics) => _createId3Frame(
+    version,
+    'USLT',
+    _createUnsynchronizedLyricsPayload(version, lyrics),
+  );
+
+  bool _isLyricsFrame(_Id3Frame frame) => frame.id == 'USLT' || frame.id == 'SYLT';
 
   Future<void> writeEmbeddedLyrics(String songPath, String rawLyrics) {
     return Isolate.run(
@@ -286,19 +368,13 @@ class Id3TagService {
     final tagVersion = existingTag.version == 4 ? 4 : 3;
     final preservedFrames =
         existingTag.frames
-            .where((frame) => frame.id != 'USLT' && frame.id != 'SYLT')
+            .where((frame) => !_isLyricsFrame(frame))
             .map((frame) => frame.raw)
             .toList();
     final lyricsFrames =
         rawLyrics.trim().isEmpty
             ? <Uint8List>[]
-            : [
-              _createId3Frame(
-                tagVersion,
-                'USLT',
-                _createUnsynchronizedLyricsPayload(tagVersion, rawLyrics),
-              ),
-            ];
+            : [_createLyricsFrame(tagVersion, rawLyrics)];
 
     await _writeTag(
       songPath,
@@ -353,6 +429,13 @@ class Id3TagService {
 
 Future<String> _readEmbeddedLyricsInBackground(String songPath) {
   return const Id3TagService()._readEmbeddedLyricsDirect(songPath);
+}
+
+Future<void> _restoreEmbeddedLyricsInBackground(
+  String songPath,
+  Uint8List backup,
+) {
+  return const Id3TagService()._restoreEmbeddedLyricsDirect(songPath, backup);
 }
 
 Future<void> _writeEmbeddedLyricsInBackground(

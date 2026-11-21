@@ -86,6 +86,7 @@ class _SharedLyricsBatchState extends ChangeNotifier {
   var showOptions = false;
   var overwrite = false;
   var running = false;
+  var changingOverwrite = false;
   var cancelRequested = false;
   var paused = false;
   var showDetails = false;
@@ -112,6 +113,7 @@ class SettingsPage extends StatefulWidget {
     this.librarySongs = const [],
     this.onRequestSmartArtistFix,
     this.onArtistDataChanged,
+    this.onLyricsChanged,
     this.onImportData,
     this.onPrepareDataImport,
     this.onDataImported,
@@ -145,6 +147,7 @@ class SettingsPage extends StatefulWidget {
     List<ArtistSplitResultItem> splits,
   )?
   onArtistDataChanged;
+  final ValueChanged<int>? onLyricsChanged;
   final FutureOr<bool> Function()? onImportData;
   final FutureOr<void> Function()? onPrepareDataImport;
   final FutureOr<void> Function()? onDataImported;
@@ -491,8 +494,14 @@ class _SettingsPageState extends State<SettingsPage> {
             if (_showLyricsBatchDetails && _lyricsBatchResult != null)
               LyricsBatchDetailsDialog(
                 result: _lyricsBatchResult!,
+                onChangeOverwrite:
+                    _lyricsBatchRunning ||
+                            _sharedLyricsBatchState.changingOverwrite
+                        ? null
+                        : (detail) => _changeLyricsBatchOverwrite(detail, i18n),
                 onClear:
                     _lyricsBatchRunning ||
+                            _sharedLyricsBatchState.changingOverwrite ||
                             (_lyricsBatchResult!.saved == 0 &&
                                 _lyricsBatchResult!.overwritten == 0)
                         ? null

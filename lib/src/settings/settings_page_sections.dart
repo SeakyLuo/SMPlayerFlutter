@@ -97,6 +97,7 @@ extension _SettingsPageSections on _SettingsPageState {
                 icon: FluentIcons.text_bullet_list_add_20_regular,
                 disabled:
                     _lyricsBatchCancelRequested ||
+                    _sharedLyricsBatchState.changingOverwrite ||
                     widget.lyricsBatchSongCount == null ||
                     widget.lyricsBatchSongCount == 0,
                 onClick: _handleLyricsBatchPrimaryAction,

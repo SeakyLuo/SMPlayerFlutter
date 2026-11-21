@@ -142,6 +142,19 @@ extension LibraryTaskQueries on LibraryRepository {
     );
   }
 
+  Future<bool> changeBatchLyricsOverwrite(LyricsBatchDetail detail) async {
+    final databaseFile = await _resolveDatabaseFile();
+    final changed = await _lyricsService.changeBatchLyricsOverwrite(
+      databaseFile,
+      detail,
+    );
+    if (changed) {
+      _invalidateLyricsCache([detail.songId]);
+      await _lyricsSearchService.refreshSongIds(databaseFile, [detail.songId]);
+    }
+    return changed;
+  }
+
   Future<LyricsBatchResult> runInternetLyricsBatch({
     required bool overwrite,
     void Function(LyricsBatchProgress progress)? onProgress,
@@ -153,8 +166,10 @@ extension LibraryTaskQueries on LibraryRepository {
     final range = await localTaskRange();
     final databaseFile = await _resolveDatabaseFile();
     return _lyricsService.batchAddInternetLyrics(
-      onPageCompleted:
-          (ids) => _lyricsSearchService.refreshSongIds(databaseFile, ids),
+      onPageCompleted: (ids) async {
+        _invalidateLyricsCache(ids);
+        await _lyricsSearchService.refreshSongIds(databaseFile, ids);
+      },
       songCount: range.$1,
       songPages: localTaskBatches(
         range,

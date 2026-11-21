@@ -2,6 +2,7 @@ part of 'settings_page.dart';
 
 extension _SettingsLyricsBatchActions on _SettingsPageState {
   Future<void> _startLyricsBatch(SmPlayerI18n i18n) async {
+    if (_sharedLyricsBatchState.changingOverwrite) return;
     _sharedLyricsBatchState.liveDetails.clear();
     _updateSettingsPageState(() {
       _showLyricsBatchOptions = false;
@@ -82,6 +83,35 @@ extension _SettingsLyricsBatchActions on _SettingsPageState {
           _lyricsBatchPaused = false;
         });
       }
+    }
+  }
+
+  Future<void> _changeLyricsBatchOverwrite(
+    LyricsBatchDetail detail,
+    SmPlayerI18n i18n,
+  ) async {
+    _sharedLyricsBatchState.update(() {
+      _sharedLyricsBatchState.changingOverwrite = true;
+    });
+    try {
+      final changed = await widget.libraryRepository.changeBatchLyricsOverwrite(
+        detail,
+      );
+      if (!mounted) return;
+      if (changed) {
+        widget.onLyricsChanged?.call(detail.songId);
+        _showMessage(
+          i18n.t('song.lyricsUpdated', {'title': detail.title}),
+        );
+      } else {
+        _showMessage(i18n.t('settings.lyricsBatchLyricsChanged'));
+      }
+    } catch (_) {
+      if (mounted) _showMessage(i18n.t('song.updateFailed'));
+    } finally {
+      _sharedLyricsBatchState.update(() {
+        _sharedLyricsBatchState.changingOverwrite = false;
+      });
     }
   }
 

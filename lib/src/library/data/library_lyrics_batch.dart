@@ -57,9 +57,6 @@ extension LibraryLyricsBatch on LibraryLyricsService {
 
           void recordDetail(LyricsBatchDetail detail) {
             details.add(detail);
-            if (detail.result == LyricsBatchDetailResult.saved ||
-                detail.result == LyricsBatchDetailResult.overwritten)
-              changedIds.add(detail.songId);
             final progress = currentProgress();
             onProgress?.call(progress);
             onDetailCompleted?.call(detail, progress);
@@ -69,8 +66,7 @@ extension LibraryLyricsBatch on LibraryLyricsService {
 
           try {
             final localLyrics = await _getSongLyricsByPath(song.path);
-            final existingRawLyrics = localLyrics.rawText;
-            if (!overwrite && existingRawLyrics.trim().isNotEmpty) {
+            if (!overwrite && localLyrics.rawText.trim().isNotEmpty) {
               skipped += 1;
               recordDetail(
                 LyricsBatchDetail(
@@ -80,7 +76,7 @@ extension LibraryLyricsBatch on LibraryLyricsService {
                   thumbnailPath: song.thumbnailPath,
                   result: LyricsBatchDetailResult.skipped,
                   reason: LyricsBatchSkipReason.alreadyExists,
-                  sourceRawLyrics: existingRawLyrics,
+                  sourceRawLyrics: localLyrics.rawText,
                 ),
               );
               continue;
@@ -94,24 +90,6 @@ extension LibraryLyricsBatch on LibraryLyricsService {
             }
             if (isCanceled?.call() == true) {
               break processing;
-            }
-            if (!overwrite) {
-              final latestLocalLyrics = await _getSongLyricsByPath(song.path);
-              if (latestLocalLyrics.rawText.trim().isNotEmpty) {
-                skipped += 1;
-                recordDetail(
-                  LyricsBatchDetail(
-                    songId: song.id,
-                    title: song.title,
-                    artist: song.artist,
-                    thumbnailPath: song.thumbnailPath,
-                    result: LyricsBatchDetailResult.skipped,
-                    reason: LyricsBatchSkipReason.alreadyExists,
-                    sourceRawLyrics: latestLocalLyrics.rawText,
-                  ),
-                );
-                continue;
-              }
             }
             lastRequestStartedAt = DateTime.now();
             final rawInternetLyrics =
@@ -143,6 +121,27 @@ extension LibraryLyricsBatch on LibraryLyricsService {
                   artist: song.artist,
                   thumbnailPath: song.thumbnailPath,
                   result: LyricsBatchDetailResult.missing,
+                  sourceRawLyrics: localLyrics.rawText,
+                ),
+              );
+              continue;
+            }
+
+            final latestLyrics = await _getSongLyricsByPath(song.path);
+            if (isCanceled?.call() == true) {
+              break processing;
+            }
+            final existingRawLyrics = latestLyrics.rawText;
+            if (!overwrite && existingRawLyrics.trim().isNotEmpty) {
+              skipped += 1;
+              recordDetail(
+                LyricsBatchDetail(
+                  songId: song.id,
+                  title: song.title,
+                  artist: song.artist,
+                  thumbnailPath: song.thumbnailPath,
+                  result: LyricsBatchDetailResult.skipped,
+                  reason: LyricsBatchSkipReason.alreadyExists,
                   sourceRawLyrics: existingRawLyrics,
                 ),
               );
@@ -168,12 +167,21 @@ extension LibraryLyricsBatch on LibraryLyricsService {
               continue;
             }
 
-            if (existingRawLyrics.trim().isNotEmpty) {
+            final backup =
+                overwrite
+                    ? await _backUpBatchLyrics(song.path, existingRawLyrics)
+                    : null;
+            if (backup != null) {
               backedUp += 1;
-              backupBytes += utf8.encode(existingRawLyrics).length;
+              backupBytes += backup.bytes;
             }
-            await _writeLyricsToSongPath(song.path, internetLyrics);
-            if (existingRawLyrics.trim().isEmpty) {
+            changedIds.add(song.id);
+            if (backup == null) {
+              await _writeLyricsToSongPath(song.path, internetLyrics);
+            } else {
+              await _applyBatchLyrics(backup, internetLyrics);
+            }
+            if (backup == null) {
               saved += 1;
               recordDetail(
                 LyricsBatchDetail(
@@ -194,6 +202,7 @@ extension LibraryLyricsBatch on LibraryLyricsService {
                   artist: song.artist,
                   thumbnailPath: song.thumbnailPath,
                   result: LyricsBatchDetailResult.overwritten,
+                  backup: backup,
                   sourceRawLyrics: existingRawLyrics,
                   targetRawLyrics: internetLyrics,
                 ),

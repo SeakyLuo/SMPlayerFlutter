@@ -19,6 +19,7 @@ part 'library_lyrics_candidate_search.dart';
 part 'library_lyrics_internet.dart';
 part 'library_lyrics_parser.dart';
 part 'library_lyrics_batch.dart';
+part 'library_lyrics_batch_backup.dart';
 
 const _activeState = 1;
 const _id3TagService = Id3TagService();
@@ -538,6 +539,7 @@ class LyricsBatchDetail {
     this.reason,
     this.sourceRawLyrics = '',
     this.targetRawLyrics = '',
+    this.backup,
   });
 
   final int songId;
@@ -548,6 +550,7 @@ class LyricsBatchDetail {
   final LyricsBatchSkipReason? reason;
   final String sourceRawLyrics;
   final String targetRawLyrics;
+  final LyricsBatchBackup? backup;
 }
 
 class _LyricsSearchAttempt {

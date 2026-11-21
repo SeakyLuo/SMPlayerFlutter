@@ -272,6 +272,8 @@ GoRouter createSmPlayerRouter({
                               libraryRepository: ref.read(
                                 libraryRepositoryProvider,
                               ),
+                              onLyricsChanged:
+                                  (songId) => notifyLyricsSaved(ref, songId),
                               onArtistDataChanged:
                                   (sources, splits) => refreshArtistSplitData(
                                     ref,
