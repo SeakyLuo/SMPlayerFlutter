@@ -39,6 +39,7 @@ import 'library_page_actions.dart';
 import 'page_search_history_panel.dart';
 import 'page_selection_store.dart';
 import 'quick_jump_tooltip.dart';
+import 'quick_jump_rail_column.dart';
 
 part 'albums_page_model.dart';
 part 'albums_page_data.dart';
@@ -368,6 +369,7 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
             criterion: _sortCriterion,
             searchQuery: _searchQuery,
             reverse: _reverseDisplayOrder,
+            libraryIndex: i18n.libraryIndex,
           )),
         );
         final visibleAlbums = visibleData.albums;
@@ -498,6 +500,7 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
               visibleAlbums,
               columns,
               albumRowHeight,
+              libraryIndex: i18n.libraryIndex,
             );
 
             return _AlbumsPagePanel(
@@ -541,6 +544,8 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
                           children: [
                             _AlbumsQuickJump(
                               activeKey: activeAlbumQuickJumpKey,
+                              reverse: _reverseDisplayOrder,
+
                               enabledKeys: albumQuickJumpMap.keys.toSet(),
                               i18n: i18n,
                               onJump: (key) {

@@ -1,0 +1,3 @@
+"NSMicrophoneUsageDescription" = "Mikrofon slouží k zachycení příkazů pro hlasového asistenta.";
+"NSSpeechRecognitionUsageDescription" = "Rozpoznávání řeči slouží k provádění příkazů pro hlasového asistenta.";
+"NSLocalNetworkUsageDescription" = "Připojte se k zařízením v místní síti a procházejte nebo přehrávejte hudbu, kterou s vámi sdílejí.";

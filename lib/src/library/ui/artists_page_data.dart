@@ -43,11 +43,19 @@ final _artistsLibraryDataProvider = Provider.autoDispose
     });
 
 typedef _SortedArtistGroupsRequest =
-    ({List<ArtistGroup> artistGroups, ArtistSortCriterion criterion});
+    ({
+      List<ArtistGroup> artistGroups,
+      ArtistSortCriterion criterion,
+      LibraryIndex libraryIndex,
+    });
 
 final _sortedArtistGroupsProvider = Provider.autoDispose
     .family<List<ArtistGroup>, _SortedArtistGroupsRequest>((ref, request) {
-      return sortArtists(request.artistGroups, request.criterion);
+      return sortArtists(
+        request.artistGroups,
+        request.criterion,
+        libraryIndex: request.libraryIndex,
+      );
     });
 
 extension _ArtistsLibraryDataAccess on _ArtistsPageState {

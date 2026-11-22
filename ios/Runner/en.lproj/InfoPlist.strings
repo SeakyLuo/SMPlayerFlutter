@@ -1,0 +1,4 @@
+"NSMicrophoneUsageDescription" = "Simple Melody Player uses the microphone for voice assistant commands.";
+"NSSpeechRecognitionUsageDescription" = "Simple Melody Player uses speech recognition to run voice assistant commands.";
+"NSCameraUsageDescription" = "Scan another device’s connection QR code to pair and play its shared music.";
+"NSLocalNetworkUsageDescription" = "Connect to devices on your local network to browse and play the music they share with you.";

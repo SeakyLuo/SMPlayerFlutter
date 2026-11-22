@@ -1,5 +1,6 @@
 import 'library_models.dart';
 import 'library_source.dart';
+import 'library_text.dart' show LibraryIndex;
 
 enum LibraryQueryKind {
   context,
@@ -38,6 +39,7 @@ class LibraryDataQuery {
     this.text = '',
     this.order = MusicLibrarySortCriterion.title,
     this.descending = false,
+    this.libraryIndex = LibraryIndex.standard,
     this.relevance = false,
     this.substringSearch = false,
     this.unknownArtist = '',
@@ -49,6 +51,7 @@ class LibraryDataQuery {
   final String text;
   final MusicLibrarySortCriterion order;
   final bool descending;
+  final LibraryIndex libraryIndex;
   final bool relevance;
   final bool substringSearch;
   final String unknownArtist, unknownAlbum;
@@ -70,6 +73,7 @@ class LibraryDataQuery {
     text: text,
     order: order ?? this.order,
     descending: descending ?? this.descending,
+    libraryIndex: libraryIndex,
     album: album,
     folder: folder,
     artists: artists,
@@ -111,6 +115,7 @@ class LibraryDataQuery {
         text != other.text ||
         order != other.order ||
         descending != other.descending ||
+        libraryIndex != other.libraryIndex ||
         source != other.source ||
         album != other.album ||
         folder != other.folder ||
@@ -150,7 +155,7 @@ class LibraryDataQuery {
     useSongIds,
     anchorSongId,
     relevance,
-    Object.hash(substringSearch, unknownArtist, unknownAlbum),
+    Object.hash(substringSearch, unknownArtist, unknownAlbum, libraryIndex),
     offset,
     limit,
     text,

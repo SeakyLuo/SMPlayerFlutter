@@ -228,7 +228,8 @@ class SmPlayerApp extends ConsumerStatefulWidget {
   ConsumerState<SmPlayerApp> createState() => _SmPlayerAppState();
 }
 
-class _SmPlayerAppState extends ConsumerState<SmPlayerApp> {
+class _SmPlayerAppState extends ConsumerState<SmPlayerApp>
+    with WidgetsBindingObserver {
   Timer? _nightModeTimer;
   late PreferredLanguage _lastPreferredLanguage;
   var _initialDatabaseSnapshotLoaded = false;
@@ -236,6 +237,7 @@ class _SmPlayerAppState extends ConsumerState<SmPlayerApp> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _lastPreferredLanguage =
         widget.settingsController.snapshot.preferredLanguage;
     widget.settingsController.addListener(_handleSettingsChanged);
@@ -244,6 +246,7 @@ class _SmPlayerAppState extends ConsumerState<SmPlayerApp> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _nightModeTimer?.cancel();
     widget.settingsController.removeListener(_handleSettingsChanged);
     widget.settingsController.dispose();
@@ -260,6 +263,13 @@ class _SmPlayerAppState extends ConsumerState<SmPlayerApp> {
     }
     setState(() {});
     _scheduleNightModeTimer();
+  }
+
+  @override
+  void didChangeLocales(List<Locale>? locales) {
+    if (_lastPreferredLanguage == PreferredLanguage.system) {
+      ref.invalidate(smPlayerI18nProvider);
+    }
   }
 
   @override

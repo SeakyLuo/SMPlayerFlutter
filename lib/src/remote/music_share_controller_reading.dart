@@ -47,6 +47,8 @@ extension _MusicShareReading on MusicShareController {
           'text': query.text,
           'order': query.order.name,
           'descending': '${query.descending}',
+          if (query.libraryIndex != LibraryIndex.standard)
+            'libraryIndex': query.libraryIndex.name,
           'relevance': '${query.relevance}',
           'substring': '${query.substringSearch}',
           'unknownArtist': query.unknownArtist,
@@ -238,6 +240,8 @@ extension _MusicShareReading on MusicShareController {
           'text': query.text,
           'order': query.order.name,
           'descending': '${query.descending}',
+          if (query.libraryIndex != LibraryIndex.standard)
+            'libraryIndex': query.libraryIndex.name,
           'relevance': '${query.relevance}',
           'substring': '${query.substringSearch}',
           'unknownArtist': query.unknownArtist,

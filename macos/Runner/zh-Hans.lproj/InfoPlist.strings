@@ -2,3 +2,4 @@
 "CFBundleDisplayName" = "简音播放器";
 "NSMicrophoneUsageDescription" = "简音播放器会使用麦克风接收语音助手命令。";
 "NSSpeechRecognitionUsageDescription" = "简音播放器会使用语音识别执行语音助手命令。";
+"NSLocalNetworkUsageDescription" = "连接局域网内的设备，浏览和播放它们与你共享的音乐。";

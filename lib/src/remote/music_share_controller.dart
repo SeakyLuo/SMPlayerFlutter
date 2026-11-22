@@ -26,6 +26,8 @@ import 'music_share_background_platform.dart';
 import 'music_share_connection_store.dart';
 import 'music_share_playlist_client.dart';
 
+import '../library/data/library_text.dart' show LibraryIndex;
+
 part 'music_share_controller_authorization.dart';
 part 'music_share_controller_host.dart';
 part 'music_share_controller_connections.dart';

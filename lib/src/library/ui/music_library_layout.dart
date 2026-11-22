@@ -11,8 +11,6 @@ extension _MusicLibraryLayout on _MusicLibraryPageState {
       _sortCriterion = contextData.sortCriterion;
       _sortDirection = MusicLibrarySortDirection.ascending;
     }
-    listenLibraryPageFailure(ref, _pageQuery);
-    final snapshotValue = ref.watch(browsingLibraryPageProvider(_pageQuery));
     final favoriteOverrides = ref.watch(libraryFavoriteOverridesProvider);
     final songOverrides = ref.watch(librarySongOverridesProvider);
     final playlistOverrides = ref.watch(libraryPlaylistOverridesProvider);
@@ -27,6 +25,14 @@ extension _MusicLibraryLayout on _MusicLibraryPageState {
     if (i18n == null) {
       return const _LibraryScaffold(child: SmPlayerLoadingState());
     }
+
+    final libraryIndex = i18n.libraryIndex;
+    final quickJumpKeys = _quickJumpKeysForDirection(
+      _sortDirection,
+      libraryIndex: libraryIndex,
+    );
+    listenLibraryPageFailure(ref, _pageQuery);
+    final snapshotValue = ref.watch(browsingLibraryPageProvider(_pageQuery));
 
     Widget withoutSongs(Widget child) {
       _syncAppBarPortal(
@@ -63,10 +69,17 @@ extension _MusicLibraryLayout on _MusicLibraryPageState {
           snapshot.anchorRevision,
         );
         if (_lastAnchor != anchor) {
+          final previousQuery = _lastAnchor?.$1;
+          final indexChanged =
+              previousQuery != null &&
+              previousQuery.libraryIndex != libraryIndex;
+          if (indexChanged) _quickJumpPinnedKey = null;
           _lastAnchor = anchor;
           WidgetsBinding.instance.addPostFrameCallback((_) {
             if (!mounted || !_scrollController.hasClients) return;
-            if (snapshot.anchorShift != 0)
+            if (indexChanged) {
+              _scrollController.jumpTo(0);
+            } else if (snapshot.anchorShift != 0) {
               _scrollController.jumpTo(
                 (_scrollController.offset +
                         snapshot.anchorShift *
@@ -75,6 +88,7 @@ extension _MusicLibraryLayout on _MusicLibraryPageState {
                                 : _wideVirtualRowHeight))
                     .clamp(0, _scrollController.position.maxScrollExtent),
               );
+            }
             unawaited(_loadVisibleSongWindow());
           });
         }
@@ -170,6 +184,10 @@ extension _MusicLibraryLayout on _MusicLibraryPageState {
                         })
                         : i18n.t('library.allSongs'),
                 quickJumpActive: _quickJumpPanelOpen,
+                quickJumpLabel:
+                    libraryIndex != LibraryIndex.standard
+                        ? i18n.t('quickJump.index')
+                        : null,
                 multiSelect: _selection.multiSelect,
                 multiSelectLabel: i18n.t('albums.multiSelect'),
                 exitMultiSelectTooltip: i18n.t('common.exitMultiSelectTooltip'),
@@ -264,17 +282,10 @@ extension _MusicLibraryLayout on _MusicLibraryPageState {
                                         if (!compact)
                                           _QuickJumpRail(
                                             activeKey: activeQuickJumpKey,
-                                            keys: _quickJumpKeysForDirection(
-                                              _sortDirection,
-                                            ),
+                                            keys: quickJumpKeys,
                                             enabledKeys:
                                                 quickJumpMap.keys.toSet(),
-                                            targetName: i18n.t('common.songs'),
-                                            basisName:
-                                                _libraryQuickJumpBasisName(
-                                                  _sortCriterion,
-                                                  i18n,
-                                                ),
+
                                             i18n: i18n,
                                             onJump: (key) {
                                               _jumpToKey(
@@ -494,13 +505,9 @@ extension _MusicLibraryLayout on _MusicLibraryPageState {
                     _AnimatedQuickJumpPanel(
                       visible: _quickJumpPanelOpen,
                       activeKey: activeQuickJumpKey,
-                      keys: _quickJumpKeysForDirection(_sortDirection),
+                      keys: quickJumpKeys,
                       enabledKeys: quickJumpMap.keys.toSet(),
-                      targetName: i18n.t('common.songs'),
-                      basisName: _libraryQuickJumpBasisName(
-                        _sortCriterion,
-                        i18n,
-                      ),
+
                       i18n: i18n,
                       underWorkspaceAppBar: useWorkspaceAppBar,
                       onDismiss: () {

@@ -1,0 +1,4 @@
+"NSMicrophoneUsageDescription" = "简音播放器会使用麦克风接收语音助手命令。";
+"NSSpeechRecognitionUsageDescription" = "简音播放器会使用语音识别执行语音助手命令。";
+"NSCameraUsageDescription" = "扫描其他设备的连接二维码，以配对并播放共享音乐。";
+"NSLocalNetworkUsageDescription" = "连接局域网内的设备，浏览和播放它们与你共享的音乐。";

@@ -57,8 +57,9 @@ extension _AlbumsPageQuickJumpActions on _AlbumsPageState {
   String _getActiveAlbumQuickJumpKey(
     List<AlbumView> visibleAlbums,
     int columns,
-    double albumRowHeight,
-  ) {
+    double albumRowHeight, {
+    required LibraryIndex libraryIndex,
+  }) {
     if (visibleAlbums.isEmpty) {
       return '';
     }
@@ -69,7 +70,11 @@ extension _AlbumsPageQuickJumpActions on _AlbumsPageState {
     }
 
     final activeIndex = min(visibleAlbums.length - 1, topRow * columns);
-    return getArtistQuickJumpBucket(visibleAlbums[activeIndex].name);
+    return _albumIndexBucket(
+      visibleAlbums[activeIndex],
+      _sortCriterion,
+      libraryIndex: libraryIndex,
+    );
   }
 
   void _showProcessing() {

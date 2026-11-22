@@ -1,0 +1,4 @@
+"NSMicrophoneUsageDescription" = "El micrófono se usa para escuchar las órdenes del asistente de voz.";
+"NSSpeechRecognitionUsageDescription" = "El reconocimiento de voz se usa para ejecutar las órdenes del asistente de voz.";
+"NSCameraUsageDescription" = "Escanea el código QR de conexión de otro dispositivo para emparejarlo y reproducir su música compartida.";
+"NSLocalNetworkUsageDescription" = "Conéctate a dispositivos de tu red local para explorar y reproducir la música que comparten contigo.";

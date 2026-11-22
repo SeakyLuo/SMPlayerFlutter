@@ -47,6 +47,7 @@ import 'page_search_history_panel.dart';
 import 'song_artwork.dart';
 import '../../platform/desktop_feature_service.dart';
 import 'quick_jump_tooltip.dart';
+import 'quick_jump_rail_column.dart';
 
 part 'artists_master_detail.dart';
 part 'artist_list_item.dart';

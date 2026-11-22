@@ -120,12 +120,14 @@ extension _ArtistsPageActions on _ArtistsPageState {
 
   String _getActiveArtistQuickJumpKey(
     List<ArtistGroup> visibleArtists,
-    ArtistSortCriterion sortCriterion,
-  ) {
+    ArtistSortCriterion sortCriterion, {
+    required LibraryIndex libraryIndex,
+  }) {
     return _getActiveArtistQuickJumpKeyForArtistsPage(
       this,
       visibleArtists,
       sortCriterion,
+      libraryIndex: libraryIndex,
     );
   }
 

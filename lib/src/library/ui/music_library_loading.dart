@@ -35,10 +35,8 @@ class _MusicLibraryLoadingState extends StatelessWidget {
                   if (!compact)
                     _QuickJumpRail(
                       activeKey: '',
-                      keys: _quickJumpKeys,
+                      keys: libraryQuickJumpKeys(index: i18n.libraryIndex),
                       enabledKeys: const {},
-                      targetName: i18n.t('common.songs'),
-                      basisName: i18n.t('musicLibrary.titleHeader'),
                       i18n: i18n,
                       onJump: (_) {},
                     ),

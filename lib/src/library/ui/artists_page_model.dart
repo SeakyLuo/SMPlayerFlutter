@@ -114,19 +114,23 @@ List<ArtistGroup> buildArtistGroups(
 
 List<ArtistGroup> sortArtists(
   List<ArtistGroup> artists,
-  ArtistSortCriterion criterion,
-) {
+  ArtistSortCriterion criterion, {
+  LibraryIndex libraryIndex = LibraryIndex.standard,
+}) {
   final sorted = artists.toList();
   switch (criterion) {
     case ArtistSortCriterion.name:
-      sorted.sort((left, right) => compareArtistText(left.name, right.name));
+      sorted.sort(
+        (left, right) =>
+            compareArtistText(left.name, right.name, index: libraryIndex),
+      );
       return sorted;
     case ArtistSortCriterion.songCount:
       sorted.sort((left, right) {
         final countCompare = right.songCount.compareTo(left.songCount);
         return countCompare != 0
             ? countCompare
-            : compareArtistText(left.name, right.name);
+            : compareArtistText(left.name, right.name, index: libraryIndex);
       });
       return sorted;
     case ArtistSortCriterion.albumCount:
@@ -134,7 +138,7 @@ List<ArtistGroup> sortArtists(
         final countCompare = right.albumCount.compareTo(left.albumCount);
         return countCompare != 0
             ? countCompare
-            : compareArtistText(left.name, right.name);
+            : compareArtistText(left.name, right.name, index: libraryIndex);
       });
       return sorted;
     case ArtistSortCriterion.reverse:
@@ -318,25 +322,33 @@ List<ArtistGroup> searchArtists(List<ArtistGroup> artists, String query) {
   return scored.map((result) => result.artist).toList();
 }
 
-List<String> artistQuickJumpKeysForSort(ArtistSortCriterion sortCriterion) {
+List<String> artistQuickJumpKeysForSort(
+  ArtistSortCriterion sortCriterion, {
+  LibraryIndex libraryIndex = LibraryIndex.standard,
+}) {
   switch (sortCriterion) {
     case ArtistSortCriterion.songCount:
     case ArtistSortCriterion.albumCount:
       return artistCountQuickJumpKeys;
     case ArtistSortCriterion.name:
     case ArtistSortCriterion.reverse:
-      return artistQuickJumpKeys;
+      return libraryQuickJumpKeys(index: libraryIndex);
   }
 }
 
 Map<String, int> buildArtistQuickJumpMap(
-  List<ArtistGroup> artists, [
-  ArtistSortCriterion sortCriterion = ArtistSortCriterion.name,
-]) {
+  List<ArtistGroup> artists,
+  ArtistSortCriterion sortCriterion, {
+  required LibraryIndex libraryIndex,
+}) {
   final indexes = <String, int>{};
   for (var index = 0; index < artists.length; index += 1) {
     indexes.putIfAbsent(
-      getArtistQuickJumpBucketForSort(artists[index], sortCriterion),
+      getArtistQuickJumpBucketForSort(
+        artists[index],
+        sortCriterion,
+        libraryIndex: libraryIndex,
+      ),
       () => index,
     );
   }
@@ -345,8 +357,9 @@ Map<String, int> buildArtistQuickJumpMap(
 
 String getArtistQuickJumpBucketForSort(
   ArtistGroup artist,
-  ArtistSortCriterion sortCriterion,
-) {
+  ArtistSortCriterion sortCriterion, {
+  LibraryIndex libraryIndex = LibraryIndex.standard,
+}) {
   switch (sortCriterion) {
     case ArtistSortCriterion.songCount:
       return getArtistCountQuickJumpBucket(artist.songCount);
@@ -354,7 +367,7 @@ String getArtistQuickJumpBucketForSort(
       return getArtistCountQuickJumpBucket(artist.albumCount);
     case ArtistSortCriterion.name:
     case ArtistSortCriterion.reverse:
-      return getArtistQuickJumpBucket(artist.name);
+      return getArtistQuickJumpBucket(artist.name, index: libraryIndex);
   }
 }
 

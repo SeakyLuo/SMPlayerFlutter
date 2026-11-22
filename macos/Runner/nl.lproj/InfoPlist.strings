@@ -1,0 +1,3 @@
+"NSMicrophoneUsageDescription" = "De microfoon wordt gebruikt om opdrachten voor de spraakassistent op te vangen.";
+"NSSpeechRecognitionUsageDescription" = "Spraakherkenning wordt gebruikt om opdrachten voor de spraakassistent uit te voeren.";
+"NSLocalNetworkUsageDescription" = "Maak verbinding met apparaten op het lokale netwerk om muziek die ze met je delen te bekijken en af te spelen.";

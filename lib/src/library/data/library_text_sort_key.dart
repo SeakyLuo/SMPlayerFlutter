@@ -2,19 +2,18 @@ import 'dart:math';
 
 class ArtistTextSortKey {
   ArtistTextSortKey({
-    required int bucketIndex,
+    required this.bucketIndex,
     required Iterable<String> pinyinParts,
     required String baseKey,
-  }) : _bucketIndex = bucketIndex,
-       _pinyinKey = _NaturalTextSortKey.fromParts(pinyinParts),
+  }) : _pinyinKey = _NaturalTextSortKey.fromParts(pinyinParts),
        _baseKey = _NaturalTextSortKey(baseKey);
 
-  final int _bucketIndex;
+  final int bucketIndex;
   final _NaturalTextSortKey _pinyinKey;
   final _NaturalTextSortKey _baseKey;
 
   int compareTo(ArtistTextSortKey other) {
-    final bucketCompare = _bucketIndex.compareTo(other._bucketIndex);
+    final bucketCompare = bucketIndex.compareTo(other.bucketIndex);
     if (bucketCompare != 0) {
       return bucketCompare;
     }

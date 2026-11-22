@@ -1,0 +1,3 @@
+"NSMicrophoneUsageDescription" = "Mikrofonen används för att lyssna efter röstkommandon till röstassistenten.";
+"NSSpeechRecognitionUsageDescription" = "Taligenkänning används för att utföra kommandon till röstassistenten.";
+"NSLocalNetworkUsageDescription" = "Anslut till enheter i det lokala nätverket för att bläddra i och spela musik som de delar med dig.";

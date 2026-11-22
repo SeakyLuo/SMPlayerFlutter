@@ -63,6 +63,7 @@ extension LibraryScopeIds on LibraryRepository {
           favoritesOnly: query.kind == LibraryQueryKind.favorites,
           order: query.order,
           descending: query.descending,
+          libraryIndex: query.libraryIndex,
           relevance: query.relevance,
           substringSearch: query.substringSearch,
           unknownArtist: query.unknownArtist,

@@ -5,8 +5,6 @@ class _QuickJumpRail extends StatelessWidget {
     required this.activeKey,
     required this.keys,
     required this.enabledKeys,
-    required this.targetName,
-    required this.basisName,
     required this.i18n,
     required this.onJump,
   });
@@ -14,8 +12,6 @@ class _QuickJumpRail extends StatelessWidget {
   final String activeKey;
   final List<String> keys;
   final Set<String> enabledKeys;
-  final String targetName;
-  final String basisName;
   final SmPlayerI18n i18n;
   final ValueChanged<String> onJump;
 
@@ -29,59 +25,61 @@ class _QuickJumpRail extends StatelessWidget {
         color: colors.panel,
         border: Border(right: BorderSide(color: colors.quickJumpBorder)),
       ),
-      child: Column(
-        children:
-            keys.map((key) {
-              final enabled = enabledKeys.contains(key);
-              final active = activeKey == key;
-              return Expanded(
-                child: Center(
-                  child: SizedBox(
-                    width: 22,
-                    child: Tooltip(
-                      message: getQuickJumpTooltip(
-                        key: key,
-                        enabled: enabled,
-                        targetName: targetName,
-                        basisName: basisName,
-                        i18n: i18n,
+      child: QuickJumpRailColumn(
+        keys: keys,
+        enabledKeys: enabledKeys,
+        itemBuilder: (key) {
+          final enabled = enabledKeys.contains(key);
+          final active = activeKey == key;
+          return Expanded(
+            child: Center(
+              child: SizedBox(
+                width: 22,
+                child: Tooltip(
+                  message: getQuickJumpTooltip(
+                    key: key,
+                    enabled: enabled,
+                    i18n: i18n,
+                  ),
+                  child: TextButton(
+                    key: ValueKey('MusicLibrary.QuickJumpRail.$key'),
+                    style: TextButton.styleFrom(
+                      padding: EdgeInsets.zero,
+                      minimumSize: const Size(22, 0),
+                      foregroundColor:
+                          enabled
+                              ? active
+                                  ? colors.accentStrong
+                                  : colors.textMuted
+                              : colors.disabled,
+                      backgroundColor:
+                          active ? colors.accentSoft : Colors.transparent,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(6),
                       ),
-                      child: TextButton(
-                        key: ValueKey('MusicLibrary.QuickJumpRail.$key'),
-                        style: TextButton.styleFrom(
-                          padding: EdgeInsets.zero,
-                          minimumSize: const Size(22, 0),
-                          foregroundColor:
-                              enabled
-                                  ? active
-                                      ? colors.accentStrong
-                                      : colors.textMuted
-                                  : colors.disabled,
-                          backgroundColor:
-                              active ? colors.accentSoft : Colors.transparent,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                        ),
-                        onPressed:
-                            enabled
-                                ? () {
-                                  onJump(key);
-                                }
-                                : null,
-                        child: Text(
-                          key,
-                          style: const TextStyle(
-                            fontSize: 10,
-                            fontWeight: FontWeight.w700,
-                          ),
+                    ),
+                    onPressed:
+                        enabled
+                            ? () {
+                              onJump(key);
+                            }
+                            : null,
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Text(
+                        key,
+                        style: const TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w700,
                         ),
                       ),
                     ),
                   ),
                 ),
-              );
-            }).toList(),
+              ),
+            ),
+          );
+        },
       ),
     );
   }
@@ -92,26 +90,25 @@ class _QuickJumpPanel extends StatelessWidget {
     required this.activeKey,
     required this.keys,
     required this.enabledKeys,
-    required this.targetName,
-    required this.basisName,
     required this.i18n,
     required this.underWorkspaceAppBar,
     required this.onJump,
+    required this.availableHeight,
   });
 
   final String activeKey;
   final List<String> keys;
   final Set<String> enabledKeys;
-  final String targetName;
-  final String basisName;
   final SmPlayerI18n i18n;
   final bool underWorkspaceAppBar;
   final ValueChanged<String> onJump;
+  final double availableHeight;
 
   @override
   Widget build(BuildContext context) {
     final topPadding = underWorkspaceAppBar ? 10.0 : 50.0;
     final colors = _LibraryQuickJumpPanelColors.of(context);
+    final visibleKeys = visibleQuickJumpKeys(keys, enabledKeys);
     return Positioned(
       key: const ValueKey('MusicLibrary.QuickJumpPanel'),
       top: 0,
@@ -138,10 +135,13 @@ class _QuickJumpPanel extends StatelessWidget {
                 child: Align(
                   alignment: Alignment.topCenter,
                   child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 680),
+                    constraints: BoxConstraints(
+                      maxWidth: 680,
+                      maxHeight: max(0.0, availableHeight - topPadding - 18),
+                    ),
                     child: GridView(
                       shrinkWrap: true,
-                      physics: const NeverScrollableScrollPhysics(),
+                      primary: false,
                       gridDelegate:
                           const SliverGridDelegateWithMaxCrossAxisExtent(
                             maxCrossAxisExtent: 50,
@@ -150,15 +150,13 @@ class _QuickJumpPanel extends StatelessWidget {
                             crossAxisSpacing: 8,
                           ),
                       children:
-                          keys.map((key) {
+                          visibleKeys.map((key) {
                             final enabled = enabledKeys.contains(key);
                             final active = activeKey == key;
                             return Tooltip(
                               message: getQuickJumpTooltip(
                                 key: key,
                                 enabled: enabled,
-                                targetName: targetName,
-                                basisName: basisName,
                                 i18n: i18n,
                               ),
                               child: TextButton(
@@ -261,8 +259,6 @@ class _AnimatedQuickJumpPanel extends StatelessWidget {
     required this.activeKey,
     required this.keys,
     required this.enabledKeys,
-    required this.targetName,
-    required this.basisName,
     required this.i18n,
     required this.underWorkspaceAppBar,
     required this.onDismiss,
@@ -273,8 +269,6 @@ class _AnimatedQuickJumpPanel extends StatelessWidget {
   final String activeKey;
   final List<String> keys;
   final Set<String> enabledKeys;
-  final String targetName;
-  final String basisName;
   final SmPlayerI18n i18n;
   final bool underWorkspaceAppBar;
   final VoidCallback onDismiss;
@@ -311,28 +305,30 @@ class _AnimatedQuickJumpPanel extends StatelessWidget {
             visible
                 ? SizedBox.expand(
                   key: const ValueKey('MusicLibrary.QuickJumpOverlay.visible'),
-                  child: Stack(
-                    children: [
-                      Positioned.fill(
-                        child: GestureDetector(
-                          key: const ValueKey(
-                            'MusicLibrary.QuickJumpDismissBarrier',
-                          ),
-                          behavior: HitTestBehavior.translucent,
-                          onTap: onDismiss,
+                  child: LayoutBuilder(
+                    builder:
+                        (context, constraints) => Stack(
+                          children: [
+                            Positioned.fill(
+                              child: GestureDetector(
+                                key: const ValueKey(
+                                  'MusicLibrary.QuickJumpDismissBarrier',
+                                ),
+                                behavior: HitTestBehavior.translucent,
+                                onTap: onDismiss,
+                              ),
+                            ),
+                            _QuickJumpPanel(
+                              availableHeight: constraints.maxHeight,
+                              activeKey: activeKey,
+                              keys: keys,
+                              enabledKeys: enabledKeys,
+                              i18n: i18n,
+                              underWorkspaceAppBar: underWorkspaceAppBar,
+                              onJump: onJump,
+                            ),
+                          ],
                         ),
-                      ),
-                      _QuickJumpPanel(
-                        activeKey: activeKey,
-                        keys: keys,
-                        enabledKeys: enabledKeys,
-                        targetName: targetName,
-                        basisName: basisName,
-                        i18n: i18n,
-                        underWorkspaceAppBar: underWorkspaceAppBar,
-                        onJump: onJump,
-                      ),
-                    ],
                   ),
                 )
                 : const SizedBox.expand(
@@ -343,30 +339,14 @@ class _AnimatedQuickJumpPanel extends StatelessWidget {
   }
 }
 
-List<String> _quickJumpKeysForDirection(MusicLibrarySortDirection direction) {
+List<String> _quickJumpKeysForDirection(
+  MusicLibrarySortDirection direction, {
+  required LibraryIndex libraryIndex,
+}) {
+  final keys = libraryQuickJumpKeys(index: libraryIndex);
   return direction == MusicLibrarySortDirection.descending
-      ? _quickJumpKeys.reversed.toList()
-      : _quickJumpKeys;
-}
-
-String _libraryQuickJumpBasisName(
-  MusicLibrarySortCriterion criterion,
-  SmPlayerI18n i18n,
-) {
-  switch (criterion) {
-    case MusicLibrarySortCriterion.artist:
-      return i18n.t('common.artist');
-    case MusicLibrarySortCriterion.album:
-      return i18n.t('common.album');
-    case MusicLibrarySortCriterion.duration:
-      return i18n.t('common.duration');
-    case MusicLibrarySortCriterion.playCount:
-      return i18n.t('common.playCount');
-    case MusicLibrarySortCriterion.dateAdded:
-      return i18n.t('common.dateAdded');
-    case MusicLibrarySortCriterion.title:
-      return i18n.t('musicLibrary.titleHeader');
-  }
+      ? keys.reversed.toList()
+      : keys;
 }
 
 class _EmptyState extends StatelessWidget {

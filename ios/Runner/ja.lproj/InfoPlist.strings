@@ -1,0 +1,4 @@
+"NSMicrophoneUsageDescription" = "音声アシスタントのコマンドを聞き取るためにマイクを使用します。";
+"NSSpeechRecognitionUsageDescription" = "音声アシスタントのコマンドを実行するために音声認識を使用します。";
+"NSCameraUsageDescription" = "別のデバイスの接続用QRコードを読み取り、ペアリングして共有された音楽を再生します。";
+"NSLocalNetworkUsageDescription" = "ローカルネットワーク上のデバイスに接続して、共有された音楽を閲覧・再生します。";

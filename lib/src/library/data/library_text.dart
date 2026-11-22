@@ -2,6 +2,9 @@ import 'package:lpinyin/lpinyin.dart';
 import 'library_text_sort_key.dart';
 export 'library_text_sort_key.dart';
 
+part 'library_text_japanese.dart';
+part 'library_text_localized_index.dart';
+
 const artistQuickJumpKeys = [
   '#',
   'A',
@@ -31,7 +34,23 @@ const artistQuickJumpKeys = [
   'Y',
   'Z',
 ];
-String getArtistQuickJumpBucket(String artistName) {
+List<String> libraryQuickJumpKeys({required LibraryIndex index}) =>
+    switch (index) {
+      LibraryIndex.standard => artistQuickJumpKeys,
+      LibraryIndex.japanese => _japaneseQuickJumpKeys,
+      _ => _localizedQuickJumpKeys[index]!,
+    };
+
+String getArtistQuickJumpBucket(
+  String artistName, {
+  LibraryIndex index = LibraryIndex.standard,
+}) => switch (index) {
+  LibraryIndex.standard => _standardQuickJumpBucket(artistName),
+  LibraryIndex.japanese => _japaneseQuickJumpBucket(artistName),
+  _ => _localizedQuickJumpBucket(artistName, index),
+};
+
+String _standardQuickJumpBucket(String artistName) {
   final trimmed = artistName.trim();
   if (trimmed.isEmpty) {
     return '#';
@@ -157,7 +176,13 @@ String _foldLatinFirstChar(String value) {
   return folded[value.toUpperCase()] ?? value;
 }
 
-ArtistTextSortKey buildArtistTextSortKey(String value) {
+ArtistTextSortKey buildArtistTextSortKey(
+  String value, {
+  LibraryIndex index = LibraryIndex.standard,
+}) {
+  if (index == LibraryIndex.japanese) return _japaneseTextSortKey(value);
+  if (index != LibraryIndex.standard)
+    return _localizedTextSortKey(value, index);
   return ArtistTextSortKey(
     bucketIndex: artistQuickJumpKeys.indexOf(getArtistQuickJumpBucket(value)),
     pinyinParts: _pinyinCompareParts(value),
@@ -169,10 +194,14 @@ int compareArtistTextSortKeys(ArtistTextSortKey left, ArtistTextSortKey right) {
   return left.compareTo(right);
 }
 
-int compareArtistText(String left, String right) {
+int compareArtistText(
+  String left,
+  String right, {
+  LibraryIndex index = LibraryIndex.standard,
+}) {
   return compareArtistTextSortKeys(
-    buildArtistTextSortKey(left),
-    buildArtistTextSortKey(right),
+    buildArtistTextSortKey(left, index: index),
+    buildArtistTextSortKey(right, index: index),
   );
 }
 

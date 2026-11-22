@@ -1,0 +1,4 @@
+"NSMicrophoneUsageDescription" = "Der Sprachassistent verwendet das Mikrofon, um Sprachbefehle zu erfassen.";
+"NSSpeechRecognitionUsageDescription" = "Die Spracherkennung wird verwendet, um Befehle für den Sprachassistenten auszuführen.";
+"NSCameraUsageDescription" = "Scanne den Verbindungs-QR-Code eines anderen Geräts, um es zu koppeln und freigegebene Musik abzuspielen.";
+"NSLocalNetworkUsageDescription" = "Verbinde dich mit Geräten im lokalen Netzwerk, um freigegebene Musik zu durchsuchen und abzuspielen.";

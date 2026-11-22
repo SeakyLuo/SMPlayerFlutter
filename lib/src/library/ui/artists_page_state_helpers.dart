@@ -264,8 +264,9 @@ void _handleArtistListScrollForArtistsPage(_ArtistsPageState state) {
 String _getActiveArtistQuickJumpKeyForArtistsPage(
   _ArtistsPageState state,
   List<ArtistGroup> visibleArtists,
-  ArtistSortCriterion sortCriterion,
-) {
+  ArtistSortCriterion sortCriterion, {
+  required LibraryIndex libraryIndex,
+}) {
   if (visibleArtists.isEmpty) {
     return '';
   }
@@ -280,6 +281,7 @@ String _getActiveArtistQuickJumpKeyForArtistsPage(
   return getArtistQuickJumpBucketForSort(
     visibleArtists[activeIndex],
     sortCriterion,
+    libraryIndex: libraryIndex,
   );
 }
 

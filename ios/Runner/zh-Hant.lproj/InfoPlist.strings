@@ -1,0 +1,4 @@
+"NSMicrophoneUsageDescription" = "簡音播放器會使用麥克風接收語音助理指令。";
+"NSSpeechRecognitionUsageDescription" = "簡音播放器會使用語音辨識執行語音助理指令。";
+"NSCameraUsageDescription" = "掃描其他裝置的連線 QR Code，以配對並播放共享音樂。";
+"NSLocalNetworkUsageDescription" = "連線至區域網路內的裝置，瀏覽和播放對方共享給你的音樂。";

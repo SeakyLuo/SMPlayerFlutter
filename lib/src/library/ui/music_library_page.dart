@@ -39,7 +39,9 @@ import 'music_dialog.dart';
 import 'multi_select_command_bar.dart';
 import 'page_selection_store.dart';
 import 'quick_jump_tooltip.dart';
+import 'quick_jump_rail_column.dart';
 import 'song_display_helpers.dart' as song_display;
+import '../data/library_text.dart';
 import 'song_artwork.dart';
 import '../../platform/desktop_feature_service.dart';
 
@@ -54,35 +56,6 @@ part 'music_library_sort_bar.dart';
 part 'music_library_quick_jump.dart';
 part 'music_library_helpers.dart';
 
-const _quickJumpKeys = [
-  '#',
-  'A',
-  'B',
-  'C',
-  'D',
-  'E',
-  'F',
-  'G',
-  'H',
-  'I',
-  'J',
-  'K',
-  'L',
-  'M',
-  'N',
-  'O',
-  'P',
-  'Q',
-  'R',
-  'S',
-  'T',
-  'U',
-  'V',
-  'W',
-  'X',
-  'Y',
-  'Z',
-];
 const _wideVirtualRowHeight = 58.0;
 const _compactVirtualRowHeight = 76.0;
 const _minColumnWidth = 86.0;
@@ -124,6 +97,9 @@ class _MusicLibraryPageState extends ConsumerState<MusicLibraryPage> {
     limit: 200,
     text: widget.searchQuery,
     substringSearch: true,
+    libraryIndex:
+        ref.read(smPlayerI18nProvider).valueOrNull?.libraryIndex ??
+        LibraryIndex.standard,
     order: _sortCriterion,
     descending: _sortDirection == MusicLibrarySortDirection.descending,
   );
@@ -183,12 +159,13 @@ class _MusicLibraryPageState extends ConsumerState<MusicLibraryPage> {
     required String title,
     bool showActions = true,
     required bool quickJumpActive,
+    String? quickJumpLabel,
     required bool multiSelect,
     required String multiSelectLabel,
     required String exitMultiSelectTooltip,
   }) {
     final signature =
-        '$showPortal:$routePath:$title:$showActions:$quickJumpActive:$multiSelect';
+        '$showPortal:$routePath:$title:$showActions:$quickJumpActive:$quickJumpLabel:$multiSelect';
     if (_appBarPortalSignature == signature) {
       return;
     }
@@ -240,12 +217,12 @@ class _MusicLibraryPageState extends ConsumerState<MusicLibraryPage> {
                     ),
                     CommandBarButton(
                       key: const ValueKey('MusicLibrary.QuickJumpToggle'),
-                      label: '#-Z',
+                      label: quickJumpLabel ?? '#-Z',
                       active: quickJumpActive,
                       canOverflow: false,
                       minWidth: 40,
-                      maxWidth: 40,
-                      horizontalPadding: 0,
+                      maxWidth: quickJumpLabel == null ? 40 : null,
+                      horizontalPadding: quickJumpLabel == null ? 0 : 8,
                       onPressed: () {
                         setState(() {
                           _quickJumpPanelOpen = !_quickJumpPanelOpen;

@@ -142,10 +142,12 @@ extension _ArtistsPageContent on _ArtistsPageState {
         );
         final snapshot = libraryData.snapshot;
         final artistGroups = libraryData.artistGroups;
+        final libraryIndex = i18n.libraryIndex;
         final sortedArtistGroups = ref.watch(
           _sortedArtistGroupsProvider((
             artistGroups: artistGroups,
             criterion: _artistSortCriterion,
+            libraryIndex: libraryIndex,
           )),
         );
         var visibleArtists =
@@ -256,16 +258,23 @@ extension _ArtistsPageContent on _ArtistsPageState {
             (matchingSelectedArtists.isNotEmpty
                 ? matchingSelectedArtists.first
                 : null);
-        final artistQuickJumpKeys = artistQuickJumpKeysForSort(
+        final indexKeys = artistQuickJumpKeysForSort(
           _artistSortCriterion,
+          libraryIndex: libraryIndex,
         );
+        final artistQuickJumpKeys =
+            libraryIndex != LibraryIndex.standard && _reverseArtistDisplayOrder
+                ? indexKeys.reversed.toList()
+                : indexKeys;
         final artistQuickJumpMap = buildArtistQuickJumpMap(
           visibleArtists,
           _artistSortCriterion,
+          libraryIndex: libraryIndex,
         );
         final activeArtistQuickJumpKey = _getActiveArtistQuickJumpKey(
           visibleArtists,
           _artistSortCriterion,
+          libraryIndex: libraryIndex,
         );
 
         final selectedArtistForSelection =

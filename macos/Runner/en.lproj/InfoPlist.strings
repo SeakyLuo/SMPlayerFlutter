@@ -2,3 +2,4 @@
 "CFBundleDisplayName" = "Simple Melody Player";
 "NSMicrophoneUsageDescription" = "Simple Melody Player uses the microphone for voice assistant commands.";
 "NSSpeechRecognitionUsageDescription" = "Simple Melody Player uses speech recognition to run voice assistant commands.";
+"NSLocalNetworkUsageDescription" = "Connect to devices on your local network to browse and play the music they share with you.";

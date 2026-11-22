@@ -140,6 +140,7 @@ mixin _LibraryRepositoryQueries on _LibraryDataSources {
                   text: query.text,
                   order: query.order,
                   descending: query.descending,
+                  libraryIndex: query.libraryIndex,
                   relevance: query.relevance,
                   substringSearch: query.substringSearch,
                   unknownArtist: query.unknownArtist,

@@ -1,0 +1,3 @@
+"NSMicrophoneUsageDescription" = "Le microphone permet de capter les commandes de l’assistant vocal.";
+"NSSpeechRecognitionUsageDescription" = "La reconnaissance vocale permet d’exécuter les commandes de l’assistant vocal.";
+"NSLocalNetworkUsageDescription" = "Connectez-vous aux appareils du réseau local pour parcourir et écouter la musique qu’ils partagent avec vous.";

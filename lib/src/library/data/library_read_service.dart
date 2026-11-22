@@ -85,6 +85,7 @@ class LibraryReadService {
     String text = '',
     MusicLibrarySortCriterion order = MusicLibrarySortCriterion.title,
     bool descending = false,
+    LibraryIndex libraryIndex = LibraryIndex.standard,
     bool relevance = false,
     bool substringSearch = false,
     String unknownArtist = '',
@@ -103,11 +104,13 @@ class LibraryReadService {
     );
     registerLibraryTimeSql(db);
     final sortKeys = <String, ArtistTextSortKey>{};
+    ArtistTextSortKey sortKey(String text) => sortKeys.putIfAbsent(
+      text,
+      () => buildArtistTextSortKey(text, index: libraryIndex),
+    );
     db.createCollation(
       name: 'library_text',
-      function:
-          (left, right) => (sortKeys[left!] ??= buildArtistTextSortKey(left))
-              .compareTo(sortKeys[right!] ??= buildArtistTextSortKey(right)),
+      function: (left, right) => sortKey(left!).compareTo(sortKey(right!)),
     );
     db.createFunction(
       functionName: 'library_match',
@@ -250,11 +253,13 @@ class LibraryReadService {
     }
     onPagePosition?.call(offset, anchorIndex);
     if (onQuickJump != null) {
+      final keys = libraryQuickJumpKeys(index: libraryIndex);
       db.createFunction(
         functionName: 'library_bucket',
         argumentCount: const AllowedArgumentCount(1),
         deterministic: true,
-        function: (values) => getArtistQuickJumpBucket(values.single as String),
+        function:
+            (values) => keys[sortKey(values.single as String).bucketIndex],
       );
       final bucketColumn = switch (order) {
         MusicLibrarySortCriterion.title => 'Music.Name',
@@ -302,6 +307,7 @@ class LibraryReadService {
     String text = '',
     MusicLibrarySortCriterion order = MusicLibrarySortCriterion.title,
     bool descending = false,
+    LibraryIndex libraryIndex = LibraryIndex.standard,
     bool relevance = false,
     bool substringSearch = false,
     String unknownArtist = '',
@@ -329,6 +335,7 @@ class LibraryReadService {
       text: text,
       order: order,
       descending: descending,
+      libraryIndex: libraryIndex,
       relevance: relevance,
       substringSearch: substringSearch,
       unknownArtist: unknownArtist,

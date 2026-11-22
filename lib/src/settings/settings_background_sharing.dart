@@ -44,7 +44,7 @@ class _SettingsBackgroundSharing extends ConsumerWidget {
                   ? 'share.backgroundApprovalRequired'
                   : 'share.backgroundOperationFailed',
             ),
-            actionLabel: approval ? i18n.t('settings.title') : null,
+            actionLabel: approval ? i18n.t('common.settings') : null,
             onAction:
                 approval
                     ? () =>

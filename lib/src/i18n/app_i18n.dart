@@ -4,6 +4,7 @@ import 'dart:ui';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../library/data/library_text.dart' show LibraryIndex;
 import 'package:smplayer_flutter/src/settings/settings_controller.dart';
 import 'package:smplayer_flutter/src/settings/settings_model.dart';
 
@@ -38,8 +39,9 @@ void evictSmPlayerLocaleAssets({AssetBundle? bundle}) {
 
 final smPlayerI18nProvider = FutureProvider<SmPlayerI18n>((ref) async {
   final platformLocale = PlatformDispatcher.instance.locale;
+  final preferredLanguage = smPlayerGlobalSettingsSnapshot.preferredLanguage;
   final locale = resolveSmPlayerPreferredLocale(
-    smPlayerGlobalSettingsSnapshot.preferredLanguage,
+    preferredLanguage,
     platformLocale,
   );
   final localeMessages = await _loadLocaleMessages(locale);
@@ -51,6 +53,8 @@ class SmPlayerI18n {
 
   final String locale;
   final Map<String, String> messages;
+
+  LibraryIndex get libraryIndex => LibraryIndex.forLocale(locale);
 
   String t(String key, [Map<String, Object> values = const {}]) {
     final template = messages[key] ?? key;

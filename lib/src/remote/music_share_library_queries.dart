@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:path/path.dart' as p;
 import '../library/data/library_queries.dart';
 import '../library/data/library_repository.dart';
+import '../library/data/library_text.dart' show LibraryIndex;
 import 'music_share_catalog.dart';
 import 'music_share_models.dart';
 
@@ -48,6 +49,9 @@ Future<Map<String, dynamic>> sharedLibraryQuery(
     text: parameters['text']!,
     order: MusicLibrarySortCriterion.values.byName(parameters['order']!),
     descending: parameters['descending'] == 'true',
+    libraryIndex: LibraryIndex.values.byName(
+      parameters['libraryIndex'] ?? 'standard',
+    ),
     relevance: parameters['relevance'] == 'true',
     substringSearch: parameters['substring'] == 'true',
     unknownArtist: parameters['unknownArtist']!,

@@ -1,0 +1,4 @@
+"NSMicrophoneUsageDescription" = "Il microfono serve per ascoltare i comandi dell’assistente vocale.";
+"NSSpeechRecognitionUsageDescription" = "Il riconoscimento vocale serve per eseguire i comandi dell’assistente vocale.";
+"NSCameraUsageDescription" = "Scansiona il codice QR di un altro dispositivo per abbinarlo e riprodurre la musica che condivide.";
+"NSLocalNetworkUsageDescription" = "Connettiti ai dispositivi sulla rete locale per sfogliare e riprodurre la musica che condividono con te.";

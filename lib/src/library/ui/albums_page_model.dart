@@ -118,38 +118,63 @@ List<AlbumView> searchAlbums(List<AlbumView> albums, String query) {
   return scored.map((result) => result.album).toList();
 }
 
-Map<String, int> buildAlbumQuickJumpMap(List<AlbumView> albums) {
+Map<String, int> buildAlbumQuickJumpMap(
+  List<AlbumView> albums, {
+  AlbumSortCriterion criterion = AlbumSortCriterion.defaultSort,
+  LibraryIndex libraryIndex = LibraryIndex.standard,
+}) {
   final indexes = <String, int>{};
   for (var index = 0; index < albums.length; index += 1) {
     indexes.putIfAbsent(
-      getArtistQuickJumpBucket(albums[index].name),
+      _albumIndexBucket(albums[index], criterion, libraryIndex: libraryIndex),
       () => index,
     );
   }
   return indexes;
 }
 
+String _albumIndexBucket(
+  AlbumView album,
+  AlbumSortCriterion criterion, {
+  required LibraryIndex libraryIndex,
+}) => getArtistQuickJumpBucket(
+  libraryIndex != LibraryIndex.standard &&
+          criterion == AlbumSortCriterion.artist
+      ? album.artist
+      : album.name,
+  index: libraryIndex,
+);
+
 List<AlbumView> sortAlbums(
   List<AlbumView> albums,
-  AlbumSortCriterion criterion,
-) {
+  AlbumSortCriterion criterion, {
+  LibraryIndex libraryIndex = LibraryIndex.standard,
+}) {
   final sorted = albums.toList();
   switch (criterion) {
     case AlbumSortCriterion.artist:
       sorted.sort((left, right) {
-        final artistCompare = compareArtistText(left.artist, right.artist);
+        final artistCompare = compareArtistText(
+          left.artist,
+          right.artist,
+          index: libraryIndex,
+        );
         return artistCompare != 0
             ? artistCompare
-            : compareArtistText(left.name, right.name);
+            : compareArtistText(left.name, right.name, index: libraryIndex);
       });
       return sorted;
     case AlbumSortCriterion.name:
     case AlbumSortCriterion.defaultSort:
       sorted.sort((left, right) {
-        final nameCompare = compareArtistText(left.name, right.name);
+        final nameCompare = compareArtistText(
+          left.name,
+          right.name,
+          index: libraryIndex,
+        );
         return nameCompare != 0
             ? nameCompare
-            : compareArtistText(left.artist, right.artist);
+            : compareArtistText(left.artist, right.artist, index: libraryIndex);
       });
       return sorted;
     case AlbumSortCriterion.reverse:

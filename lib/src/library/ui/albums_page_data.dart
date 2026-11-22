@@ -67,6 +67,7 @@ typedef _VisibleAlbumsRequest =
       AlbumSortCriterion criterion,
       String searchQuery,
       bool reverse,
+      LibraryIndex libraryIndex,
     });
 
 class _VisibleAlbumsData {
@@ -80,13 +81,21 @@ final _visibleAlbumsProvider = Provider.autoDispose
     .family<_VisibleAlbumsData, _VisibleAlbumsRequest>((ref, request) {
       final baseAlbums =
           request.searchQuery.trim().isEmpty
-              ? sortAlbums(request.albums, request.criterion)
+              ? sortAlbums(
+                request.albums,
+                request.criterion,
+                libraryIndex: request.libraryIndex,
+              )
               : searchAlbums(request.albums, request.searchQuery);
       final albums =
           request.reverse ? baseAlbums.reversed.toList() : baseAlbums;
       return _VisibleAlbumsData(
         albums: albums,
-        quickJumpMap: buildAlbumQuickJumpMap(albums),
+        quickJumpMap: buildAlbumQuickJumpMap(
+          albums,
+          criterion: request.criterion,
+          libraryIndex: request.libraryIndex,
+        ),
       );
     });
 

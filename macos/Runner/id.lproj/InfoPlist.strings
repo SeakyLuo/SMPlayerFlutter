@@ -1,0 +1,3 @@
+"NSMicrophoneUsageDescription" = "Mikrofon digunakan untuk mendengarkan perintah asisten suara.";
+"NSSpeechRecognitionUsageDescription" = "Pengenalan ucapan digunakan untuk menjalankan perintah asisten suara.";
+"NSLocalNetworkUsageDescription" = "Hubungkan ke perangkat di jaringan lokal untuk menjelajahi dan memutar musik yang dibagikan kepada Anda.";

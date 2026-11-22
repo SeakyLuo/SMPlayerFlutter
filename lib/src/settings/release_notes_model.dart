@@ -29,6 +29,7 @@ List<ReleaseNoteEntry> getReleaseNotes(SmPlayerI18n i18n) {
 }
 
 const _releaseNoteDefinitions = [
+  _ReleaseNoteDefinition('4.1.4', ['improvedMultilingualSupport']),
   _ReleaseNoteDefinition('4.1.0', ['remotePlaybackSupport']),
   _ReleaseNoteDefinition('4.0.0', [
     'tryLiquidGlass',
