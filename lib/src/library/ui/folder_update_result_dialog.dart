@@ -23,7 +23,6 @@ class FolderUpdateResultDialog extends StatefulWidget {
     this.onPlay,
     this.onOpenSongMenu,
     required this.onApplyArtistSplits,
-    required this.onDismissArtistSplitSuggestions,
     required this.onClose,
   });
 
@@ -37,7 +36,6 @@ class FolderUpdateResultDialog extends StatefulWidget {
   onOpenSongMenu;
   final FutureOr<void> Function(List<ArtistSplitResultItem> splits)
   onApplyArtistSplits;
-  final VoidCallback onDismissArtistSplitSuggestions;
   final VoidCallback onClose;
 
   @override
@@ -55,6 +53,20 @@ class FolderUpdateResultDialogState extends State<FolderUpdateResultDialog> {
     super.initState();
     _notificationSession = AppNotificationDetailsSession();
     _activeTab = _initialTab();
+  }
+
+  @override
+  void didUpdateWidget(FolderUpdateResultDialog oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (_activeTab != FolderUpdateResultTab.artists || _artistUpdateCount > 0) {
+      return;
+    }
+    _activeTab = _initialTab();
+    if (!widget.result.hasChanges) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) widget.onClose();
+      });
+    }
   }
 
   @override
@@ -143,34 +155,40 @@ class FolderUpdateResultDialogState extends State<FolderUpdateResultDialog> {
       width: 780,
       height: 760,
       onClose: widget.onClose,
+      canClose: !_artistSplitsApplying,
       navChildren: [Expanded(child: _FolderUpdateResultTitle(title))],
       child: Padding(
         padding: EdgeInsets.fromLTRB(
           16,
           0,
-          16,
+          16 - folderUpdateResultScrollbarGutter,
           _activeTab == FolderUpdateResultTab.artists ? 0 : 20,
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Row(
-                children: [
-                  for (final tab in tabs) ...[
-                    FolderUpdateResultTabButton(
-                      item: tab,
-                      selected: tab.tab == _activeTab,
-                      onPressed: () {
-                        setState(() {
-                          _activeTab = tab.tab;
-                        });
-                      },
-                    ),
-                    const SizedBox(width: 8),
+            Padding(
+              padding: const EdgeInsets.only(
+                right: folderUpdateResultScrollbarGutter,
+              ),
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: [
+                    for (final tab in tabs) ...[
+                      FolderUpdateResultTabButton(
+                        item: tab,
+                        selected: tab.tab == _activeTab,
+                        onPressed: () {
+                          setState(() {
+                            _activeTab = tab.tab;
+                          });
+                        },
+                      ),
+                      const SizedBox(width: 8),
+                    ],
                   ],
-                ],
+                ),
               ),
             ),
             const SizedBox(height: 16),
@@ -248,14 +266,19 @@ class FolderUpdateResultDialogState extends State<FolderUpdateResultDialog> {
         onOpenSongMenu: widget.onOpenSongMenu,
         maxHeight: maxHeight,
       ),
-      FolderUpdateResultTab.artists => FolderUpdateResultArtistSection(
-        result: widget.result,
-        applying: _artistSplitsApplying,
-        artworkPathBySongId: {
-          for (final song in widget.songs) song.id: song.thumbnailPath,
-        },
-        onApply: _applyArtistSplits,
-        onClose: widget.onDismissArtistSplitSuggestions,
+      FolderUpdateResultTab.artists => Padding(
+        padding: const EdgeInsets.only(
+          right: folderUpdateResultScrollbarGutter,
+        ),
+        child: FolderUpdateResultArtistSection(
+          result: widget.result,
+          applying: _artistSplitsApplying,
+          artworkPathBySongId: {
+            for (final song in widget.songs) song.id: song.thumbnailPath,
+          },
+          onApply: _applyArtistSplits,
+          onClose: widget.onClose,
+        ),
       ),
     };
   }
@@ -266,6 +289,15 @@ class FolderUpdateResultDialogState extends State<FolderUpdateResultDialog> {
     });
     try {
       await widget.onApplyArtistSplits(splits);
+    } catch (_) {
+      if (mounted) {
+        unawaited(
+          showAppNotification(
+            context: context,
+            message: context.smPlayerI18n.t('song.updateFailed'),
+          ),
+        );
+      }
     } finally {
       if (mounted) {
         setState(() {

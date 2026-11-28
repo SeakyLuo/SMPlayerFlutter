@@ -349,9 +349,11 @@ class _RecentArtistList extends StatelessWidget {
     );
     return LayoutBuilder(
       builder: (context, constraints) {
-        final columns = _recentArtistColumnCount(constraints.maxWidth);
+        final columns = _recentArtistColumnCount(
+          constraints.maxWidth - recentScrollbarGutter,
+        );
         return RecentScrollbar(
-          trailingEdgeOffset: _recentWideScrollbarTrailingOffset,
+          trailingGutter: recentScrollbarGutter,
           builder:
               (controller) => _RecentTimelineScrollView(
                 controller: controller,
@@ -462,9 +464,11 @@ class _RecentCollectionGrid<T> extends StatelessWidget {
     final groups = _groupRecentItems(items, playedAt, context.smPlayerI18n);
     return LayoutBuilder(
       builder: (context, constraints) {
-        final columns = _recentCollectionColumnCount(constraints.maxWidth);
+        final columns = _recentCollectionColumnCount(
+          constraints.maxWidth - recentScrollbarGutter,
+        );
         return RecentScrollbar(
-          trailingEdgeOffset: _recentWideScrollbarTrailingOffset,
+          trailingGutter: recentScrollbarGutter,
           builder:
               (controller) => _RecentTimelineScrollView(
                 controller: controller,

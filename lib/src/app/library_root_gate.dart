@@ -117,18 +117,6 @@ class _LibraryRootGateState extends ConsumerState<_LibraryRootGate> {
                 message: this.context.smPlayerI18n.t('common.saved'),
               );
             },
-            onDismissArtistSplitSuggestions:
-                () => _removeArtistSuggestions({
-                  ...result.result.artistSplitsApplied.map(
-                    (item) => item.songId,
-                  ),
-                  ...result.result.artistSplitSuggestions.map(
-                    (item) => item.songId,
-                  ),
-                  ...result.result.artistMergeSuggestions.map(
-                    (item) => item.songId,
-                  ),
-                }),
             onClose: () => setState(() => _result = null),
           ),
       ],

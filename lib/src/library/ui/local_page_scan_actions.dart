@@ -417,30 +417,6 @@ extension _LocalPageScanActions on _LocalPageState {
     });
   }
 
-  void _dismissFolderUpdateArtistSplitSuggestions() {
-    _updateLocalPageState(() {
-      final current = _refreshResultDialog;
-      if (current == null) {
-        return;
-      }
-      _refreshResultDialog = (
-        folder: current.folder,
-        result: LocalFolderRefreshResult(
-          libraryChanged: current.result.libraryChanged,
-          requiresFullReload: current.result.requiresFullReload,
-          songIdsByPath: current.result.songIdsByPath,
-          filesAdded: current.result.filesAdded,
-          filesUpdated: current.result.filesUpdated,
-          filesRemoved: current.result.filesRemoved,
-          filesMoved: current.result.filesMoved,
-          artistSplitsApplied: current.result.artistSplitsApplied,
-          artistSplitSuggestions: const [],
-          artistMergeSuggestions: const [],
-        ),
-      );
-    });
-  }
-
   void _clearScanOverlay() {
     if (!mounted) {
       return;

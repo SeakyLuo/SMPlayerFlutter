@@ -12,6 +12,8 @@ import 'folder_update_result_file_title.dart';
 import 'local_folder_model.dart';
 import 'popup_dialog.dart';
 
+const folderUpdateResultScrollbarGutter = 10.0;
+
 const _folderUpdateResultRowHeight = 78.0;
 const _folderUpdateResultListBorderWidth = 1.0;
 const _folderUpdateResultMaxVisibleRows = 14;
@@ -143,7 +145,7 @@ class FolderUpdateResultFileSection extends StatelessWidget {
     final content =
         scrollable
             ? EdgeAutoHideScrollbar(
-              trailingEdgeOffset: 10,
+              trailingGutter: folderUpdateResultScrollbarGutter,
               builder:
                   (controller) => buildSurface(
                     ListView.builder(
@@ -155,13 +157,18 @@ class FolderUpdateResultFileSection extends StatelessWidget {
                     ),
                   ),
             )
-            : buildSurface(
-              Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  for (var index = 0; index < items.length; index += 1)
-                    SizedBox(height: rowHeight, child: buildItem(index)),
-                ],
+            : Padding(
+              padding: const EdgeInsets.only(
+                right: folderUpdateResultScrollbarGutter,
+              ),
+              child: buildSurface(
+                Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    for (var index = 0; index < items.length; index += 1)
+                      SizedBox(height: rowHeight, child: buildItem(index)),
+                  ],
+                ),
               ),
             );
     return Align(

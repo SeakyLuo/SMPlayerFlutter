@@ -395,8 +395,6 @@ class _SettingsPageState extends State<SettingsPage> {
                 isPlaying: false,
                 onApplyArtistSplits:
                     (splits) => _applyScanResultArtistSplits(splits, i18n),
-                onDismissArtistSplitSuggestions:
-                    _dismissScanResultArtistSplitSuggestions,
                 onClose: () {
                   setState(() {
                     _scanResultDialog = null;

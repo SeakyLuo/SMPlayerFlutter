@@ -92,42 +92,50 @@ class _RecentPlayedPage extends ConsumerWidget {
     return Column(
       spacing: 4,
       children: [
-        _RecentPlayedFilterBar(
-          i18n: i18n,
-          activeFilter: filter,
-          showCount: showCount,
-          counts: {
-            RecentPlayedFilter.songs: songs.length,
-            RecentPlayedFilter.artists: artists.length,
-            RecentPlayedFilter.albums: albums.length,
-            RecentPlayedFilter.playlists: playlists.length,
-            RecentPlayedFilter.nowPlaying: nowPlaying.length,
-          },
-          onChanged: onFilterChanged,
+        Padding(
+          padding: const EdgeInsets.only(right: recentScrollbarGutter),
+          child: _RecentPlayedFilterBar(
+            i18n: i18n,
+            activeFilter: filter,
+            showCount: showCount,
+            counts: {
+              RecentPlayedFilter.songs: songs.length,
+              RecentPlayedFilter.artists: artists.length,
+              RecentPlayedFilter.albums: albums.length,
+              RecentPlayedFilter.playlists: playlists.length,
+              RecentPlayedFilter.nowPlaying: nowPlaying.length,
+            },
+            onChanged: onFilterChanged,
+          ),
         ),
-        CommandBar(
-          overflowLabel: i18n.t('player.more'),
-          content: _RecentCommandBarTimelineLabel(label: timelineLabel),
-          children: [
-            CommandBarButton(
-              icon: FluentIcons.multiselect_ltr_20_regular,
-              label: i18n.t('albums.multiSelect'),
-              active: multiSelect,
-              activeMatchesHover: true,
-              tooltip:
-                  multiSelect ? i18n.t('common.exitMultiSelectTooltip') : null,
-              disabled: !_canSelectVisiblePlayedItems(),
-              onPressed: onToggleMultiSelect,
-            ),
-            CommandBarButton(
-              icon: FluentIcons.broom_20_regular,
-              label: i18n.t('recent.clearHistory'),
-              disabled: playedCount == 0,
-              onPressed: () {
-                unawaited(_confirmClearHistory(context, ref));
-              },
-            ),
-          ],
+        Padding(
+          padding: const EdgeInsets.only(right: recentScrollbarGutter),
+          child: CommandBar(
+            overflowLabel: i18n.t('player.more'),
+            content: _RecentCommandBarTimelineLabel(label: timelineLabel),
+            children: [
+              CommandBarButton(
+                icon: FluentIcons.multiselect_ltr_20_regular,
+                label: i18n.t('albums.multiSelect'),
+                active: multiSelect,
+                activeMatchesHover: true,
+                tooltip:
+                    multiSelect
+                        ? i18n.t('common.exitMultiSelectTooltip')
+                        : null,
+                disabled: !_canSelectVisiblePlayedItems(),
+                onPressed: onToggleMultiSelect,
+              ),
+              CommandBarButton(
+                icon: FluentIcons.broom_20_regular,
+                label: i18n.t('recent.clearHistory'),
+                disabled: playedCount == 0,
+                onPressed: () {
+                  unawaited(_confirmClearHistory(context, ref));
+                },
+              ),
+            ],
+          ),
         ),
         Expanded(
           child: _RecentPlayedPanel(

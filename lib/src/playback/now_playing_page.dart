@@ -36,6 +36,8 @@ import 'package:smplayer_flutter/src/playback/playback_queue_actions.dart';
 part 'now_playing_page_actions.dart';
 part 'now_playing_page_query.dart';
 
+const _queueScrollbarGutter = EdgeInsets.only(right: 8);
+
 class NowPlayingPage extends ConsumerStatefulWidget {
   const NowPlayingPage({super.key, this.searchQuery = ''});
 
@@ -419,103 +421,107 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
 
         return _NowPlayingPagePanel(
           overlay: multiSelectCommandBar,
+          scrollbarGutter: _queueScrollbarGutter,
           child: Stack(
             clipBehavior: Clip.none,
             children: [
               Column(
                 children: [
                   if (!useWorkspaceAppBar && snapshot.songs.isNotEmpty) ...[
-                    CommandBar(
-                      overflowLabel: i18n.t('player.more'),
-                      children: [
-                        CommandBarButton(
-                          icon: FluentIcons.play_20_regular,
-                          label: i18n.t('nowPlaying.quickPlay'),
-                          onPressed: () {
-                            unawaited(_quickPlay());
-                          },
-                        ),
-                        CommandBarButton(
-                          iconWidget: const ShuffleIcon(),
-                          useShuffleIcon: true,
-                          label: i18n.t('nowPlaying.randomPlay'),
-                          onPressedWithContext: (buttonContext) {
-                            _showShuffleMenu(
-                              buttonContext: buttonContext,
-                              snapshot: snapshot,
-                              queueSongs: queueSongs,
-                              recentSongs: recentSongs,
-                            );
-                          },
-                          onOverflowPressedWithContext: (buttonContext) {
-                            unawaited(
+                    Padding(
+                      padding: _queueScrollbarGutter,
+                      child: CommandBar(
+                        overflowLabel: i18n.t('player.more'),
+                        children: [
+                          CommandBarButton(
+                            icon: FluentIcons.play_20_regular,
+                            label: i18n.t('nowPlaying.quickPlay'),
+                            onPressed: () {
+                              unawaited(_quickPlay());
+                            },
+                          ),
+                          CommandBarButton(
+                            iconWidget: const ShuffleIcon(),
+                            useShuffleIcon: true,
+                            label: i18n.t('nowPlaying.randomPlay'),
+                            onPressedWithContext: (buttonContext) {
                               _showShuffleMenu(
                                 buttonContext: buttonContext,
                                 snapshot: snapshot,
                                 queueSongs: queueSongs,
                                 recentSongs: recentSongs,
-                              ),
-                            );
-                          },
-                        ),
-                        if (queueSongs.isNotEmpty) ...[
-                          CommandBarButton(
-                            icon: FluentIcons.headphones_20_regular,
-                            label: i18n.t('nowPlaying.locateCurrent'),
-                            disabled: currentSong == null,
-                            onPressed: () {
-                              _locateCurrent(
-                                queueSongs,
-                                mediaState.trackId,
-                                mediaState.selectedQueueIndex,
-                              );
-                            },
-                          ),
-                          CommandBarButton(
-                            icon: FluentIcons.add_20_regular,
-                            label: i18n.t('context.addToPlaylist'),
-                            disabled: addQueueToItem == null,
-                            onPressedWithContext: (buttonContext) {
-                              if (addQueueToItem == null) {
-                                return;
-                              }
-                              showMenuFlyout(
-                                buttonContext,
-                                items: addQueueToItem.submenu,
                               );
                             },
                             onOverflowPressedWithContext: (buttonContext) {
-                              if (addQueueToItem == null) {
-                                return;
-                              }
                               unawaited(
-                                showMenuFlyout(
-                                  buttonContext,
-                                  items: addQueueToItem.submenu,
+                                _showShuffleMenu(
+                                  buttonContext: buttonContext,
+                                  snapshot: snapshot,
+                                  queueSongs: queueSongs,
+                                  recentSongs: recentSongs,
                                 ),
                               );
                             },
                           ),
-                          CommandBarButton(
-                            icon: FluentIcons.broom_20_regular,
-                            label: i18n.t('nowPlaying.clearQueue'),
-                            onPressed: () {
-                              _clearQueue(queueSongIds);
-                            },
-                          ),
-                          CommandBarButton(
-                            icon: FluentIcons.multiselect_ltr_20_regular,
-                            label: i18n.t('common.multiSelect'),
-                            active: _selection.multiSelect,
-                            activeMatchesHover: true,
-                            tooltip:
-                                _selection.multiSelect
-                                    ? i18n.t('common.exitMultiSelectTooltip')
-                                    : null,
-                            onPressed: _toggleMultiSelect,
-                          ),
+                          if (queueSongs.isNotEmpty) ...[
+                            CommandBarButton(
+                              icon: FluentIcons.headphones_20_regular,
+                              label: i18n.t('nowPlaying.locateCurrent'),
+                              disabled: currentSong == null,
+                              onPressed: () {
+                                _locateCurrent(
+                                  queueSongs,
+                                  mediaState.trackId,
+                                  mediaState.selectedQueueIndex,
+                                );
+                              },
+                            ),
+                            CommandBarButton(
+                              icon: FluentIcons.add_20_regular,
+                              label: i18n.t('context.addToPlaylist'),
+                              disabled: addQueueToItem == null,
+                              onPressedWithContext: (buttonContext) {
+                                if (addQueueToItem == null) {
+                                  return;
+                                }
+                                showMenuFlyout(
+                                  buttonContext,
+                                  items: addQueueToItem.submenu,
+                                );
+                              },
+                              onOverflowPressedWithContext: (buttonContext) {
+                                if (addQueueToItem == null) {
+                                  return;
+                                }
+                                unawaited(
+                                  showMenuFlyout(
+                                    buttonContext,
+                                    items: addQueueToItem.submenu,
+                                  ),
+                                );
+                              },
+                            ),
+                            CommandBarButton(
+                              icon: FluentIcons.broom_20_regular,
+                              label: i18n.t('nowPlaying.clearQueue'),
+                              onPressed: () {
+                                _clearQueue(queueSongIds);
+                              },
+                            ),
+                            CommandBarButton(
+                              icon: FluentIcons.multiselect_ltr_20_regular,
+                              label: i18n.t('common.multiSelect'),
+                              active: _selection.multiSelect,
+                              activeMatchesHover: true,
+                              tooltip:
+                                  _selection.multiSelect
+                                      ? i18n.t('common.exitMultiSelectTooltip')
+                                      : null,
+                              onPressed: _toggleMultiSelect,
+                            ),
+                          ],
                         ],
-                      ],
+                      ),
                     ),
                     const SizedBox(height: 8),
                   ],
@@ -544,6 +550,7 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
                       visibleEntries: visibleEntries,
                       searchQuery: widget.searchQuery,
                       scrollController: _listController,
+                      scrollbarGutter: _queueScrollbarGutter,
                       selectedQueueIndex: mediaState.selectedQueueIndex,
                       selectedTrackId: mediaState.trackId,
                       isPlaying: mediaState.isPlaying,
@@ -604,40 +611,42 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
                           songsById,
                         );
                       },
-                      compactScrollbarTrailingOffset: 8,
                     ),
                   ),
                 ],
               ),
               if (_songDialog case final dialog?)
-                MusicDialog(
-                  song: dialog.song,
-                  initialMode: dialog.mode,
-                  currentTrackId: mediaState.trackId,
-                  isPlaying: mediaState.isPlaying,
-                  queueSongIds: dialog.queueSongIds,
-                  onPlay:
-                      ref
-                          .read(mediaControlControllerProvider)
-                          .onTogglePlayPause,
-                  onPlayTrack: (trackId, nextQueueSongIds) {
-                    replaceNowPlayingQueueAndPlayIndex(
-                      ref: ref,
-                      snapshot: snapshot,
-                      i18n: i18n,
-                      songIds: nextQueueSongIds,
-                      queueIndex: nextQueueSongIds.indexOf(trackId),
-                    );
-                  },
-                  onReveal: _revealPath,
-                  onSaved: () {
-                    notifyLyricsSaved(ref, dialog.song.id);
-                  },
-                  onClose: () {
-                    setState(() {
-                      _songDialog = null;
-                    });
-                  },
+                Padding(
+                  padding: _queueScrollbarGutter,
+                  child: MusicDialog(
+                    song: dialog.song,
+                    initialMode: dialog.mode,
+                    currentTrackId: mediaState.trackId,
+                    isPlaying: mediaState.isPlaying,
+                    queueSongIds: dialog.queueSongIds,
+                    onPlay:
+                        ref
+                            .read(mediaControlControllerProvider)
+                            .onTogglePlayPause,
+                    onPlayTrack: (trackId, nextQueueSongIds) {
+                      replaceNowPlayingQueueAndPlayIndex(
+                        ref: ref,
+                        snapshot: snapshot,
+                        i18n: i18n,
+                        songIds: nextQueueSongIds,
+                        queueIndex: nextQueueSongIds.indexOf(trackId),
+                      );
+                    },
+                    onReveal: _revealPath,
+                    onSaved: () {
+                      notifyLyricsSaved(ref, dialog.song.id);
+                    },
+                    onClose: () {
+                      setState(() {
+                        _songDialog = null;
+                      });
+                    },
+                  ),
                 ),
             ],
           ),
@@ -666,14 +675,23 @@ String _displayPathName(String path) {
 }
 
 class _NowPlayingPagePanel extends StatelessWidget {
-  const _NowPlayingPagePanel({required this.child, this.overlay});
+  const _NowPlayingPagePanel({
+    required this.child,
+    this.overlay,
+    this.scrollbarGutter = EdgeInsets.zero,
+  });
 
   final Widget child;
   final Widget? overlay;
+  final EdgeInsets scrollbarGutter;
 
   @override
   Widget build(BuildContext context) {
     final compact = MediaQuery.sizeOf(context).width <= 720;
+    final contentPadding =
+        compact
+            ? const EdgeInsets.fromLTRB(8, 0, 8, 0)
+            : const EdgeInsets.fromLTRB(14, 12, 14, 24);
     return DecoratedBox(
       decoration: BoxDecoration(
         color: ShellThemeColors.of(context).workspaceSolidSurface,
@@ -682,10 +700,7 @@ class _NowPlayingPagePanel extends StatelessWidget {
         clipBehavior: Clip.none,
         children: [
           Padding(
-            padding:
-                compact
-                    ? const EdgeInsets.fromLTRB(8, 0, 8, 0)
-                    : const EdgeInsets.fromLTRB(14, 12, 14, 24),
+            padding: contentPadding - scrollbarGutter,
             child: SizedBox.expand(child: child),
           ),
           if (overlay != null) Positioned.fill(child: overlay!),

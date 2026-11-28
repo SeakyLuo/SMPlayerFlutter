@@ -126,7 +126,7 @@ FolderNode createFolderNode(
   return FolderNode(
     id: 0,
     relativePath: relativePath,
-    path: _getFolderAbsolutePath(relativePath, rootPath),
+    path: getLocalFolderAbsolutePath(relativePath, rootPath),
     name: name ?? _getFolderDisplayName(relativePath, rootPath),
     childPaths: [],
     directSongIds: [],
@@ -208,7 +208,7 @@ FolderIndex buildFolderIndex(
   nodes[''] = createFolderNode('', rootPath, name: rootName);
 
   for (final folder in localFolders) {
-    final relativePath = _getFolderRelativePath(folder.path, rootPath);
+    final relativePath = getLocalFolderRelativePath(folder.path, rootPath);
     nodes.putIfAbsent(
       relativePath,
       () => createFolderNode(relativePath, rootPath),
@@ -505,7 +505,7 @@ String _getFolderDisplayName(String relativePath, String rootPath) {
   return relativePath.split('/').last;
 }
 
-String _getFolderAbsolutePath(String relativePath, String rootPath) {
+String getLocalFolderAbsolutePath(String relativePath, String rootPath) {
   if (relativePath.isEmpty) {
     return rootPath;
   }
@@ -514,7 +514,7 @@ String _getFolderAbsolutePath(String relativePath, String rootPath) {
   return '${rootPath.replaceFirst(RegExp(r'[\\/]+$'), '')}$separator${relativePath.split('/').join(separator)}';
 }
 
-String _getFolderRelativePath(String folderPath, String rootPath) {
+String getLocalFolderRelativePath(String folderPath, String rootPath) {
   final normalizedFolderPath = normalizePath(folderPath);
   final normalizedRootPath = normalizePath(rootPath);
 

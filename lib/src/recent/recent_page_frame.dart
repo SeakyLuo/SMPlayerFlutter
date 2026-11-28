@@ -11,6 +11,7 @@ extension _RecentPageFrame on _RecentPageState {
   }) {
     return _RecentPagePanel(
       topPadding: 0,
+      trailingScrollbar: true,
       child: LayoutBuilder(
         builder: (context, _) {
           final useWorkspaceAppBar = WorkspaceNavigationAppBarScope.of(context);
@@ -28,7 +29,11 @@ extension _RecentPageFrame on _RecentPageState {
             children: [
               if (!useWorkspaceAppBar)
                 Padding(
-                  padding: const EdgeInsets.only(top: 26, bottom: 10),
+                  padding: const EdgeInsets.only(
+                    top: 26,
+                    right: recentScrollbarGutter,
+                    bottom: 10,
+                  ),
                   child: _RecentAppBarTabs(
                     controller: _tabController,
                     i18n: i18n,

@@ -19,6 +19,7 @@ class NowPlayingQueueView extends StatelessWidget {
     required this.visibleEntries,
     required this.searchQuery,
     required this.scrollController,
+    required this.scrollbarGutter,
     required this.selectedQueueIndex,
     required this.selectedTrackId,
     required this.isPlaying,
@@ -34,7 +35,6 @@ class NowPlayingQueueView extends StatelessWidget {
     required this.onOpenArtist,
     required this.onOpenAlbum,
     required this.onOpenContextMenu,
-    this.compactScrollbarTrailingOffset = 0,
     this.totalCount,
     this.songAt,
     this.queueIndexAt,
@@ -49,6 +49,7 @@ class NowPlayingQueueView extends StatelessWidget {
   final List<(int, LibrarySong)> visibleEntries;
   final String searchQuery;
   final ScrollController scrollController;
+  final EdgeInsets scrollbarGutter;
   final int? selectedQueueIndex;
   final int? selectedTrackId;
   final bool isPlaying;
@@ -71,7 +72,6 @@ class NowPlayingQueueView extends StatelessWidget {
     int queueIndex,
   )
   onOpenContextMenu;
-  final double compactScrollbarTrailingOffset;
 
   @override
   Widget build(BuildContext context) {
@@ -80,9 +80,12 @@ class NowPlayingQueueView extends StatelessWidget {
       return const SizedBox.shrink();
     }
     if (songAt == null && visibleEntries.isEmpty) {
-      return NowPlayingEmptyState(
-        title: i18n.t('nowPlaying.noQueueMatch', {'query': searchQuery}),
-        message: i18n.t('nowPlaying.queueSearchHelp'),
+      return Padding(
+        padding: scrollbarGutter,
+        child: NowPlayingEmptyState(
+          title: i18n.t('nowPlaying.noQueueMatch', {'query': searchQuery}),
+          message: i18n.t('nowPlaying.queueSearchHelp'),
+        ),
       );
     }
 
@@ -128,27 +131,10 @@ class NowPlayingQueueView extends StatelessWidget {
       ),
       onReorder: onReorderVisible,
     );
-    final scrollableChild =
-        compactScrollbarTrailingOffset != 0
-            ? Transform.translate(
-              offset: Offset(-compactScrollbarTrailingOffset, 0),
-              child: playlist,
-            )
-            : playlist;
-    Widget scrollbar = SmPlayerAutoHideScrollbar(
+    return SmPlayerAutoHideScrollbar(
       key: const ValueKey('NowPlayingQueue.Scrollbar'),
       controller: scrollController,
-      child: ScrollConfiguration(
-        behavior: ScrollConfiguration.of(context).copyWith(scrollbars: false),
-        child: scrollableChild,
-      ),
-    );
-    if (compactScrollbarTrailingOffset == 0) {
-      return scrollbar;
-    }
-    return Transform.translate(
-      offset: Offset(compactScrollbarTrailingOffset, 0),
-      child: scrollbar,
+      child: Padding(padding: scrollbarGutter, child: playlist),
     );
   }
 

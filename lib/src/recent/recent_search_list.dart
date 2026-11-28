@@ -9,8 +9,6 @@ import 'package:smplayer_flutter/src/library/ui/multi_select_command_bar.dart';
 import 'recent_page_model.dart';
 import 'recent_scrollbar.dart';
 
-const _recentSearchScrollbarOffset = 8.0;
-
 class RecentSearchList extends StatelessWidget {
   const RecentSearchList({
     super.key,
@@ -42,7 +40,7 @@ class RecentSearchList extends StatelessWidget {
     }
 
     return RecentScrollbar(
-      trailingEdgeOffset: _recentSearchScrollbarOffset,
+      trailingGutter: recentScrollbarGutter,
       builder:
           (controller) => ListView.builder(
             controller: controller,

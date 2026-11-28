@@ -69,14 +69,14 @@ class _RecentSongGrid extends ConsumerWidget {
     );
     return LayoutBuilder(
       builder: (context, constraints) {
-        final gridWidth = constraints.maxWidth;
+        final gridWidth = constraints.maxWidth - recentScrollbarGutter;
         const metrics = _recentSongTileMetrics;
         final columns = ((gridWidth + _recentSongTileColumnGap) /
                 (_recentSongTileWidth + _recentSongTileColumnGap))
             .floor()
             .clamp(1, 8);
         return RecentScrollbar(
-          trailingEdgeOffset: _recentMinimalPageHorizontalPadding,
+          trailingGutter: recentScrollbarGutter,
           builder:
               (controller) => _RecentTimelineScrollView(
                 controller: controller,

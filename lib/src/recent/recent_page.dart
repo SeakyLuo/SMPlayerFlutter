@@ -88,7 +88,6 @@ const _recentArtistRowGap = 2.0;
 const _recentSongTileWidth = 270.0;
 const _recentSongTileColumnGap = 28.0;
 const _recentCollectionGridRightPadding = 14.0;
-const _recentWideScrollbarTrailingOffset = 18.0;
 
 class RecentPage extends ConsumerStatefulWidget {
   const RecentPage({super.key});
@@ -547,7 +546,6 @@ class _RecentPageState extends ConsumerState<RecentPage>
                 visible: _multiSelect,
                 bottomInset: multiSelectCommandBarShellBottomInset,
                 leftBleed: 8,
-                rightBleed: 8,
                 selectedCount: selectedCount,
                 playlists: customPlaylists,
                 showPlay:

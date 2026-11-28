@@ -32,29 +32,34 @@ class _RecentBrowsesPage extends StatelessWidget {
     return Column(
       spacing: 4,
       children: [
-        CommandBar(
-          overflowLabel: i18n.t('player.more'),
-          content: const _RecentCommandBarTimelineLabel(label: ''),
-          children: [
-            CommandBarButton(
-              icon: FluentIcons.multiselect_ltr_20_regular,
-              label: i18n.t('albums.multiSelect'),
-              active: multiSelect,
-              activeMatchesHover: true,
-              tooltip:
-                  multiSelect ? i18n.t('common.exitMultiSelectTooltip') : null,
-              disabled: entries.isEmpty,
-              onPressed: onToggleMultiSelect,
-            ),
-            CommandBarButton(
-              icon: FluentIcons.broom_20_regular,
-              label: i18n.t('recent.clearHistory'),
-              disabled: allEntryIds.isEmpty,
-              onPressed: () {
-                unawaited(_confirmClearHistory(context));
-              },
-            ),
-          ],
+        Padding(
+          padding: const EdgeInsets.only(right: recentScrollbarGutter),
+          child: CommandBar(
+            overflowLabel: i18n.t('player.more'),
+            content: const _RecentCommandBarTimelineLabel(label: ''),
+            children: [
+              CommandBarButton(
+                icon: FluentIcons.multiselect_ltr_20_regular,
+                label: i18n.t('albums.multiSelect'),
+                active: multiSelect,
+                activeMatchesHover: true,
+                tooltip:
+                    multiSelect
+                        ? i18n.t('common.exitMultiSelectTooltip')
+                        : null,
+                disabled: entries.isEmpty,
+                onPressed: onToggleMultiSelect,
+              ),
+              CommandBarButton(
+                icon: FluentIcons.broom_20_regular,
+                label: i18n.t('recent.clearHistory'),
+                disabled: allEntryIds.isEmpty,
+                onPressed: () {
+                  unawaited(_confirmClearHistory(context));
+                },
+              ),
+            ],
+          ),
         ),
         Expanded(
           child: _RecentBrowseList(

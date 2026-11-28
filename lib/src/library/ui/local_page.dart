@@ -249,10 +249,7 @@ class _LocalPageState extends ConsumerState<LocalPage> {
         _remote
             ? '$remoteMusicScheme://$_source'
             : contextValue.requireValue.rootPath;
-    final current =
-        widget.currentRelativePath.isEmpty
-            ? root
-            : '$root/${widget.currentRelativePath}';
+    final current = getLocalFolderAbsolutePath(widget.currentRelativePath, root);
     final directoryQuery = LibraryDataQuery(
       LibraryQueryKind.folders,
       source: _source,

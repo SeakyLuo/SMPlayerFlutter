@@ -8,14 +8,14 @@ class EdgeAutoHideScrollbar extends StatefulWidget {
   const EdgeAutoHideScrollbar({
     super.key,
     required this.builder,
-    this.trailingEdgeOffset = 0,
+    this.trailingGutter = 0,
     this.crossAxisMargin = 0,
     this.thickness = edgeAutoHideScrollbarThickness,
     this.hoverThickness = edgeAutoHideScrollbarHoverThickness,
   });
 
   final Widget Function(ScrollController controller) builder;
-  final double trailingEdgeOffset;
+  final double trailingGutter;
   final double crossAxisMargin;
   final double thickness;
   final double hoverThickness;
@@ -77,16 +77,13 @@ class _EdgeAutoHideScrollbarState extends State<EdgeAutoHideScrollbar>
     );
     final scrollable = Scrollbar(
       controller: _controller,
-      interactive: visible,
+      interactive: _canScroll,
       thumbVisibility: true,
       trackVisibility: false,
-      child:
-          widget.trailingEdgeOffset == 0
-              ? scrollableChild
-              : Transform.translate(
-                offset: Offset(-widget.trailingEdgeOffset, 0),
-                child: scrollableChild,
-              ),
+      child: Padding(
+        padding: EdgeInsets.only(right: widget.trailingGutter),
+        child: scrollableChild,
+      ),
     );
     return MouseRegion(
       onEnter: (_) {
@@ -124,19 +121,21 @@ class _EdgeAutoHideScrollbarState extends State<EdgeAutoHideScrollbar>
           child: ScrollbarTheme(
             data: ScrollbarTheme.of(context).copyWith(
               thumbColor: WidgetStateProperty.resolveWith((states) {
-                if (!visible) {
+                final dragged = states.contains(WidgetState.dragged);
+                if (!visible && !dragged) {
                   return Colors.transparent;
                 }
-                return states.contains(WidgetState.hovered)
+                return dragged || states.contains(WidgetState.hovered)
                     ? const Color(0xad435060)
                     : const Color(0x805b697a);
               }),
               trackColor: const WidgetStatePropertyAll(Colors.transparent),
               thickness: WidgetStateProperty.resolveWith((states) {
-                if (!visible) {
+                final dragged = states.contains(WidgetState.dragged);
+                if (!visible && !dragged) {
                   return 0;
                 }
-                return states.contains(WidgetState.hovered)
+                return dragged || states.contains(WidgetState.hovered)
                     ? widget.hoverThickness
                     : widget.thickness;
               }),
@@ -144,10 +143,7 @@ class _EdgeAutoHideScrollbarState extends State<EdgeAutoHideScrollbar>
               crossAxisMargin: widget.crossAxisMargin,
               mainAxisMargin: 0,
             ),
-            child: Transform.translate(
-              offset: Offset(widget.trailingEdgeOffset, 0),
-              child: scrollable,
-            ),
+            child: scrollable,
           ),
         ),
       ),

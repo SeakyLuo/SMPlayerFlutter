@@ -87,8 +87,7 @@ class _ArtistSplitGroupState extends State<_ArtistSplitGroup> {
             for (final item in widget.items)
               _ArtistSplitTile(
                 item: item,
-                selected:
-                    widget.disabled ||
+                selected: !widget.disabled &&
                     widget.selectedSongIds.contains(item.songId),
                 disabled: widget.disabled,
                 editing: _editingSongId == item.songId,
@@ -296,12 +295,13 @@ class _ArtistSplitTileState extends State<_ArtistSplitTile> {
                       ? CrossAxisAlignment.start
                       : CrossAxisAlignment.center,
               children: [
-                _ArtistSplitCheck(
-                  selected: widget.selected,
-                  disabled: widget.disabled,
-                  onPressed: widget.onToggle,
-                ),
-                const SizedBox(width: 12),
+                if (!widget.disabled) ...[
+                  _ArtistSplitCheck(
+                    selected: widget.selected,
+                    onPressed: widget.onToggle,
+                  ),
+                  const SizedBox(width: 12),
+                ],
                 SizedBox.square(
                   dimension: 64,
                   child: ClipRRect(
@@ -330,20 +330,22 @@ class _ArtistSplitTileState extends State<_ArtistSplitTile> {
                     compact: widget.compact,
                   ),
                 ),
-                const SizedBox(width: 12),
-                AnimatedOpacity(
-                  opacity: _hovered || widget.editing ? 1 : 0,
-                  duration: const Duration(milliseconds: 140),
-                  curve: Curves.easeOut,
-                  child:
-                      widget.editing
-                          ? const SizedBox(width: 34, height: 34)
-                          : _ArtistSplitIconButton(
-                            icon: FluentIcons.edit_20_regular,
-                            tooltip: i18n.t('common.edit'),
-                            onPressed: widget.onEdit,
-                          ),
-                ),
+                if (!widget.disabled) ...[
+                  const SizedBox(width: 12),
+                  AnimatedOpacity(
+                    opacity: _hovered || widget.editing ? 1 : 0,
+                    duration: const Duration(milliseconds: 140),
+                    curve: Curves.easeOut,
+                    child:
+                        widget.editing
+                            ? const SizedBox(width: 34, height: 34)
+                            : _ArtistSplitIconButton(
+                              icon: FluentIcons.edit_20_regular,
+                              tooltip: i18n.t('common.edit'),
+                              onPressed: widget.onEdit,
+                            ),
+                  ),
+                ],
               ],
             ),
           ),
@@ -378,14 +380,9 @@ class _ArtistSplitTileState extends State<_ArtistSplitTile> {
 }
 
 class _ArtistSplitCheck extends StatelessWidget {
-  const _ArtistSplitCheck({
-    required this.selected,
-    required this.disabled,
-    required this.onPressed,
-  });
+  const _ArtistSplitCheck({required this.selected, required this.onPressed});
 
   final bool selected;
-  final bool disabled;
   final VoidCallback onPressed;
 
   @override
@@ -396,7 +393,7 @@ class _ArtistSplitCheck extends StatelessWidget {
       child: Center(
         child: InkWell(
           borderRadius: BorderRadius.circular(5),
-          onTap: disabled ? null : onPressed,
+          onTap: onPressed,
           child: Container(
             width: 18,
             height: 18,

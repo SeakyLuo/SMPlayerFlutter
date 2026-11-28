@@ -253,27 +253,4 @@ extension _SettingsLibraryActions on _SettingsPageState {
       );
     });
   }
-
-  void _dismissScanResultArtistSplitSuggestions() {
-    _updateSettingsPageState(() {
-      final current = _scanResultDialog;
-      if (current == null) {
-        return;
-      }
-      _scanResultDialog = (
-        folder: current.folder,
-        result: LocalFolderRefreshResult(
-          libraryChanged: current.result.libraryChanged,
-          requiresFullReload: current.result.requiresFullReload,
-          filesAdded: current.result.filesAdded,
-          filesUpdated: current.result.filesUpdated,
-          filesRemoved: current.result.filesRemoved,
-          filesMoved: current.result.filesMoved,
-          artistSplitsApplied: const [],
-          artistSplitSuggestions: const [],
-          artistMergeSuggestions: const [],
-        ),
-      );
-    });
-  }
 }

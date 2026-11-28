@@ -1,9 +1,14 @@
 part of 'recent_page.dart';
 
 class _RecentPagePanel extends StatelessWidget {
-  const _RecentPagePanel({this.topPadding = 6, required this.child});
+  const _RecentPagePanel({
+    this.topPadding = 6,
+    this.trailingScrollbar = false,
+    required this.child,
+  });
 
   final double topPadding;
+  final bool trailingScrollbar;
   final Widget child;
 
   @override
@@ -12,7 +17,7 @@ class _RecentPagePanel extends StatelessWidget {
       padding: EdgeInsets.fromLTRB(
         _recentMinimalPageHorizontalPadding,
         topPadding,
-        _recentMinimalPageHorizontalPadding,
+        trailingScrollbar ? 0 : _recentMinimalPageHorizontalPadding,
         0,
       ),
       child: SizedBox.expand(child: child),

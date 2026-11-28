@@ -83,7 +83,10 @@ class _SmPlayerAutoHideScrollbarState extends State<SmPlayerAutoHideScrollbar>
         interactive: true,
         thumbVisibility: true,
         trackVisibility: false,
-        child: widget.child,
+        child: ScrollConfiguration(
+          behavior: ScrollConfiguration.of(context).copyWith(scrollbars: false),
+          child: widget.child,
+        ),
       ),
     );
     if (!widget.showOnHover) {

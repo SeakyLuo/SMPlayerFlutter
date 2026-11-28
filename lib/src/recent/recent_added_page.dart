@@ -59,21 +59,26 @@ class _RecentAddedPage extends StatelessWidget {
     return Column(
       spacing: 4,
       children: [
-        CommandBar(
-          overflowLabel: i18n.t('player.more'),
-          content: _RecentCommandBarTimelineLabel(label: timelineLabel),
-          children: [
-            CommandBarButton(
-              icon: FluentIcons.multiselect_ltr_20_regular,
-              label: i18n.t('albums.multiSelect'),
-              active: multiSelect,
-              activeMatchesHover: true,
-              tooltip:
-                  multiSelect ? i18n.t('common.exitMultiSelectTooltip') : null,
-              disabled: songs.isEmpty,
-              onPressed: onToggleMultiSelect,
-            ),
-          ],
+        Padding(
+          padding: const EdgeInsets.only(right: recentScrollbarGutter),
+          child: CommandBar(
+            overflowLabel: i18n.t('player.more'),
+            content: _RecentCommandBarTimelineLabel(label: timelineLabel),
+            children: [
+              CommandBarButton(
+                icon: FluentIcons.multiselect_ltr_20_regular,
+                label: i18n.t('albums.multiSelect'),
+                active: multiSelect,
+                activeMatchesHover: true,
+                tooltip:
+                    multiSelect
+                        ? i18n.t('common.exitMultiSelectTooltip')
+                        : null,
+                disabled: songs.isEmpty,
+                onPressed: onToggleMultiSelect,
+              ),
+            ],
+          ),
         ),
         Expanded(
           child: _RecentSongGrid(

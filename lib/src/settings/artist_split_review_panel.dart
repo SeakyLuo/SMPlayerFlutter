@@ -85,7 +85,11 @@ class _ArtistSplitReviewPanelState extends State<ArtistSplitReviewPanel> {
       possibleSplits: widget.possibleSplits,
       mergeSuggestions: widget.mergeSuggestions,
     );
-    final selectedSplits = _selectedSplits(result);
+    final pendingSplits = _splitItems(
+      result,
+      appliedDirectSplits: widget.appliedDirectSplits,
+    );
+    final selectedSplits = _selectedSplits(pendingSplits);
 
     final applying = widget.applying || _applying;
     return LayoutBuilder(
@@ -197,24 +201,30 @@ class _ArtistSplitReviewPanelState extends State<ArtistSplitReviewPanel> {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       _ArtistSplitFooterButton(
-                        label: i18n.t('local.keepArtistSplits'),
+                        label: i18n.t(
+                          pendingSplits.isEmpty
+                              ? 'common.close'
+                              : 'local.keepArtistSplits',
+                        ),
                         onPressed: applying ? null : widget.onClose,
                       ),
-                      const SizedBox(width: 10),
-                      _ArtistSplitFooterButton(
-                        label:
-                            applying
-                                ? i18n.t('local.applyingArtistSplits')
-                                : i18n.t('local.applySelectedArtistSplits', {
-                                  'count': selectedSplits.length,
-                                }),
-                        primary: true,
-                        loading: applying,
-                        onPressed:
-                            applying || selectedSplits.isEmpty
-                                ? null
-                                : () => _applySelectedSplits(selectedSplits),
-                      ),
+                      if (pendingSplits.isNotEmpty) ...[
+                        const SizedBox(width: 10),
+                        _ArtistSplitFooterButton(
+                          label:
+                              applying
+                                  ? i18n.t('local.applyingArtistSplits')
+                                  : i18n.t('local.applySelectedArtistSplits', {
+                                    'count': selectedSplits.length,
+                                  }),
+                          primary: true,
+                          loading: applying,
+                          onPressed:
+                              applying || selectedSplits.isEmpty
+                                  ? null
+                                  : () => _applySelectedSplits(selectedSplits),
+                        ),
+                      ],
                     ],
                   ),
                 ),
@@ -227,13 +237,10 @@ class _ArtistSplitReviewPanelState extends State<ArtistSplitReviewPanel> {
   }
 
   List<ArtistSplitResultItem> _selectedSplits(
-    ArtistSplitAnalysisResult result,
+    List<ArtistSplitResultItem> pendingSplits,
   ) {
     return [
-      for (final item in _splitItems(
-        result,
-        appliedDirectSplits: widget.appliedDirectSplits,
-      ))
+      for (final item in pendingSplits)
         if (_selectedSongIds.contains(item.songId))
           _editedSplitItem(item, _artistEdits[item.songId] ?? item.artists),
     ];

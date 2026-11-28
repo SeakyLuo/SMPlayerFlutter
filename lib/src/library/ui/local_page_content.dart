@@ -657,8 +657,6 @@ extension _LocalPageContent on _LocalPageState {
                       ),
                   onApplyArtistSplits:
                       (splits) => _applyFolderUpdateArtistSplits(splits, i18n),
-                  onDismissArtistSplitSuggestions:
-                      _dismissFolderUpdateArtistSplitSuggestions,
                   onClose: () {
                     _updateLocalPageState(() {
                       _refreshResultDialog = null;
