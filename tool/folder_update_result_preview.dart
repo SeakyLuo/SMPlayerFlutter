@@ -27,7 +27,6 @@ void main() {
           onPlay: (_) {},
           onOpenSongMenu: (_, _) {},
           onApplyArtistSplits: (_) {},
-          onDismissArtistSplitSuggestions: () {},
           onClose: () {},
         ),
       ),
